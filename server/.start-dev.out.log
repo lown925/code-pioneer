@@ -1,0 +1,13 @@
+
+> server@0.0.1 start:dev
+> nest start --watch
+
+[2J[3J[H[[90m14:00:20[0m] Starting compilation in watch mode...
+
+[[90m14:00:21[0m] Found 0 errors. Watching for file changes.
+
+[32m[Nest] 73244  - [39m2026/07/13 14:00:26 [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+[32m[Nest] 73244  - [39m2026/07/13 14:00:26 [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +9ms[39m
+[32m[Nest] 73244  - [39m2026/07/13 14:00:26 [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAppController {/api/v1/health}:[39m[38;5;3m +3ms[39m
+[32m[Nest] 73244  - [39m2026/07/13 14:00:26 [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/health, GET} route[39m[38;5;3m +3ms[39m
+[32m[Nest] 73244  - [39m2026/07/13 14:00:26 [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +2ms[39m
