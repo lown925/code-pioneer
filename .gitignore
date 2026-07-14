@@ -2,6 +2,8 @@ server/node_modules/
 server/dist/
 server/.tsbuildinfo
 server/coverage/
+server/.env
+server/generated/
 # Runtime logs
 *.log
 server/.start-dev.*.log
