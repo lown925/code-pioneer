@@ -1,0 +1,6 @@
+<view class="page-shell">
+  <view class="section-card state-box">
+    <text class="state-title">互助页占位</text>
+    <text class="state-text">本次工单不开发社区业务，只保留文档要求的一级入口。</text>
+  </view>
+</view>

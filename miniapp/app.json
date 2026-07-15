@@ -1,0 +1,51 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/course/list",
+    "pages/course/detail",
+    "pages/battle/index",
+    "pages/community/index",
+    "pages/profile/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "码站先锋",
+    "navigationBarBackgroundColor": "#F4F8FC",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F4F8FC",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#7D8AA5",
+    "selectedColor": "#2F6BFF",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页",
+        "iconPath": "assets/tab-default.png",
+        "selectedIconPath": "assets/tab-selected.png"
+      },
+      {
+        "pagePath": "pages/battle/index",
+        "text": "对战",
+        "iconPath": "assets/tab-default.png",
+        "selectedIconPath": "assets/tab-selected.png"
+      },
+      {
+        "pagePath": "pages/community/index",
+        "text": "互助",
+        "iconPath": "assets/tab-default.png",
+        "selectedIconPath": "assets/tab-selected.png"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的",
+        "iconPath": "assets/tab-default.png",
+        "selectedIconPath": "assets/tab-selected.png"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

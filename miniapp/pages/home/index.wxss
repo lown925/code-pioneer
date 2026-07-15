@@ -1,0 +1,159 @@
+.home-page {
+  gap: 24rpx;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero {
+  padding: 36rpx 32rpx;
+  background: linear-gradient(145deg, #0e56d8 0%, #4aa4ff 100%);
+  color: #ffffff;
+}
+
+.hero-brand {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+}
+
+.hero-title {
+  display: block;
+  margin-top: 24rpx;
+  font-size: 44rpx;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.hero-copy {
+  display: block;
+  margin-top: 18rpx;
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.hero-actions {
+  margin-top: 32rpx;
+}
+
+.learning-card {
+  padding: 30rpx;
+}
+
+.learning-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.learning-tag {
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: #eef4ff;
+  color: #2f6bff;
+  font-size: 22rpx;
+}
+
+.learning-empty {
+  margin-top: 24rpx;
+  padding: 26rpx;
+  border-radius: 24rpx;
+  background: #f6f9fd;
+}
+
+.learning-empty-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #17324d;
+}
+
+.learning-empty-text {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: #6e84a3;
+}
+
+.section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.section-link {
+  min-height: 68rpx;
+  padding: 0 26rpx;
+  font-size: 24rpx;
+}
+
+.course-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.course-card {
+  padding: 28rpx;
+}
+
+.course-card-top {
+  display: flex;
+  gap: 20rpx;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.course-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.course-title {
+  display: block;
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.course-summary {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: #5f7596;
+}
+
+.course-badge {
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: #ebf3ff;
+  color: #2f6bff;
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.course-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 18rpx;
+  font-size: 24rpx;
+  color: #6e84a3;
+}
+
+.course-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24rpx;
+}
+
+.course-link {
+  color: #2f6bff;
+  font-size: 26rpx;
+  font-weight: 600;
+}

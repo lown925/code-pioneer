@@ -1,0 +1,75 @@
+<view class="page-shell home-page">
+  <view class="hero section-card">
+    <text class="hero-brand">码站先锋</text>
+    <text class="hero-title">从一门课程开始，稳稳进入编程世界</text>
+    <text class="hero-copy">首页先聚焦课程浏览：推荐课程、我的学习占位和全部课程入口都在这里。</text>
+    <view class="hero-actions">
+      <view class="primary-button" bindtap="openCourseList">查看全部课程</view>
+    </view>
+  </view>
+
+  <view class="section-card learning-card">
+    <view class="learning-head">
+      <text class="section-title">我的学习</text>
+      <text class="learning-tag">当前可为空</text>
+    </view>
+    <text class="section-subtitle">登录和学习进度模块尚未开发，这里先保留文档要求的首页区域。</text>
+    <view class="learning-empty">
+      <text class="learning-empty-title">还没有个人学习记录</text>
+      <text class="learning-empty-text">课程浏览已可用，后续会在登录与学习进度任务中补齐继续学习能力。</text>
+    </view>
+  </view>
+
+  <view class="section-head">
+    <view>
+      <text class="section-title">推荐课程</text>
+      <text class="section-subtitle">数据来自当前已发布课程接口</text>
+    </view>
+    <view class="ghost-button section-link" bindtap="openCourseList">全部课程</view>
+  </view>
+
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">课程加载中</text>
+    <text class="state-text">正在从后端读取推荐课程，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
+    <text class="state-title">推荐课程加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <view wx:elif="{{state === 'empty'}}" class="section-card state-box">
+    <text class="state-title">暂无可推荐课程</text>
+    <text class="state-text">当前没有已发布课程，请稍后再来查看。</text>
+  </view>
+
+  <view wx:else class="course-list">
+    <view
+      wx:for="{{recommendedCourses}}"
+      wx:key="id"
+      class="section-card course-card"
+      data-course-id="{{item.id}}"
+      bindtap="openCourseDetail"
+    >
+      <view class="course-card-top">
+        <view class="course-card-main">
+          <text class="course-title">{{item.title}}</text>
+          <text class="course-summary">{{item.summary}}</text>
+        </view>
+        <text class="course-badge">{{item.difficultyText}}</text>
+      </view>
+      <view class="course-meta">
+        <text>预计学习：{{item.estimatedMinutesText}}</text>
+        <text>章节：{{item.chapterCount}}</text>
+      </view>
+      <view class="course-meta">
+        <text>学习人数：{{item.learnerCount}}</text>
+        <text>当前进度：{{item.progressPercent}}%</text>
+      </view>
+      <view class="course-card-footer">
+        <text class="course-link">查看课程详情</text>
+      </view>
+    </view>
+  </view>
+</view>

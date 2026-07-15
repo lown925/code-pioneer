@@ -7,3 +7,5 @@ server/generated/
 # Runtime logs
 *.log
 server/.start-dev.*.log
+# WeChat DevTools local settings
+miniapp/project.private.config.json

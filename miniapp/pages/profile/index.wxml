@@ -1,0 +1,6 @@
+<view class="page-shell">
+  <view class="section-card state-box">
+    <text class="state-title">我的页占位</text>
+    <text class="state-text">登录、学习进度和个人中心能力尚未开发，这里先保留文档要求的入口。</text>
+  </view>
+</view>

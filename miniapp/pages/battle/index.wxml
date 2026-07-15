@@ -1,0 +1,6 @@
+<view class="page-shell">
+  <view class="section-card state-box">
+    <text class="state-title">对战页占位</text>
+    <text class="state-text">本次工单只按文档保留对战一级入口，具体业务功能后续开发。</text>
+  </view>
+</view>
