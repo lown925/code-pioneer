@@ -13,6 +13,25 @@ datasource db {
   provider = "postgresql"
 }
 
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  OFFLINE
+}
+
+enum CourseDifficulty {
+  BEGINNER
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum ChapterStatus {
+  DRAFT
+  PUBLISHED
+  OFFLINE
+}
+
 model SystemHealth {
   id        Int      @id @default(autoincrement())
   name      String   @unique
@@ -27,4 +46,52 @@ model User {
   nickname  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Course {
+  id                 String           @id @default(uuid()) @db.Uuid
+  title              String
+  slug               String           @unique
+  summary            String
+  description        String?
+  coverUrl           String?          @map("cover_url")
+  difficulty         CourseDifficulty @default(BEGINNER)
+  estimatedMinutes   Int              @default(0) @map("estimated_minutes")
+  targetAudience     String?          @map("target_audience")
+  learningObjectives Json?            @map("learning_objectives")
+  status             CourseStatus     @default(DRAFT)
+  sortOrder          Int              @default(0) @map("sort_order")
+  learnerCount       Int              @default(0) @map("learner_count")
+  publishedAt        DateTime?        @map("published_at")
+  createdById        String?          @map("created_by_id") @db.Uuid
+  updatedById        String?          @map("updated_by_id") @db.Uuid
+  deletedAt          DateTime?        @map("deleted_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  chapters           CourseChapter[]
+
+  @@index([status, sortOrder])
+  @@index([createdAt])
+  @@map("courses")
+}
+
+model CourseChapter {
+  id               String        @id @default(uuid()) @db.Uuid
+  courseId         String        @map("course_id") @db.Uuid
+  title            String
+  summary          String?
+  estimatedMinutes Int           @default(0) @map("estimated_minutes")
+  sortOrder        Int           @default(0) @map("sort_order")
+  status           ChapterStatus @default(DRAFT)
+  publishedAt      DateTime?     @map("published_at")
+  createdById      String?       @map("created_by_id") @db.Uuid
+  updatedById      String?       @map("updated_by_id") @db.Uuid
+  deletedAt        DateTime?     @map("deleted_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  course           Course        @relation(fields: [courseId], references: [id])
+
+  @@index([courseId, status, sortOrder])
+  @@index([courseId])
+  @@map("course_chapters")
 }

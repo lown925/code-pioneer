@@ -7,7 +7,12 @@
 - 全局 API 前缀 api/v1
 - 健康检查接口
 - Build、Lint、Unit Test、E2E Test 验证
+- Prisma 与 PostgreSQL 接入
+- User 基础模块
+- Course 与 CourseChapter 基础模块
+- 课程列表与课程详情接口
 
-当前任务：CP-002C 仓库基线清理
-下一任务：CP-003 接入 PostgreSQL 与 Prisma
+当前任务：CP-005R 课程与章节基础模块
+状态：等待验收
+下一任务：待 Tech Lead 确认
 当前阻塞项：暂无
