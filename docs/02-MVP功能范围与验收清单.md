@@ -260,13 +260,14 @@ GET /api/health
 ## 6.5 核心接口
 
 ```text
-POST /api/auth/wechat-login
-GET  /api/auth/me
-POST /api/auth/logout
+POST /api/v1/auth/wechat-login
+POST /api/v1/auth/refresh
+GET  /api/v1/auth/me
+POST /api/v1/auth/logout
 
-POST /api/admin/auth/login
-GET  /api/admin/auth/me
-POST /api/admin/auth/logout
+POST /api/v1/admin/auth/login
+GET  /api/v1/admin/auth/me
+POST /api/v1/admin/auth/logout
 ```
 
 ## 6.6 验收标准

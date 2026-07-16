@@ -22,6 +22,7 @@
 - 修复损坏的 Nest CLI 依赖安装产物
 - 统一文档中的 /api/v1 接口路径、practices 资源命名与 attemptId 参数命名
 - 修正文档中的章节完成规则为小测达及格分后方可完成章节
+- 统一认证文档中的普通用户接口路径、Mock 登录契约、UserSession 会话规则与按需登录原则
 
 ### Changed
 - 恢复标准 NestJS 构建与开发启动脚本
@@ -29,3 +30,4 @@
 - PROJECT_STATE 更新为 CP-006R 待验收状态
 - 课程详情页章节入口改为跳转章节阅读页
 - PROJECT_STATE 更新为 CP-007B-DESIGN 待验收状态
+- 认证设计拆分为 CP-007C-01A、CP-007C-01B、CP-007C-01C 三个实现工单

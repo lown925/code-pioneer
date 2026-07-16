@@ -5,3 +5,8 @@ D-004：项目暂时继续使用 Node.js v24.15.0；此前 Nest CLI 故障已证
 D-005：运行日志不得提交到 Git。
 D-006：题型扩展为 SINGLE_CHOICE、TRUE_FALSE、FILL_BLANK、CODE_OUTPUT、CODE_INPUT；保留 CODE_OUTPUT，不与代码输入题合并。
 D-007：CODE_INPUT 第一版采用多参考答案加字符串标准化匹配，不执行用户代码，不引入 Docker、沙箱、测试用例执行或 AI 判分。
+D-008：普通用户开发态 Mock 登录复用正式接口 `POST /api/v1/auth/wechat-login`，不新增 `/api/v1/auth/mock-login`。
+D-009：Mock 登录仅在非生产环境且显式开启时生效；生产环境必须拒绝 Mock code。
+D-010：普通用户正式模型以 UUID `User` 与 `UserSession` 为准，不继续扩大临时 `Int + username` 用户结构的使用范围。
+D-011：普通用户认证落地前先完成受控用户迁移，不执行数据库 reset，且必须保护现有课程、章节与内容块数据。
+D-012：公开内容保持匿名可读，受保护功能按需登录，小程序不强制启动即登录。
