@@ -15,12 +15,17 @@
 - ChapterContentBlock Prisma 模型与章节内容块迁移
 - GET /api/v1/chapters/:chapterId 章节详情接口
 - 小程序章节阅读页与移动端目录抽屉
+- 文档补充内嵌练习接口定义：GET /api/v1/questions/:questionId 与 POST /api/v1/questions/:questionId/answer
+- 文档补充 FILL_BLANK 与 CODE_INPUT 题型及判题规则
 
 ### Fixed
 - 修复损坏的 Nest CLI 依赖安装产物
+- 统一文档中的 /api/v1 接口路径、practices 资源命名与 attemptId 参数命名
+- 修正文档中的章节完成规则为小测达及格分后方可完成章节
 
 ### Changed
 - 恢复标准 NestJS 构建与开发启动脚本
 - PROJECT_STATE 更新为 CP-005R 待验收状态
 - PROJECT_STATE 更新为 CP-006R 待验收状态
 - 课程详情页章节入口改为跳转章节阅读页
+- PROJECT_STATE 更新为 CP-007B-DESIGN 待验收状态

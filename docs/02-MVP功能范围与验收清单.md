@@ -374,6 +374,7 @@ Python编程入门
 * [ ] 警告框。
 * [ ] 示例块。
 * [ ] 内嵌练习题。
+* [ ] 内嵌练习题即时反馈。
 * [ ] 完成本节按钮。
 * [ ] 进入章节小测按钮。
 
@@ -389,13 +390,12 @@ Python编程入门
 ## 8.6 核心接口
 
 ```text
-GET  /api/courses
-GET  /api/courses/:courseId
-GET  /api/courses/:courseId/chapters
-GET  /api/chapters/:chapterId
-POST /api/chapters/:chapterId/start
-POST /api/chapters/:chapterId/complete
-GET  /api/learning/progress
+GET  /api/v1/courses
+GET  /api/v1/courses/:courseId
+GET  /api/v1/chapters/:chapterId
+POST /api/v1/chapters/:chapterId/start
+POST /api/v1/chapters/:chapterId/complete
+GET  /api/v1/learning/progress
 ```
 
 ## 8.7 验收标准
@@ -424,6 +424,8 @@ GET  /api/learning/progress
 * 单选题。
 * 判断题。
 * 代码输出选择题。
+* 填空题。
+* 代码输入题。
 
 ## 9.2 必须完成内容
 
@@ -445,10 +447,10 @@ GET  /api/learning/progress
 ## 9.3 核心接口
 
 ```text
-GET  /api/chapters/:chapterId/quiz
-POST /api/quizzes/start
-POST /api/quizzes/:quizRecordId/submit
-GET  /api/quizzes/:quizRecordId/result
+GET  /api/v1/chapters/:chapterId/quiz
+POST /api/v1/quizzes/start
+POST /api/v1/quizzes/:attemptId/submit
+GET  /api/v1/quizzes/:attemptId/result
 ```
 
 ## 9.4 验收标准
@@ -465,7 +467,8 @@ GET  /api/quizzes/:quizRecordId/result
 10. 结果页正确展示标准答案。
 11. 结果页正确展示解析。
 12. 重新测试后生成新的独立记录。
-13. 章节完成状态正确更新。
+13. 小测达到及格分数后章节完成状态正确更新。
+14. 未达到及格分数时保留小测记录并允许再次测试。
 
 ---
 
@@ -543,10 +546,12 @@ PATCH /api/wrong-questions/:id/status
 ## 11.3 核心接口
 
 ```text
-POST /api/practice/start
-POST /api/practice/:practiceId/answer
-POST /api/practice/:practiceId/finish
-GET  /api/practice/:practiceId/result
+POST /api/v1/practices
+GET  /api/v1/practices/:practiceId
+POST /api/v1/practices/:practiceId/answers
+POST /api/v1/practices/:practiceId/finish
+POST /api/v1/practices/:practiceId/abandon
+GET  /api/v1/practices/:practiceId/result
 ```
 
 ## 11.4 验收标准
