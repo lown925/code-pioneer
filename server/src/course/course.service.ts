@@ -10,8 +10,18 @@ export const COURSE_DIFFICULTIES = [
 
 const PUBLISHED_COURSE_STATUS = 'PUBLISHED';
 const PUBLISHED_CHAPTER_STATUS = 'PUBLISHED';
+const LEARNING_STATUS_NOT_STARTED = 'NOT_STARTED';
 
 export type CourseDifficultyValue = (typeof COURSE_DIFFICULTIES)[number];
+type ContentBlockTypeValue =
+  | 'TEXT'
+  | 'HEADING'
+  | 'IMAGE'
+  | 'CODE'
+  | 'TIP'
+  | 'WARNING'
+  | 'EXAMPLE'
+  | 'QUESTION';
 
 type CourseWhere = {
   status: 'PUBLISHED';
@@ -54,6 +64,28 @@ type CourseDetailRecord = {
   chapters: CourseDetailChapterRecord[];
 };
 
+type ChapterContentBlockRecord = {
+  id: string;
+  type: ContentBlockTypeValue;
+  sortOrder: number;
+  content: unknown;
+};
+
+type ChapterDetailRecord = {
+  id: string;
+  courseId: string;
+  title: string;
+  summary: string | null;
+  estimatedMinutes: number;
+  sortOrder: number;
+  course: {
+    title: string;
+    status: 'DRAFT' | 'PUBLISHED' | 'OFFLINE';
+    deletedAt: Date | null;
+  };
+  contentBlocks: ChapterContentBlockRecord[];
+};
+
 type CourseDelegate = {
   findMany(args: {
     where: CourseWhere;
@@ -68,6 +100,28 @@ type CourseDelegate = {
     select: unknown;
   }): Promise<CourseDetailRecord | null>;
 };
+
+type ChapterDelegate = {
+  findFirst(args: {
+    where: {
+      id: string;
+      status: 'PUBLISHED';
+      deletedAt: null;
+    };
+    select: unknown;
+  }): Promise<ChapterDetailRecord | null>;
+  findMany(args: {
+    where: {
+      courseId: string;
+      status: 'PUBLISHED';
+      deletedAt: null;
+    };
+    orderBy: Array<Record<string, 'asc' | 'desc'>>;
+    select: unknown;
+  }): Promise<Array<{ id: string }>>;
+};
+
+type ContentBlockPayload = Record<string, unknown>;
 
 @Injectable()
 export class CourseService {
@@ -125,7 +179,7 @@ export class CourseService {
           estimatedMinutes: course.estimatedMinutes,
           chapterCount: course.chapters.length,
           learnerCount: course.learnerCount,
-          // Learning progress is not implemented in CP-005R, so public progress stays at 0.
+          // Learning progress is not implemented in the current MVP slice.
           progressPercent: 0,
         })),
         pagination: {
@@ -199,6 +253,250 @@ export class CourseService {
     };
   }
 
+  async getChapterDetail(chapterId: string) {
+    const chapter = await this.chapterModel.findFirst({
+      where: {
+        id: chapterId,
+        status: PUBLISHED_CHAPTER_STATUS,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        courseId: true,
+        title: true,
+        summary: true,
+        estimatedMinutes: true,
+        sortOrder: true,
+        course: {
+          select: {
+            title: true,
+            status: true,
+            deletedAt: true,
+          },
+        },
+        contentBlocks: {
+          where: {
+            isVisible: true,
+            deletedAt: null,
+          },
+          orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+          select: {
+            id: true,
+            type: true,
+            sortOrder: true,
+            content: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !chapter ||
+      chapter.course.status !== PUBLISHED_COURSE_STATUS ||
+      chapter.course.deletedAt !== null
+    ) {
+      throw new NotFoundException('Chapter not found');
+    }
+
+    const chapterOrder = await this.chapterModel.findMany({
+      where: {
+        courseId: chapter.courseId,
+        status: PUBLISHED_CHAPTER_STATUS,
+        deletedAt: null,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+      },
+    });
+    const currentIndex = chapterOrder.findIndex(
+      (item) => item.id === chapter.id,
+    );
+
+    return {
+      success: true,
+      data: {
+        id: chapter.id,
+        courseId: chapter.courseId,
+        courseTitle: chapter.course.title,
+        title: chapter.title,
+        summary: chapter.summary,
+        estimatedMinutes: chapter.estimatedMinutes,
+        sortOrder: chapter.sortOrder,
+        hasQuiz: false,
+        // Chapter learning records are not implemented in the current MVP slice.
+        learningStatus: LEARNING_STATUS_NOT_STARTED,
+        previousChapterId:
+          currentIndex > 0
+            ? (chapterOrder[currentIndex - 1]?.id ?? null)
+            : null,
+        nextChapterId:
+          currentIndex >= 0 && currentIndex < chapterOrder.length - 1
+            ? (chapterOrder[currentIndex + 1]?.id ?? null)
+            : null,
+        contentBlocks: this.normalizeContentBlocks(chapter.contentBlocks),
+      },
+    };
+  }
+
+  private normalizeContentBlocks(blocks: ChapterContentBlockRecord[]) {
+    return blocks
+      .map((block) => {
+        const content = this.sanitizeBlockContent(block.type, block.content);
+
+        if (!content) {
+          return null;
+        }
+
+        return {
+          id: block.id,
+          type: block.type,
+          sortOrder: block.sortOrder,
+          content,
+        };
+      })
+      .filter(
+        (
+          block,
+        ): block is {
+          id: string;
+          type: ContentBlockTypeValue;
+          sortOrder: number;
+          content: ContentBlockPayload;
+        } => block !== null,
+      );
+  }
+
+  private sanitizeBlockContent(
+    type: ContentBlockTypeValue,
+    content: unknown,
+  ): ContentBlockPayload | null {
+    if (!this.isRecord(content)) {
+      return null;
+    }
+
+    switch (type) {
+      case 'TEXT': {
+        const text = this.getOptionalString(content.text);
+        return text ? { text } : null;
+      }
+      case 'HEADING': {
+        const text = this.getOptionalString(content.text);
+        const level = this.getHeadingLevel(content.level);
+
+        if (!text) {
+          return null;
+        }
+
+        return level ? { text, level } : { text };
+      }
+      case 'IMAGE': {
+        const url = this.getOptionalString(content.url);
+
+        if (!url) {
+          return null;
+        }
+
+        return this.withOptionalStrings(
+          { url },
+          {
+            alt: content.alt,
+            caption: content.caption,
+          },
+        );
+      }
+      case 'CODE': {
+        const language = this.getOptionalString(content.language);
+        const code = this.getOptionalString(content.code);
+
+        if (!language || !code) {
+          return null;
+        }
+
+        return this.withOptionalStrings(
+          {
+            language,
+            code,
+          },
+          {
+            caption: content.caption,
+          },
+        );
+      }
+      case 'TIP':
+      case 'WARNING': {
+        const text = this.getOptionalString(content.text);
+
+        if (!text) {
+          return null;
+        }
+
+        return this.withOptionalStrings(
+          { text },
+          {
+            title: content.title,
+          },
+        );
+      }
+      case 'EXAMPLE': {
+        const description = this.getOptionalString(content.description);
+        const code = this.getOptionalString(content.code);
+        const text = this.getOptionalString(content.text);
+
+        if (!description && !code && !text) {
+          return null;
+        }
+
+        return this.withOptionalStrings(
+          {},
+          {
+            title: content.title,
+            description,
+            text,
+            language: content.language,
+            code,
+            caption: content.caption,
+          },
+        );
+      }
+      case 'QUESTION': {
+        const questionId = this.getOptionalString(content.questionId);
+        return questionId ? { questionId } : null;
+      }
+      default:
+        return null;
+    }
+  }
+
+  private withOptionalStrings(
+    base: ContentBlockPayload,
+    fields: Record<string, unknown>,
+  ) {
+    const payload: ContentBlockPayload = { ...base };
+
+    Object.entries(fields).forEach(([key, value]) => {
+      const normalized = this.getOptionalString(value);
+
+      if (normalized) {
+        payload[key] = normalized;
+      }
+    });
+
+    return payload;
+  }
+
+  private getOptionalString(value: unknown) {
+    return typeof value === 'string' && value.trim().length > 0 ? value : null;
+  }
+
+  private getHeadingLevel(value: unknown) {
+    return value === 1 || value === 2 || value === 3 ? value : null;
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
   private buildPublicCourseWhere(
     difficulty?: CourseDifficultyValue,
   ): CourseWhere {
@@ -211,5 +509,13 @@ export class CourseService {
 
   private get courseModel(): CourseDelegate {
     return (this.prisma as PrismaService & { course: CourseDelegate }).course;
+  }
+
+  private get chapterModel(): ChapterDelegate {
+    return (
+      this.prisma as PrismaService & {
+        courseChapter: ChapterDelegate;
+      }
+    ).courseChapter;
   }
 }

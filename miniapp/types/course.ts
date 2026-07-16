@@ -36,6 +36,23 @@ export type CourseChapter = {
   sortOrder: number;
 };
 
+export type ChapterContentBlockType =
+  | 'TEXT'
+  | 'HEADING'
+  | 'IMAGE'
+  | 'CODE'
+  | 'TIP'
+  | 'WARNING'
+  | 'EXAMPLE'
+  | 'QUESTION';
+
+export type ChapterContentBlock = {
+  id: string;
+  type: ChapterContentBlockType;
+  sortOrder: number;
+  content: Record<string, unknown>;
+};
+
 export type CourseDetailData = {
   id: string;
   slug: string;
@@ -50,4 +67,19 @@ export type CourseDetailData = {
   learnerCount: number;
   progressPercent: number;
   chapters: CourseChapter[];
+};
+
+export type ChapterDetailData = {
+  id: string;
+  courseId: string;
+  courseTitle: string;
+  title: string;
+  summary: string | null;
+  estimatedMinutes: number;
+  sortOrder: number;
+  hasQuiz: boolean;
+  learningStatus: 'NOT_STARTED' | 'LEARNING' | 'COMPLETED';
+  previousChapterId: string | null;
+  nextChapterId: string | null;
+  contentBlocks: ChapterContentBlock[];
 };

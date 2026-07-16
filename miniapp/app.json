@@ -3,6 +3,7 @@
     "pages/home/index",
     "pages/course/list",
     "pages/course/detail",
+    "pages/chapter/detail",
     "pages/battle/index",
     "pages/community/index",
     "pages/profile/index"

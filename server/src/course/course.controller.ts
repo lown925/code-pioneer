@@ -14,11 +14,11 @@ import {
   CourseService,
 } from './course.service';
 
-@Controller('courses')
+@Controller()
 export class CourseController {
   constructor(private readonly courseService: CourseService) {}
 
-  @Get()
+  @Get('courses')
   listCourses(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('pageSize', new DefaultValuePipe(20), ParseIntPipe) pageSize: number,
@@ -46,8 +46,13 @@ export class CourseController {
     );
   }
 
-  @Get(':courseId')
+  @Get('courses/:courseId')
   getCourseDetail(@Param('courseId', ParseUUIDPipe) courseId: string) {
     return this.courseService.getCourseDetail(courseId);
+  }
+
+  @Get('chapters/:chapterId')
+  getChapterDetail(@Param('chapterId', ParseUUIDPipe) chapterId: string) {
+    return this.courseService.getChapterDetail(chapterId);
   }
 }

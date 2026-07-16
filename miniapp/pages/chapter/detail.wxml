@@ -1,0 +1,140 @@
+<view class="page-shell chapter-detail-page">
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">章节内容加载中</text>
+    <text class="state-text">正在读取章节正文与目录，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
+    <text class="state-title">章节内容加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <block wx:else>
+    <view class="reader-top">
+      <view class="top-center top-center-wide">
+        <text class="top-course">{{courseTitle}}</text>
+        <text class="top-position">{{chapterPositionText}}</text>
+      </view>
+    </view>
+
+    <view class="section-card chapter-overview-card">
+      <text class="chapter-overview-course">{{courseTitle}}</text>
+      <text class="chapter-overview-title">{{title}}</text>
+      <text wx:if="{{summary}}" class="chapter-overview-summary">{{summary}}</text>
+      <view class="chapter-overview-meta">
+        <text class="chapter-overview-pill">{{estimatedMinutesText}}</text>
+        <text wx:if="{{chapterPositionText}}" class="chapter-overview-pill">{{chapterPositionText}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{contentBlocks.length > 0}}" class="content-block-list">
+      <block wx:for="{{contentBlocks}}" wx:key="id">
+        <view wx:if="{{item.type === 'HEADING'}}" class="section-card content-card heading-card">
+          <text class="heading-text heading-level-{{item.headingLevel}}">{{item.text}}</text>
+        </view>
+
+        <view wx:elif="{{item.type === 'TEXT'}}" class="section-card content-card">
+          <text class="paragraph-text">{{item.text}}</text>
+        </view>
+
+        <view wx:elif="{{item.type === 'TIP'}}" class="section-card content-card callout-card callout-tip">
+          <text wx:if="{{item.title}}" class="callout-title">{{item.title}}</text>
+          <text class="callout-text">{{item.text}}</text>
+        </view>
+
+        <view wx:elif="{{item.type === 'WARNING'}}" class="section-card content-card callout-card callout-warning">
+          <text wx:if="{{item.title}}" class="callout-title">{{item.title}}</text>
+          <text class="callout-text">{{item.text}}</text>
+        </view>
+
+        <view wx:elif="{{item.type === 'CODE'}}" class="section-card content-card code-card">
+          <view class="code-card-head">
+            <text class="code-language">{{item.language}}</text>
+            <view class="ghost-button code-copy-button" bindtap="handleCopyCode" data-code="{{item.code}}">
+              复制代码
+            </view>
+          </view>
+          <text wx:if="{{item.caption}}" class="code-caption">{{item.caption}}</text>
+          <scroll-view scroll-x="true" class="code-scroll">
+            <view class="code-content">{{item.code}}</view>
+          </scroll-view>
+        </view>
+
+        <view wx:elif="{{item.type === 'IMAGE'}}" class="section-card content-card image-card">
+          <image
+            class="content-image"
+            mode="widthFix"
+            src="{{item.imageUrl}}"
+            bindtap="handlePreviewImage"
+            data-url="{{item.imageUrl}}"
+          />
+          <text wx:if="{{item.imageAlt}}" class="image-alt">{{item.imageAlt}}</text>
+          <text wx:if="{{item.caption}}" class="image-caption">{{item.caption}}</text>
+        </view>
+
+        <view wx:elif="{{item.type === 'EXAMPLE'}}" class="section-card content-card example-card">
+          <text wx:if="{{item.title}}" class="example-title">{{item.title}}</text>
+          <text wx:if="{{item.description}}" class="example-description">{{item.description}}</text>
+          <text wx:if="{{item.text}}" class="example-text">{{item.text}}</text>
+          <text wx:if="{{item.caption}}" class="example-caption">{{item.caption}}</text>
+          <scroll-view wx:if="{{item.code}}" scroll-x="true" class="code-scroll">
+            <view class="code-content">{{item.code}}</view>
+          </scroll-view>
+        </view>
+
+        <view wx:elif="{{item.type === 'QUESTION'}}" class="section-card content-card question-card">
+          <text class="question-title">练习题待开放</text>
+          <text class="question-text">当前阅读页仅展示内容，章节题目将在后续工单中接入。</text>
+        </view>
+      </block>
+    </view>
+
+    <view wx:else class="section-card state-box">
+      <text class="state-title">暂无章节内容</text>
+      <text class="state-text">当前章节尚未配置可展示的内容块。</text>
+    </view>
+
+    <view class="section-card chapter-nav-card">
+      <view class="nav-action {{previousChapterId ? '' : 'nav-action-disabled'}}" bindtap="handleNavigatePrevious">
+        <text class="nav-action-label">上一节</text>
+        <text class="nav-action-title">{{previousChapterTitle || '已是第一节'}}</text>
+      </view>
+      <view class="nav-position">
+        <text class="nav-position-text">{{chapterPositionText || '章节阅读'}}</text>
+      </view>
+      <view class="nav-action nav-action-next {{nextChapterId ? '' : 'nav-action-disabled'}}" bindtap="handleNavigateNext">
+        <text class="nav-action-label">下一节</text>
+        <text class="nav-action-title">{{nextChapterTitle || '已是最后一节'}}</text>
+      </view>
+    </view>
+
+    <view class="catalog-fab" bindtap="toggleCatalog">
+      <text class="catalog-fab-text">目录</text>
+    </view>
+
+    <view wx:if="{{showCatalog}}" class="catalog-mask" bindtap="closeCatalog"></view>
+    <view wx:if="{{showCatalog}}" class="catalog-sheet" catchtap="noop">
+      <view class="catalog-sheet-head">
+        <text class="catalog-sheet-title">章节目录</text>
+        <text class="catalog-sheet-subtitle">{{courseTitle}}</text>
+      </view>
+      <view class="catalog-list">
+        <view
+          wx:for="{{chapters}}"
+          wx:key="id"
+          class="catalog-item {{item.isCurrent ? 'catalog-item-current' : ''}}"
+          bindtap="handleCatalogSelect"
+          data-chapter-id="{{item.id}}"
+        >
+          <view class="catalog-order">{{index + 1}}</view>
+          <view class="catalog-main">
+            <text class="catalog-title">{{item.title}}</text>
+            <text class="catalog-subtitle">{{item.estimatedMinutesText}}</text>
+          </view>
+          <text wx:if="{{item.isCurrent}}" class="catalog-current">当前</text>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

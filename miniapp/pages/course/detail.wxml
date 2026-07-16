@@ -70,6 +70,7 @@
         wx:key="id"
         class="section-card chapter-card"
         bindtap="handleChapterTap"
+        data-chapter-id="{{item.id}}"
       >
         <view class="chapter-badge">{{index + 1}}</view>
         <view class="chapter-main">

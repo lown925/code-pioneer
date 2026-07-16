@@ -110,10 +110,15 @@ Page<CourseDetailPageData>({
     void this.loadCourseDetail();
   },
 
-  handleChapterTap() {
-    wx.showToast({
-      title: '章节学习功能开发中',
-      icon: 'none',
+  handleChapterTap(event: WechatMiniprogram.BaseEvent) {
+    const chapterId = event.currentTarget.dataset.chapterId;
+
+    if (!chapterId || typeof chapterId !== 'string') {
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/chapter/detail?chapterId=${chapterId}`,
     });
   },
 });
