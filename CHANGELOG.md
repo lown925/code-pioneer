@@ -17,6 +17,9 @@
 - 小程序章节阅读页与移动端目录抽屉
 - 文档补充内嵌练习接口定义：GET /api/v1/questions/:questionId 与 POST /api/v1/questions/:questionId/answer
 - 文档补充 FILL_BLANK 与 CODE_INPUT 题型及判题规则
+- 正式 UUID User Prisma 模型
+- UserSession Prisma 模型
+- User UUID 与 UserSession 数据库迁移
 
 ### Fixed
 - 修复损坏的 Nest CLI 依赖安装产物
@@ -31,3 +34,7 @@
 - 课程详情页章节入口改为跳转章节阅读页
 - PROJECT_STATE 更新为 CP-007B-DESIGN 待验收状态
 - 认证设计拆分为 CP-007C-01A、CP-007C-01B、CP-007C-01C 三个实现工单
+- 删除临时 User 调试接口并完成最小兼容清理
+
+### Removed
+- 3 条缺少合法 openId 且无外键引用的临时 User 测试数据

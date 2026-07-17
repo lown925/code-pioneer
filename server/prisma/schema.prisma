@@ -43,6 +43,12 @@ enum ContentBlockType {
   QUESTION
 }
 
+enum UserStatus {
+  NORMAL
+  DISABLED
+  DELETED
+}
+
 model SystemHealth {
   id        Int      @id @default(autoincrement())
   name      String   @unique
@@ -52,11 +58,47 @@ model SystemHealth {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  nickname  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                     String        @id @default(uuid()) @db.Uuid
+  openId                 String        @unique @map("open_id")
+  unionId                String?       @unique @map("union_id")
+  nickname               String?
+  avatarUrl              String?       @map("avatar_url")
+  status                 UserStatus    @default(NORMAL)
+  experience             Int           @default(0)
+  battleRating           Int           @default(1000) @map("battle_rating")
+  continuousLearningDays Int           @default(0) @map("continuous_learning_days")
+  lastLearningDate       DateTime?     @map("last_learning_date")
+  lastLoginAt            DateTime?     @map("last_login_at")
+  disabledReason         String?       @map("disabled_reason")
+  disabledAt             DateTime?     @map("disabled_at")
+  deletedAt              DateTime?     @map("deleted_at")
+  createdAt              DateTime      @default(now()) @map("created_at")
+  updatedAt              DateTime      @updatedAt @map("updated_at")
+  sessions               UserSession[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([lastLoginAt])
+  @@map("users")
+}
+
+model UserSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String?   @map("refresh_token_hash")
+  deviceInfo       String?   @map("device_info")
+  ipAddress        String?   @map("ip_address")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  lastUsedAt       DateTime? @map("last_used_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  user             User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("user_sessions")
 }
 
 model Course {
