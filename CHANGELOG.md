@@ -20,6 +20,11 @@
 - 正式 UUID User Prisma 模型
 - UserSession Prisma 模型
 - User UUID 与 UserSession 数据库迁移
+- AuthModule、AuthController、AuthService 与 JWT 服务
+- POST /api/v1/auth/wechat-login 登录接口
+- 开发环境隐藏式 Mock 登录流程
+- 登录成功后创建正式 UserSession 并返回 AccessToken / RefreshToken
+- server/.env.example 认证环境变量模板
 
 ### Fixed
 - 修复损坏的 Nest CLI 依赖安装产物

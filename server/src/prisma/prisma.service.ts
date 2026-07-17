@@ -5,21 +5,11 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { PrismaClient as GeneratedPrismaClient } from '../../generated/prisma/client';
 
-type PrismaClientInstance = {
-  $connect(): Promise<void>;
-  $disconnect(): Promise<void>;
-};
-
-type PrismaClientConstructor = new (...args: unknown[]) => PrismaClientInstance;
-
-const PrismaClient =
-  GeneratedPrismaClient as unknown as PrismaClientConstructor;
-
 const PRISMA_SCHEMA = 'code_pioneer';
 
 @Injectable()
 export class PrismaService
-  extends PrismaClient
+  extends GeneratedPrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
   constructor() {

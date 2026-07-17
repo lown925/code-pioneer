@@ -12,7 +12,7 @@
 - Course 与 CourseChapter 基础模块
 - 课程列表与课程详情接口
 
-当前任务：CP-007C-01A 用户正式模型与会话迁移
+当前任务：CP-007C-01B-1 认证系统第一阶段
 状态：等待验收
-下一任务：CP-007C-01B AuthModule、微信/Mock 登录与服务端认证
+下一任务：CP-007C-01B-2 Refresh、Logout 与 Guard
 当前阻塞项：暂无
