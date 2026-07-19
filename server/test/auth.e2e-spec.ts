@@ -19,6 +19,7 @@ type UserRecord = {
   battleRating: number;
   continuousLearningDays: number;
   lastLoginAt: Date | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -88,6 +89,7 @@ function createMockPrisma() {
           battleRating: data.battleRating ?? 1000,
           continuousLearningDays: data.continuousLearningDays ?? 0,
           lastLoginAt: data.lastLoginAt ?? null,
+          deletedAt: data.deletedAt ?? null,
           createdAt: data.createdAt ?? now,
           updatedAt: data.updatedAt ?? now,
         };

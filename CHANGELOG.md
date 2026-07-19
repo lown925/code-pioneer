@@ -30,12 +30,18 @@
 - JwtUserAuthGuard、OptionalUserAuthGuard 与 @CurrentUser()
 - Logout 幂等撤销与已撤销会话拦截
 - server/.env.example 认证环境变量模板
+- PATCH /api/v1/users/me 当前用户资料更新接口
+- POST /api/v1/users/me/delete-account 账号软注销接口
+- 当前用户公开资料字段映射
+- 账号软注销后的全会话撤销
+- 已注销用户同 openId 再次登录拒绝
 
 ### Fixed
 - 修复损坏的 Nest CLI 依赖安装产物
 - 统一文档中的 /api/v1 接口路径、practices 资源命名与 attemptId 参数命名
 - 修正文档中的章节完成规则为小测达及格分后方可完成章节
 - 统一认证文档中的普通用户接口路径、Mock 登录契约、UserSession 会话规则与按需登录原则
+- 统一 `avatarUrl` 过渡校验规则为 HTTPS URL、最大长度 2048、FileAsset 落地前不校验资源归属
 
 ### Changed
 - 恢复标准 NestJS 构建与开发启动脚本
@@ -43,7 +49,7 @@
 - PROJECT_STATE 更新为 CP-006R 待验收状态
 - 课程详情页章节入口改为跳转章节阅读页
 - PROJECT_STATE 更新为 CP-007B-DESIGN 待验收状态
-- 认证设计拆分为 CP-007C-01A、CP-007C-01B、CP-007C-01C 三个实现工单
+- 认证与用户文档任务拆分更新为 CP-007C-01A、CP-007C-01B、CP-007C-01C-1、CP-007C-01C-2 与 CP-007C-01D
 - 删除临时 User 调试接口并完成最小兼容清理
 
 ### Removed

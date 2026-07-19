@@ -16,6 +16,7 @@ type UserRecord = {
   battleRating: number;
   continuousLearningDays: number;
   lastLoginAt: Date | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -85,6 +86,7 @@ function createMockPrisma() {
           battleRating: data.battleRating ?? 1000,
           continuousLearningDays: data.continuousLearningDays ?? 0,
           lastLoginAt: data.lastLoginAt ?? null,
+          deletedAt: data.deletedAt ?? null,
           createdAt: data.createdAt ?? now,
           updatedAt: data.updatedAt ?? now,
         };
@@ -240,6 +242,57 @@ describe('AuthService', () => {
     expect(second.data.isNewUser).toBe(false);
     expect(users.size).toBe(1);
     expect(sessions.size).toBe(2);
+  });
+
+  it('rejects re-login for users already marked as DELETED', async () => {
+    const { service, prisma, sessions, users } = createService();
+    const deletedUser = await prisma.user.create({
+      data: {
+        openId: 'mock-openid-deleted-status',
+        status: UserStatus.DELETED,
+      },
+    });
+    const originalLastLoginAt = deletedUser.lastLoginAt;
+
+    await expect(
+      service.wechatLogin({
+        code: 'ignored',
+        mockOpenId: deletedUser.openId,
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'USER_DELETED',
+      },
+    });
+
+    expect(sessions.size).toBe(0);
+    expect(users.get(deletedUser.id)?.lastLoginAt).toBe(originalLastLoginAt);
+  });
+
+  it('rejects re-login for users with deletedAt set even if status is NORMAL', async () => {
+    const { service, prisma, sessions, users } = createService();
+    const deletedUser = await prisma.user.create({
+      data: {
+        openId: 'mock-openid-deleted-at',
+        status: UserStatus.NORMAL,
+        deletedAt: new Date('2026-07-19T00:00:00.000Z'),
+      },
+    });
+    const originalLastLoginAt = deletedUser.lastLoginAt;
+
+    await expect(
+      service.wechatLogin({
+        code: 'ignored',
+        mockOpenId: deletedUser.openId,
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'USER_DELETED',
+      },
+    });
+
+    expect(sessions.size).toBe(0);
+    expect(users.get(deletedUser.id)?.lastLoginAt).toBe(originalLastLoginAt);
   });
 
   it('rotates refresh tokens and invalidates the old token', async () => {

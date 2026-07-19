@@ -10,3 +10,6 @@ D-009：Mock 登录仅在非生产环境且显式开启时生效；生产环境�
 D-010：普通用户正式模型以 UUID `User` 与 `UserSession` 为准，不继续扩大临时 `Int + username` 用户结构的使用范围。
 D-011：普通用户认证落地前先完成受控用户迁移，不执行数据库 reset，且必须保护现有课程、章节与内容块数据。
 D-012：公开内容保持匿名可读，受保护功能按需登录，小程序不强制启动即登录。
+D-013：`CP-007C-01C` 拆分为 `CP-007C-01C-1 当前用户资料更新与账号软注销` 与 `CP-007C-01C-2 用户概览`；`/users/me/overview` 延后到 `CourseLearningRecord`、`ChapterLearningRecord`、`WrongQuestion`、`BattleRecord`、`Post` 落地后再实现。
+D-014：`FileAsset` 落地前，`avatarUrl` 采用过渡校验：仅允许合法 `https` URL，最大长度 2048 个字符，不下载远程资源，不校验资源是否真实存在，也不校验 `FileAsset` 归属；`FileAsset` 模型落地后再升级为平台上传资源归属校验。
+D-015：已注销用户使用同一 `openId` 再次登录时，一律返回 `USER_DELETED`，不恢复账号，不创建新用户，也不创建新的 `UserSession`。

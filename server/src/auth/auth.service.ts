@@ -44,6 +44,7 @@ type RefreshSessionRecord = {
   user: {
     id: string;
     status: UserStatus;
+    deletedAt: Date | null;
   } | null;
 };
 
@@ -64,12 +65,11 @@ export class AuthService {
       },
     });
 
-    if (existingUser?.status === UserStatus.DISABLED) {
-      throw new ForbiddenException('USER_DISABLED');
-    }
-
-    if (existingUser?.status === UserStatus.DELETED) {
-      throw new ForbiddenException('USER_DELETED');
+    if (existingUser) {
+      this.assertUserIsActive({
+        status: existingUser.status,
+        deletedAt: existingUser.deletedAt,
+      });
     }
 
     const user = existingUser
@@ -232,6 +232,7 @@ export class AuthService {
           select: {
             id: true,
             status: true,
+            deletedAt: true,
           },
         },
       },
@@ -241,7 +242,7 @@ export class AuthService {
       throw new UnauthorizedException('REFRESH_TOKEN_INVALID');
     }
 
-    this.assertUserIsActive(session.user.status);
+    this.assertUserIsActive(session.user);
 
     if (session.revokedAt) {
       throw new UnauthorizedException('SESSION_REVOKED');
@@ -339,7 +340,10 @@ export class AuthService {
       throw new UnauthorizedException('ACCESS_TOKEN_INVALID');
     }
 
-    this.assertUserIsActive(user.status);
+    this.assertUserIsActive({
+      status: user.status,
+      deletedAt: user.deletedAt,
+    });
 
     if (!allowRevokedSession && session.revokedAt) {
       throw new UnauthorizedException('SESSION_REVOKED');
@@ -487,13 +491,16 @@ export class AuthService {
     };
   }
 
-  private assertUserIsActive(status: UserStatus) {
-    if (status === UserStatus.DISABLED) {
-      throw new ForbiddenException('USER_DISABLED');
+  private assertUserIsActive(user: {
+    status: UserStatus;
+    deletedAt?: Date | null;
+  }) {
+    if (user.deletedAt || user.status === UserStatus.DELETED) {
+      throw new ForbiddenException('USER_DELETED');
     }
 
-    if (status === UserStatus.DELETED) {
-      throw new ForbiddenException('USER_DELETED');
+    if (user.status === UserStatus.DISABLED) {
+      throw new ForbiddenException('USER_DISABLED');
     }
   }
 }
