@@ -11,8 +11,13 @@
 - User 基础模块
 - Course 与 CourseChapter 基础模块
 - 课程列表与课程详情接口
+- POST /api/v1/auth/refresh 与 Refresh Token 轮换
+- POST /api/v1/auth/logout 与会话撤销
+- JwtUserAuthGuard、OptionalUserAuthGuard 与 @CurrentUser()
+- Logout 幂等撤销当前会话，已撤销会话仍被普通受保护接口拒绝
+- 普通用户认证后端闭环完成，/users/me 系列接口尚未实现
 
-当前任务：CP-007C-01B-1 认证系统第一阶段
+当前任务：CP-007C-01B-2 Refresh Token 轮换、Logout、Guard 与 CurrentUser
 状态：等待验收
-下一任务：CP-007C-01B-2 Refresh、Logout 与 Guard
+下一任务：CP-007C-01C 小程序登录页与请求鉴权接入
 当前阻塞项：暂无

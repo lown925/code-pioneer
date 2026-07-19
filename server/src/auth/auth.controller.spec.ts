@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test, type TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
@@ -6,6 +6,8 @@ describe('AuthController', () => {
   let authController: AuthController;
   const authService = {
     wechatLogin: jest.fn(),
+    refresh: jest.fn(),
+    logout: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -20,7 +22,7 @@ describe('AuthController', () => {
     }).compile();
 
     authController = module.get(AuthController);
-    authService.wechatLogin.mockReset();
+    Object.values(authService).forEach((mockFn) => mockFn.mockReset());
   });
 
   it('delegates wechat-login to AuthService', async () => {
@@ -52,5 +54,42 @@ describe('AuthController', () => {
 
     await expect(authController.wechatLogin(dto)).resolves.toEqual(expected);
     expect(authService.wechatLogin).toHaveBeenCalledWith(dto);
+  });
+
+  it('delegates refresh to AuthService', async () => {
+    const dto = {
+      refreshToken: 'refresh-token',
+    };
+    const expected = {
+      success: true,
+      data: {
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        expiresIn: 900,
+      },
+    };
+
+    authService.refresh.mockResolvedValue(expected);
+
+    await expect(authController.refresh(dto)).resolves.toEqual(expected);
+    expect(authService.refresh).toHaveBeenCalledWith(dto);
+  });
+
+  it('delegates logout to AuthService', async () => {
+    const currentUser = {
+      id: 'user-id',
+      sessionId: 'session-id',
+      tokenType: 'USER' as const,
+      role: 'NORMAL' as const,
+    };
+    const expected = {
+      success: true,
+      data: {},
+    };
+
+    authService.logout.mockResolvedValue(expected);
+
+    await expect(authController.logout(currentUser)).resolves.toEqual(expected);
+    expect(authService.logout).toHaveBeenCalledWith(currentUser);
   });
 });

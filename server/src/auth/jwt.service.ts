@@ -1,18 +1,11 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
-
-type TokenKind = 'ACCESS' | 'REFRESH';
-
-export type JwtPayload = {
-  sub: string;
-  userId: string;
-  sessionId: string;
-  type: TokenKind;
-};
+import { type JwtUserPayload } from './auth.types';
 
 @Injectable()
 export class JwtService {
-  signAccessToken(payload: Omit<JwtPayload, 'type'>) {
+  signAccessToken(payload: Omit<JwtUserPayload, 'type'>) {
     return this.sign(
       {
         ...payload,
@@ -23,7 +16,7 @@ export class JwtService {
     );
   }
 
-  signRefreshToken(payload: Omit<JwtPayload, 'type'>) {
+  signRefreshToken(payload: Omit<JwtUserPayload, 'type'>) {
     return this.sign(
       {
         ...payload,
@@ -38,14 +31,14 @@ export class JwtService {
     return jwt.verify(
       token,
       this.getRequiredEnv('JWT_ACCESS_SECRET'),
-    ) as JwtPayload;
+    ) as JwtUserPayload;
   }
 
   verifyRefreshToken(token: string) {
     return jwt.verify(
       token,
       this.getRequiredEnv('JWT_REFRESH_SECRET'),
-    ) as JwtPayload;
+    ) as JwtUserPayload;
   }
 
   getAccessTokenExpiresInSeconds() {
@@ -62,9 +55,10 @@ export class JwtService {
     return new Date(Date.now() + seconds * 1000);
   }
 
-  private sign(payload: JwtPayload, secret: Secret, expiresIn: string) {
+  private sign(payload: JwtUserPayload, secret: Secret, expiresIn: string) {
     const options: SignOptions = {
       expiresIn: expiresIn as SignOptions['expiresIn'],
+      jwtid: randomUUID(),
     };
 
     return jwt.sign(payload, secret, options);

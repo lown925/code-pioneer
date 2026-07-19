@@ -24,6 +24,11 @@
 - POST /api/v1/auth/wechat-login 登录接口
 - 开发环境隐藏式 Mock 登录流程
 - 登录成功后创建正式 UserSession 并返回 AccessToken / RefreshToken
+- POST /api/v1/auth/refresh 接口
+- Refresh Token 轮换与旧令牌立即失效
+- POST /api/v1/auth/logout 接口与会话撤销
+- JwtUserAuthGuard、OptionalUserAuthGuard 与 @CurrentUser()
+- Logout 幂等撤销与已撤销会话拦截
 - server/.env.example 认证环境变量模板
 
 ### Fixed
