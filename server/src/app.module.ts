@@ -5,10 +5,18 @@ import { AppService } from './app.service';
 import { CourseModule } from './course/course.module';
 import { LearningModule } from './learning/learning.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { QuizModule } from './quiz/quiz.module';
 import { UserModule } from './user/user.module';
 
 @Module({
-  imports: [PrismaModule, UserModule, CourseModule, LearningModule, AuthModule],
+  imports: [
+    PrismaModule,
+    UserModule,
+    CourseModule,
+    LearningModule,
+    QuizModule,
+    AuthModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

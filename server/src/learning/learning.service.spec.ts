@@ -56,11 +56,19 @@ type ChapterLearningRecord = {
   updatedAt: Date;
 };
 
+type QuizAttemptRecord = {
+  id: string;
+  userId: string;
+  quizId: string;
+  passed: boolean;
+};
+
 function createMockPrisma() {
   const courses = new Map<string, CourseRecord>();
   const chapters = new Map<string, ChapterRecord>();
   const courseLearningRecords = new Map<string, CourseLearningRecord>();
   const chapterLearningRecords = new Map<string, ChapterLearningRecord>();
+  const quizAttempts = new Map<string, QuizAttemptRecord>();
 
   const courseKey = (userId: string, courseId: string) =>
     `${userId}:${courseId}`;
@@ -274,6 +282,18 @@ function createMockPrisma() {
         return updated;
       }),
     },
+    quizAttempt: {
+      findFirst: jest.fn(async ({ where }: { where: any }) => {
+        return (
+          [...quizAttempts.values()].find(
+            (attempt) =>
+              attempt.userId === where.userId &&
+              attempt.quizId === where.quizId &&
+              attempt.passed === where.passed,
+          ) ?? null
+        );
+      }),
+    },
     $transaction: jest.fn(
       async <T>(callback: (client: any) => Promise<T>): Promise<T> =>
         callback(prisma),
@@ -286,6 +306,7 @@ function createMockPrisma() {
     chapters,
     courseLearningRecords,
     chapterLearningRecords,
+    quizAttempts,
   };
 }
 
@@ -328,10 +349,23 @@ describe('LearningService', () => {
     tokenType: 'USER' as const,
     role: 'NORMAL' as const,
   };
+  let quizServiceMock: {
+    getChapterQuizRequirement: jest.Mock<
+      Promise<{ kind: string; quizId?: string }>
+    >;
+  };
+
+  beforeEach(() => {
+    quizServiceMock = {
+      getChapterQuizRequirement: jest.fn(async () => ({
+        kind: 'NONE',
+      })),
+    };
+  });
 
   it('returns a stable NOT_STARTED progress payload without writing records', async () => {
     const mock = createMockPrisma();
-    const service = new LearningService(mock.prisma);
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
     const { courseId } = seedPublishedCourse(mock);
 
     const result = await service.getCourseProgress(currentUser, courseId);
@@ -374,7 +408,7 @@ describe('LearningService', () => {
 
   it('creates learning records only once when starting the same chapter twice', async () => {
     const mock = createMockPrisma();
-    const service = new LearningService(mock.prisma);
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
     const { chapterOneId } = seedPublishedCourse(mock);
 
     const firstResult = await service.startChapter(currentUser, chapterOneId);
@@ -388,7 +422,7 @@ describe('LearningService', () => {
 
   it('rejects completing a chapter before it is started', async () => {
     const mock = createMockPrisma();
-    const service = new LearningService(mock.prisma);
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
     const { chapterOneId } = seedPublishedCourse(mock);
 
     await expect(
@@ -398,7 +432,7 @@ describe('LearningService', () => {
 
   it('preserves the first completedAt and completes the course after all chapters are done', async () => {
     const mock = createMockPrisma();
-    const service = new LearningService(mock.prisma);
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
     const { courseId, chapterOneId, chapterTwoId } = seedPublishedCourse(mock);
     const courseRecordKey = `${currentUser.id}:${courseId}`;
     const chapterRecordKey = `${currentUser.id}:${chapterOneId}`;
@@ -429,5 +463,94 @@ describe('LearningService', () => {
         .get(courseRecordKey)
         ?.progressPercent.toNumber(),
     ).toBe(100);
+  });
+
+  it('rejects completing a started chapter when the linked quiz has not been passed', async () => {
+    const mock = createMockPrisma();
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
+    const { chapterOneId } = seedPublishedCourse(mock);
+
+    quizServiceMock.getChapterQuizRequirement.mockResolvedValue({
+      kind: 'READY',
+      quizId: '33333333-3333-4333-8333-333333333333',
+    });
+
+    await service.startChapter(currentUser, chapterOneId);
+
+    await expect(
+      service.completeChapter(currentUser, chapterOneId),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('still rejects completion when quizCompleted is true but no passed attempt exists', async () => {
+    const mock = createMockPrisma();
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
+    const { chapterOneId } = seedPublishedCourse(mock);
+    const chapterRecordKey = `${currentUser.id}:${chapterOneId}`;
+
+    quizServiceMock.getChapterQuizRequirement.mockResolvedValue({
+      kind: 'READY',
+      quizId: '33333333-3333-4333-8333-333333333333',
+    });
+
+    await service.startChapter(currentUser, chapterOneId);
+    const chapterRecord = mock.chapterLearningRecords.get(chapterRecordKey);
+
+    if (!chapterRecord) {
+      throw new Error('Expected chapter learning record to exist');
+    }
+
+    chapterRecord.quizCompleted = true;
+    mock.chapterLearningRecords.set(chapterRecordKey, chapterRecord);
+
+    await expect(
+      service.completeChapter(currentUser, chapterOneId),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('allows completing a chapter when any historical passed attempt exists', async () => {
+    const mock = createMockPrisma();
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
+    const { courseId, chapterOneId } = seedPublishedCourse(mock);
+    const courseRecordKey = `${currentUser.id}:${courseId}`;
+
+    quizServiceMock.getChapterQuizRequirement.mockResolvedValue({
+      kind: 'READY',
+      quizId: '33333333-3333-4333-8333-333333333333',
+    });
+
+    mock.quizAttempts.set('attempt-1', {
+      id: 'attempt-1',
+      userId: currentUser.id,
+      quizId: '33333333-3333-4333-8333-333333333333',
+      passed: true,
+    });
+
+    await service.startChapter(currentUser, chapterOneId);
+    const result = await service.completeChapter(currentUser, chapterOneId);
+
+    expect(result.data.chapterStatus).toBe(LearningStatus.COMPLETED);
+    expect(
+      mock.courseLearningRecords
+        .get(courseRecordKey)
+        ?.progressPercent.toNumber(),
+    ).toBe(50);
+  });
+
+  it('rejects completing a chapter when the quiz exists but is not ready', async () => {
+    const mock = createMockPrisma();
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
+    const { chapterOneId } = seedPublishedCourse(mock);
+
+    quizServiceMock.getChapterQuizRequirement.mockResolvedValue({
+      kind: 'NOT_READY',
+      quizId: '33333333-3333-4333-8333-333333333333',
+    });
+
+    await service.startChapter(currentUser, chapterOneId);
+
+    await expect(
+      service.completeChapter(currentUser, chapterOneId),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

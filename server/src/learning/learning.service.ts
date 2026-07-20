@@ -11,6 +11,7 @@ import {
 } from '../../generated/prisma/enums';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { QuizService } from '../quiz/quiz.service';
 
 const PUBLISHED_COURSE_STATUS = CourseStatus.PUBLISHED;
 const PUBLISHED_CHAPTER_STATUS = ChapterStatus.PUBLISHED;
@@ -20,7 +21,10 @@ type LearningListStatus = Exclude<LearningStatus, 'NOT_STARTED'>;
 
 @Injectable()
 export class LearningService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly quizService: QuizService,
+  ) {}
 
   async startCourse(currentUser: CurrentUserContext, courseId: string) {
     await this.getAccessibleCourseOrThrow(courseId);
@@ -230,6 +234,9 @@ export class LearningService {
       chapter.courseId,
       chapter.id,
     );
+    const quizRequirement = await this.quizService.getChapterQuizRequirement(
+      chapter.id,
+    );
 
     const result = await this.prisma.$transaction(async (tx) => {
       const [courseRecord, chapterRecord] = await Promise.all([
@@ -263,10 +270,34 @@ export class LearningService {
         throw new BadRequestException('CHAPTER_NOT_STARTED');
       }
 
-      const hasQuiz = false;
+      if (
+        chapterRecord.status !== LearningStatus.COMPLETED &&
+        chapterRecord.completedAt === null
+      ) {
+        if (quizRequirement.kind === 'NOT_PUBLISHED') {
+          throw new BadRequestException('QUIZ_NOT_PUBLISHED');
+        }
 
-      if (hasQuiz && !chapterRecord.quizCompleted) {
-        throw new BadRequestException('CHAPTER_QUIZ_NOT_AVAILABLE');
+        if (quizRequirement.kind === 'NOT_READY') {
+          throw new BadRequestException('QUIZ_NOT_READY');
+        }
+
+        if (quizRequirement.kind === 'READY') {
+          const passedAttempt = await tx.quizAttempt.findFirst({
+            where: {
+              userId: currentUser.id,
+              quizId: quizRequirement.quizId,
+              passed: true,
+            },
+            select: {
+              id: true,
+            },
+          });
+
+          if (!passedAttempt) {
+            throw new BadRequestException('CHAPTER_QUIZ_NOT_PASSED');
+          }
+        }
       }
 
       await tx.chapterLearningRecord.update({

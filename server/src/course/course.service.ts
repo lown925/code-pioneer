@@ -332,6 +332,13 @@ export class CourseService {
     const learningStatus = currentUser
       ? await this.getChapterLearningStatus(currentUser.id, chapter.id)
       : LEARNING_STATUS_NOT_STARTED;
+    const hasQuiz =
+      (await this.prisma.quiz.count({
+        where: {
+          chapterId: chapter.id,
+          status: 'PUBLISHED',
+        },
+      })) > 0;
 
     return {
       success: true,
@@ -343,7 +350,7 @@ export class CourseService {
         summary: chapter.summary,
         estimatedMinutes: chapter.estimatedMinutes,
         sortOrder: chapter.sortOrder,
-        hasQuiz: false,
+        hasQuiz,
         learningStatus,
         previousChapterId:
           currentIndex > 0

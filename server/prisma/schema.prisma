@@ -55,6 +55,17 @@ enum LearningStatus {
   COMPLETED
 }
 
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+  DISABLED
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  TRUE_FALSE
+}
+
 model SystemHealth {
   id        Int      @id @default(autoincrement())
   name      String   @unique
@@ -83,6 +94,7 @@ model User {
   sessions               UserSession[]
   courseLearningRecords  CourseLearningRecord[]
   chapterLearningRecords ChapterLearningRecord[]
+  quizAttempts           QuizAttempt[]
 
   @@index([status])
   @@index([createdAt])
@@ -156,6 +168,7 @@ model CourseChapter {
   contentBlocks    ChapterContentBlock[]
   learningRecords  ChapterLearningRecord[]
   lastLearnedIn    CourseLearningRecord[]  @relation("CourseLearningRecordLastChapter")
+  quiz             Quiz?
 
   @@index([courseId, status, sortOrder])
   @@index([courseId])
@@ -220,4 +233,92 @@ model ChapterLearningRecord {
   @@unique([userId, chapterId])
   @@index([userId, lastLearnedAt])
   @@map("chapter_learning_records")
+}
+
+model Quiz {
+  id               String         @id @default(uuid()) @db.Uuid
+  chapterId        String         @unique @map("chapter_id") @db.Uuid
+  title            String
+  description      String?
+  passScorePercent Int            @default(60) @map("pass_score_percent")
+  status           QuizStatus     @default(DRAFT)
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  chapter          CourseChapter  @relation(fields: [chapterId], references: [id])
+  questions        QuizQuestion[]
+  attempts         QuizAttempt[]
+
+  @@index([status])
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id          String       @id @default(uuid()) @db.Uuid
+  quizId      String       @map("quiz_id") @db.Uuid
+  type        QuestionType
+  content     String
+  explanation String?
+  score       Int
+  sortOrder   Int          @map("sort_order")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  quiz        Quiz         @relation(fields: [quizId], references: [id])
+  options     QuizOption[]
+  answers     QuizAnswer[]
+
+  @@unique([quizId, sortOrder])
+  @@index([quizId])
+  @@map("quiz_questions")
+}
+
+model QuizOption {
+  id                String       @id @default(uuid()) @db.Uuid
+  questionId        String       @map("question_id") @db.Uuid
+  content           String
+  isCorrect         Boolean      @default(false) @map("is_correct")
+  sortOrder         Int          @map("sort_order")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  question          QuizQuestion @relation(fields: [questionId], references: [id])
+  selectedInAnswers QuizAnswer[]
+
+  @@unique([questionId, sortOrder])
+  @@index([questionId])
+  @@map("quiz_options")
+}
+
+model QuizAttempt {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @map("user_id") @db.Uuid
+  quizId      String       @map("quiz_id") @db.Uuid
+  score       Int
+  totalScore  Int          @map("total_score")
+  passed      Boolean      @default(false)
+  submittedAt DateTime     @default(now()) @map("submitted_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  user        User         @relation(fields: [userId], references: [id])
+  quiz        Quiz         @relation(fields: [quizId], references: [id])
+  answers     QuizAnswer[]
+
+  @@index([userId, quizId])
+  @@index([userId, quizId, passed])
+  @@index([submittedAt])
+  @@map("quiz_attempts")
+}
+
+model QuizAnswer {
+  id               String       @id @default(uuid()) @db.Uuid
+  attemptId        String       @map("attempt_id") @db.Uuid
+  questionId       String       @map("question_id") @db.Uuid
+  selectedOptionId String       @map("selected_option_id") @db.Uuid
+  isCorrect        Boolean      @default(false) @map("is_correct")
+  scoreAwarded     Int          @default(0) @map("score_awarded")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  attempt          QuizAttempt  @relation(fields: [attemptId], references: [id])
+  question         QuizQuestion @relation(fields: [questionId], references: [id])
+  selectedOption   QuizOption   @relation(fields: [selectedOptionId], references: [id])
+
+  @@unique([attemptId, questionId])
+  @@index([questionId])
+  @@map("quiz_answers")
 }

@@ -1,35 +1,32 @@
 当前版本：v0.0.1
-当前阶段：后端基础工程完成
+当前阶段：后端基础能力持续闭环中
 
 已完成：
-- Git 仓库初始化
-- NestJS 后端初始化
-- 全局 API 前缀 api/v1
-- 健康检查接口
-- Build、Lint、Unit Test、E2E Test 验证
+- Git 仓库初始化与多端项目目录结构
+- NestJS 后端基础工程、全局 `/api/v1` 前缀与健康检查接口
 - Prisma 与 PostgreSQL 接入
-- User 基础模块
-- Course 与 CourseChapter 基础模块
-- 课程列表与课程详情接口
-- POST /api/v1/auth/refresh 与 Refresh Token 轮换
-- POST /api/v1/auth/logout 与会话撤销
-- JwtUserAuthGuard、OptionalUserAuthGuard 与 @CurrentUser()
-- Logout 幂等撤销当前会话，已撤销会话仍被普通受保护接口拒绝
-- PATCH /api/v1/users/me 当前用户资料更新接口
-- POST /api/v1/users/me/delete-account 账号软注销接口
-- 当前用户公开资料响应字段映射
-- 账号软注销后撤销该用户全部会话
-- 已注销用户同 openId 再次登录返回 USER_DELETED
-- /users/me/overview 延后至 CP-007C-01C-2，等待学习概览依赖模型落地
+- Course、CourseChapter、ChapterContentBlock 基础模型与公开课程接口
+- 小程序课程列表、课程详情、章节阅读页与目录抽屉
+- 正式 UUID User 模型与 UserSession 会话模型
+- `POST /api/v1/auth/wechat-login`、`POST /api/v1/auth/refresh`、`POST /api/v1/auth/logout`
+- `JwtUserAuthGuard`、`OptionalUserAuthGuard` 与 `@CurrentUser()`
+- `PATCH /api/v1/users/me` 与 `POST /api/v1/users/me/delete-account`
 - CourseLearningRecord 与 ChapterLearningRecord 学习记录模型
-- POST /api/v1/courses/:courseId/start 开始课程接口
-- POST /api/v1/chapters/:chapterId/start 开始章节接口
-- POST /api/v1/chapters/:chapterId/complete 完成章节接口
-- GET /api/v1/courses/:courseId/progress 单课程学习进度接口
-- GET /api/v1/users/me/learning 我的学习课程列表接口
-- 课程列表、课程详情与章节详情接入可选登录态学习状态
+- `POST /api/v1/courses/:courseId/start`
+- `POST /api/v1/chapters/:chapterId/start`
+- `POST /api/v1/chapters/:chapterId/complete`
+- `GET /api/v1/courses/:courseId/progress`
+- `GET /api/v1/users/me/learning`
+- 公开课程、课程详情与章节详情接口的登录态学习状态映射
+- Quiz、QuizQuestion、QuizOption、QuizAttempt、QuizAnswer Prisma 模型
+- `GET /api/v1/chapters/:chapterId/quiz`
+- `POST /api/v1/chapters/:chapterId/quiz/submit`
+- `GET /api/v1/chapters/:chapterId/quiz/attempts`
+- `GET /api/v1/quiz-attempts/:attemptId`
+- 章节完成接口按历史小测通过记录校验完成资格
+- `python-basic` 课程章节小测 Seed 数据
 
-当前任务：CP-008A-01 课程与章节学习记录基础闭环
+当前任务：CP-008B-01 章节测验、答题判分与章节完成联动基础闭环
 状态：等待验收
 下一任务：待 Tech Lead 确认
 当前阻塞项：暂无

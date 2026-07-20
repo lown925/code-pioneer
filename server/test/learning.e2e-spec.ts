@@ -13,6 +13,7 @@ import {
 import { AppModule } from './../src/app.module';
 import { AuthService } from './../src/auth/auth.service';
 import { PrismaService } from './../src/prisma/prisma.service';
+import { QuizService } from './../src/quiz/quiz.service';
 
 type CourseRecord = {
   id: string;
@@ -468,6 +469,10 @@ describe('Learning flow (e2e)', () => {
       .useValue(mockState.prisma)
       .overrideProvider(AuthService)
       .useValue(authServiceMock)
+      .overrideProvider(QuizService)
+      .useValue({
+        getChapterQuizRequirement: jest.fn(async () => ({ kind: 'NONE' })),
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
