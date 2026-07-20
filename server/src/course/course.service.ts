@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const COURSE_DIFFICULTIES = [
@@ -131,6 +132,7 @@ export class CourseService {
     page: number,
     pageSize: number,
     difficulty?: CourseDifficultyValue,
+    currentUser?: CurrentUserContext | null,
   ) {
     const where = this.buildPublicCourseWhere(difficulty);
     const skip = (page - 1) * pageSize;
@@ -163,6 +165,12 @@ export class CourseService {
       }),
       this.courseModel.count({ where }),
     ]);
+    const progressByCourseId = currentUser
+      ? await this.getProgressByCourseIds(
+          currentUser.id,
+          courses.map((course) => course.id),
+        )
+      : new Map<string, number>();
 
     const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
 
@@ -179,8 +187,7 @@ export class CourseService {
           estimatedMinutes: course.estimatedMinutes,
           chapterCount: course.chapters.length,
           learnerCount: course.learnerCount,
-          // Learning progress is not implemented in the current MVP slice.
-          progressPercent: 0,
+          progressPercent: progressByCourseId.get(course.id) ?? 0,
         })),
         pagination: {
           page,
@@ -193,7 +200,10 @@ export class CourseService {
     };
   }
 
-  async getCourseDetail(courseId: string) {
+  async getCourseDetail(
+    courseId: string,
+    currentUser?: CurrentUserContext | null,
+  ) {
     const course = await this.courseModel.findFirst({
       where: {
         id: courseId,
@@ -230,8 +240,12 @@ export class CourseService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('COURSE_NOT_FOUND');
     }
+
+    const progressPercent = currentUser
+      ? await this.getCourseProgressPercent(currentUser.id, course.id)
+      : 0;
 
     return {
       success: true,
@@ -247,13 +261,16 @@ export class CourseService {
         targetAudience: course.targetAudience,
         learningObjectives: course.learningObjectives,
         learnerCount: course.learnerCount,
-        progressPercent: 0,
+        progressPercent,
         chapters: course.chapters,
       },
     };
   }
 
-  async getChapterDetail(chapterId: string) {
+  async getChapterDetail(
+    chapterId: string,
+    currentUser?: CurrentUserContext | null,
+  ) {
     const chapter = await this.chapterModel.findFirst({
       where: {
         id: chapterId,
@@ -295,7 +312,7 @@ export class CourseService {
       chapter.course.status !== PUBLISHED_COURSE_STATUS ||
       chapter.course.deletedAt !== null
     ) {
-      throw new NotFoundException('Chapter not found');
+      throw new NotFoundException('CHAPTER_NOT_FOUND');
     }
 
     const chapterOrder = await this.chapterModel.findMany({
@@ -312,6 +329,9 @@ export class CourseService {
     const currentIndex = chapterOrder.findIndex(
       (item) => item.id === chapter.id,
     );
+    const learningStatus = currentUser
+      ? await this.getChapterLearningStatus(currentUser.id, chapter.id)
+      : LEARNING_STATUS_NOT_STARTED;
 
     return {
       success: true,
@@ -324,8 +344,7 @@ export class CourseService {
         estimatedMinutes: chapter.estimatedMinutes,
         sortOrder: chapter.sortOrder,
         hasQuiz: false,
-        // Chapter learning records are not implemented in the current MVP slice.
-        learningStatus: LEARNING_STATUS_NOT_STARTED,
+        learningStatus,
         previousChapterId:
           currentIndex > 0
             ? (chapterOrder[currentIndex - 1]?.id ?? null)
@@ -505,6 +524,68 @@ export class CourseService {
       deletedAt: null,
       ...(difficulty ? { difficulty } : {}),
     };
+  }
+
+  private async getProgressByCourseIds(userId: string, courseIds: string[]) {
+    if (courseIds.length === 0) {
+      return new Map<string, number>();
+    }
+
+    const records = await this.prisma.courseLearningRecord.findMany({
+      where: {
+        userId,
+        courseId: {
+          in: courseIds,
+        },
+      },
+      select: {
+        courseId: true,
+        progressPercent: true,
+      },
+    });
+
+    return new Map(
+      records.map((record) => [
+        record.courseId,
+        this.decimalToNumber(record.progressPercent),
+      ]),
+    );
+  }
+
+  private async getCourseProgressPercent(userId: string, courseId: string) {
+    const record = await this.prisma.courseLearningRecord.findUnique({
+      where: {
+        userId_courseId: {
+          userId,
+          courseId,
+        },
+      },
+      select: {
+        progressPercent: true,
+      },
+    });
+
+    return record ? this.decimalToNumber(record.progressPercent) : 0;
+  }
+
+  private async getChapterLearningStatus(userId: string, chapterId: string) {
+    const record = await this.prisma.chapterLearningRecord.findUnique({
+      where: {
+        userId_chapterId: {
+          userId,
+          chapterId,
+        },
+      },
+      select: {
+        status: true,
+      },
+    });
+
+    return record?.status ?? LEARNING_STATUS_NOT_STARTED;
+  }
+
+  private decimalToNumber(value: { toNumber(): number } | number) {
+    return typeof value === 'number' ? value : value.toNumber();
   }
 
   private get courseModel(): CourseDelegate {

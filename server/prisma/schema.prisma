@@ -49,6 +49,12 @@ enum UserStatus {
   DELETED
 }
 
+enum LearningStatus {
+  NOT_STARTED
+  LEARNING
+  COMPLETED
+}
+
 model SystemHealth {
   id        Int      @id @default(autoincrement())
   name      String   @unique
@@ -58,23 +64,25 @@ model SystemHealth {
 }
 
 model User {
-  id                     String        @id @default(uuid()) @db.Uuid
-  openId                 String        @unique @map("open_id")
-  unionId                String?       @unique @map("union_id")
+  id                     String                  @id @default(uuid()) @db.Uuid
+  openId                 String                  @unique @map("open_id")
+  unionId                String?                 @unique @map("union_id")
   nickname               String?
-  avatarUrl              String?       @map("avatar_url")
-  status                 UserStatus    @default(NORMAL)
-  experience             Int           @default(0)
-  battleRating           Int           @default(1000) @map("battle_rating")
-  continuousLearningDays Int           @default(0) @map("continuous_learning_days")
-  lastLearningDate       DateTime?     @map("last_learning_date")
-  lastLoginAt            DateTime?     @map("last_login_at")
-  disabledReason         String?       @map("disabled_reason")
-  disabledAt             DateTime?     @map("disabled_at")
-  deletedAt              DateTime?     @map("deleted_at")
-  createdAt              DateTime      @default(now()) @map("created_at")
-  updatedAt              DateTime      @updatedAt @map("updated_at")
+  avatarUrl              String?                 @map("avatar_url")
+  status                 UserStatus              @default(NORMAL)
+  experience             Int                     @default(0)
+  battleRating           Int                     @default(1000) @map("battle_rating")
+  continuousLearningDays Int                     @default(0) @map("continuous_learning_days")
+  lastLearningDate       DateTime?               @map("last_learning_date")
+  lastLoginAt            DateTime?               @map("last_login_at")
+  disabledReason         String?                 @map("disabled_reason")
+  disabledAt             DateTime?               @map("disabled_at")
+  deletedAt              DateTime?               @map("deleted_at")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
   sessions               UserSession[]
+  courseLearningRecords  CourseLearningRecord[]
+  chapterLearningRecords ChapterLearningRecord[]
 
   @@index([status])
   @@index([createdAt])
@@ -102,26 +110,28 @@ model UserSession {
 }
 
 model Course {
-  id                 String           @id @default(uuid()) @db.Uuid
+  id                 String                  @id @default(uuid()) @db.Uuid
   title              String
-  slug               String           @unique
+  slug               String                  @unique
   summary            String
   description        String?
-  coverUrl           String?          @map("cover_url")
-  difficulty         CourseDifficulty @default(BEGINNER)
-  estimatedMinutes   Int              @default(0) @map("estimated_minutes")
-  targetAudience     String?          @map("target_audience")
-  learningObjectives Json?            @map("learning_objectives")
-  status             CourseStatus     @default(DRAFT)
-  sortOrder          Int              @default(0) @map("sort_order")
-  learnerCount       Int              @default(0) @map("learner_count")
-  publishedAt        DateTime?        @map("published_at")
-  createdById        String?          @map("created_by_id") @db.Uuid
-  updatedById        String?          @map("updated_by_id") @db.Uuid
-  deletedAt          DateTime?        @map("deleted_at")
-  createdAt          DateTime         @default(now()) @map("created_at")
-  updatedAt          DateTime         @updatedAt @map("updated_at")
+  coverUrl           String?                 @map("cover_url")
+  difficulty         CourseDifficulty        @default(BEGINNER)
+  estimatedMinutes   Int                     @default(0) @map("estimated_minutes")
+  targetAudience     String?                 @map("target_audience")
+  learningObjectives Json?                   @map("learning_objectives")
+  status             CourseStatus            @default(DRAFT)
+  sortOrder          Int                     @default(0) @map("sort_order")
+  learnerCount       Int                     @default(0) @map("learner_count")
+  publishedAt        DateTime?               @map("published_at")
+  createdById        String?                 @map("created_by_id") @db.Uuid
+  updatedById        String?                 @map("updated_by_id") @db.Uuid
+  deletedAt          DateTime?               @map("deleted_at")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
   chapters           CourseChapter[]
+  learningRecords    CourseLearningRecord[]
+  chapterLearners    ChapterLearningRecord[]
 
   @@index([status, sortOrder])
   @@index([createdAt])
@@ -129,21 +139,23 @@ model Course {
 }
 
 model CourseChapter {
-  id               String                @id @default(uuid()) @db.Uuid
-  courseId         String                @map("course_id") @db.Uuid
+  id               String                  @id @default(uuid()) @db.Uuid
+  courseId         String                  @map("course_id") @db.Uuid
   title            String
   summary          String?
-  estimatedMinutes Int                   @default(0) @map("estimated_minutes")
-  sortOrder        Int                   @default(0) @map("sort_order")
-  status           ChapterStatus         @default(DRAFT)
-  publishedAt      DateTime?             @map("published_at")
-  createdById      String?               @map("created_by_id") @db.Uuid
-  updatedById      String?               @map("updated_by_id") @db.Uuid
-  deletedAt        DateTime?             @map("deleted_at")
-  createdAt        DateTime              @default(now()) @map("created_at")
-  updatedAt        DateTime              @updatedAt @map("updated_at")
-  course           Course                @relation(fields: [courseId], references: [id])
+  estimatedMinutes Int                     @default(0) @map("estimated_minutes")
+  sortOrder        Int                     @default(0) @map("sort_order")
+  status           ChapterStatus           @default(DRAFT)
+  publishedAt      DateTime?               @map("published_at")
+  createdById      String?                 @map("created_by_id") @db.Uuid
+  updatedById      String?                 @map("updated_by_id") @db.Uuid
+  deletedAt        DateTime?               @map("deleted_at")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+  course           Course                  @relation(fields: [courseId], references: [id])
   contentBlocks    ChapterContentBlock[]
+  learningRecords  ChapterLearningRecord[]
+  lastLearnedIn    CourseLearningRecord[]  @relation("CourseLearningRecordLastChapter")
 
   @@index([courseId, status, sortOrder])
   @@index([courseId])
@@ -165,4 +177,47 @@ model ChapterContentBlock {
   @@index([chapterId, sortOrder])
   @@index([chapterId])
   @@map("chapter_content_blocks")
+}
+
+model CourseLearningRecord {
+  id                        String         @id @default(uuid()) @db.Uuid
+  userId                    String         @map("user_id") @db.Uuid
+  courseId                  String         @map("course_id") @db.Uuid
+  status                    LearningStatus @default(LEARNING)
+  completedChapterCount     Int            @default(0) @map("completed_chapter_count")
+  totalChapterCountSnapshot Int            @default(0) @map("total_chapter_count_snapshot")
+  progressPercent           Decimal        @default(0) @map("progress_percent") @db.Decimal(5, 2)
+  lastChapterId             String?        @map("last_chapter_id") @db.Uuid
+  startedAt                 DateTime       @default(now()) @map("started_at")
+  lastLearnedAt             DateTime?      @map("last_learned_at")
+  completedAt               DateTime?      @map("completed_at")
+  createdAt                 DateTime       @default(now()) @map("created_at")
+  updatedAt                 DateTime       @updatedAt @map("updated_at")
+  user                      User           @relation(fields: [userId], references: [id])
+  course                    Course         @relation(fields: [courseId], references: [id])
+  lastChapter               CourseChapter? @relation("CourseLearningRecordLastChapter", fields: [lastChapterId], references: [id])
+
+  @@unique([userId, courseId])
+  @@map("course_learning_records")
+}
+
+model ChapterLearningRecord {
+  id             String         @id @default(uuid()) @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  courseId       String         @map("course_id") @db.Uuid
+  chapterId      String         @map("chapter_id") @db.Uuid
+  status         LearningStatus @default(LEARNING)
+  firstStartedAt DateTime       @default(now()) @map("first_started_at")
+  lastLearnedAt  DateTime       @default(now()) @map("last_learned_at")
+  completedAt    DateTime?      @map("completed_at")
+  quizCompleted  Boolean        @default(false) @map("quiz_completed")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  user           User           @relation(fields: [userId], references: [id])
+  course         Course         @relation(fields: [courseId], references: [id])
+  chapter        CourseChapter  @relation(fields: [chapterId], references: [id])
+
+  @@unique([userId, chapterId])
+  @@index([userId, lastLearnedAt])
+  @@map("chapter_learning_records")
 }

@@ -7,7 +7,11 @@ import {
   ParseIntPipe,
   ParseUUIDPipe,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { type CurrentUserContext } from '../auth/auth.types';
+import { OptionalUserAuthGuard } from '../auth/jwt-user-auth.guard';
 import {
   CourseDifficultyValue,
   COURSE_DIFFICULTIES,
@@ -19,7 +23,9 @@ export class CourseController {
   constructor(private readonly courseService: CourseService) {}
 
   @Get('courses')
+  @UseGuards(OptionalUserAuthGuard)
   listCourses(
+    @CurrentUser() currentUser: CurrentUserContext | null,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('pageSize', new DefaultValuePipe(20), ParseIntPipe) pageSize: number,
     @Query('difficulty') difficulty?: string,
@@ -43,16 +49,25 @@ export class CourseController {
       page,
       pageSize,
       difficulty as CourseDifficultyValue | undefined,
+      currentUser,
     );
   }
 
   @Get('courses/:courseId')
-  getCourseDetail(@Param('courseId', ParseUUIDPipe) courseId: string) {
-    return this.courseService.getCourseDetail(courseId);
+  @UseGuards(OptionalUserAuthGuard)
+  getCourseDetail(
+    @CurrentUser() currentUser: CurrentUserContext | null,
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+  ) {
+    return this.courseService.getCourseDetail(courseId, currentUser);
   }
 
   @Get('chapters/:chapterId')
-  getChapterDetail(@Param('chapterId', ParseUUIDPipe) chapterId: string) {
-    return this.courseService.getChapterDetail(chapterId);
+  @UseGuards(OptionalUserAuthGuard)
+  getChapterDetail(
+    @CurrentUser() currentUser: CurrentUserContext | null,
+    @Param('chapterId', ParseUUIDPipe) chapterId: string,
+  ) {
+    return this.courseService.getChapterDetail(chapterId, currentUser);
   }
 }
