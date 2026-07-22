@@ -1,7 +1,7 @@
 当前版本：v0.0.1
 当前阶段：后端基础能力持续闭环
-当前任务：CP-009B-DESIGN 学习中心与个人学习进度聚合设计
-状态：已完成，等待后端实现
+当前任务：CP-009B-01 学习中心与个人学习进度聚合后端实现
+状态：等待验收
 下一任务：待 Tech Lead 确认
 当前阻塞项：暂无
 
@@ -40,13 +40,13 @@
 - 旧 `/api/v1/wrong-questions*` 路径保持 404
 
 当前任务完成状态：
-- 学习中心 V1.0 复用 `GET /api/v1/users/me/learning` 与 `GET /api/v1/courses/:courseId/progress`
-- 学习中心课程列表正式展示已学习课程、课程封面、进度百分比、已完成章节数、总章节数、最近学习章节、最近学习时间与继续学习入口
-- `GET /api/v1/users/me/learning` 无学习记录时返回 `success=true` 与空列表，不自动创建学习记录
-- `GET /api/v1/courses/:courseId/progress` 无学习记录时返回稳定 `NOT_STARTED` 结构，不返回 `404`，不自动创建学习记录
-- `LearningStatus` 正式统一为 `NOT_STARTED`、`LEARNING`、`COMPLETED`
-- 确认 V1.0 不新增 `LearningHistory`、`StudyRecord`、`LearningEvent` 或新的 Prisma 模型
-- 确认 V1.0 不实现章节百分比更新、学习时长统计或 `/api/v1/learning/progress`
+- `GET /api/v1/users/me/learning` 已实现，返回当前用户已产生学习记录的课程列表
+- `GET /api/v1/courses/:courseId/progress` 已实现，返回当前用户指定课程的学习进度
+- 学习中心复用 `CourseLearningRecord` 与 `ChapterLearningRecord`
+- 无学习记录时，课程进度返回稳定 `NOT_STARTED` 结构，列表返回空数组
+- `LearningStatus` 统一为 `NOT_STARTED`、`LEARNING`、`COMPLETED`
+- 未新增 `LearningHistory`、`StudyRecord`、`LearningEvent` 或新的 Prisma 模型
+- 未实现章节百分比更新、学习时长统计或 `/api/v1/learning/progress`
 
 质量状态：
 - build 通过
@@ -54,5 +54,5 @@
 - unit test 通过
 - e2e 通过
 
-当前待落地内容：
-- CP-009B 学习中心与个人学习进度后端实现
+当前待验收内容：
+- CP-009B-01 学习中心与个人学习进度聚合后端实现

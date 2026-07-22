@@ -29,6 +29,9 @@
 - courseId / chapterId 筛选
 - 用户隔离
 - `wrong-question` 单元测试与 E2E
+- 学习中心与个人学习进度聚合后端接口
+- `GET /api/v1/users/me/learning`
+- `GET /api/v1/courses/:courseId/progress`
 
 ### Changed
 - 公开课程、课程详情与章节详情接口在登录态下返回当前用户真实学习状态
