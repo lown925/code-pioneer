@@ -37,6 +37,9 @@
 - 文档同步到当前章节小测、学习联动与错题聚合契约
 - `docs/02`、`docs/04`、`docs/05`、`docs/07` 统一为 `QuizAnswer` 聚合式错题方案
 - 旧 `WrongQuestion` 持久化契约退出 V1.0 正式范围
+- 学习中心 V1.0 文档收口为 `GET /api/v1/users/me/learning` + `GET /api/v1/courses/:courseId/progress`
+- 明确学习中心无学习记录时返回空列表或稳定 `NOT_STARTED` 结构，不自动创建学习记录
+- 明确 V1.0 学习中心不新增 `LearningHistory`、`StudyRecord`、`LearningEvent` 或 `/api/v1/learning/*` 聚合接口
 
 ### Fixed
 - 统一单课程学习进度接口路径为 `GET /api/v1/courses/:courseId/progress`

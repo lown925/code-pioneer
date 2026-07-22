@@ -24,3 +24,4 @@ D-023：每次合法小测提交都创建新的 `QuizAttempt`，允许无限次�
 D-024：小测提交成功只代表用户具备完成章节的资格，不自动调用 `POST /api/v1/chapters/:chapterId/complete`。
 D-025：`scorePercent` 仅用于展示，按四舍五入返回整数；`passed` 必须使用未四舍五入的原始得分比例计算，避免边界误判。
 D-026：V1.0 错题本以 `QuizAnswer` 为唯一事实来源，不新增 `WrongQuestion` 模型或数据表；列表按 `questionId` 聚合展示，同题允许多次错误记录，后续答对不自动移除，不提供 `masteryStatus`、收藏、删除或错题练习提交接口；详情允许显示正确答案和解析；旧 `/api/v1/wrong-questions/*` 路径退出 V1.0 正式契约，正式路径统一为 `/api/v1/users/me/wrong-questions/*`。
+D-027：V1.0 学习中心复用既有学习记录模型与接口：课程列表使用 `GET /api/v1/users/me/learning`，单课程进度使用 `GET /api/v1/courses/:courseId/progress`；当前不新增 `LearningHistory`、`StudyRecord`、`LearningEvent` 或 `/api/v1/learning/*` 聚合接口，`GET /api/v1/learning/progress` 保留给后续全局学习中心能力。

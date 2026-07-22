@@ -397,12 +397,15 @@ GET  /api/v1/chapters/:chapterId
 POST /api/v1/chapters/:chapterId/start
 POST /api/v1/chapters/:chapterId/complete
 GET  /api/v1/courses/:courseId/progress
+GET  /api/v1/users/me/learning
 ```
 
 说明：
 
 * `GET /api/v1/courses/:courseId/progress` 用于查询当前认证用户在指定课程下的学习进度。
 * 当前用户尚未开始该课程时，返回稳定的 `NOT_STARTED` 结构，不创建学习记录。
+* `GET /api/v1/users/me/learning` 用于学习中心展示“我的学习”课程列表。
+* `GET /api/v1/users/me/learning` 只返回当前用户已产生学习记录的课程；无学习记录时返回 `success=true` 与空列表，不自动创建学习记录。
 * `GET /api/v1/learning/progress` 保留给后续全局学习进度聚合接口，当前 MVP 阶段不实现。
 
 ## 8.7 验收标准
