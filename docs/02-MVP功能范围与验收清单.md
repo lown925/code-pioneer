@@ -482,42 +482,42 @@ GET  /api/v1/quiz-attempts/:attemptId
 * 查看错题。
 * 筛选错题。
 * 查看解析。
-* 重新练习。
-* 标记掌握状态。
+* 查看错题统计。
+* 查看错题详情。
 
 ## 10.2 必须完成内容
 
 * [ ] 错题列表。
 * [ ] 按课程筛选。
 * [ ] 按章节筛选。
-* [ ] 按掌握状态筛选。
 * [ ] 错题详情。
 * [ ] 显示错误次数。
 * [ ] 显示最近答错时间。
-* [ ] 重新作答。
-* [ ] 自动标记已掌握。
-* [ ] 手动修改掌握状态。
+* [ ] 错题统计。
+* [ ] 用户数据隔离。
 
-## 10.3 核心接口
+## 10.3 正式接口
 
 ```text
-GET   /api/wrong-questions
-GET   /api/wrong-questions/:id
-POST  /api/wrong-questions/:id/practice
-PATCH /api/wrong-questions/:id/status
+GET /api/v1/users/me/wrong-questions
+GET /api/v1/users/me/wrong-questions/statistics
+GET /api/v1/users/me/wrong-questions/:questionId
 ```
 
 ## 10.4 验收标准
 
-1. 同一用户同一道题只有一条错题记录。
+1. 错题来源于 `QuizAnswer.isCorrect=false`。
 2. 重复答错会增加错误次数。
-3. 重复答错不会生成重复列表项。
-4. 重新答对后可以自动标记已掌握。
-5. 用户可以手动恢复未掌握。
+3. 同一题可存在多条错误答案记录，但列表按 `questionId` 聚合去重。
+4. `wrongCount` 正确统计当前用户该题的错误次数。
+5. 后续答对不自动移除错题。
 6. 其他用户不能查看该用户错题。
-7. 原题下架后页面不能报错。
+7. 不新增 `WrongQuestion` 表。
 8. 筛选结果正确。
 9. 空错题本显示明确提示。
+10. 不提供 `masteryStatus`。
+11. 错题详情允许查看正确答案和解析。
+12. 列表不泄露正确答案和解析。
 
 ---
 
