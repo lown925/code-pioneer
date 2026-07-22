@@ -1,5 +1,22 @@
+import { initializeAuthState } from './utils/auth';
+import { API_BASE_URL } from './utils/config';
+
 App<IAppOption>({
+  onLaunch() {
+    const authState = initializeAuthState();
+
+    this.globalData.authState = authState;
+    this.globalData.envVersion = authState.envVersion;
+  },
+
   globalData: {
-    apiBaseUrl: 'http://127.0.0.1:3000/api/v1',
+    apiBaseUrl: API_BASE_URL,
+    authState: {
+      isReady: false,
+      isAuthenticated: false,
+      user: null,
+      envVersion: 'unknown',
+    },
+    envVersion: 'unknown',
   },
 });

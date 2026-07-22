@@ -70,7 +70,9 @@ Page<CourseDetailPageData>({
     void this.loadCourseDetail(courseId);
   },
 
-  async loadCourseDetail(courseId = this.data.courseId) {
+  async loadCourseDetail(courseId?: string) {
+    const activeCourseId = courseId ?? this.data.courseId;
+
     this.setData({
       state: 'loading',
       errorMessage: '',
@@ -78,7 +80,7 @@ Page<CourseDetailPageData>({
 
     try {
       const result = await request<CourseDetailData>({
-        url: `/courses/${courseId}`,
+        url: `/courses/${activeCourseId}`,
       });
 
       this.setData({

@@ -218,7 +218,9 @@ Page<ChapterDetailPageData>({
     void this.loadChapterDetail(chapterId);
   },
 
-  async loadChapterDetail(chapterId = this.data.chapterId) {
+  async loadChapterDetail(chapterId?: string) {
+    const activeChapterId = chapterId ?? this.data.chapterId;
+
     this.setData({
       state: 'loading',
       errorMessage: '',
@@ -227,7 +229,7 @@ Page<ChapterDetailPageData>({
 
     try {
       const chapter = await request<ChapterDetailData>({
-        url: `/chapters/${chapterId}`,
+        url: `/chapters/${activeChapterId}`,
       });
       const course = await request<CourseDetailData>({
         url: `/courses/${chapter.courseId}`,

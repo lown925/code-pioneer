@@ -1,0 +1,134 @@
+declare namespace WechatMiniprogram {
+  type IAnyObject = Record<string, unknown>;
+
+  type LoginSuccessCallbackResult = {
+    code: string;
+  };
+
+  type BaseEvent<TDataset = Record<string, unknown>> = {
+    currentTarget: {
+      dataset: TDataset;
+    };
+  };
+
+  type CustomEvent<TDetail = Record<string, unknown>> = {
+    detail: TDetail;
+    currentTarget: {
+      dataset: Record<string, unknown>;
+    };
+  };
+
+  type RequestSuccessCallbackResult<T> = {
+    statusCode: number;
+    data: T;
+  };
+}
+
+type MiniProgramPageInstance<TData, TMethods extends Record<string, (...args: any[]) => any>> = {
+  data: TData;
+  route?: string;
+  options?: Record<string, string>;
+  setData(data: Partial<TData>): void;
+} & TMethods;
+
+type MiniProgramPageOptions<
+  TData,
+  TMethods extends Record<string, (...args: any[]) => any>,
+> = {
+  data: TData;
+  onLoad?(query: Record<string, string>): void;
+  onShow?(): void;
+  onPullDownRefresh?(): void;
+  [key: string]: unknown;
+} & ThisType<MiniProgramPageInstance<TData, TMethods>>;
+
+declare function Page<
+  TData,
+  TMethods extends Record<string, (...args: any[]) => any> = Record<
+    string,
+    (...args: any[]) => any
+  >,
+>(options: MiniProgramPageOptions<TData, TMethods>): void;
+
+type MiniProgramAppOptions<TGlobalData> = {
+  globalData: TGlobalData;
+  onLaunch?(): void;
+} & ThisType<{ globalData: TGlobalData }>;
+
+declare function App<TApp extends { globalData: unknown }>(
+  options: MiniProgramAppOptions<TApp['globalData']>,
+): void;
+
+declare function getApp<TApp = IAppOption>(): TApp;
+
+declare function getCurrentPages(): Array<{
+  route: string;
+  options?: Record<string, string>;
+}>;
+
+declare function setTimeout(
+  handler: (...args: unknown[]) => void,
+  timeout?: number,
+): number;
+
+declare const wx: {
+  request<T>(options: {
+    url: string;
+    method?: string;
+    data?: unknown;
+    header?: Record<string, string>;
+    timeout?: number;
+    success?(response: WechatMiniprogram.RequestSuccessCallbackResult<T>): void;
+    fail?(): void;
+    complete?(): void;
+  }): void;
+  login(options: {
+    success?(result: WechatMiniprogram.LoginSuccessCallbackResult): void;
+    fail?(): void;
+  }): void;
+  stopPullDownRefresh(): void;
+  navigateTo(options: {
+    url: string;
+    fail?(): void;
+    complete?(): void;
+  }): void;
+  redirectTo(options: {
+    url: string;
+    fail?(): void;
+    complete?(): void;
+  }): void;
+  reLaunch(options: {
+    url: string;
+    fail?(): void;
+    complete?(): void;
+  }): void;
+  switchTab(options: {
+    url: string;
+    fail?(): void;
+    complete?(): void;
+  }): void;
+  navigateBack(options?: {
+    delta?: number;
+  }): void;
+  showToast(options: {
+    title: string;
+    icon?: string;
+  }): void;
+  previewImage(options: {
+    current?: string;
+    urls: string[];
+  }): void;
+  setClipboardData(options: {
+    data: string;
+    success?(): void;
+    fail?(): void;
+  }): void;
+  getStorageSync(key: string): unknown;
+  setStorageSync(key: string, value: unknown): void;
+  removeStorageSync(key: string): void;
+  getAccountInfoSync(): {
+    miniProgram: {
+      envVersion: 'develop' | 'trial' | 'release';
+    };
+  };
+};

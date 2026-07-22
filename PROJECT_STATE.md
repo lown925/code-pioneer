@@ -1,8 +1,8 @@
 当前版本：v0.0.1
-当前阶段：前端契约收口
-当前任务：CP-009C-00 微信小程序学习中心前端现状核查与页面契约收口
-状态：已完成，等待前端认证接入
-下一任务：前端认证接入完成后启动 CP-009C-01
+当前阶段：前端认证接入
+当前任务：CP-009C-AUTH 微信小程序用户认证与统一请求层接入
+状态：已实现，等待 Tech Lead 验收
+下一任务：CP-009C-01 学习中心页面实现
 当前阻塞项：暂无
 
 已完成：
@@ -38,12 +38,16 @@
 - 错题列表、统计、详情、课程筛选、章节筛选、分页、用户隔离
 - deleted user 与 revoked session 拒绝访问错题接口
 - 旧 `/api/v1/wrong-questions*` 路径保持 404
+- 小程序认证存储、Authorization 注入、401 单飞刷新与 logout
+- 开发环境 Mock 登录接入正式 `POST /api/v1/auth/wechat-login`
+- `pages/auth/login` 与 `pages/profile/index` 最小认证接入
 
 当前任务完成状态：
-- 已核查真实小程序工程结构为原生 `miniapp/`，页面注册仅包含 `home`、`course/list`、`course/detail`、`chapter/detail`、`battle/index`、`community/index`、`profile/index`
-- 已核查 `miniapp/app.ts` 仅提供 `apiBaseUrl`，`miniapp/utils/request.ts` 未注入 Authorization、未保存 token、未做 401 续刷
-- 已确认当前小程序尚未注册学习中心与统一错题中心页面，后续按 CP-009C 页面契约落地
-- 已将学习中心与统一错题中心页面路径、入口和阶段边界收口到正式文档
+- 已完成小程序认证存储与全局认证状态初始化
+- 已完成统一请求层 Authorization 注入、401 单飞刷新与失败清理登录态
+- 已完成正式微信登录与开发环境 Mock 登录共用 `POST /api/v1/auth/wechat-login`
+- 已完成 `pages/auth/login` 登录页与 `pages/profile/index` 最小认证展示及 logout 接入
+- 已确认 docs/05 与后端 DTO、Service 分支保持一致，不再使用“特殊格式 Mock code”契约
 
 质量状态：
 - build 通过
@@ -52,4 +56,4 @@
 - e2e 通过
 
 当前待推进内容：
-- CP-009C-00 已完成，等待前端认证接入
+- CP-009C-AUTH 已实现，等待 Tech Lead 验收

@@ -1,6 +1,73 @@
 <view class="page-shell">
-  <view class="section-card state-box">
-    <text class="state-title">我的页占位</text>
-    <text class="state-text">登录、学习进度和个人中心能力尚未开发，这里先保留文档要求的入口。</text>
+  <view class="section-card profile-hero">
+    <text class="profile-eyebrow">MY PROFILE</text>
+    <text class="profile-title">{{displayName}}</text>
+    <text class="profile-copy">
+      {{isAuthenticated ? 'This stage only connects minimal auth display, request auth, and logout.' : 'Sign in first, then use learning center and wrong question center later.'}}
+    </text>
+    <view wx:if="{{showMockHint && !isAuthenticated}}" class="env-pill">
+      Mock login is visible in development only
+    </view>
   </view>
+
+  <view wx:if="{{!isAuthenticated}}" class="section-card state-box">
+    <text class="state-title">You are not signed in</text>
+    <text class="state-text">
+      Signing in stores access and refresh tokens plus a small user summary, then injects auth headers for future USER APIs.
+    </text>
+    <view class="primary-button profile-action" bindtap="handleLogin">Go to Login</view>
+  </view>
+
+  <block wx:else>
+    <view class="section-card summary-card">
+      <view class="summary-row">
+        <text class="summary-label">User Status</text>
+        <text class="summary-value">{{statusText}}</text>
+      </view>
+      <view class="summary-row">
+        <text class="summary-label">Experience</text>
+        <text class="summary-value">{{user.experience}}</text>
+      </view>
+      <view class="summary-row">
+        <text class="summary-label">Battle Rating</text>
+        <text class="summary-value">{{user.battleRating}}</text>
+      </view>
+      <view class="summary-row">
+        <text class="summary-label">Learning Streak</text>
+        <text class="summary-value">{{user.continuousLearningDays}} days</text>
+      </view>
+    </view>
+
+    <view class="section-card entry-card">
+      <text class="section-title">Personal Entry Points</text>
+      <text class="section-subtitle">
+        The page bodies will land in later learning center tasks. This stage only keeps authenticated entry placeholders.
+      </text>
+      <view class="entry-list">
+        <view class="entry-item" bindtap="handleLearningPlaceholder">
+          <text class="entry-title">My Learning</text>
+          <text class="entry-copy">Waiting for the CP-009C learning center page implementation.</text>
+        </view>
+        <view class="entry-item" bindtap="handleWrongQuestionPlaceholder">
+          <text class="entry-title">Unified Wrong Question Center</text>
+          <text class="entry-copy">This stage only connects auth and requests, not the page body.</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card action-card">
+      <text class="section-title">Session Management</text>
+      <text class="section-subtitle">
+        Logout revokes the current session through the official API and clears local auth state either way.
+      </text>
+      <button
+        class="logout-button"
+        loading="{{isLoggingOut}}"
+        disabled="{{isLoggingOut}}"
+        bindtap="handleLogout"
+      >
+        Log Out
+      </button>
+    </view>
+  </block>
 </view>

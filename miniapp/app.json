@@ -4,6 +4,7 @@
     "pages/course/list",
     "pages/course/detail",
     "pages/chapter/detail",
+    "pages/auth/login",
     "pages/battle/index",
     "pages/community/index",
     "pages/profile/index"

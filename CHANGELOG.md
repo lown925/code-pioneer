@@ -32,6 +32,11 @@
 - 学习中心与个人学习进度聚合后端接口
 - `GET /api/v1/users/me/learning`
 - `GET /api/v1/courses/:courseId/progress`
+- 小程序认证存储与全局认证状态初始化
+- 小程序统一请求层 Authorization 自动注入
+- 小程序 401 单飞 refresh 与原请求单次重试
+- `pages/auth/login` 最小登录页
+- `pages/profile/index` 最小认证展示与 logout 接入
 
 ### Changed
 - 公开课程、课程详情与章节详情接口在登录态下返回当前用户真实学习状态
@@ -46,6 +51,8 @@
 - 收口微信小程序学习中心页面契约与入口设计，统一为 `pages/learning/index`、`pages/learning/course-progress`、`pages/wrong-question/index`、`pages/wrong-question/detail`
 - 明确学习中心入口继续复用现有个人中心页，不新增 tabBar
 - 明确统一错题中心长期约束：当前仅接入 LEARNING，后续对战系统再接入 BATTLE
+- 修正微信登录 Mock 契约为正式微信登录 `{ code }` 与开发环境 Mock 登录 `{ code, mockOpenId }`
+- 同步 `docs/05`、`docs/07` 与现有后端实现，明确 `code` 始终必填且 `mockOpenId` 仅限开发环境
 
 ### Fixed
 - 统一单课程学习进度接口路径为 `GET /api/v1/courses/:courseId/progress`

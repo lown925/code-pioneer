@@ -1,0 +1,111 @@
+@import "../../app.wxss";
+
+.login-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.hero-card,
+.auth-card,
+.error-card {
+  padding: 32rpx;
+}
+
+.hero-card {
+  background: linear-gradient(145deg, #17324d 0%, #2f6bff 100%);
+  color: #ffffff;
+}
+
+.hero-eyebrow {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 10rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+}
+
+.hero-title {
+  display: block;
+  margin-top: 24rpx;
+  font-size: 40rpx;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.hero-copy {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.mock-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.field-group {
+  margin-top: 24rpx;
+}
+
+.field-label {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #17324d;
+}
+
+.field-input {
+  margin-top: 14rpx;
+  height: 84rpx;
+  padding: 0 24rpx;
+  border-radius: 20rpx;
+  background: #f6f9fd;
+  color: #17324d;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.action-button {
+  margin-top: 28rpx;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 84rpx;
+}
+
+.action-button::after {
+  border: none;
+}
+
+.action-button-primary {
+  background: linear-gradient(135deg, #2f6bff 0%, #4aa4ff 100%);
+  color: #ffffff;
+}
+
+.action-button-secondary {
+  background: #eef4ff;
+  color: #2f6bff;
+}
+
+.error-card {
+  background: #fff5f5;
+}
+
+.error-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #9f1239;
+}
+
+.error-text {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: #7f1d1d;
+}
