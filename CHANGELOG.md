@@ -43,6 +43,9 @@
 - 学习中心 V1.0 文档收口为 `GET /api/v1/users/me/learning` + `GET /api/v1/courses/:courseId/progress`
 - 明确学习中心无学习记录时返回空列表或稳定 `NOT_STARTED` 结构，不自动创建学习记录
 - 明确 V1.0 学习中心不新增 `LearningHistory`、`StudyRecord`、`LearningEvent` 或 `/api/v1/learning/*` 聚合接口
+- 收口微信小程序学习中心页面契约与入口设计，统一为 `pages/learning/index`、`pages/learning/course-progress`、`pages/wrong-question/index`、`pages/wrong-question/detail`
+- 明确学习中心入口继续复用现有个人中心页，不新增 tabBar
+- 明确统一错题中心长期约束：当前仅接入 LEARNING，后续对战系统再接入 BATTLE
 
 ### Fixed
 - 统一单课程学习进度接口路径为 `GET /api/v1/courses/:courseId/progress`

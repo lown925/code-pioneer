@@ -1559,8 +1559,10 @@ pages/community/index
 pages/community/detail
 pages/community/publish
 pages/profile/index
-pages/profile/progress
-pages/profile/wrong-questions
+pages/learning/index
+pages/learning/course-progress
+pages/wrong-question/index
+pages/wrong-question/detail
 pages/profile/favorites
 pages/profile/posts
 pages/profile/feedback

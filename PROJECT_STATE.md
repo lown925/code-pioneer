@@ -1,8 +1,8 @@
 当前版本：v0.0.1
-当前阶段：后端基础能力持续闭环
-当前任务：CP-009B-01 学习中心与个人学习进度聚合后端实现
-状态：等待验收
-下一任务：待 Tech Lead 确认
+当前阶段：前端契约收口
+当前任务：CP-009C-00 微信小程序学习中心前端现状核查与页面契约收口
+状态：已完成，等待前端认证接入
+下一任务：前端认证接入完成后启动 CP-009C-01
 当前阻塞项：暂无
 
 已完成：
@@ -40,13 +40,10 @@
 - 旧 `/api/v1/wrong-questions*` 路径保持 404
 
 当前任务完成状态：
-- `GET /api/v1/users/me/learning` 已实现，返回当前用户已产生学习记录的课程列表
-- `GET /api/v1/courses/:courseId/progress` 已实现，返回当前用户指定课程的学习进度
-- 学习中心复用 `CourseLearningRecord` 与 `ChapterLearningRecord`
-- 无学习记录时，课程进度返回稳定 `NOT_STARTED` 结构，列表返回空数组
-- `LearningStatus` 统一为 `NOT_STARTED`、`LEARNING`、`COMPLETED`
-- 未新增 `LearningHistory`、`StudyRecord`、`LearningEvent` 或新的 Prisma 模型
-- 未实现章节百分比更新、学习时长统计或 `/api/v1/learning/progress`
+- 已核查真实小程序工程结构为原生 `miniapp/`，页面注册仅包含 `home`、`course/list`、`course/detail`、`chapter/detail`、`battle/index`、`community/index`、`profile/index`
+- 已核查 `miniapp/app.ts` 仅提供 `apiBaseUrl`，`miniapp/utils/request.ts` 未注入 Authorization、未保存 token、未做 401 续刷
+- 已确认当前小程序尚未注册学习中心与统一错题中心页面，后续按 CP-009C 页面契约落地
+- 已将学习中心与统一错题中心页面路径、入口和阶段边界收口到正式文档
 
 质量状态：
 - build 通过
@@ -54,5 +51,5 @@
 - unit test 通过
 - e2e 通过
 
-当前待验收内容：
-- CP-009B-01 学习中心与个人学习进度聚合后端实现
+当前待推进内容：
+- CP-009C-00 已完成，等待前端认证接入

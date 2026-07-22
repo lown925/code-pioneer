@@ -25,3 +25,5 @@ D-024：小测提交成功只代表用户具备完成章节的资格，不自动
 D-025：`scorePercent` 仅用于展示，按四舍五入返回整数；`passed` 必须使用未四舍五入的原始得分比例计算，避免边界误判。
 D-026：V1.0 错题本以 `QuizAnswer` 为唯一事实来源，不新增 `WrongQuestion` 模型或数据表；列表按 `questionId` 聚合展示，同题允许多次错误记录，后续答对不自动移除，不提供 `masteryStatus`、收藏、删除或错题练习提交接口；详情允许显示正确答案和解析；旧 `/api/v1/wrong-questions/*` 路径退出 V1.0 正式契约，正式路径统一为 `/api/v1/users/me/wrong-questions/*`。
 D-027：V1.0 学习中心复用既有学习记录模型与接口：课程列表使用 `GET /api/v1/users/me/learning`，单课程进度使用 `GET /api/v1/courses/:courseId/progress`；当前不新增 `LearningHistory`、`StudyRecord`、`LearningEvent` 或 `/api/v1/learning/*` 聚合接口，`GET /api/v1/learning/progress` 保留给后续全局学习中心能力。
+D-028：统一错题中心采用单一错题模型与来源扩展策略，V1.0 当前仅接入 LEARNING 来源，后续服务对战系统时必须复用同一错题中心并接入 BATTLE 来源；不得拆分为 LearningWrongQuestion、BattleWrongQuestion 或 BattleWrongAnswerBook 等场景专属模型；当前阶段不修改数据库、QuizAnswer、wrong-question 接口或任何源码，来源字段与统一作答抽象在对战系统设计阶段再确定。
+D-029：微信小程序学习中心不新增 tabBar，继续复用现有个人中心页作为入口；学习中心页面路径统一为 `pages/learning/index`、`pages/learning/course-progress`，统一错题中心页面路径统一为 `pages/wrong-question/index`、`pages/wrong-question/detail`；课程与章节学习继续复用既有 `pages/course/detail` 与 `pages/chapter/detail`，当前 CP-009C 只做页面契约收口，不实现源码。
