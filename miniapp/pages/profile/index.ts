@@ -67,6 +67,17 @@ Page<ProfilePageData>({
     redirectToLogin('/pages/profile/index');
   },
 
+  handleLearningEntry() {
+    if (!this.data.isAuthenticated) {
+      redirectToLogin('/pages/learning/index');
+      return;
+    }
+
+    wx.navigateTo({
+      url: '/pages/learning/index',
+    });
+  },
+
   async handleLogout() {
     if (!this.data.isAuthenticated || this.data.isLoggingOut) {
       return;
@@ -105,18 +116,6 @@ Page<ProfilePageData>({
         icon: 'none',
       });
     }
-  },
-
-  handleLearningPlaceholder() {
-    if (!this.data.isAuthenticated) {
-      this.handleLogin();
-      return;
-    }
-
-    wx.showToast({
-      title: 'Learning center page will be added in a later task.',
-      icon: 'none',
-    });
   },
 
   handleWrongQuestionPlaceholder() {

@@ -37,6 +37,11 @@
 - 小程序 401 单飞 refresh 与原请求单次重试
 - `pages/auth/login` 最小登录页
 - `pages/profile/index` 最小认证展示与 logout 接入
+- `pages/learning/index` 我的学习列表页
+- 我的学习状态筛选、分页与下拉刷新
+- 我的学习空状态与错误状态
+- profile 学习中心入口
+- `pages/learning/course-progress` 最小路由占位
 
 ### Changed
 - 公开课程、课程详情与章节详情接口在登录态下返回当前用户真实学习状态

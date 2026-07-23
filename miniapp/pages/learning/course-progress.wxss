@@ -1,0 +1,30 @@
+@import "../../app.wxss";
+
+.placeholder-card {
+  padding: 48rpx 32rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+  align-items: flex-start;
+}
+
+.page-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.page-copy {
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: #5f7596;
+}
+
+.course-id {
+  font-size: 24rpx;
+  color: #7d8aa5;
+}
+
+.action-button {
+  margin-top: 12rpx;
+}

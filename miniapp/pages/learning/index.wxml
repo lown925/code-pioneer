@@ -1,0 +1,105 @@
+<view class="page-shell learning-page">
+  <view class="section-card hero-card">
+    <text class="hero-title">我的学习</text>
+    <text class="hero-copy">这里展示你在课程中的学习进度、最近章节和继续学习入口。</text>
+  </view>
+
+  <view class="section-card filter-bar">
+    <view
+      wx:for="{{filterTabs}}"
+      wx:key="key"
+      class="filter-chip {{activeFilter === item.key ? 'filter-chip-active' : ''}}"
+      data-filter-key="{{item.key}}"
+      bindtap="handleFilterTap"
+    >
+      {{item.label}}
+    </view>
+  </view>
+
+  <view wx:if="{{state === 'loading' && items.length === 0}}" class="section-card state-box">
+    <text class="state-title">学习记录加载中</text>
+    <text class="state-text">正在获取你的学习列表，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
+    <text class="state-title">学习记录加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button retry-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <view wx:elif="{{state === 'empty'}}" class="section-card state-box">
+    <text class="state-title">没有学习记录</text>
+    <text class="state-text">{{emptyMessage}}</text>
+    <view class="ghost-button retry-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <block wx:else>
+    <view class="learning-list">
+      <view
+        wx:for="{{items}}"
+        wx:key="courseId"
+        class="section-card learning-card"
+        data-course-id="{{item.courseId}}"
+        bindtap="openCourseProgress"
+      >
+        <view class="learning-card-top">
+          <view class="cover-frame">
+            <image
+              wx:if="{{item.coverUrl}}"
+              class="cover-image"
+              src="{{item.coverUrl}}"
+              mode="aspectFill"
+            />
+            <view wx:else class="cover-placeholder">{{item.coverFallbackText}}</view>
+          </view>
+
+          <view class="card-body">
+            <view class="card-title-row">
+              <text class="course-title">{{item.courseName}}</text>
+              <text class="status-tag {{item.statusClassName}}">{{item.statusText}}</text>
+            </view>
+
+            <view class="progress-meta">
+              <text class="progress-percent">{{item.progressPercentText}}</text>
+              <text class="progress-count">{{item.completedChapterCount}} / {{item.totalChapterCount}} 章节</text>
+            </view>
+
+            <view class="progress-track" aria-label="learning progress">
+              <view class="progress-fill" style="width: {{item.progressPercentClamped}}%;"></view>
+            </view>
+
+            <text class="chapter-text">
+              {{item.lastLearnedChapterText ? '最近章节：' + item.lastLearnedChapterText : '暂无最近学习章节'}}
+            </text>
+            <text wx:if="{{item.lastLearnedAtText}}" class="time-text">
+              最近学习：{{item.lastLearnedAtText}}
+            </text>
+          </view>
+        </view>
+
+        <view class="card-footer">
+          <view
+            class="primary-button action-button"
+            data-course-id="{{item.courseId}}"
+            catchtap="openCourseProgress"
+          >
+            {{item.actionText}}
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{isLoadingMore}}" class="loading-more section-card">
+      <text class="loading-more-text">正在加载更多学习记录...</text>
+    </view>
+
+    <view wx:elif="{{loadMoreErrorMessage}}" class="section-card footer-error">
+      <text class="footer-error-text">{{loadMoreErrorMessage}}</text>
+      <view class="ghost-button footer-action" bindtap="handleLoadMoreRetry">重新加载下一页</view>
+    </view>
+
+    <view wx:elif="{{hasMore === false && items.length > 0}}" class="section-card loading-more">
+      <text class="loading-more-text">已经加载全部学习记录</text>
+    </view>
+  </block>
+</view>

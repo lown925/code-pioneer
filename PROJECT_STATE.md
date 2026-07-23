@@ -1,8 +1,8 @@
 当前版本：v0.0.1
-当前阶段：前端认证接入
-当前任务：CP-009C-AUTH 微信小程序用户认证与统一请求层接入
+当前阶段：学习中心页面实现
+当前任务：CP-009C-01 微信小程序“我的学习”列表页
 状态：已实现，等待 Tech Lead 验收
-下一任务：CP-009C-01 学习中心页面实现
+下一任务：CP-009C-02 微信小程序单课程进度页
 当前阻塞项：暂无
 
 已完成：
@@ -41,13 +41,16 @@
 - 小程序认证存储、Authorization 注入、401 单飞刷新与 logout
 - 开发环境 Mock 登录接入正式 `POST /api/v1/auth/wechat-login`
 - `pages/auth/login` 与 `pages/profile/index` 最小认证接入
+- `pages/learning/index` 我的学习列表页
+- 学习状态筛选、分页、下拉刷新、空状态与错误状态
+- `pages/learning/course-progress` 最小路由占位
 
 当前任务完成状态：
-- 已完成小程序认证存储与全局认证状态初始化
-- 已完成统一请求层 Authorization 注入、401 单飞刷新与失败清理登录态
-- 已完成正式微信登录与开发环境 Mock 登录共用 `POST /api/v1/auth/wechat-login`
-- 已完成 `pages/auth/login` 登录页与 `pages/profile/index` 最小认证展示及 logout 接入
-- 已确认 docs/05 与后端 DTO、Service 分支保持一致，不再使用“特殊格式 Mock code”契约
+- 已完成 `pages/learning/index` 对接正式 `GET /api/v1/users/me/learning`
+- 已完成“全部 / 学习中 / 已完成”状态筛选、分页加载与下拉刷新
+- 已完成课程卡片、空状态、错误状态与登录失效重定向处理
+- 已完成 profile 学习中心入口接入
+- 已完成 `pages/learning/course-progress` 最小占位路由，不提前实现 CP-009C-02 业务
 
 质量状态：
 - build 通过
@@ -56,4 +59,4 @@
 - e2e 通过
 
 当前待推进内容：
-- CP-009C-AUTH 已实现，等待 Tech Lead 验收
+- CP-009C-01 已实现，等待 Tech Lead 验收

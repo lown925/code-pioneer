@@ -5,6 +5,8 @@
     "pages/course/detail",
     "pages/chapter/detail",
     "pages/auth/login",
+    "pages/learning/index",
+    "pages/learning/course-progress",
     "pages/battle/index",
     "pages/community/index",
     "pages/profile/index"

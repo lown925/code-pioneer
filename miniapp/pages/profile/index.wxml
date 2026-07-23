@@ -41,16 +41,16 @@
     <view class="section-card entry-card">
       <text class="section-title">Personal Entry Points</text>
       <text class="section-subtitle">
-        The page bodies will land in later learning center tasks. This stage only keeps authenticated entry placeholders.
+        My Learning is available now. The wrong question center page body will continue in a later task.
       </text>
       <view class="entry-list">
-        <view class="entry-item" bindtap="handleLearningPlaceholder">
-          <text class="entry-title">My Learning</text>
-          <text class="entry-copy">Waiting for the CP-009C learning center page implementation.</text>
+        <view class="entry-item" bindtap="handleLearningEntry">
+          <text class="entry-title">我的学习</text>
+          <text class="entry-copy">查看课程学习记录、筛选进度和继续学习入口。</text>
         </view>
         <view class="entry-item" bindtap="handleWrongQuestionPlaceholder">
-          <text class="entry-title">Unified Wrong Question Center</text>
-          <text class="entry-copy">This stage only connects auth and requests, not the page body.</text>
+          <text class="entry-title">错题中心</text>
+          <text class="entry-copy">后续工单接入统一错题中心页面。</text>
         </view>
       </view>
     </view>

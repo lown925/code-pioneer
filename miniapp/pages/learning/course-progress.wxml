@@ -1,0 +1,8 @@
+<view class="page-shell">
+  <view class="section-card placeholder-card">
+    <text class="page-title">课程进度</text>
+    <text class="page-copy">课程进度页将在下一工单完成。</text>
+    <text wx:if="{{courseId}}" class="course-id">课程 ID：{{courseId}}</text>
+    <view class="primary-button action-button" bindtap="handleBack">返回我的学习</view>
+  </view>
+</view>
