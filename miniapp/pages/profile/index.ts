@@ -118,15 +118,14 @@ Page<ProfilePageData>({
     }
   },
 
-  handleWrongQuestionPlaceholder() {
+  handleWrongQuestionEntry() {
     if (!this.data.isAuthenticated) {
-      this.handleLogin();
+      redirectToLogin('/pages/wrong-question/index');
       return;
     }
 
-    wx.showToast({
-      title: 'Wrong question center page will be added in a later task.',
-      icon: 'none',
+    wx.navigateTo({
+      url: '/pages/wrong-question/index',
     });
   },
 });

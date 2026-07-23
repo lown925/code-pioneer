@@ -7,6 +7,8 @@
     "pages/auth/login",
     "pages/learning/index",
     "pages/learning/course-progress",
+    "pages/wrong-question/index",
+    "pages/wrong-question/detail",
     "pages/battle/index",
     "pages/community/index",
     "pages/profile/index"

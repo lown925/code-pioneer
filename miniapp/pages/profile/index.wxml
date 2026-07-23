@@ -1,64 +1,64 @@
 <view class="page-shell">
   <view class="section-card profile-hero">
-    <text class="profile-eyebrow">MY PROFILE</text>
+    <text class="profile-eyebrow">我的主页</text>
     <text class="profile-title">{{displayName}}</text>
     <text class="profile-copy">
-      {{isAuthenticated ? 'This stage only connects minimal auth display, request auth, and logout.' : 'Sign in first, then use learning center and wrong question center later.'}}
+      {{isAuthenticated ? '当前阶段已接入最小认证展示、我的学习和统一错题中心入口。' : '请先登录，再进入学习中心和错题中心。'}}
     </text>
     <view wx:if="{{showMockHint && !isAuthenticated}}" class="env-pill">
-      Mock login is visible in development only
+      仅开发环境可见的测试登录入口
     </view>
   </view>
 
   <view wx:if="{{!isAuthenticated}}" class="section-card state-box">
-    <text class="state-title">You are not signed in</text>
+    <text class="state-title">你还没有登录</text>
     <text class="state-text">
-      Signing in stores access and refresh tokens plus a small user summary, then injects auth headers for future USER APIs.
+      登录后会保存最小认证状态，并自动为后续用户接口注入认证头。
     </text>
-    <view class="primary-button profile-action" bindtap="handleLogin">Go to Login</view>
+    <view class="primary-button profile-action" bindtap="handleLogin">去登录</view>
   </view>
 
   <block wx:else>
     <view class="section-card summary-card">
       <view class="summary-row">
-        <text class="summary-label">User Status</text>
+        <text class="summary-label">用户状态</text>
         <text class="summary-value">{{statusText}}</text>
       </view>
       <view class="summary-row">
-        <text class="summary-label">Experience</text>
+        <text class="summary-label">经验值</text>
         <text class="summary-value">{{user.experience}}</text>
       </view>
       <view class="summary-row">
-        <text class="summary-label">Battle Rating</text>
+        <text class="summary-label">对战分</text>
         <text class="summary-value">{{user.battleRating}}</text>
       </view>
       <view class="summary-row">
-        <text class="summary-label">Learning Streak</text>
-        <text class="summary-value">{{user.continuousLearningDays}} days</text>
+        <text class="summary-label">连续学习天数</text>
+        <text class="summary-value">{{user.continuousLearningDays}} 天</text>
       </view>
     </view>
 
     <view class="section-card entry-card">
-      <text class="section-title">Personal Entry Points</text>
+      <text class="section-title">个人入口</text>
       <text class="section-subtitle">
-        My Learning is available now. The wrong question center page body will continue in a later task.
+        我的学习和统一错题中心都已接入正式认证链路。
       </text>
       <view class="entry-list">
         <view class="entry-item" bindtap="handleLearningEntry">
           <text class="entry-title">我的学习</text>
-          <text class="entry-copy">查看课程学习记录、筛选进度和继续学习入口。</text>
+          <text class="entry-copy">查看课程学习记录、筛选进度并继续学习。</text>
         </view>
-        <view class="entry-item" bindtap="handleWrongQuestionPlaceholder">
-          <text class="entry-title">错题中心</text>
-          <text class="entry-copy">后续工单接入统一错题中心页面。</text>
+        <view class="entry-item" bindtap="handleWrongQuestionEntry">
+          <text class="entry-title">我的错题</text>
+          <text class="entry-copy">查看错题统计、列表和单题详情。</text>
         </view>
       </view>
     </view>
 
     <view class="section-card action-card">
-      <text class="section-title">Session Management</text>
+      <text class="section-title">会话管理</text>
       <text class="section-subtitle">
-        Logout revokes the current session through the official API and clears local auth state either way.
+        退出登录会调用正式接口撤销当前会话，并清理本地认证状态。
       </text>
       <button
         class="logout-button"
@@ -66,7 +66,7 @@
         disabled="{{isLoggingOut}}"
         bindtap="handleLogout"
       >
-        Log Out
+        退出登录
       </button>
     </view>
   </block>

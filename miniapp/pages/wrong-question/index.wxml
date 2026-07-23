@@ -1,0 +1,129 @@
+<view class="page-shell wrong-question-page">
+  <view class="section-card hero-card">
+    <text class="hero-eyebrow">错题中心</text>
+    <text class="hero-title">统一错题中心</text>
+    <text class="hero-copy">
+      当前阶段只展示学习测验产生的错题记录。后续会在同一个中心接入其他正式来源。
+    </text>
+  </view>
+
+  <view class="section-card statistics-card">
+    <view class="card-header">
+      <view>
+        <text class="section-title">错题统计</text>
+        <text class="section-subtitle">统计结果直接来自正式后端聚合接口。</text>
+      </view>
+      <view
+        wx:if="{{statisticsState === 'error'}}"
+        class="ghost-button mini-button"
+        bindtap="handleStatisticsRetry"
+      >
+        重试统计
+      </view>
+    </view>
+
+    <view wx:if="{{statisticsState === 'loading'}}" class="state-box compact-state">
+      <text class="state-title">统计加载中</text>
+      <text class="state-text">正在获取你的错题统计信息。</text>
+    </view>
+
+    <view wx:elif="{{statisticsState === 'error'}}" class="state-box compact-state">
+      <text class="state-title">统计加载失败</text>
+      <text class="state-text">{{statisticsErrorMessage}}</text>
+    </view>
+
+    <view wx:elif="{{statistics}}" class="statistics-grid">
+      <view class="statistics-item">
+        <text class="statistics-value">{{statistics.totalWrongQuestionsText}}</text>
+        <text class="statistics-label">错题数量</text>
+      </view>
+      <view class="statistics-item">
+        <text class="statistics-value">{{statistics.totalWrongAnswersText}}</text>
+        <text class="statistics-label">错误次数</text>
+      </view>
+      <view class="statistics-item">
+        <text class="statistics-value">{{statistics.courseCountText}}</text>
+        <text class="statistics-label">涉及课程</text>
+      </view>
+      <view class="statistics-item">
+        <text class="statistics-value statistics-time">{{statistics.latestWrongAtText}}</text>
+        <text class="statistics-label">最近错误时间</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{state === 'loading' && items.length === 0}}" class="section-card state-box">
+    <text class="state-title">错题加载中</text>
+    <text class="state-text">正在获取你的错题列表，请稍候。</text>
+  </view>
+
+  <view
+    wx:elif="{{state === 'invalid' || state === 'unauthorized' || state === 'error'}}"
+    class="section-card state-box"
+  >
+    <text class="state-title">{{errorTitle}}</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="state-actions">
+      <view class="primary-button mini-button" bindtap="handleRetry">重新加载</view>
+      <view class="ghost-button mini-button" bindtap="handleBack">返回上一页</view>
+    </view>
+  </view>
+
+  <view wx:elif="{{state === 'empty'}}" class="section-card state-box">
+    <text class="state-title">{{emptyTitle}}</text>
+    <text class="state-text">{{emptyMessage}}</text>
+    <view class="state-actions">
+      <view class="primary-button mini-button" bindtap="handleRetry">重新加载</view>
+      <view class="ghost-button mini-button" bindtap="handleBack">返回上一页</view>
+    </view>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{items.length > 0}}" class="wrong-question-list">
+      <view
+        wx:for="{{items}}"
+        wx:key="questionId"
+        wx:for-item="item"
+        class="section-card wrong-question-card"
+        bindtap="handleOpenDetail"
+        data-question-id="{{item.questionId}}"
+      >
+        <view class="question-top">
+          <view class="source-tag {{item.sourceClassName}}">{{item.sourceText}}</view>
+          <text class="question-type">{{item.questionTypeText}}</text>
+        </view>
+
+        <text class="question-content">{{item.questionContentText}}</text>
+
+        <view class="question-meta">
+          <text class="question-meta-text">{{item.courseTagText}}</text>
+          <text class="question-meta-text">{{item.chapterTagText}}</text>
+        </view>
+
+        <view class="question-footer">
+          <view class="question-count">{{item.wrongCountText}}</view>
+          <text wx:if="{{item.lastWrongAtText}}" class="question-time">
+            {{item.lastWrongAtText}}
+          </text>
+        </view>
+
+        <view class="question-action-row">
+          <text class="question-link">查看详情</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{isLoadingMore}}" class="section-card loading-more">
+      <text class="loading-more-text">正在加载更多错题...</text>
+    </view>
+
+    <view wx:elif="{{loadMoreErrorMessage}}" class="section-card footer-error">
+      <text class="footer-error-text">{{loadMoreErrorMessage}}</text>
+      <view class="ghost-button mini-button" bindtap="handleLoadMoreRetry">重新加载下一页</view>
+    </view>
+
+    <view wx:elif="{{!hasMore && items.length > 0}}" class="section-card loading-more">
+      <text class="loading-more-text">已经加载全部错题</text>
+    </view>
+  </block>
+</view>
