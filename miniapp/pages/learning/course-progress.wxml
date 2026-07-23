@@ -1,8 +1,108 @@
-<view class="page-shell">
-  <view class="section-card placeholder-card">
-    <text class="page-title">课程进度</text>
-    <text class="page-copy">课程进度页将在下一工单完成。</text>
-    <text wx:if="{{courseId}}" class="course-id">课程 ID：{{courseId}}</text>
-    <view class="primary-button action-button" bindtap="handleBack">返回我的学习</view>
+<view class="page-shell course-progress-page">
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">课程进度加载中</text>
+    <text class="state-text">正在获取课程总体进度和章节学习状态，请稍候。</text>
   </view>
+
+  <view
+    wx:elif="{{state === 'invalid' || state === 'notFound' || state === 'error'}}"
+    class="section-card state-box"
+  >
+    <text class="state-title">{{errorTitle}}</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="error-actions">
+      <view wx:if="{{courseId}}" class="primary-button" bindtap="handleRetry">重新加载</view>
+      <view class="ghost-button" bindtap="handleBack">返回上一页</view>
+    </view>
+  </view>
+
+  <block wx:else>
+    <view class="section-card hero-card">
+      <view class="hero-top">
+        <view class="cover-frame">
+          <image
+            wx:if="{{course.coverUrl}}"
+            class="cover-image"
+            src="{{course.coverUrl}}"
+            mode="aspectFill"
+          />
+          <view wx:else class="cover-placeholder">{{course.coverFallbackText}}</view>
+        </view>
+
+        <view class="hero-main">
+          <view class="title-row">
+            <text class="course-title">{{course.courseName}}</text>
+            <text class="status-tag {{course.statusClassName}}">{{course.statusText}}</text>
+          </view>
+
+          <text class="chapter-text">最近章节：{{course.lastLearnedChapterText}}</text>
+          <text wx:if="{{course.lastLearnedAtText}}" class="time-text">最近学习：{{course.lastLearnedAtText}}</text>
+          <text wx:if="{{course.startedAtText}}" class="time-text">开始学习：{{course.startedAtText}}</text>
+          <text wx:if="{{course.completedAtText}}" class="time-text">完成时间：{{course.completedAtText}}</text>
+        </view>
+      </view>
+
+      <view class="progress-panel">
+        <view class="progress-meta">
+          <text class="progress-percent">{{course.progressPercentText}}</text>
+          <text class="progress-count">{{course.completedChapterText}}</text>
+        </view>
+        <view class="progress-track">
+          <view class="progress-fill" style="width: {{course.progressPercentClamped}}%;"></view>
+        </view>
+      </view>
+
+      <view class="hero-actions">
+        <button
+          class="primary-action"
+          loading="{{isPrimaryActionLoading}}"
+          disabled="{{course.primaryActionDisabled || isPrimaryActionLoading}}"
+          bindtap="handlePrimaryAction"
+        >
+          {{course.primaryActionText}}
+        </button>
+        <view class="ghost-button detail-button" bindtap="handleOpenCourseDetail">查看课程详情</view>
+      </view>
+    </view>
+
+    <view class="section-head">
+      <view>
+        <text class="section-title">章节进度</text>
+        <text class="section-subtitle">按章节展示当前课程的学习状态</text>
+      </view>
+    </view>
+
+    <view wx:if="{{hasChapters}}" class="chapter-list">
+      <view
+        wx:for="{{chapters}}"
+        wx:key="chapterId"
+        class="section-card chapter-card {{item.isCurrentTarget ? 'chapter-card-current' : ''}}"
+        bindtap="handleChapterTap"
+        data-chapter-id="{{item.chapterId}}"
+        data-course-id="{{courseId}}"
+      >
+        <view class="chapter-top">
+          <view class="chapter-index">{{item.indexText}}</view>
+          <text class="status-tag {{item.statusClassName}}">{{item.statusText}}</text>
+        </view>
+
+        <text class="chapter-title-main">{{item.titleText}}</text>
+
+        <view class="chapter-meta">
+          <text wx:if="{{item.startedAtText}}" class="chapter-meta-text">开始：{{item.startedAtText}}</text>
+          <text wx:if="{{item.completedAtText}}" class="chapter-meta-text">完成：{{item.completedAtText}}</text>
+        </view>
+
+        <view class="chapter-footer">
+          <text class="chapter-link">{{item.isActionable ? '进入章节' : '章节参数无效'}}</text>
+          <text wx:if="{{item.isCurrentTarget}}" class="current-target-tag">继续学习目标</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:else class="section-card state-box">
+      <text class="state-title">暂无章节</text>
+      <text class="state-text">{{noChapterMessage}}</text>
+    </view>
+  </block>
 </view>

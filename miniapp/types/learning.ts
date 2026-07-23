@@ -36,3 +36,27 @@ export type LearningListQuery = {
   pageSize?: number;
   status?: Exclude<LearningStatus, 'NOT_STARTED'>;
 };
+
+export type CourseProgressChapter = {
+  chapterId: string;
+  title: string;
+  sortOrder: number;
+  status: LearningStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
+export type CourseProgress = {
+  courseId: string;
+  status: LearningStatus;
+  progressPercent: number;
+  completedChapterCount: number;
+  totalChapterCount: number;
+  startedAt: string | null;
+  lastLearnedAt: string | null;
+  completedAt: string | null;
+  lastLearnedChapter: LearningChapterSummary | null;
+  chapters: CourseProgressChapter[];
+};
+
+export type CourseProgressResponse = CourseProgress;
