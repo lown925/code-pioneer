@@ -5,7 +5,7 @@ import type {
   CourseDetailData,
 } from '../../types/course';
 import { formatMinutes } from '../../utils/course';
-import { request } from '../../utils/request';
+import { RequestError, request } from '../../utils/request';
 
 type PageState = 'loading' | 'success' | 'error';
 
@@ -50,6 +50,20 @@ type ChapterDetailPageData = {
 
 function getOptionalString(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0 ? value : '';
+}
+
+function decodeQueryValue(value: string) {
+  try {
+    return decodeURIComponent(value).trim();
+  } catch {
+    return value.trim();
+  }
+}
+
+function isValidUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }
 
 function getHeadingLevel(value: unknown) {
@@ -175,6 +189,26 @@ function getChapterTitleById(chapters: ChapterCatalogItem[], chapterId: string) 
   return chapters.find((chapter) => chapter.id === chapterId)?.title ?? '';
 }
 
+function getReadableErrorMessage(error: unknown) {
+  if (error instanceof RequestError) {
+    if (error.code === 'NETWORK_ERROR') {
+      return '网络请求失败，请确认后端服务可用后重试';
+    }
+
+    if (error.statusCode === 404) {
+      return '章节不存在或暂不可用';
+    }
+
+    return '章节详情加载失败，请稍后重试';
+  }
+
+  if (error instanceof Error) {
+    return '章节详情加载失败，请稍后重试';
+  }
+
+  return '章节详情加载失败，请稍后重试';
+}
+
 Page<ChapterDetailPageData>({
   data: {
     state: 'loading',
@@ -196,11 +230,12 @@ Page<ChapterDetailPageData>({
   },
 
   onLoad(query) {
-    const chapterId = query.chapterId;
+    const chapterId =
+      typeof query.chapterId === 'string' ? decodeQueryValue(query.chapterId) : '';
 
-    if (!chapterId || typeof chapterId !== 'string') {
+    if (!chapterId || !isValidUuid(chapterId)) {
       wx.showToast({
-        title: '缺少章节参数',
+        title: '章节参数无效',
         icon: 'none',
       });
 
@@ -264,8 +299,7 @@ Page<ChapterDetailPageData>({
     } catch (error) {
       this.setData({
         state: 'error',
-        errorMessage:
-          error instanceof Error ? error.message : '章节详情加载失败，请稍后重试',
+        errorMessage: getReadableErrorMessage(error),
       });
     }
   },
@@ -314,7 +348,7 @@ Page<ChapterDetailPageData>({
     }
 
     wx.redirectTo({
-      url: `/pages/chapter/detail?chapterId=${chapterId}`,
+      url: `/pages/chapter/detail?chapterId=${encodeURIComponent(chapterId)}`,
     });
   },
 
@@ -324,7 +358,7 @@ Page<ChapterDetailPageData>({
     }
 
     wx.redirectTo({
-      url: `/pages/chapter/detail?chapterId=${this.data.previousChapterId}`,
+      url: `/pages/chapter/detail?chapterId=${encodeURIComponent(this.data.previousChapterId)}`,
     });
   },
 
@@ -334,7 +368,7 @@ Page<ChapterDetailPageData>({
     }
 
     wx.redirectTo({
-      url: `/pages/chapter/detail?chapterId=${this.data.nextChapterId}`,
+      url: `/pages/chapter/detail?chapterId=${encodeURIComponent(this.data.nextChapterId)}`,
     });
   },
 

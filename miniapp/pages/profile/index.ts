@@ -18,34 +18,38 @@ type ProfilePageData = {
 
 function formatStatus(user: AuthUserProfile | null) {
   if (!user) {
-    return 'Guest';
+    return '游客';
   }
 
   if (user.status === 'DISABLED') {
-    return 'Disabled';
+    return '已禁用';
   }
 
   if (user.status === 'DELETED') {
-    return 'Deleted';
+    return '已注销';
   }
 
-  return 'Normal';
+  return '正常';
 }
 
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof RequestError || error instanceof Error) {
-    return error.message || fallback;
+function getLogoutErrorMessage(error: unknown) {
+  if (error instanceof RequestError) {
+    return '退出接口调用失败，已清理本地登录态';
   }
 
-  return fallback;
+  if (error instanceof Error) {
+    return '退出接口调用失败，已清理本地登录态';
+  }
+
+  return '退出接口调用失败，已清理本地登录态';
 }
 
 Page<ProfilePageData>({
   data: {
     isAuthenticated: false,
     user: null,
-    displayName: 'Guest User',
-    statusText: 'Guest',
+    displayName: '游客用户',
+    statusText: '游客',
     isLoggingOut: false,
     showMockHint: false,
   },
@@ -57,7 +61,7 @@ Page<ProfilePageData>({
     this.setData({
       isAuthenticated: authState.isAuthenticated,
       user,
-      displayName: user?.nickname?.trim() || 'WeChat User',
+      displayName: user?.nickname?.trim() || '微信用户',
       statusText: formatStatus(user),
       showMockHint: isDevelopmentEnvironment(),
     });
@@ -83,6 +87,8 @@ Page<ProfilePageData>({
       return;
     }
 
+    let toastMessage = '已退出登录';
+
     this.setData({
       isLoggingOut: true,
     });
@@ -96,10 +102,7 @@ Page<ProfilePageData>({
         disableAuthRedirect: true,
       });
     } catch (error) {
-      wx.showToast({
-        title: getErrorMessage(error, 'Logout failed. Local auth has been cleared.'),
-        icon: 'none',
-      });
+      toastMessage = getLogoutErrorMessage(error);
     } finally {
       clearAuthSession();
       const authState = getAuthStateSummary();
@@ -107,12 +110,12 @@ Page<ProfilePageData>({
       this.setData({
         isAuthenticated: authState.isAuthenticated,
         user: authState.user,
-        displayName: 'Guest User',
-        statusText: 'Guest',
+        displayName: '游客用户',
+        statusText: '游客',
         isLoggingOut: false,
       });
       wx.showToast({
-        title: 'Logged out.',
+        title: toastMessage,
         icon: 'none',
       });
     }

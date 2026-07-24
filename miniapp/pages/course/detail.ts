@@ -4,7 +4,7 @@ import {
   formatMinutes,
   normalizeLearningObjectives,
 } from '../../utils/course';
-import { request } from '../../utils/request';
+import { RequestError, request } from '../../utils/request';
 
 type PageState = 'loading' | 'success' | 'error';
 
@@ -28,6 +28,57 @@ type CourseDetailPageData = {
   chapters: ChapterCard[];
 };
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function decodeQueryValue(value: string) {
+  try {
+    return decodeURIComponent(value).trim();
+  } catch {
+    return value.trim();
+  }
+}
+
+function isValidUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
+function getReadableErrorMessage(error: unknown) {
+  if (error instanceof RequestError) {
+    if (error.code === 'NETWORK_ERROR') {
+      return '网络请求失败，请确认后端服务可用后重试';
+    }
+
+    if (error.statusCode === 404) {
+      return '课程不存在或暂不可用';
+    }
+
+    return '课程详情加载失败，请稍后重试';
+  }
+
+  if (error instanceof Error) {
+    return '课程详情加载失败，请稍后重试';
+  }
+
+  return '课程详情加载失败，请稍后重试';
+}
+
+function navigateBackOrCourseList() {
+  if (getCurrentPages().length > 1) {
+    wx.navigateBack({
+      delta: 1,
+    });
+    return;
+  }
+
+  wx.reLaunch({
+    url: '/pages/course/list',
+  });
+}
+
 Page<CourseDetailPageData>({
   data: {
     state: 'loading',
@@ -46,28 +97,27 @@ Page<CourseDetailPageData>({
   },
 
   onLoad(query) {
-    const courseId = query.courseId;
+    const courseIdRaw =
+      typeof query.courseId === 'string' ? decodeQueryValue(query.courseId) : '';
 
-    if (!courseId || typeof courseId !== 'string') {
+    if (!isNonEmptyString(courseIdRaw) || !isValidUuid(courseIdRaw)) {
       wx.showToast({
-        title: '缺少课程参数',
+        title: '课程参数无效',
         icon: 'none',
       });
 
       setTimeout(() => {
-        wx.navigateBack({
-          delta: 1,
-        });
+        navigateBackOrCourseList();
       }, 400);
 
       return;
     }
 
     this.setData({
-      courseId,
+      courseId: courseIdRaw,
     });
 
-    void this.loadCourseDetail(courseId);
+    void this.loadCourseDetail(courseIdRaw);
   },
 
   async loadCourseDetail(courseId?: string) {
@@ -102,8 +152,7 @@ Page<CourseDetailPageData>({
     } catch (error) {
       this.setData({
         state: 'error',
-        errorMessage:
-          error instanceof Error ? error.message : '课程详情加载失败，请稍后重试',
+        errorMessage: getReadableErrorMessage(error),
       });
     }
   },
@@ -120,7 +169,7 @@ Page<CourseDetailPageData>({
     }
 
     wx.navigateTo({
-      url: `/pages/chapter/detail?chapterId=${chapterId}`,
+      url: `/pages/chapter/detail?chapterId=${encodeURIComponent(chapterId)}`,
     });
   },
 });

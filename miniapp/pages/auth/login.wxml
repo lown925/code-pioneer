@@ -1,39 +1,37 @@
 <view class="page-shell login-page">
   <view class="section-card hero-card">
-    <text class="hero-eyebrow">USER AUTH</text>
-    <text class="hero-title">Sign in before using USER APIs</text>
-    <text class="hero-copy">
-      This stage only connects authentication and the shared request layer. The learning pages themselves are still part of later tasks.
-    </text>
+    <text class="hero-eyebrow">统一认证</text>
+    <text class="hero-title">微信登录</text>
+    <text class="hero-copy">使用微信身份登录码站先锋。</text>
   </view>
 
   <view class="section-card auth-card">
-    <text class="section-title">WeChat Login</text>
-    <text class="section-subtitle">Production uses `wx.login` to exchange a real user identity.</text>
+    <text class="section-title">微信登录</text>
+    <text class="section-subtitle">正式环境使用 `wx.login` 获取临时凭证并完成登录。</text>
     <button
       class="action-button action-button-primary"
       loading="{{isWechatSubmitting}}"
       disabled="{{isWechatSubmitting || isMockSubmitting}}"
       bindtap="handleWechatLogin"
     >
-      Sign in with WeChat
+      微信授权登录
     </button>
   </view>
 
   <view wx:if="{{showMockLogin}}" class="section-card auth-card mock-card">
-    <text class="section-title">Development Mock Login</text>
+    <text class="section-title">开发环境模拟登录</text>
     <text class="section-subtitle">
-      Visible only in development. The request body remains `{ code, mockOpenId }` on the same official endpoint.
+      仅用于本地开发和联调，正式环境不会显示。
     </text>
 
     <view class="field-group">
-      <text class="field-label">mockOpenId</text>
+      <text class="field-label">模拟用户标识</text>
       <input
         class="field-input"
         type="text"
         maxlength="128"
         value="{{mockOpenId}}"
-        placeholder="mock-openid-dev-user-001"
+        placeholder="请输入开发测试用 openId"
         bindinput="handleMockOpenIdInput"
       />
     </view>
@@ -44,12 +42,12 @@
       disabled="{{isWechatSubmitting || isMockSubmitting}}"
       bindtap="handleMockLogin"
     >
-      Sign in with Mock
+      模拟登录
     </button>
   </view>
 
   <view wx:if="{{errorMessage}}" class="section-card error-card">
-    <text class="error-title">Login Failed</text>
+    <text class="error-title">登录失败</text>
     <text class="error-text">{{errorMessage}}</text>
   </view>
 </view>

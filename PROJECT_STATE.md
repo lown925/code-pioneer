@@ -1,8 +1,8 @@
 当前版本：v0.0.1
-当前阶段：学习中心页面实现
-当前任务：CP-009C-02 微信小程序单课程学习进度详情页
-状态：已实现，等待 Tech Lead 验收
-下一任务：CP-009C-03 微信小程序错题中心页面实现
+当前阶段：微信小程序学习模块 V1 收口
+当前任务：CP-009C-04 微信小程序学习模块整体联调与 V1 收口
+状态：已完成静态联调修正，等待 Tech Lead 验收
+下一任务：待定
 当前阻塞项：暂无
 
 已完成：
@@ -35,7 +35,7 @@
 - `GET /api/v1/users/me/wrong-questions`
 - `GET /api/v1/users/me/wrong-questions/statistics`
 - `GET /api/v1/users/me/wrong-questions/:questionId`
-- 错题列表、统计、详情、课程筛选、章节筛选、分页、用户隔离
+- 错题列表、统计、详情、分页、用户隔离
 - deleted user 与 revoked session 拒绝访问错题接口
 - 旧 `/api/v1/wrong-questions*` 路径保持 404
 - 小程序认证存储、Authorization 注入、401 单飞刷新与 logout
@@ -43,36 +43,33 @@
 - `pages/auth/login` 与 `pages/profile/index` 最小认证接入
 - `pages/learning/index` 我的学习列表页
 - 学习状态筛选、分页、下拉刷新、空状态与错误状态
-- `pages/learning/course-progress` 最小路由占位
 - `pages/learning/course-progress` 单课程学习进度详情页
 - 课程总体进度展示、NOT_STARTED 稳定状态与章节进度列表
 - 继续学习、章节跳转、课程详情跳转与返回刷新
+- `pages/wrong-question/index` 与 `pages/wrong-question/detail`
+- 错题统计、分页列表、详情页、下拉刷新、错误状态与空状态
 
-当前任务完成状态：
-- 已完成 `pages/learning/course-progress` 对接正式 `GET /api/v1/courses/:courseId/progress`
-- 已完成课程总体进度卡片、章节列表、无章节状态与首屏错误状态
-- 已完成 NOT_STARTED / LEARNING / COMPLETED 三类课程状态展示
-- 已完成继续学习章节选择、章节详情跳转、课程详情跳转与下拉刷新
-- 已复用现有认证与 request 刷新机制，未新增学习记录写入逻辑
+CP-009C-04 当前收口结果：
+- 已完成登录页用户可见文案中文化，并移除过时“后续任务”说明
+- 已完成开发环境 Mock 登录入口显示规则收口，仅在 `develop` 环境展示
+- 已完成常见登录失败场景映射，避免直接向普通用户暴露后端英文认证配置错误
+- 已完成课程详情与章节详情页的 UUID 校验、参数解码、跳转编码与无历史栈兜底
+- 已继续复用现有 `auth` / `request` 层，未新增页面直连 `wx.request`
+- 已确认统一错题中心当前只接入 LEARNING 来源
+- 已确认后端支持 `courseId` / `chapterId` 错题查询参数，但前端 V1 因缺少完整筛选元数据暂不开放课程/章节筛选
+
+V1 当前边界：
+- 已实现 `pages/profile/index`、`pages/learning/index`、`pages/learning/course-progress`
+- 已实现 `pages/wrong-question/index`、`pages/wrong-question/detail`
+- Mock 登录仅用于开发环境
+- 正式微信登录仍依赖 AppID、AppSecret、服务端 HTTPS 与合法域名配置
+- 当前未接入 BATTLE 来源
+- 当前未实现错题删除、收藏、掌握、重做
 
 质量状态：
-- build 通过
-- lint 通过
-- unit test 通过
-- e2e 通过
+- 本轮 TypeScript 静态编译通过
+- 本轮 `git diff --check` 通过
 
 当前待推进内容：
-- CP-009C-02 已实现，等待 Tech Lead 验收
-
-当前任务：
-CP-009C-03 微信小程序统一错题中心
-
-状态：
-已实现，等待 Tech Lead 验收
-
-说明：
-- 当前已实现错题统计、分页列表、错题详情页。
-- 当前只接入 LEARNING 来源。
-- 后端支持 `courseId` / `chapterId` 查询参数。
-- 因缺少完整筛选元数据来源，V1 前端暂未开放课程/章节筛选。
-- 未实现 BATTLE、删除、掌握、重做提交。
+- 微信开发者工具编译、运行态链路、401 refresh 实机回归与窄屏视觉验收
+- 正式微信登录的真实环境配置与体验版发布联调
