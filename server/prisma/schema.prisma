@@ -64,6 +64,89 @@ enum QuizStatus {
 enum QuestionType {
   SINGLE_CHOICE
   TRUE_FALSE
+  CODE_FILL
+}
+
+enum BattleMode {
+  RANKED
+  FRIEND
+}
+
+enum BattleRoomStatus {
+  WAITING
+  READY
+  COUNTDOWN
+  IN_PROGRESS
+  SETTLING
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum BattleParticipantStatus {
+  JOINED
+  READY
+  PLAYING
+  SUBMITTED
+  FORFEITED
+  COMPLETED
+}
+
+enum BattleResult {
+  WIN
+  LOSS
+  DRAW
+  NONE
+}
+
+enum BattleQuestionType {
+  SINGLE_CHOICE
+  CODE_FILL
+}
+
+enum BattleQuestionPresentation {
+  TEXT_CHOICE
+  CODE_READING
+  CODE_PURPOSE
+  OUTPUT_PREDICTION
+  BUG_FIX
+  CODE_COMPLETION_CHOICE
+  CODE_SNIPPET_CHOICE
+  INPUT_CODE_FILL
+}
+
+enum BattleQuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum BattleMatchQueueStatus {
+  SEARCHING
+  MATCHED
+  CANCELLED
+  EXPIRED
+}
+
+enum BattleInvitationStatus {
+  ACTIVE
+  ACCEPTED
+  CANCELLED
+  EXPIRED
+}
+
+enum BattleEndReason {
+  NORMAL
+  USER_FORFEIT
+  MATCH_TIMEOUT
+  SYSTEM_CANCELLED
+  EXPIRED
+}
+
+enum BattleRatingReason {
+  BATTLE_RESULT
+  ADMIN_ADJUSTMENT
+  INITIALIZATION
 }
 
 model SystemHealth {
@@ -95,6 +178,15 @@ model User {
   courseLearningRecords  CourseLearningRecord[]
   chapterLearningRecords ChapterLearningRecord[]
   quizAttempts           QuizAttempt[]
+  battleProfile          BattleProfile?
+  createdBattleRooms     BattleRoom[]            @relation("BattleRoomCreatedBy")
+  wonBattleRooms         BattleRoom[]            @relation("BattleRoomWinner")
+  battleParticipants     BattleParticipant[]
+  battleAnswers          BattleAnswer[]
+  sentBattleInvitations  BattleInvitation[]      @relation("BattleInvitationInviter")
+  receivedBattleInvites  BattleInvitation[]      @relation("BattleInvitationInvitee")
+  battleRatingLogs       BattleRatingLog[]
+  battleMatchQueue       BattleMatchQueue?
 
   @@index([status])
   @@index([createdAt])
@@ -253,21 +345,33 @@ model Quiz {
 }
 
 model QuizQuestion {
-  id          String       @id @default(uuid()) @db.Uuid
-  quizId      String       @map("quiz_id") @db.Uuid
-  type        QuestionType
-  content     String
-  explanation String?
-  score       Int
-  sortOrder   Int          @map("sort_order")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  quiz        Quiz         @relation(fields: [quizId], references: [id])
-  options     QuizOption[]
-  answers     QuizAnswer[]
+  id                    String                      @id @default(uuid()) @db.Uuid
+  quizId                String                      @map("quiz_id") @db.Uuid
+  type                  QuestionType
+  content               String
+  explanation           String?
+  score                 Int
+  sortOrder             Int                         @map("sort_order")
+  battlePresentation    BattleQuestionPresentation? @map("battle_presentation")
+  battleDifficulty      BattleQuestionDifficulty?   @map("battle_difficulty")
+  isBattleEnabled       Boolean                     @default(false) @map("is_battle_enabled")
+  stemBlocks            Json?                       @map("stem_blocks")
+  explanationBlocks     Json?                       @map("explanation_blocks")
+  acceptedAnswers       Json?                       @map("accepted_answers")
+  answerNormalization   Json?                       @map("answer_normalization")
+  caseSensitive         Boolean                     @default(true) @map("case_sensitive")
+  knowledgeTags         Json?                       @map("knowledge_tags")
+  programmingLanguage   String?                     @map("programming_language")
+  createdAt             DateTime                    @default(now()) @map("created_at")
+  updatedAt             DateTime                    @updatedAt @map("updated_at")
+  quiz                  Quiz                        @relation(fields: [quizId], references: [id])
+  options               QuizOption[]
+  answers               QuizAnswer[]
+  battleQuestionSources BattleQuestionSnapshot[]    @relation("BattleQuestionSnapshotSource")
 
   @@unique([quizId, sortOrder])
   @@index([quizId])
+  @@index([isBattleEnabled])
   @@map("quiz_questions")
 }
 
@@ -275,6 +379,7 @@ model QuizOption {
   id                String       @id @default(uuid()) @db.Uuid
   questionId        String       @map("question_id") @db.Uuid
   content           String
+  contentBlocks     Json?        @map("content_blocks")
   isCorrect         Boolean      @default(false) @map("is_correct")
   sortOrder         Int          @map("sort_order")
   createdAt         DateTime     @default(now()) @map("created_at")
@@ -321,4 +426,210 @@ model QuizAnswer {
   @@unique([attemptId, questionId])
   @@index([questionId])
   @@map("quiz_answers")
+}
+
+model BattleProfile {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @map("user_id") @db.Uuid
+  rating           Int      @default(1000)
+  highestRating    Int      @default(1000) @map("highest_rating")
+  totalBattles     Int      @default(0) @map("total_battles")
+  rankedBattles    Int      @default(0) @map("ranked_battles")
+  friendBattles    Int      @default(0) @map("friend_battles")
+  wins             Int      @default(0)
+  losses           Int      @default(0)
+  draws            Int      @default(0)
+  currentWinStreak Int      @default(0) @map("current_win_streak")
+  bestWinStreak    Int      @default(0) @map("best_win_streak")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  user             User     @relation(fields: [userId], references: [id])
+
+  @@map("battle_profiles")
+}
+
+model BattleRoom {
+  id                String                   @id @default(uuid()) @db.Uuid
+  mode              BattleMode
+  status            BattleRoomStatus         @default(WAITING)
+  questionCount     Int                      @default(20) @map("question_count")
+  durationSeconds   Int                      @default(180) @map("duration_seconds")
+  correctScore      Int                      @default(2) @map("correct_score")
+  wrongScore        Int                      @default(-1) @map("wrong_score")
+  unansweredScore   Int                      @default(0) @map("unanswered_score")
+  createdByUserId   String?                  @map("created_by_user_id") @db.Uuid
+  startedAt         DateTime?                @map("started_at")
+  expiresAt         DateTime?                @map("expires_at")
+  settledAt         DateTime?                @map("settled_at")
+  completedAt       DateTime?                @map("completed_at")
+  cancelledAt       DateTime?                @map("cancelled_at")
+  endReason         BattleEndReason?         @map("end_reason")
+  winnerUserId      String?                  @map("winner_user_id") @db.Uuid
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  createdByUser     User?                    @relation("BattleRoomCreatedBy", fields: [createdByUserId], references: [id])
+  winnerUser        User?                    @relation("BattleRoomWinner", fields: [winnerUserId], references: [id])
+  participants      BattleParticipant[]
+  questionSnapshots BattleQuestionSnapshot[]
+  answers           BattleAnswer[]
+  invitation        BattleInvitation?
+  ratingLogs        BattleRatingLog[]
+  matchedQueues     BattleMatchQueue[]
+
+  @@index([status])
+  @@index([mode, status])
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@map("battle_rooms")
+}
+
+model BattleParticipant {
+  id              String                  @id @default(uuid()) @db.Uuid
+  battleRoomId    String                  @map("battle_room_id") @db.Uuid
+  userId          String                  @map("user_id") @db.Uuid
+  status          BattleParticipantStatus @default(JOINED)
+  result          BattleResult            @default(NONE)
+  seat            Int
+  score           Int                     @default(0)
+  correctCount    Int                     @default(0) @map("correct_count")
+  wrongCount      Int                     @default(0) @map("wrong_count")
+  unansweredCount Int                     @default(0) @map("unanswered_count")
+  ratingBefore    Int?                    @map("rating_before")
+  ratingDelta     Int                     @default(0) @map("rating_delta")
+  ratingAfter     Int?                    @map("rating_after")
+  readyAt         DateTime?               @map("ready_at")
+  submittedAt     DateTime?               @map("submitted_at")
+  forfeitedAt     DateTime?               @map("forfeited_at")
+  joinedAt        DateTime                @default(now()) @map("joined_at")
+  completedAt     DateTime?               @map("completed_at")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+  battleRoom      BattleRoom              @relation(fields: [battleRoomId], references: [id])
+  user            User                    @relation(fields: [userId], references: [id])
+  answers         BattleAnswer[]
+  ratingLogs      BattleRatingLog[]
+
+  @@unique([battleRoomId, userId])
+  @@unique([battleRoomId, seat])
+  @@index([userId])
+  @@index([battleRoomId])
+  @@index([status])
+  @@map("battle_participants")
+}
+
+model BattleQuestionSnapshot {
+  id                          String                     @id @default(uuid()) @db.Uuid
+  battleRoomId                String                     @map("battle_room_id") @db.Uuid
+  sourceQuizQuestionId        String?                    @map("source_quiz_question_id") @db.Uuid
+  orderIndex                  Int                        @map("order_index")
+  questionType                BattleQuestionType         @map("question_type")
+  presentation                BattleQuestionPresentation
+  difficulty                  BattleQuestionDifficulty?
+  stemSnapshot                Json                       @map("stem_snapshot")
+  optionsSnapshot             Json                       @map("options_snapshot")
+  correctAnswerSnapshot       Json                       @map("correct_answer_snapshot")
+  explanationSnapshot         Json?                      @map("explanation_snapshot")
+  acceptedAnswersSnapshot     Json?                      @map("accepted_answers_snapshot")
+  answerNormalizationSnapshot Json?                      @map("answer_normalization_snapshot")
+  knowledgeTagsSnapshot       Json?                      @map("knowledge_tags_snapshot")
+  programmingLanguage         String?                    @map("programming_language")
+  courseIdSnapshot            String?                    @map("course_id_snapshot") @db.Uuid
+  chapterIdSnapshot           String?                    @map("chapter_id_snapshot") @db.Uuid
+  createdAt                   DateTime                   @default(now()) @map("created_at")
+  battleRoom                  BattleRoom                 @relation(fields: [battleRoomId], references: [id])
+  sourceQuizQuestion          QuizQuestion?              @relation("BattleQuestionSnapshotSource", fields: [sourceQuizQuestionId], references: [id], onDelete: SetNull)
+  answers                     BattleAnswer[]
+
+  @@unique([battleRoomId, orderIndex])
+  @@index([battleRoomId])
+  @@index([sourceQuizQuestionId])
+  @@map("battle_question_snapshots")
+}
+
+model BattleAnswer {
+  id                       String                 @id @default(uuid()) @db.Uuid
+  battleRoomId             String                 @map("battle_room_id") @db.Uuid
+  participantId            String                 @map("participant_id") @db.Uuid
+  battleQuestionSnapshotId String                 @map("battle_question_snapshot_id") @db.Uuid
+  userId                   String                 @map("user_id") @db.Uuid
+  clientRequestId          String                 @map("client_request_id")
+  answerPayload            Json                   @map("answer_payload")
+  normalizedAnswer         String?                @map("normalized_answer")
+  isCorrect                Boolean                @default(false) @map("is_correct")
+  scoreDelta               Int                    @default(0) @map("score_delta")
+  submittedAt              DateTime               @map("submitted_at")
+  timeSpentMs              Int?                   @map("time_spent_ms")
+  createdAt                DateTime               @default(now()) @map("created_at")
+  battleRoom               BattleRoom             @relation(fields: [battleRoomId], references: [id])
+  participant              BattleParticipant      @relation(fields: [participantId], references: [id])
+  battleQuestionSnapshot   BattleQuestionSnapshot @relation(fields: [battleQuestionSnapshotId], references: [id])
+  user                     User                   @relation(fields: [userId], references: [id])
+
+  @@unique([participantId, battleQuestionSnapshotId])
+  @@unique([participantId, clientRequestId])
+  @@index([userId])
+  @@index([battleRoomId])
+  @@index([participantId])
+  @@map("battle_answers")
+}
+
+model BattleInvitation {
+  id            String                 @id @default(uuid()) @db.Uuid
+  battleRoomId  String                 @unique @map("battle_room_id") @db.Uuid
+  inviterUserId String                 @map("inviter_user_id") @db.Uuid
+  inviteeUserId String?                @map("invitee_user_id") @db.Uuid
+  token         String                 @unique
+  status        BattleInvitationStatus @default(ACTIVE)
+  expiresAt     DateTime               @map("expires_at")
+  acceptedAt    DateTime?              @map("accepted_at")
+  cancelledAt   DateTime?              @map("cancelled_at")
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+  battleRoom    BattleRoom             @relation(fields: [battleRoomId], references: [id])
+  inviterUser   User                   @relation("BattleInvitationInviter", fields: [inviterUserId], references: [id])
+  inviteeUser   User?                  @relation("BattleInvitationInvitee", fields: [inviteeUserId], references: [id])
+
+  @@index([status])
+  @@index([expiresAt])
+  @@map("battle_invitations")
+}
+
+model BattleRatingLog {
+  id            String             @id @default(uuid()) @db.Uuid
+  userId        String             @map("user_id") @db.Uuid
+  battleRoomId  String?            @map("battle_room_id") @db.Uuid
+  participantId String?            @map("participant_id") @db.Uuid
+  reason        BattleRatingReason
+  ratingBefore  Int                @map("rating_before")
+  ratingDelta   Int                @map("rating_delta")
+  ratingAfter   Int                @map("rating_after")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  user          User               @relation(fields: [userId], references: [id])
+  battleRoom    BattleRoom?        @relation(fields: [battleRoomId], references: [id])
+  participant   BattleParticipant? @relation(fields: [participantId], references: [id])
+
+  @@unique([battleRoomId, userId, reason])
+  @@index([userId, createdAt])
+  @@index([battleRoomId])
+  @@map("battle_rating_logs")
+}
+
+model BattleMatchQueue {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  userId              String                 @unique @map("user_id") @db.Uuid
+  status              BattleMatchQueueStatus @default(CANCELLED)
+  ratingSnapshot      Int                    @map("rating_snapshot")
+  matchedBattleRoomId String?                @map("matched_battle_room_id") @db.Uuid
+  searchStartedAt     DateTime?              @map("search_started_at")
+  matchedAt           DateTime?              @map("matched_at")
+  cancelledAt         DateTime?              @map("cancelled_at")
+  expiresAt           DateTime?              @map("expires_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  user                User                   @relation(fields: [userId], references: [id])
+  matchedBattleRoom   BattleRoom?            @relation(fields: [matchedBattleRoomId], references: [id])
+
+  @@index([status])
+  @@index([expiresAt])
+  @@map("battle_match_queues")
 }

@@ -27,3 +27,24 @@ D-026：V1.0 错题本以 `QuizAnswer` 为唯一事实来源，不新增 `WrongQ
 D-027：V1.0 学习中心复用既有学习记录模型与接口：课程列表使用 `GET /api/v1/users/me/learning`，单课程进度使用 `GET /api/v1/courses/:courseId/progress`；当前不新增 `LearningHistory`、`StudyRecord`、`LearningEvent` 或 `/api/v1/learning/*` 聚合接口，`GET /api/v1/learning/progress` 保留给后续全局学习中心能力。
 D-028：统一错题中心采用单一错题模型与来源扩展策略，V1.0 当前仅接入 LEARNING 来源，后续服务对战系统时必须复用同一错题中心并接入 BATTLE 来源；不得拆分为 LearningWrongQuestion、BattleWrongQuestion 或 BattleWrongAnswerBook 等场景专属模型；当前阶段不修改数据库、QuizAnswer、wrong-question 接口或任何源码，来源字段与统一作答抽象在对战系统设计阶段再确定。
 D-029：微信小程序学习中心不新增 tabBar，继续复用现有个人中心页作为入口；学习中心页面路径统一为 `pages/learning/index`、`pages/learning/course-progress`，统一错题中心页面路径统一为 `pages/wrong-question/index`、`pages/wrong-question/detail`；课程与章节学习继续复用既有 `pages/course/detail` 与 `pages/chapter/detail`，当前 CP-009C 只做页面契约收口，不实现源码。
+D-030：Battle V1 的正式产品基线冻结为“1v1 真人限时编程知识对战”，仅支持 `RANKED` 随机匹配与 `FRIEND` 好友邀请两种模式；历史文档中的“人机对战”及 `BattleRecord / BattleQuestion / BattleAnswer` 旧草案退出当前 V1 正式基线，仅作历史参考。
+D-031：Battle V1 的核心对局规则冻结为：每局总时长固定 `180s`、题量配置范围 `15~20` 且默认 `20`、双方使用完全相同的题目/题序/选项序、计分公式固定为 `correctCount * 2 - wrongCount`、未作答记 `0` 分、总分允许为负数、平局不使用答题用时打破、判分/计时/结算必须由服务端权威完成、已提交答案不可修改、结算前不得向客户端泄露正确答案与解析。
+D-032：Battle 题库不得新建独立 `BattleQuestionBank`；应优先复用并最小兼容扩展现有 `QuizQuestion` / `QuizOption` 体系，与课程 Quiz 共享同一来源题库；后续 schema 阶段需补齐 `CODE_FILL`、结构化题干与解析、结构化选项、表现类型和 Battle 出题元数据，但本阶段只做设计，不修改 `schema.prisma`。
+D-033：Battle 错题必须接入现有统一错题中心并作为未来 `BATTLE` 来源，禁止建设独立 Battle 错题本或独立 WrongQuestion 持久化模型；只有“服务端成功保存且判定错误”的 Battle 作答进入错题聚合，未作答、跳过未提交、超时未提交和失败请求均不计入错题。
+D-034：`CP-011B` 正式采用共享 Quiz 题库扩展方案：扩展 `QuestionType` 支持 `CODE_FILL`，并在 `QuizQuestion` / `QuizOption` 上新增结构化题干、解析、选项、Battle 展示类型、难度、可用标记、标准答案、规范化配置、知识点与语言字段；不创建独立 `BattleQuestionBank`。
+D-035：`BattleQuestionSnapshot` 是 Battle 历史题目唯一快照来源，必须保存题干、选项、正确答案、解析、知识点和来源题目引用；历史复盘与后续错题联动优先读取快照，不以题库实时内容为准。
+D-036：`BattleProfile.rating` 是后续 Battle 排位的正式权威来源；`User.battleRating` 在 `CP-011B` 暂时保留为兼容字段，仅用于首次初始化 `BattleProfile` 时继承旧值与兼容现有用户返回结构，不引入当前阶段 Battle rating 双写逻辑；`winRate` 与 `currentRank` 不做冗余持久化，统一按查询时计算。
+D-037：`BattleMatchQueue` 在 V1 采用“每个用户一条唯一队列记录”的方案，`userId` 全局唯一，通过状态循环复用同一记录来保证同一用户最多存在一条活跃 `SEARCHING` 记录，不在 `CP-011B` 设计独立历史队列流水。
+D-038：Battle V1 在基础设施层继续坚持“数据库队列 + REST 轮询”路线，不引入 Redis、WebSocket 或任意代码执行沙箱；`CODE_FILL` 仅允许字符串规范化和答案匹配，不执行用户代码。
+D-039：`CP-011C` 的随机匹配采用“join/status 轮询触发惰性匹配”的后端策略，不引入后台常驻匹配进程；`POST /battles/matchmaking/join` 与 `GET /battles/matchmaking/status` 都允许在事务内尝试一次匹配。
+D-040：`BattleMatchQueue` 在 `CP-011C` 继续复用单记录策略，`SEARCHING` 记录通过 `expiresAt` 惰性过期并在 `join/status/cancel` 流程中自修复，不新增匹配历史流水模型。
+D-041：随机匹配成功采用“事务内条件 `updateMany` 抢占双方 `SEARCHING` 队列记录，再原子创建 `RANKED` 的 `WAITING` 房间与双方参与者” 的并发保护方案；若候选抢占失败，则回滚当前候选尝试并继续搜索，不依赖先查后改的非原子流程。
+D-042：好友邀请令牌采用 `crypto.randomBytes` 生成的 URL-safe 随机 token，并依赖数据库唯一约束与有限重试处理极低概率冲突；分享路径只携带 `invitationToken`，不携带任何登录凭据。
+D-043：好友房 `seat 2` 抢占依赖 `@@unique([battleRoomId, seat])` 与事务内 `BattleParticipant.create` 协同保护；唯一约束冲突统一视为“房间已满”或“同一用户重复加入”的幂等场景，不允许出现第三位参与者。
+D-044：单用户单活跃房间约束在 `CP-011C` 仍以事务内活跃房间查询和队列状态校验为主，数据库层尚未实现部分唯一索引；这是当前阶段已知技术债，后续可在更强数据库约束或锁策略下继续收紧。
+D-045：`CP-011D` 正式固定 Battle room 状态语义：`WAITING` 表示未满足 ready 前置条件，`READY` 表示双人已在房且至少一人已 ready，`COUNTDOWN` 表示双方均 ready 且题目快照、`startedAt`、`expiresAt` 已在事务内冻结，`IN_PROGRESS` 表示服务端时间已到正式答题窗口；`COUNTDOWN -> IN_PROGRESS` 采用服务端时间驱动的惰性推进，不引入后台常驻定时任务。
+D-046：Battle 题目与选项顺序只允许在房间启动时生成一次，并写入 `BattleQuestionSnapshot`；后续下发、判分、恢复和复盘均以快照为唯一依据，不回读实时 `QuizOption.isCorrect` 或题库顺序。
+D-047：`GET /api/v1/battles/:battleId/questions` 在 `startedAt` 之前只返回 `status`、`startedAt`、`expiresAt`、`serverTime`，不提前下发题干正文；服务端时间到达 `startedAt` 后再进入题目下发与答题窗口。
+D-048：`CODE_FILL` 在 `CP-011D` 只做字符串规范化匹配，规范化顺序固定为“换行归一化 -> trim -> collapseWhitespace -> 按需大小写归一化”；禁止执行用户代码、`eval`、`Function`、`vm`、shell 或任何真实编译运行。
+D-049：Battle 单题提交正式采用双重唯一约束 `@@unique([participantId, clientRequestId])` 与 `@@unique([participantId, battleQuestionSnapshotId])`；相同 `clientRequestId` 的安全重试返回首个提交摘要，不重复计分；不同 `clientRequestId` 重答同题一律拒绝。
+D-050：Battle 对战进行中不返回正确性、正确答案、acceptedAnswers、解析、实时得分、对手答案或对手答题统计；仅允许返回自己的已答题数量、已提交原始答案、`startedAt`、`expiresAt`、`serverTime` 与房间状态。

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { BattleModule } from './battle/battle.module';
 import { CourseModule } from './course/course.module';
 import { LearningModule } from './learning/learning.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -13,6 +14,7 @@ import { WrongQuestionModule } from './wrong-question/wrong-question.module';
   imports: [
     PrismaModule,
     UserModule,
+    BattleModule,
     CourseModule,
     LearningModule,
     QuizModule,

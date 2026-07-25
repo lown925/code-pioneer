@@ -82,3 +82,42 @@
 - 登录页补充常见失败场景映射，避免直接向普通用户暴露后端英文认证配置错误。
 - 课程详情与章节详情页补充 UUID 校验、参数解码、跳转编码与无历史栈兜底返回。
 - 本轮仅完成静态联调修正，未声明微信开发者工具运行态验收已通过。
+
+### CP-010
+- 新增全项目现状审计与 V1 剩余路线图文档。
+- 审计了学习、错题、对战、互助、后台管理、演示数据、正式微信登录和部署准备状态。
+- 明确当前项目不是发布准备状态，也不能完整演示 PRD 级 V1 闭环。
+- 补充了模块状态矩阵、契约偏差清单、V1 范围冻结建议和后续工单路线图。
+
+### CP-011A
+- 新增 `docs/BATTLE_V1_ARCHITECTURE.md`，冻结 Battle V1 的产品规则、状态机、计时、判分、结算、匹配、好友邀请和错题联动边界。
+- 明确 Battle V1 为 1v1 真人知识对战，支持 `RANKED` 与 `FRIEND` 两种模式，不再沿用历史“人机对战”实现草案作为正式基线。
+- 输出 Battle Prisma 模型草案、REST API 草案、小程序页面规划与 `CP-011B` 至 `CP-011H` 拆单建议。
+- 同步更新项目状态、决策日志和 V1 剩余路线图，明确 Battle 当前仍处于设计冻结阶段，尚未进入业务实现。
+
+### CP-011B
+- 扩展共享 Quiz 题库模型，新增 `CODE_FILL` 题型、Battle 展示/难度、结构化题干与解析、结构化选项、标准答案、规范化配置、知识点和语言字段。
+- 新增 Battle Prisma 枚举与核心模型：`BattleProfile`、`BattleRoom`、`BattleParticipant`、`BattleQuestionSnapshot`、`BattleAnswer`、`BattleInvitation`、`BattleRatingLog`、`BattleMatchQueue`。
+- 新增迁移 `20260725021220_add_battle_v1_core_models` 并同步生成 Prisma Client。
+- 新增 BattleModule、BattleScoreService、BattleRatingService、BattleDomainService、Battle 常量、类型与错误码定义。
+- 新增 Battle 基础单元测试，覆盖 battle score、简化 Elo 和 BattleProfile 幂等初始化。
+- 明确 `BattleProfile.rating` 为后续 Battle 排位权威来源，`User.battleRating` 暂时保留为兼容初始化字段。
+- 明确 `BattleMatchQueue` 采用 `userId` 唯一记录复用策略，V1 继续使用数据库队列，不引入 Redis 或 WebSocket。
+- 本轮未实现随机匹配、好友邀请、ready/start、题目抽取、答题提交、自动结算、排行榜查询或小程序 Battle 页面。
+
+### CP-011C
+- 新增公开 BattleController 与 7 个正式接口：匹配加入、匹配状态、取消匹配、好友房创建、好友房预览、好友房加入、房间基础查询。
+- 落地 `BattleMatchmakingService`、`BattleFriendRoomService`、`BattleRoomService`、`BattleTokenService` 与 Battle DTO。
+- 实现数据库队列 + REST 轮询的惰性匹配流程，按 rating 差值和等待时长扩窗选择候选，并在事务内原子创建 `RANKED` 的 `WAITING` 房间与双方参与者。
+- 实现好友房创建、URL-safe 安全邀请 token、好友房预览、好友加入和 `seat 2` 并发抢占保护。
+- 新增 Battle unit test 与 `battle.e2e-spec.ts`，覆盖匹配、取消、过期、好友房、房间鉴权和参数校验。
+- 本轮未修改 Prisma schema、未新增 migration，也未实现 ready/start、COUNTDOWN、题目抽取、答题提交、自动结算、排行榜、战绩或小程序 Battle 页面。
+
+### CP-011D
+- 新增 Battle ready、题目下发与答题接口：`POST /api/v1/battles/:battleId/ready`、`GET /api/v1/battles/:battleId/questions`、`POST /api/v1/battles/:battleId/answers`。
+- 落地 `BattleReadyService`、`BattleQuestionService`、`BattleAnswerService`、`BattleNormalizationService`，实现双方 ready 后事务内快照建题、统一 `startedAt` / `expiresAt`、`COUNTDOWN -> IN_PROGRESS` 惰性推进与服务端权威计时。
+- 新增 `BattleQuestionSnapshot` 生成逻辑，统一冻结题目顺序、选项顺序、正确答案快照、`CODE_FILL` 标准答案与规范化配置；对战中题目接口不返回正确答案、解析、acceptedAnswers、isCorrect 或实时得分。
+- 新增单题提交幂等保护：`clientRequestId` 重试幂等、同题重复提交保护、`SINGLE_CHOICE` 服务端判分、`CODE_FILL` 仅做字符串规范化匹配且不执行用户代码。
+- 扩展 Battle room 查询，返回 `currentParticipantStatus`、`answeredCount`、`totalQuestionCount` 与服务端时间，用于房间恢复和倒计时同步。
+- 新增 Battle unit test 与 E2E 覆盖 ready、COUNTDOWN、题目快照、题目下发、单题提交、幂等重试与字段安全边界。
+- 本轮未修改 Prisma schema、未新增 migration、未修改小程序，也未实现主动交卷、自动结算、最终胜负、rating 落库、排行榜、战绩或 Battle 错题联动。
