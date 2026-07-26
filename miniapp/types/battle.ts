@@ -43,3 +43,18 @@ export type BattleLeaderboardQuery = {
   page: number;
   pageSize: number;
 };
+
+export type MatchmakingViewStatus =
+  | 'IDLE'
+  | 'SEARCHING'
+  | 'MATCHED'
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+export type MatchmakingStatusResponse = {
+  status: MatchmakingViewStatus;
+  battleId: string | null;
+  searchStartedAt: string | null;
+  expiresAt: string | null;
+  serverTime: string;
+};

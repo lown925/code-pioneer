@@ -1,0 +1,25 @@
+<view class="page-shell room-page">
+  <view class="section-card hero-card">
+    <text class="hero-eyebrow">Battle 房间</text>
+    <text class="hero-title">房间页占位入口</text>
+    <text class="hero-copy">
+      当前只保留 MATCHED 后的跳转落点，用于确认 battleId 已正确进入下一阶段页面。
+    </text>
+  </view>
+
+  <view wx:if="{{isValidBattleId}}" class="section-card room-card">
+    <text class="section-title">已进入房间占位页</text>
+    <text class="section-subtitle">房间、准备、题目和结算能力将在后续阶段开放。</text>
+    <view class="room-id-box">
+      <text class="room-id-label">battleId</text>
+      <text class="room-id-value">{{battleId}}</text>
+    </view>
+    <view class="ghost-button action-button" bindtap="handleBackHome">返回对战首页</view>
+  </view>
+
+  <view wx:else class="section-card state-box">
+    <text class="state-title">battleId 无效</text>
+    <text class="state-text">当前页面没有收到合法的 Battle 房间标识。</text>
+    <view class="ghost-button action-button" bindtap="handleBackHome">返回对战首页</view>
+  </view>
+</view>

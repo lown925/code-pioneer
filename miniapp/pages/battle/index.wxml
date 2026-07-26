@@ -80,7 +80,7 @@
       <view class="entry-header">
         <view>
           <text class="section-title">对战入口</text>
-          <text class="section-subtitle">本轮开放排行榜，其余能力保留为明确入口占位</text>
+          <text class="section-subtitle">本轮开放随机匹配和排行榜，其余能力保留为明确入口占位</text>
         </view>
       </view>
 

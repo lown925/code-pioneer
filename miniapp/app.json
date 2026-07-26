@@ -11,6 +11,8 @@
     "pages/wrong-question/detail",
     "pages/battle/index",
     "pages/battle/leaderboard",
+    "pages/battle/matchmaking",
+    "pages/battle/room",
     "pages/community/index",
     "pages/profile/index"
   ],

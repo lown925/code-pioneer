@@ -1,0 +1,639 @@
+import type {
+  BattleProfileResponse,
+  MatchmakingStatusResponse,
+} from '../../types/battle';
+import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
+import {
+  formatBattleDuration,
+  formatBattleRank,
+  formatBattleRating,
+} from '../../utils/battle';
+import { request, RequestError } from '../../utils/request';
+
+declare function clearTimeout(timeoutId: number): void;
+
+type MatchmakingPageState =
+  | 'IDLE'
+  | 'JOINING'
+  | 'SEARCHING'
+  | 'MATCHED'
+  | 'CANCELLED'
+  | 'EXPIRED'
+  | 'ERROR';
+
+type MatchmakingPageData = {
+  state: MatchmakingPageState;
+  ratingText: string;
+  rankText: string;
+  battleId: string;
+  errorMessage: string;
+  waitedText: string;
+  remainingText: string;
+  searchStartedAtMs: number;
+  expiresAtMs: number;
+  stateTitle: string;
+  stateDescription: string;
+};
+
+type MatchmakingPageMethods = {
+  ensureAuthenticated(): boolean;
+  loadInitialData(): Promise<void>;
+  loadProfile(): Promise<void>;
+  refreshStatus(options?: { autoNavigate?: boolean }): Promise<void>;
+  joinMatchmaking(): Promise<void>;
+  cancelMatchmaking(): Promise<void>;
+  applyStatus(
+    payload: MatchmakingStatusResponse,
+    options?: { autoNavigate?: boolean },
+  ): void;
+  updateElapsedTime(): void;
+  startPolling(): void;
+  stopPolling(): void;
+  startElapsedTicker(): void;
+  stopElapsedTicker(): void;
+  handleStartMatchmaking(): void;
+  handleCancelMatchmaking(): void;
+  handleRetry(): void;
+  handleBackHome(): void;
+  handleEnterRoom(): void;
+  navigateToRoom(battleId: string, autoNavigate?: boolean): void;
+  getReadableErrorMessage(error: unknown, fallback: string): string;
+  updateProfileCard(profile: BattleProfileResponse): void;
+};
+
+const POLL_INTERVAL_MS = 1800;
+const ELAPSED_TICK_MS = 1000;
+
+let isPageActive = false;
+let hasLoadedOnce = false;
+let requestSerial = 0;
+let pollTimer: number | null = null;
+let elapsedTimer: number | null = null;
+let isStatusRequesting = false;
+let isJoining = false;
+let isCancelling = false;
+let lastAutoNavigatedBattleId = '';
+
+function parseTimestamp(value: string | null) {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = Date.parse(value);
+
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+Page<MatchmakingPageData, MatchmakingPageMethods>({
+  data: {
+    state: 'IDLE',
+    ratingText: '0',
+    rankText: '未上榜',
+    battleId: '',
+    errorMessage: '',
+    waitedText: '00:00',
+    remainingText: '00:00',
+    searchStartedAtMs: 0,
+    expiresAtMs: 0,
+    stateTitle: '准备开始随机匹配',
+    stateDescription: '进入匹配池后会按评分范围轮询查找对手。',
+  },
+
+  onLoad() {
+    isPageActive = true;
+    void this.loadInitialData();
+  },
+
+  onShow() {
+    isPageActive = true;
+
+    if (hasLoadedOnce) {
+      void this.loadProfile();
+      void this.refreshStatus({
+        autoNavigate: true,
+      });
+    }
+  },
+
+  onHide() {
+    this.stopPolling();
+    this.stopElapsedTicker();
+  },
+
+  onUnload() {
+    isPageActive = false;
+    requestSerial += 1;
+    this.stopPolling();
+    this.stopElapsedTicker();
+  },
+
+  onPullDownRefresh() {
+    Promise.allSettled([this.loadProfile(), this.refreshStatus({ autoNavigate: true })]).finally(
+      () => {
+        wx.stopPullDownRefresh();
+      },
+    );
+  },
+
+  ensureAuthenticated() {
+    const authState = getAuthStateSummary();
+
+    if (authState.isAuthenticated) {
+      const fallbackRating =
+        typeof authState.user?.battleRating === 'number'
+          ? formatBattleRating(authState.user.battleRating)
+          : '0';
+
+      this.setData({
+        ratingText: fallbackRating,
+      });
+
+      return true;
+    }
+
+    redirectToLogin('/pages/battle/matchmaking');
+    return false;
+  },
+
+  async loadInitialData() {
+    if (!this.ensureAuthenticated()) {
+      return;
+    }
+
+    try {
+      await Promise.allSettled([
+        this.loadProfile(),
+        this.refreshStatus({ autoNavigate: true }),
+      ]);
+    } finally {
+      hasLoadedOnce = true;
+    }
+  },
+
+  async loadProfile() {
+    if (!this.ensureAuthenticated()) {
+      return;
+    }
+
+    try {
+      const response = await request<BattleProfileResponse>({
+        url: '/battles/profile',
+        method: 'GET',
+        authMode: 'required',
+      });
+
+      if (!isPageActive) {
+        return;
+      }
+
+      this.updateProfileCard(response);
+    } catch {
+      // Keep auth summary fallback rating when profile loading fails.
+    }
+  },
+
+  async refreshStatus(options?: { autoNavigate?: boolean }) {
+    if (!this.ensureAuthenticated() || isStatusRequesting) {
+      return;
+    }
+
+    const currentRequestSerial = ++requestSerial;
+    isStatusRequesting = true;
+
+    try {
+      const response = await request<MatchmakingStatusResponse>({
+        url: '/battles/matchmaking/status',
+        method: 'GET',
+        authMode: 'required',
+      });
+
+      if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      this.applyStatus(response, {
+        autoNavigate: options?.autoNavigate,
+      });
+    } catch (error) {
+      if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      this.stopPolling();
+      this.stopElapsedTicker();
+      lastAutoNavigatedBattleId = '';
+
+      this.setData({
+        state: 'ERROR',
+        errorMessage: this.getReadableErrorMessage(
+          error,
+          '匹配状态加载失败，请稍后重试。',
+        ),
+        stateTitle: '匹配状态获取失败',
+        stateDescription: '你可以重新查询服务端状态，或返回对战首页。',
+      });
+    } finally {
+      isStatusRequesting = false;
+    }
+  },
+
+  async joinMatchmaking() {
+    if (!this.ensureAuthenticated() || isJoining || isCancelling) {
+      return;
+    }
+
+    isJoining = true;
+    const currentRequestSerial = ++requestSerial;
+    this.stopPolling();
+    this.stopElapsedTicker();
+
+    this.setData({
+      state: 'JOINING',
+      errorMessage: '',
+      battleId: '',
+      stateTitle: '正在加入匹配池',
+      stateDescription: '系统正在登记你的评分并查找合适对手。',
+    });
+
+    try {
+      const response = await request<MatchmakingStatusResponse>({
+        url: '/battles/matchmaking/join',
+        method: 'POST',
+        authMode: 'required',
+      });
+
+      if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      this.applyStatus(response, {
+        autoNavigate: true,
+      });
+    } catch (error) {
+      if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      this.setData({
+        state: 'ERROR',
+        errorMessage: this.getReadableErrorMessage(
+          error,
+          '加入匹配池失败，请稍后重试。',
+        ),
+        stateTitle: '加入匹配失败',
+        stateDescription: '你可以重新开始匹配，或先返回对战首页。',
+      });
+    } finally {
+      isJoining = false;
+    }
+  },
+
+  async cancelMatchmaking() {
+    if (!this.ensureAuthenticated() || isCancelling || isJoining) {
+      return;
+    }
+
+    isCancelling = true;
+    const currentRequestSerial = ++requestSerial;
+    this.stopPolling();
+    this.stopElapsedTicker();
+
+    try {
+      const response = await request<MatchmakingStatusResponse>({
+        url: '/battles/matchmaking',
+        method: 'DELETE',
+        authMode: 'required',
+      });
+
+      if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      this.applyStatus(response, {
+        autoNavigate: false,
+      });
+
+      wx.showToast({
+        title: '已取消匹配',
+        icon: 'none',
+      });
+
+      wx.switchTab({
+        url: '/pages/battle/index',
+      });
+    } catch (error) {
+      if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      if (
+        error instanceof RequestError &&
+        error.code === 'BATTLE_MATCH_ALREADY_COMPLETED'
+      ) {
+        await this.refreshStatus({
+          autoNavigate: true,
+        });
+        return;
+      }
+
+      if (
+        error instanceof RequestError &&
+        error.code === 'BATTLE_MATCH_EXPIRED'
+      ) {
+        this.setData({
+          state: 'EXPIRED',
+          errorMessage: '',
+          battleId: '',
+          searchStartedAtMs: 0,
+          expiresAtMs: 0,
+          waitedText: '00:00',
+          remainingText: '00:00',
+          stateTitle: '本次匹配已过期',
+          stateDescription: '匹配窗口已结束，你可以重新开始随机匹配。',
+        });
+        return;
+      }
+
+      this.setData({
+        state: 'ERROR',
+        errorMessage: this.getReadableErrorMessage(
+          error,
+          '取消匹配失败，请稍后重试。',
+        ),
+        stateTitle: '取消匹配失败',
+        stateDescription: '你可以重新查询当前状态，避免和服务端状态不一致。',
+      });
+    } finally {
+      isCancelling = false;
+    }
+  },
+
+  applyStatus(
+    payload: MatchmakingStatusResponse,
+    options?: { autoNavigate?: boolean },
+  ) {
+    const searchStartedAtMs = parseTimestamp(payload.searchStartedAt);
+    const expiresAtMs = parseTimestamp(payload.expiresAt);
+    const battleId = payload.battleId ?? '';
+    const nextState = payload.status;
+
+    this.stopPolling();
+    this.stopElapsedTicker();
+
+    if (nextState !== 'MATCHED') {
+      lastAutoNavigatedBattleId = '';
+    }
+
+    if (nextState === 'SEARCHING') {
+      this.setData({
+        state: 'SEARCHING',
+        battleId: '',
+        errorMessage: '',
+        searchStartedAtMs,
+        expiresAtMs,
+        stateTitle: '正在搜索对手',
+        stateDescription: '页面可安全离开，恢复后会重新同步服务端状态。',
+      });
+      this.updateElapsedTime();
+      this.startPolling();
+      this.startElapsedTicker();
+      return;
+    }
+
+    if (nextState === 'MATCHED') {
+      this.setData({
+        state: 'MATCHED',
+        battleId,
+        errorMessage: '',
+        searchStartedAtMs,
+        expiresAtMs,
+        waitedText:
+          searchStartedAtMs > 0
+            ? formatBattleDuration(
+                Math.max(0, Math.floor((Date.now() - searchStartedAtMs) / 1000)),
+              )
+            : '00:00',
+        remainingText: '00:00',
+        stateTitle: '匹配成功',
+        stateDescription: '已找到对手，正在为你打开 Battle 房间占位页。',
+      });
+
+      if (battleId) {
+        this.navigateToRoom(battleId, options?.autoNavigate);
+      }
+      return;
+    }
+
+    if (nextState === 'CANCELLED') {
+      this.setData({
+        state: 'CANCELLED',
+        battleId: '',
+        errorMessage: '',
+        searchStartedAtMs,
+        expiresAtMs,
+        waitedText: '00:00',
+        remainingText: '00:00',
+        stateTitle: '匹配已取消',
+        stateDescription: '当前没有进行中的随机匹配，你可以重新开始。',
+      });
+      return;
+    }
+
+    if (nextState === 'EXPIRED') {
+      this.setData({
+        state: 'EXPIRED',
+        battleId: '',
+        errorMessage: '',
+        searchStartedAtMs,
+        expiresAtMs,
+        waitedText: '00:00',
+        remainingText: '00:00',
+        stateTitle: '本次匹配已过期',
+        stateDescription: '匹配窗口已结束，你可以重新开始随机匹配。',
+      });
+      return;
+    }
+
+    this.setData({
+      state: 'IDLE',
+      battleId: '',
+      errorMessage: '',
+      searchStartedAtMs: 0,
+      expiresAtMs: 0,
+      waitedText: '00:00',
+      remainingText: '00:00',
+      stateTitle: '准备开始随机匹配',
+      stateDescription: '进入匹配池后会按评分范围轮询查找对手。',
+    });
+  },
+
+  updateElapsedTime() {
+    if (this.data.state !== 'SEARCHING') {
+      return;
+    }
+
+    const now = Date.now();
+    const waitedSeconds =
+      this.data.searchStartedAtMs > 0
+        ? Math.max(0, Math.floor((now - this.data.searchStartedAtMs) / 1000))
+        : 0;
+    const remainingSeconds =
+      this.data.expiresAtMs > 0
+        ? Math.max(0, Math.floor((this.data.expiresAtMs - now) / 1000))
+        : 0;
+
+    this.setData({
+      waitedText: formatBattleDuration(waitedSeconds),
+      remainingText: formatBattleDuration(remainingSeconds),
+    });
+  },
+
+  startPolling() {
+    this.stopPolling();
+
+    if (!isPageActive || this.data.state !== 'SEARCHING') {
+      return;
+    }
+
+    pollTimer = setTimeout(() => {
+      pollTimer = null;
+
+      if (!isPageActive) {
+        return;
+      }
+
+      void this.refreshStatus({
+        autoNavigate: true,
+      });
+    }, POLL_INTERVAL_MS) as unknown as number;
+  },
+
+  stopPolling() {
+    if (pollTimer !== null) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+  },
+
+  startElapsedTicker() {
+    this.stopElapsedTicker();
+
+    if (!isPageActive || this.data.state !== 'SEARCHING') {
+      return;
+    }
+
+    const tick = () => {
+      if (!isPageActive || this.data.state !== 'SEARCHING') {
+        elapsedTimer = null;
+        return;
+      }
+
+      this.updateElapsedTime();
+
+      elapsedTimer = setTimeout(tick, ELAPSED_TICK_MS) as unknown as number;
+    };
+
+    tick();
+  },
+
+  stopElapsedTicker() {
+    if (elapsedTimer !== null) {
+      clearTimeout(elapsedTimer);
+      elapsedTimer = null;
+    }
+  },
+
+  handleStartMatchmaking() {
+    void this.joinMatchmaking();
+  },
+
+  handleCancelMatchmaking() {
+    void this.cancelMatchmaking();
+  },
+
+  handleRetry() {
+    if (this.data.state === 'SEARCHING') {
+      void this.refreshStatus({
+        autoNavigate: true,
+      });
+      return;
+    }
+
+    if (this.data.state === 'EXPIRED' || this.data.state === 'CANCELLED') {
+      void this.joinMatchmaking();
+      return;
+    }
+
+    void this.refreshStatus({
+      autoNavigate: true,
+    });
+  },
+
+  handleBackHome() {
+    wx.switchTab({
+      url: '/pages/battle/index',
+    });
+  },
+
+  handleEnterRoom() {
+    if (!this.data.battleId) {
+      return;
+    }
+
+    this.navigateToRoom(this.data.battleId, false);
+  },
+
+  navigateToRoom(battleId: string, autoNavigate = false) {
+    if (!battleId) {
+      return;
+    }
+
+    if (autoNavigate && lastAutoNavigatedBattleId === battleId) {
+      return;
+    }
+
+    if (autoNavigate) {
+      lastAutoNavigatedBattleId = battleId;
+    }
+
+    wx.navigateTo({
+      url: `/pages/battle/room?battleId=${encodeURIComponent(battleId)}`,
+    });
+  },
+
+  getReadableErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof RequestError) {
+      if (error.statusCode === 401 || error.code === 'UNAUTHORIZED') {
+        redirectToLogin('/pages/battle/matchmaking');
+        return '登录状态已失效，请重新登录后再继续随机匹配。';
+      }
+
+      if (error.code === 'NETWORK_ERROR') {
+        return '无法连接匹配服务，请确认后端服务已启动。';
+      }
+
+      if (error.code === 'BATTLE_ALREADY_ACTIVE') {
+        return '你当前已有进行中的对战，暂时不能再次加入随机匹配。';
+      }
+
+      if (error.code === 'BATTLE_MATCH_EXPIRED') {
+        return '本次匹配已经过期，请重新开始。';
+      }
+
+      return error.message || fallback;
+    }
+
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+
+    return fallback;
+  },
+
+  updateProfileCard(profile: BattleProfileResponse) {
+    this.setData({
+      ratingText: formatBattleRating(profile.rating),
+      rankText: formatBattleRank(profile.currentRank),
+    });
+  },
+});

@@ -65,11 +65,11 @@ const ENTRY_CARDS: BattleEntryCard[] = [
   {
     key: 'random',
     title: '随机匹配',
-    description: '匹配评分接近的对手进行 1v1 编程知识对战。',
-    actionText: '后续开放',
-    badgeText: '即将开放',
-    badgeClassName: 'entry-badge-pending',
-    disabled: true,
+    description: '进入匹配池后按评分范围轮询寻找对手，并在匹配成功后跳转房间。',
+    actionText: '开始匹配',
+    badgeText: '已开放',
+    badgeClassName: 'entry-badge-live',
+    disabled: false,
   },
   {
     key: 'friend',
@@ -251,6 +251,13 @@ Page<BattlePageData, BattlePageMethods>({
     if (entryKey === 'leaderboard') {
       wx.navigateTo({
         url: '/pages/battle/leaderboard',
+      });
+      return;
+    }
+
+    if (entryKey === 'random') {
+      wx.navigateTo({
+        url: '/pages/battle/matchmaking',
       });
       return;
     }
