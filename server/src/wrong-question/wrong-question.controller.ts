@@ -26,8 +26,13 @@ export class WrongQuestionController {
   getDetail(
     @CurrentUser() currentUser: CurrentUserContext,
     @Param('questionId', ParseUUIDPipe) questionId: string,
+    @Query() query: GetWrongQuestionsQueryDto,
   ) {
-    return this.wrongQuestionService.getDetail(currentUser, questionId);
+    return this.wrongQuestionService.getDetail(
+      currentUser,
+      questionId,
+      query.source,
+    );
   }
 
   @Get()

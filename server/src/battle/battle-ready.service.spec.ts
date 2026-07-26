@@ -33,7 +33,12 @@ describe('BattleReadyService', () => {
       mock.prisma as never,
       roomService,
     );
-    jest.spyOn(questionService as never, 'nextRandom').mockReturnValue(0);
+    jest
+      .spyOn(
+        questionService as unknown as { nextRandom: () => number },
+        'nextRandom',
+      )
+      .mockReturnValue(0);
     const service = new BattleReadyService(
       mock.prisma as never,
       questionService,

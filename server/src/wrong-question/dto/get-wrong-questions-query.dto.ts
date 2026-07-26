@@ -1,7 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { WRONG_QUESTION_SOURCES } from '../wrong-question.types';
 
 export class GetWrongQuestionsQueryDto {
+  @IsOptional()
+  @IsIn(WRONG_QUESTION_SOURCES)
+  source?: (typeof WRONG_QUESTION_SOURCES)[number];
+
   @IsOptional()
   @IsUUID()
   courseId?: string;

@@ -1,15 +1,15 @@
 当前版本：v0.0.1
-当前阶段：CP-011D Battle ready、统一计时、题目抽取与答案提交落地
-当前任务：CP-011D Battle 双方准备、统一倒计时、题目抽取、题目下发与答案提交
-状态：已完成 Battle V1 ready、COUNTDOWN、题目快照、题目下发与单题提交后端实现，等待 Tech Lead 验收
-下一任务：CP-011E 主动交卷、自动结算、认输与 rating 计算
+当前阶段：CP-011F Battle 排行榜、战绩与统一错题中心联动
+当前任务：CP-011F Battle 排行榜、战绩与统一错题中心联动
+状态：已完成 Battle profile、leaderboard、history、history detail 与统一错题中心 BATTLE 来源联动后端实现，等待 Tech Lead 验收
+下一任务：CP-011G Battle 小程序完整页面
 当前阻塞项：
-- 当前 Battle 已完成 schema、migration、Prisma Client、基础领域服务、公开 BattleController、随机匹配、好友房创建/预览/加入、匹配状态查询、取消匹配、房间基础查询、双方 ready、统一 COUNTDOWN/IN_PROGRESS 推进、题目快照创建、题目安全下发与单题答案提交。
+- 当前 Battle 已完成 schema、migration、Prisma Client、基础领域服务、公开 BattleController、随机匹配、好友房创建/预览/加入、匹配状态查询、取消匹配、房间基础查询、双方 ready、统一 COUNTDOWN/IN_PROGRESS 推进、题目快照创建、题目安全下发、单题答案提交、主动交卷、认输、惰性超时结算、结果查询、最终胜负写入与 rating/profile/rating log 落库。
 - 当前代码库仍未形成完整 V1 闭环，体验版发布与答辩演示仍受学习链路未闭合、Battle 未实现、互助未开始等问题约束。
 
 项目整体判断：
 - 当前仓库已完成“公开课程浏览 + 用户认证基础 + 学习记录后端 + 小测后端 + 错题后端 + 学习中心前端读取”的部分主链路。
-- Battle 已完成 V1 产品规则冻结，并在 `CP-011B` 落地了 Prisma 核心模型、迁移、Prisma Client、BattleModule、评分/Elo 纯函数和基础领域服务，在 `CP-011C` 落地了随机匹配、好友邀请与房间基础查询接口，在 `CP-011D` 落地了 ready、COUNTDOWN、题目快照、题目下发与单题提交接口。
+- Battle 已完成 V1 产品规则冻结，并在 `CP-011B` 落地了 Prisma 核心模型、迁移、Prisma Client、BattleModule、评分/Elo 纯函数和基础领域服务，在 `CP-011C` 落地了随机匹配、好友邀请与房间基础查询接口，在 `CP-011D` 落地了 ready、COUNTDOWN、题目快照、题目下发与单题提交接口，在 `CP-011E` 落地了主动交卷、认输、惰性超时结算、结果接口、最终胜负判定与 rating/profile/rating log 更新。
 - 当前项目不是发布准备状态，也不是完整 V1 状态。
 - 若按 PRD 与 MVP 文档的完整范围评估，整体完成度约为 25%。
 - 若只按“学习主链路”评估，后端完成度高于前端完成度，但小程序仍缺少章节开始/完成写入和小测页面，不能从新用户走通完整学习闭环。
@@ -27,7 +27,7 @@ Battle V1 数据基础状态：
 - Battle 是“码站先锋”的核心产品亮点，正式基线仍以 `docs/BATTLE_V1_ARCHITECTURE.md` 为准。
 - `CP-011B` 已落地：Battle Prisma 枚举、共享题库扩展、`BattleProfile` / `BattleRoom` / `BattleParticipant` / `BattleQuestionSnapshot` / `BattleAnswer` / `BattleInvitation` / `BattleRatingLog` / `BattleMatchQueue` 模型，迁移 `20260725021220_add_battle_v1_core_models`，BattleModule、BattleScoreService、BattleRatingService、BattleDomainService 以及对应单元测试。
 - 当前确定的兼容策略是：保留 `User.battleRating` 兼容字段，首次初始化 `BattleProfile` 时继承其值，后续排位权威来源转向 `BattleProfile.rating`。
-- 当前 Battle 仍未实现：主动交卷、自动结算、最终 WIN / LOSS / DRAW、rating 落库、排行榜查询、战绩查询、小程序 Battle 功能页；因此仍未形成完整可结算的真实对局闭环。
+- 当前 Battle 已实现：`GET /api/v1/battles/profile`、`GET /api/v1/battles/leaderboard`、`GET /api/v1/battles/history`、`GET /api/v1/battles/history/:battleId` 以及统一错题中心 `BATTLE` 来源聚合；当前仍未实现 Battle 小程序页面、运行态联调与体验版级产品闭环。
 
 学习模块真实状态：
 - 已有后端：
@@ -78,7 +78,7 @@ Battle V1 数据基础状态：
 - 当前课程内容仍明显依赖数据库现存数据和 quiz seed，缺少正式内容录入能力。
 
 对战、互助、内容管理真实状态：
-- 对战：正式契约已冻结，后端已完成公开 Battle 接口、随机匹配、好友邀请、ready、COUNTDOWN、题目快照、题目下发与单题提交，但当前仍只有 `pages/battle/index` 占位页；无小程序 Battle 房间页、无主动交卷、无自动结算、无排行榜查询。
+- 对战：正式契约已冻结，后端已完成公开 Battle 接口、随机匹配、好友邀请、ready、COUNTDOWN、题目快照、题目下发、单题提交、主动交卷、认输、惰性超时结算、结果接口、最终胜负判定和 rating/profile/rating log 更新，但当前仍只有 `pages/battle/index` 占位页；无小程序 Battle 房间页、无排行榜查询、无战绩页。
 - 互助：只有 `pages/community/index` 占位页；无 Post / Comment / Report / Favorite 模型、无接口、无详情、无发布、无审核。
 - 内容管理：仓库中没有 `admin-web` 目录；后端没有任何 `/api/v1/admin/*` 实现；也没有 `AdminUser` / `AdminOperationLog` 实际 schema。
 
@@ -112,6 +112,6 @@ Battle V1 数据基础状态：
 - 首页页面文案仍保留“登录和学习进度模块尚未开发”的过时描述，与当前学习中心实际状态不一致。
 
 下一阶段建议：
-- Battle 已完成数据基础、匹配/好友邀请、ready、题目快照与单题提交落地，下一阶段建议直接进入 `CP-011E`，实现主动交卷、自动结算、认输与 rating 计算。
+- Battle 已完成数据基础、匹配/好友邀请、ready、题目快照、单题提交、主动交卷、认输、惰性超时结算、结果查询、排行榜、战绩与统一错题中心 BATTLE 联动，下一阶段建议直接进入 `CP-011G`，补齐 Battle 小程序完整页面。
 - 学习主链路仍需补齐章节写入、小测页面和演示课程内容，避免 Battle 规划推进后学习主链路仍无法完整演示。
 - 互助、后台管理、正式微信登录与体验版发布仍需按 `docs/V1_REMAINING_ROADMAP.md` 的冻结路线继续评审与拆单执行。

@@ -26,6 +26,7 @@ export const MATCHMAKING_TTL_SECONDS = 120;
 
 export const FRIEND_INVITATION_TTL_MINUTES = 10;
 export const INVITATION_TOKEN_BYTES = 18;
+export const BATTLE_SETTLEMENT_STALE_SECONDS = 30;
 
 export const ACTIVE_BATTLE_ROOM_STATUSES: readonly BattleRoomStatus[] = [
   BattleRoomStatus.WAITING,

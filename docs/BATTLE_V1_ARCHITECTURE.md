@@ -1,8 +1,8 @@
 # Battle V1 架构设计冻结
 
-更新日期：2026-07-25
-适用阶段：CP-011A / CP-011B / CP-011C / CP-011D
-状态：设计冻结，且已完成 CP-011B 数据基础、CP-011C 匹配/好友邀请以及 CP-011D ready、题目快照、题目下发与单题提交落地，等待 CP-011E 继续实现
+更新日期：2026-07-26
+适用阶段：CP-011A / CP-011B / CP-011C / CP-011D / CP-011E
+状态：设计冻结，且已完成 CP-011B 数据基础、CP-011C 匹配/好友邀请、CP-011D ready、题目快照、题目下发与单题提交、CP-011E 主动交卷/认输/惰性超时结算/最终胜负判定/rating-profile-rating log 落地，以及 CP-011F 排行榜、战绩与统一错题中心 BATTLE 联动，等待 CP-011G Battle 小程序页面实现
 
 ## 1. 文档定位
 
@@ -706,14 +706,14 @@ Battle 错题必须接入现有统一错题中心，并作为未来的 `BATTLE` 
 
 ### 15.3 与现有 wrong-question 的关系
 
-当前统一错题中心正式实现仍基于 `QuizAnswer` 聚合，只有 `LEARNING` 来源。
+当前统一错题中心正式实现仍基于运行时聚合；`LEARNING` 来源来自 `QuizAnswer` / `QuizAttempt`，`BATTLE` 来源已在 `CP-011F` 接入 `BattleAnswer` + `BattleQuestionSnapshot` 读模型。
 
 因此 Battle V1 的联动策略是：
 
-1. Battle 先在自己的 `BattleAnswer` 中保存被判错的正式作答记录。
-2. 后续在 CP-011F 中扩展错题聚合读模型，按 `questionId + source` 做运行时聚合。
-3. 不新增 `WrongQuestion` 持久化模型。
-4. 同一用户、同一题目在 `LEARNING` 和 `BATTLE` 都答错时，未来统一错题中心优先聚合为同一道题，并带来源统计。
+1. Battle 在自己的 `BattleAnswer` 中保存被判错的正式作答记录。
+2. `CP-011F` 已扩展统一错题中心读模型，按 `source + questionId` 做运行时聚合。
+3. 不新增 `WrongQuestion` 持久化模型，也不新增 Battle 专属错题表。
+4. 同一用户、同一来源题目多次答错时聚合为一条；`LEARNING` 与 `BATTLE` 当前按来源分开聚合。
 
 ## 16. 异常与并发处理规则
 
@@ -767,7 +767,7 @@ Battle V1 至少满足以下安全要求：
 说明：
 
 1. 以下字段与约束现已作为 Battle V1 正式数据基线，其中 `CP-011B` 已完成 Prisma schema、migration 与 Prisma Client 落地。
-2. 当前未实现的是匹配、邀请、ready/start、抽题、答题提交、结算和公开 Battle API，不是数据模型本身。
+2. 当前未实现的是 Battle 小程序页面、运行态联调与体验版产品闭环，不是数据模型本身。
 
 ### 18.1 BattleProfile
 
@@ -1022,6 +1022,11 @@ GET /api/v1/battles/leaderboard
 11. `bestWinStreak`
 12. `highestRating`
 
+说明：
+
+1. `GET /api/v1/battles/profile` 与 `GET /api/v1/battles/leaderboard` 已在 `CP-011F` 实现。
+2. 排位权威来源是 `BattleProfile.rating`，`winRate` 与 `rank/currentRank` 按查询时动态计算。
+
 ### 19.2 随机匹配
 
 ```text
@@ -1154,10 +1159,16 @@ GET /api/v1/battles/history/:battleId
 7. `opponentCorrectCount`
 8. `opponentWrongCount`
 9. `opponentUnansweredCount`
-10. `ratingDelta`
-11. `currentRating`
-12. `currentRank`
+10. `ratingBefore`
+11. `ratingDelta`
+12. `ratingAfter`
 13. `completedAt`
+
+说明：
+
+1. `GET /api/v1/battles/:battleId/result` 已在 `CP-011E` 实现。
+2. `GET /api/v1/battles/history` 与 `GET /api/v1/battles/history/:battleId` 已在 `CP-011F` 实现。
+3. 历史详情只读取 `BattleQuestionSnapshot`、当前用户自己的 `BattleAnswer` 与对手汇总信息，不返回对手逐题答案。
 
 ### 19.7 错误码建议补充
 
@@ -1171,6 +1182,9 @@ BATTLE_READY_TIMEOUT
 BATTLE_INVITATION_EXPIRED
 BATTLE_INVITATION_INVALID
 BATTLE_FORFEIT_NOT_ALLOWED
+BATTLE_INVALID_LEADERBOARD_QUERY
+BATTLE_HISTORY_NOT_FOUND
+BATTLE_HISTORY_NOT_COMPLETED
 ```
 
 ## 20. 小程序页面规划
@@ -1280,7 +1294,7 @@ Battle V1 小程序页面规划：
 | `CP-011C` | 随机匹配与好友邀请 | `CP-011B` | 否 | 否 | 队列、邀约、房间创建、并发安全 |
 | `CP-011D` | 房间准备、统一计时、题目抽取与下发、单题提交 | `CP-011C` | 可能 | 可能 | COUNTDOWN、IN_PROGRESS、幂等答题、快照 |
 | `CP-011E` | 主动交卷、自动结算、认输、rating 计算 | `CP-011D` | 可能 | 可能 | battleScore、平局、Elo、幂等 settlement |
-| `CP-011F` | 战绩、排行榜与统一错题中心 BATTLE 联动 | `CP-011E` | 可能 | 可能 | history、leaderboard、wrong-question 聚合扩展 |
+| `CP-011F` | 战绩、排行榜与统一错题中心 BATTLE 联动 | `CP-011E` | 否 | 否 | 已完成；history、leaderboard、wrong-question 聚合扩展已落地 |
 | `CP-011G` | Battle 小程序完整页面 | `CP-011F` | 否 | 否 | 大厅、匹配、房间、结果、历史、排行榜 |
 | `CP-011H` | 运行态联调、异常恢复、并发回归 | `CP-011G` | 否 | 否 | 切后台、断网、重复请求、超时与回归 |
 
@@ -1296,11 +1310,11 @@ Battle V1 小程序页面规划：
 
 ## 24. 当前实现状态说明
 
-截至 2026-07-25：
+截至 2026-07-26：
 
 1. `CP-011B` 已完成 Battle Prisma 枚举、核心模型、共享题库扩展与迁移 `20260725021220_add_battle_v1_core_models`。
 2. `CP-011B` 已完成 BattleModule、BattleScoreService、BattleRatingService、BattleDomainService 与对应单元测试。
 3. `CP-011C` 已完成 `POST /api/v1/battles/matchmaking/join`、`GET /api/v1/battles/matchmaking/status`、`DELETE /api/v1/battles/matchmaking`、`POST /api/v1/battles/friend-rooms`、`GET /api/v1/battles/friend-rooms/:invitationToken`、`POST /api/v1/battles/friend-rooms/:invitationToken/join` 与 `GET /api/v1/battles/:battleId`。
 4. `CP-011C` 已实现数据库队列 + REST 轮询的惰性匹配、扩窗匹配算法、事务内原子建房、好友邀请 token、好友房 `seat 2` 并发抢占保护与房间基础查询。
 5. `CP-011D` 已完成 `POST /api/v1/battles/:battleId/ready`、`GET /api/v1/battles/:battleId/questions`、`POST /api/v1/battles/:battleId/answers`、BattleQuestionSnapshot 冻结、`startedAt` / `expiresAt` 统一生成、`COUNTDOWN -> IN_PROGRESS` 惰性推进、SINGLE_CHOICE 服务端判分、CODE_FILL 字符串规范化判分以及 `clientRequestId` 幂等。
-6. 当前 Battle 仍未实现主动交卷、自动结算、最终胜负写入、rating 落库、排行榜、战绩或小程序 Battle 页面；真实对局闭环尚未完成。
+6. 当前 Battle 已实现主动交卷、认输、惰性超时结算、最终胜负写入、RANKED Elo 与 FRIEND 结算规则、profile、leaderboard、history、history detail 与统一错题中心 BATTLE 联动；但小程序 Battle 页面、运行态联调和产品级闭环仍未完成。

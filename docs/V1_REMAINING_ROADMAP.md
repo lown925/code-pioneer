@@ -1,13 +1,13 @@
-# CP-010 审计结论、CP-011A/CP-011B/CP-011C/CP-011D Battle 基线与 V1 剩余路线图
+# CP-010 审计结论、CP-011A/CP-011B/CP-011C/CP-011D/CP-011E Battle 基线与 V1 剩余路线图
 
-更新日期：2026-07-25
+更新日期：2026-07-26
 
 ## 1. 结论摘要
 
 - 当前仓库已经形成一条“公开课程浏览 + 登录基础 + 学习中心读取 + 错题中心读取”的半闭环。
 - 当前仓库尚未形成“新用户从课程学习到小测再到错题生成”的完整小程序闭环。
 - Battle 已完成 V1 产品规则、状态机、Prisma 模型草案、REST API 草案与页面规划冻结，正式基线文档为 `docs/BATTLE_V1_ARCHITECTURE.md`。
-- Battle 是“码站先锋”的核心产品亮点，`CP-011B` 已完成 Battle 数据模型、迁移、Prisma Client 与基础领域服务落地，`CP-011C` 已完成随机匹配、好友邀请与房间基础查询，`CP-011D` 已完成 ready、COUNTDOWN、题目快照、题目下发与单题提交后端能力，但仍未进入可结算对局阶段。
+- Battle 是“码站先锋”的核心产品亮点，`CP-011B` 已完成 Battle 数据模型、迁移、Prisma Client 与基础领域服务落地，`CP-011C` 已完成随机匹配、好友邀请与房间基础查询，`CP-011D` 已完成 ready、COUNTDOWN、题目快照、题目下发与单题提交，`CP-011E` 已完成主动交卷、认输、惰性超时结算、最终胜负判定与 rating/profile/rating log 落地，但仍未进入可演示的 Battle 产品闭环。
 - 当前对战、互助、后台管理仍处于未开始或占位阶段。
 - 当前项目不是发布准备状态，不能直接进入体验版发布。
 - 若按 PRD 和 `docs/02-MVP功能范围与验收清单.md` 的完整 V1 范围评估，整体完成度约为 25%。
@@ -34,11 +34,11 @@
 | 8. 课程测验 | BACKEND_ONLY | 后端已有 quiz 查询、提交、attempt 列表和详情；有单元测试与 e2e | 小程序没有 `pages/quiz/index` / `pages/quiz/result`，章节页也未接入 quiz |
 | 9. 错题中心 | PARTIAL | 后端 wrong-question 三接口已完成；小程序有列表、统计、详情 | 错题来源依赖 quiz 提交；前端暂不开放 course/chapter 筛选 |
 | 10. 对战大厅 | PLACEHOLDER | `pages/battle/index` 仅占位 | 无真实数据、无真实功能 |
-| 11. 对战匹配 | BACKEND_ONLY | 后端已有匹配加入、状态查询、取消匹配、好友房创建/预览/加入与房间基础查询；有单元测试和 e2e | 小程序仍只有 `pages/battle/index` 占位页；房间只到 `WAITING` |
-| 12. 对战答题 | NOT_STARTED | 无题目下发、无答题页、无服务端答案提交 | 完全未落地 |
-| 13. 对战结算 | NOT_STARTED | 无 BattleResult 接口或页面 | 完全未落地 |
-| 14. 对战记录 | NOT_STARTED | 无 battle history 接口或页面 | 完全未落地 |
-| 15. 对战错题 | NOT_STARTED | 决策日志只规定未来接入统一错题中心 | 无来源字段、无接入逻辑、无页面 |
+| 11. 对战匹配 | BACKEND_ONLY | 后端已有匹配加入、状态查询、取消匹配、好友房创建/预览/加入与房间基础查询；有单元测试和 e2e | 小程序仍只有 `pages/battle/index` 占位页；无匹配 UI |
+| 12. 对战答题 | BACKEND_ONLY | 后端已有 ready、COUNTDOWN、题目快照、题目下发与单题提交；有单元测试和 e2e | 无答题页、无客户端轮询与倒计时展示 |
+| 13. 对战结算 | BACKEND_ONLY | 后端已有主动交卷、认输、结果接口、惰性超时结算、最终胜负判定与 rating/profile/rating log 更新 | 无结算页、无运行态前端联调 |
+| 14. 对战记录 | BACKEND_ONLY | 后端已有 `GET /api/v1/battles/history` 与 `GET /api/v1/battles/history/:battleId`；有单元测试和 e2e | 小程序无战绩列表、详情与复盘页面 |
+| 15. 对战错题 | BACKEND_ONLY | 统一错题中心已支持 `source=BATTLE` 聚合、详情与统计；有单元测试和 e2e | 小程序尚未接入 BATTLE 来源展示；无独立 Battle 错题页 |
 | 16. 互助问题列表 | PLACEHOLDER | `pages/community/index` 仅占位 | 无帖子模型、无列表接口 |
 | 17. 发布问题 | NOT_STARTED | 无发布页、无接口 | 完全未落地 |
 | 18. 问题详情 | NOT_STARTED | 无详情页、无接口 | 完全未落地 |
@@ -46,7 +46,7 @@
 | 20. 点赞 | NOT_STARTED | 无 like 模型、接口或页面 | 完全未落地 |
 | 21. 采纳 | NOT_STARTED | 无字段、接口或页面 | 完全未落地 |
 | 22. 我的提问/回答 | NOT_STARTED | 无我的帖子/回答接口和页面 | 完全未落地 |
-| 23. 排行榜 | NOT_STARTED | 无排行榜模型、接口或页面 | 完全未落地 |
+| 23. 排行榜 | BACKEND_ONLY | 后端已有 `GET /api/v1/battles/leaderboard` 与 `GET /api/v1/battles/profile`；有单元测试和 e2e | 小程序无排行榜页面；当前仅覆盖 Battle 排行榜 |
 | 24. 积分与等级 | PARTIAL | User 上有 `experience` / `battleRating` / `continuousLearningDays` 字段；profile 会显示 | 没有积分规则、等级规则、更新逻辑或排行榜 |
 | 25. 个人资料 | PARTIAL | 后端 `PATCH /users/me`、`POST /users/me/delete-account` 已完成；profile 页存在 | 小程序没有编辑资料和注销账号流程 |
 | 26. 消息或通知 | NOT_STARTED | 无模型、接口、页面 | 完全未落地 |
@@ -135,29 +135,31 @@
 
 当前真实状态：
 
-- 数据模型：无
-- 接口：无
-- 匹配机制：无
-- 房间机制：无
-- WebSocket / 轮询：无
-- 题目下发：无
-- 计时：无
-- 提交答案：无
-- 服务端判分：无
-- 防重复提交：无
-- 结算：无
-- 对战记录：无
-- 排行榜：无
-- 对战错题：无
-- 小程序页面：只有 `pages/battle/index` 占位页
+- 数据模型：已完成 `BattleProfile`、`BattleRoom`、`BattleParticipant`、`BattleQuestionSnapshot`、`BattleAnswer`、`BattleInvitation`、`BattleRatingLog`、`BattleMatchQueue`
+- 接口：已完成 Battle REST 后端主链路，但小程序 Battle 页面未实现
+- 匹配机制：已完成随机匹配加入、状态查询、取消匹配
+- 房间机制：已完成好友房创建、预览、加入和基础房间查询
+- WebSocket / 轮询：未引入 WebSocket；后端已按“数据库队列 + REST 轮询”路线实现
+- 题目下发：已完成 `GET /api/v1/battles/:battleId/questions`
+- 计时：已完成 `COUNTDOWN -> IN_PROGRESS` 服务端惰性推进
+- 提交答案：已完成 `POST /api/v1/battles/:battleId/answers`
+- 服务端判分：已完成 `SINGLE_CHOICE` 与 `CODE_FILL` 服务端判题
+- 防重复提交：已完成 `clientRequestId` 幂等与单题重复提交保护
+- 结算：已完成主动交卷、认输、惰性超时结算、结果查询与 Elo / profile / rating log 更新
+- 对战记录：已完成 `GET /api/v1/battles/history` 与 `GET /api/v1/battles/history/:battleId`
+- 排行榜：已完成 `GET /api/v1/battles/profile` 与 `GET /api/v1/battles/leaderboard`
+- 对战错题：已完成统一错题中心 `BATTLE` 来源聚合、统计、详情与 `source` 过滤
+- 小程序页面：只有 `pages/battle/index` 占位页，尚无匹配、房间、结果、战绩或排行榜页面
 
 结论：
 
-- 对战模块当前真实完成度为“后端数据基础与匹配/好友邀请已落地，但真实对局链路仍未开始”。
+- 对战模块当前真实完成度为“后端对局闭环、排行榜、战绩与统一错题中心 BATTLE 联动已落地，但 Battle 小程序产品闭环尚未开始”。
 - `CP-011B` 已完成 Battle schema、migration、BattleModule、评分/Elo 纯函数和 BattleProfile 初始化等基础能力。
 - `CP-011C` 已完成 BattleController、随机匹配、匹配状态查询、取消匹配、好友房创建/预览/加入和房间基础查询。
 - `CP-011D` 已完成 `POST /api/v1/battles/:battleId/ready`、`GET /api/v1/battles/:battleId/questions`、`POST /api/v1/battles/:battleId/answers`、题目快照、统一 `startedAt` / `expiresAt`、`COUNTDOWN -> IN_PROGRESS` 惰性推进与单题幂等提交。
-- 文档中的主动交卷、自动结算、排行榜和 Battle 小程序页面仍未落地为可用代码。
+- `CP-011E` 已完成主动交卷、认输、惰性超时结算、最终胜负判定与结果查询。
+- `CP-011F` 已完成 Battle profile、leaderboard、history、history detail 与统一错题中心 `BATTLE` 来源联动。
+- 当前 Battle 的主要缺口已经从后端能力转为 Battle 小程序页面、运行态联调与演示链路。
 - 自 2026-07-24 起，Battle V1 的正式设计基线以 `docs/BATTLE_V1_ARCHITECTURE.md` 为准，后续实现必须遵守其中冻结的玩法规则、状态机、题库复用策略和接口边界。
 
 ## 6. 互助功能专项审计
@@ -329,8 +331,8 @@
 | CP-011B | Battle 数据模型、枚举、Prisma migration 与基础领域服务 | CP-011A | 是 | 是 | Battle 相关表结构、唯一约束、索引、题目快照、BattleModule 与评分/Elo 基础能力落地 | 已完成 |
 | CP-011C | 随机匹配与好友邀请 | CP-011B | 否 | 否 | 队列、邀约、房间创建、并发安全与状态推进落地 | 已完成 |
 | CP-011D | 房间准备、统一计时、题目抽取与下发、单题提交 | CP-011C | 否 | 否 | COUNTDOWN、IN_PROGRESS、服务端计时、幂等答题、快照下发落地 | 已完成 |
-| CP-011E | 主动交卷、自动结算、认输、rating 计算 | CP-011D | 可能 | 可能 | battleScore、平局、Elo、幂等 settlement 与结果写入落地 | 2 |
-| CP-011F | 战绩、排行榜与统一错题中心 BATTLE 联动 | CP-011E | 可能 | 可能 | history、leaderboard、wrong-question 聚合扩展落地 | 4 |
+| CP-011E | 主动交卷、自动结算、认输、rating 计算 | CP-011D | 否 | 否 | battleScore、平局、Elo、幂等 settlement 与结果写入落地 | 已完成 |
+| CP-011F | 战绩、排行榜与统一错题中心 BATTLE 联动 | CP-011E | 否 | 否 | history、leaderboard、wrong-question 聚合扩展落地 | 已完成 |
 | CP-011G | Battle 小程序完整页面 | CP-011F | 否 | 否 | 大厅、匹配、房间、结果、历史、排行榜可联调演示 | 5 |
 | CP-011H | Battle 运行态联调、异常恢复、并发回归 | CP-011G | 否 | 否 | 切后台、断网、重复请求、超时、认输和回归通过 | 6 |
 | CP-012 | 学习闭环补全 | CP-009C-04 | 否 | 否 | 新用户可在小程序完成一章学习、小测提交、章节完成、错题生成 | 7 |

@@ -18,6 +18,7 @@ import {
 import { BattleRoomService } from './battle-room.service';
 import { BATTLE_COUNTDOWN_SECONDS } from './battle.constants';
 import { BATTLE_ERROR_CODES } from './battle.errors';
+import { BattleSettlementService } from './battle-settlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   BattleAnswerPayload,
@@ -82,12 +83,14 @@ export class BattleQuestionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly battleRoomService: BattleRoomService,
+    private readonly battleSettlementService?: BattleSettlementService,
   ) {}
 
   async getBattleQuestions(currentUserId: string, battleId: string) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
       await this.battleRoomService.advanceRoomStateIfNeeded(battleId, now, tx);
+      await this.battleSettlementService?.normalizeBattleState(battleId, now, tx);
 
       const room = await tx.battleRoom.findFirst({
         where: {
@@ -120,7 +123,9 @@ export class BattleQuestionService {
 
       if (
         room.status !== BattleRoomStatus.COUNTDOWN &&
-        room.status !== BattleRoomStatus.IN_PROGRESS
+        room.status !== BattleRoomStatus.IN_PROGRESS &&
+        room.status !== BattleRoomStatus.SETTLING &&
+        room.status !== BattleRoomStatus.COMPLETED
       ) {
         throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_ROOM_NOT_READY);
       }

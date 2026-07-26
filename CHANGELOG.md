@@ -121,3 +121,23 @@
 - 扩展 Battle room 查询，返回 `currentParticipantStatus`、`answeredCount`、`totalQuestionCount` 与服务端时间，用于房间恢复和倒计时同步。
 - 新增 Battle unit test 与 E2E 覆盖 ready、COUNTDOWN、题目快照、题目下发、单题提交、幂等重试与字段安全边界。
 - 本轮未修改 Prisma schema、未新增 migration、未修改小程序，也未实现主动交卷、自动结算、最终胜负、rating 落库、排行榜、战绩或 Battle 错题联动。
+
+### CP-011E
+- 新增 Battle 结算服务：`BattleSettlementService`、`BattleSubmitService`、`BattleResultService`。
+- 新增主动交卷、认输与结果查询接口：`POST /api/v1/battles/:battleId/submit`、`POST /api/v1/battles/:battleId/forfeit`、`GET /api/v1/battles/:battleId/result`。
+- 实现 `GET /api/v1/battles/:battleId`、`GET /api/v1/battles/:battleId/questions`、`POST /api/v1/battles/:battleId/answers`、`POST /api/v1/battles/:battleId/submit`、`GET /api/v1/battles/:battleId/result` 的惰性超时结算联动。
+- 实现 `SETTLING` 条件抢占、`updatedAt` 驱动的卡死恢复、`COMPLETED` 幂等终态与重复结算保护。
+- 结算时按 `BattleAnswer` 重算最终 `score`、`correctCount`、`wrongCount`、`unansweredCount`，不信任中间聚合字段。
+- 实现 `WIN / LOSS / DRAW` 判定、认输即时结算、`RANKED` Elo 更新、`FRIEND ratingDelta = 0`、`BattleProfile` 统计更新与 `BattleRatingLog` 落库规则。
+- 扩展 Battle 单元测试与 E2E，覆盖主动交卷、认输、惰性超时结算、并发结算、事务回滚与结果接口。
+- 本轮未修改 Prisma schema、未新增 migration、未实现排行榜、战绩、Battle 错题联动或小程序 Battle 页面。
+
+### CP-011F
+- 新增 `BattleProfileService`、`BattleLeaderboardService`、`BattleHistoryService` 与 `battle-ranking` 排位排序工具。
+- 新增 `GET /api/v1/battles/profile`、`GET /api/v1/battles/leaderboard`、`GET /api/v1/battles/history`、`GET /api/v1/battles/history/:battleId`。
+- 排行榜按 `rating DESC`、`highestRating DESC`、`wins DESC`、`userId ASC` 稳定排序，并返回 `myRank`、`myRating` 与动态 `winRate`。
+- 战绩详情只读取 `BattleQuestionSnapshot` 与当前用户自己的 `BattleAnswer`，不返回对手逐题答案。
+- 统一错题中心新增 `BATTLE` 来源聚合，支持 `source=LEARNING|BATTLE` 过滤，按 `source + questionId` 运行时聚合。
+- Battle 错题仅纳入“已完成且非 `SYSTEM_CANCELLED` 对局中的错误作答”；未作答、跳过、超时未提交和正确答案不进入错题中心。
+- 扩展 Battle 单元测试与 E2E，覆盖 profile、leaderboard、history、history detail 与统一错题中心 BATTLE 来源联动。
+- 本轮未修改 Prisma schema、未新增 migration、未实现 Battle 小程序页面。

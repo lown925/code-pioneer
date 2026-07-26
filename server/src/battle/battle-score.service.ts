@@ -17,7 +17,15 @@ function assertNonNegativeInteger(value: number, field: string) {
 export function calculateBattleScore(
   input: CalculateBattleScoreInput,
 ): BattleScoreSummary {
-  const { correctCount, wrongCount, unansweredCount, questionCount } = input;
+  const {
+    correctCount,
+    wrongCount,
+    unansweredCount,
+    questionCount,
+    correctScore = BATTLE_CORRECT_SCORE,
+    wrongScore = BATTLE_WRONG_SCORE,
+    unansweredScore = 0,
+  } = input;
 
   assertNonNegativeInteger(correctCount, 'correctCount');
   assertNonNegativeInteger(wrongCount, 'wrongCount');
@@ -37,7 +45,9 @@ export function calculateBattleScore(
 
   return {
     score:
-      correctCount * BATTLE_CORRECT_SCORE + wrongCount * BATTLE_WRONG_SCORE,
+      correctCount * correctScore +
+      wrongCount * wrongScore +
+      unansweredCount * unansweredScore,
     correctCount,
     wrongCount,
     unansweredCount,

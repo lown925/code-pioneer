@@ -1,42 +1,149 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
-import { QuestionType } from '../../generated/prisma/enums';
+import {
+  BattleEndReason,
+  BattleResult,
+  BattleRoomStatus,
+  QuestionType,
+} from '../../generated/prisma/enums';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { GetWrongQuestionsQueryDto } from './dto/get-wrong-questions-query.dto';
+import { type WrongQuestionSource } from './wrong-question.types';
+import type {
+  BattleAnswerPayload,
+  BattleQuestionOptionSnapshot,
+  ContentBlock,
+} from '../battle/battle.types';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 10;
 
-type WrongQuestionListAggregateRow = {
+type LearningAggregateRow = {
   questionId: string;
   wrongCount: number | bigint;
   lastWrongAt: Date;
 };
 
-type WrongQuestionCountRow = {
-  total: number | bigint;
+type LearningQuestionRecord = {
+  id: string;
+  type: QuestionType;
+  content: string;
+  explanation: string | null;
+  options: Array<{
+    id: string;
+    content: string;
+    isCorrect: boolean;
+    sortOrder: number;
+  }>;
+  quiz: {
+    chapterId: string;
+    chapter: {
+      title: string;
+      courseId: string;
+      course: {
+        title: string;
+      };
+    };
+  };
 };
 
 type WrongQuestionStatisticsRow = {
-  totalWrongQuestions: number | bigint;
-  totalWrongAnswers: number | bigint;
-  courseCount: number | bigint;
+  totalWrongQuestions: number;
+  totalWrongAnswers: number;
+  courseCount: number;
   latestWrongAt: Date | null;
 };
 
-type WrongQuestionDetailAggregateRow = {
-  wrongCount: number | bigint;
-  lastWrongAt: Date;
+type BattleRoomRecord = {
+  id: string;
+  mode: string;
+  status: BattleRoomStatus;
+  completedAt: Date | null;
+  endReason: BattleEndReason | null;
+  participants: Array<{
+    id: string;
+    userId: string;
+    score: number;
+    result: BattleResult;
+    correctCount: number;
+    wrongCount: number;
+    unansweredCount: number;
+    ratingBefore: number | null;
+    ratingDelta: number;
+    ratingAfter: number | null;
+    user: {
+      id: string;
+      nickname: string | null;
+      avatarUrl: string | null;
+    };
+  }>;
+  questionSnapshots: Array<{
+    id: string;
+    battleRoomId: string;
+    sourceQuizQuestionId: string | null;
+    orderIndex: number;
+    questionType: string;
+    presentation: string;
+    difficulty: string | null;
+    stemSnapshot: unknown;
+    optionsSnapshot: unknown;
+    correctAnswerSnapshot: unknown;
+    explanationSnapshot: unknown;
+    programmingLanguage: string | null;
+    courseIdSnapshot: string | null;
+    chapterIdSnapshot: string | null;
+  }>;
+  answers: Array<{
+    battleRoomId: string;
+    participantId: string;
+    battleQuestionSnapshotId: string;
+    answerPayload: unknown;
+    submittedAt: Date;
+    timeSpentMs: number | null;
+    isCorrect: boolean;
+    scoreDelta: number;
+  }>;
 };
 
-type ResolvedFilter = {
-  courseId?: string;
-  chapterId?: string;
+type UnifiedWrongQuestionItem = {
+  source: WrongQuestionSource;
+  questionId: string;
+  battleQuestionSnapshotId: string | null;
+  questionType: QuestionType | string;
+  questionContent: string;
+  content: string;
+  courseId: string | null;
+  courseTitle: string | null;
+  chapterId: string | null;
+  chapterTitle: string | null;
+  wrongCount: number;
+  lastWrongAt: Date;
+  latestWrongAt: Date;
+  presentation: string | null;
+  difficulty: string | null;
+  programmingLanguage: string | null;
+  stem: ContentBlock[] | null;
+  options: Array<{
+    optionId: string;
+    content: string;
+    order: number;
+  }> | null;
+  optionSnapshots: BattleQuestionOptionSnapshot[] | null;
+  correctOptionId: string | null;
+  correctAnswer: unknown;
+  explanation: string | ContentBlock[] | null;
+  latestWrongAnswer: BattleAnswerPayload | null;
+  sourceQuizQuestionId: string | null;
+  battle: {
+    battleId: string;
+    completedAt: Date | null;
+    opponent: {
+      userId: string;
+      nickname: string | null;
+      avatarUrl: string | null;
+    } | null;
+  } | null;
 };
 
 @Injectable()
@@ -49,25 +156,139 @@ export class WrongQuestionService {
   ) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
-    const skip = (page - 1) * pageSize;
     const filters = await this.resolveFilters(query.courseId, query.chapterId);
-    const whereClause = this.buildAggregateWhereClause(currentUser.id, filters);
 
-    const [countRows, aggregateRows] = await Promise.all([
-      this.prisma.$queryRaw<WrongQuestionCountRow[]>(Prisma.sql`
-        SELECT COUNT(*)::int AS "total"
-        FROM (
-          SELECT qa.question_id
-          FROM quiz_answers qa
-          INNER JOIN quiz_attempts attempt ON attempt.id = qa.attempt_id
-          INNER JOIN quiz_questions question ON question.id = qa.question_id
-          INNER JOIN quizzes quiz ON quiz.id = question.quiz_id
-          INNER JOIN course_chapters chapter ON chapter.id = quiz.chapter_id
-          WHERE ${whereClause}
-          GROUP BY qa.question_id
-        ) grouped
-      `),
-      this.prisma.$queryRaw<WrongQuestionListAggregateRow[]>(Prisma.sql`
+    const items = await this.loadUnifiedWrongQuestions(
+      currentUser.id,
+      filters,
+      query.source,
+    );
+
+    const total = items.length;
+    const start = (page - 1) * pageSize;
+    const pagedItems = items.slice(start, start + pageSize).map((item) =>
+      this.toListItem(item),
+    );
+
+    return {
+      success: true as const,
+      data: {
+        items: pagedItems,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+        },
+      },
+    };
+  }
+
+  async getStatistics(currentUser: CurrentUserContext) {
+    const items = await this.loadUnifiedWrongQuestions(currentUser.id, {});
+
+    const totalWrongQuestions = items.length;
+    const totalWrongAnswers = items.reduce(
+      (sum, item) => sum + item.wrongCount,
+      0,
+    );
+    const courseCount = new Set(
+      items
+        .map((item) => item.courseId)
+        .filter((courseId): courseId is string => Boolean(courseId)),
+    ).size;
+    const latestWrongAt =
+      items.length === 0
+        ? null
+        : items[0]?.latestWrongAt ?? null;
+
+    return {
+      success: true as const,
+      data: {
+        totalWrongQuestions,
+        totalWrongAnswers,
+        courseCount,
+        latestWrongAt,
+      } satisfies WrongQuestionStatisticsRow,
+    };
+  }
+
+  async getDetail(
+    currentUser: CurrentUserContext,
+    questionId: string,
+    source?: WrongQuestionSource,
+  ) {
+    const items = await this.loadUnifiedWrongQuestions(
+      currentUser.id,
+      {},
+      source,
+    );
+
+    const matched = items.filter((item) => item.questionId === questionId);
+
+    if (matched.length === 0) {
+      throw new NotFoundException('WRONG_QUESTION_NOT_FOUND');
+    }
+
+    const item =
+      matched.length === 1
+        ? matched[0]!
+        : matched.sort((left, right) => {
+            const diff = right.latestWrongAt.getTime() - left.latestWrongAt.getTime();
+
+            if (diff !== 0) {
+              return diff;
+            }
+
+            return left.source.localeCompare(right.source);
+          })[0]!;
+
+    return {
+      success: true as const,
+      data: this.toDetailItem(item),
+    };
+  }
+
+  private async loadUnifiedWrongQuestions(
+    currentUserId: string,
+    filters: { courseId?: string; chapterId?: string },
+    source?: WrongQuestionSource,
+  ) {
+    const items: UnifiedWrongQuestionItem[] = [];
+
+    if (source !== 'BATTLE') {
+      items.push(
+        ...(await this.loadLearningWrongQuestions(currentUserId, filters)),
+      );
+    }
+
+    if (source !== 'LEARNING' && this.hasBattleReadModels()) {
+      items.push(
+        ...(await this.loadBattleWrongQuestions(currentUserId, filters)),
+      );
+    }
+
+    return items.sort((left, right) => {
+      const diff = right.latestWrongAt.getTime() - left.latestWrongAt.getTime();
+
+      if (diff !== 0) {
+        return diff;
+      }
+
+      if (left.source !== right.source) {
+        return left.source.localeCompare(right.source);
+      }
+
+      return left.questionId.localeCompare(right.questionId);
+    });
+  }
+
+  private async loadLearningWrongQuestions(
+    currentUserId: string,
+    filters: { courseId?: string; chapterId?: string },
+  ) {
+    const aggregateRows = await this.prisma.$queryRaw<LearningAggregateRow[]>(
+      Prisma.sql`
         SELECT
           qa.question_id AS "questionId",
           COUNT(*)::int AS "wrongCount",
@@ -77,153 +298,22 @@ export class WrongQuestionService {
         INNER JOIN quiz_questions question ON question.id = qa.question_id
         INNER JOIN quizzes quiz ON quiz.id = question.quiz_id
         INNER JOIN course_chapters chapter ON chapter.id = quiz.chapter_id
-        WHERE ${whereClause}
+        WHERE ${this.buildLearningWhereClause(currentUserId, filters)}
         GROUP BY qa.question_id
         ORDER BY MAX(attempt.submitted_at) DESC, qa.question_id ASC
-        OFFSET ${skip}
-        LIMIT ${pageSize}
-      `),
-    ]);
-
-    const total = this.toNumber(countRows[0]?.total ?? 0);
+      `,
+    );
 
     if (aggregateRows.length === 0) {
-      return {
-        success: true as const,
-        data: {
-          items: [],
-          pagination: {
-            page,
-            pageSize,
-            total,
-            totalPages: 0,
-          },
-        },
-      };
+      return [];
     }
 
     const questionIds = aggregateRows.map((row) => row.questionId);
-    const questions = await this.prisma.quizQuestion.findMany({
+    const questions = (await this.prisma.quizQuestion.findMany({
       where: {
         id: {
           in: questionIds,
         },
-      },
-      select: {
-        id: true,
-        type: true,
-        content: true,
-        quiz: {
-          select: {
-            chapterId: true,
-            chapter: {
-              select: {
-                title: true,
-                courseId: true,
-                course: {
-                  select: {
-                    title: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    const questionMap = new Map(
-      questions.map((question) => [question.id, question]),
-    );
-    const items = aggregateRows.map((row) => {
-      const question = questionMap.get(row.questionId);
-
-      if (!question) {
-        throw new BadRequestException('QUIZ_NOT_READY');
-      }
-
-      return {
-        questionId: question.id,
-        questionType: question.type,
-        questionContent: question.content,
-        courseId: question.quiz.chapter.courseId,
-        courseTitle: question.quiz.chapter.course.title,
-        chapterId: question.quiz.chapterId,
-        chapterTitle: question.quiz.chapter.title,
-        wrongCount: this.toNumber(row.wrongCount),
-        lastWrongAt: row.lastWrongAt,
-      };
-    });
-
-    return {
-      success: true as const,
-      data: {
-        items,
-        pagination: {
-          page,
-          pageSize,
-          total,
-          totalPages: Math.ceil(total / pageSize),
-        },
-      },
-    };
-  }
-
-  async getStatistics(currentUser: CurrentUserContext) {
-    const rows = await this.prisma.$queryRaw<WrongQuestionStatisticsRow[]>(
-      Prisma.sql`
-        SELECT
-          COUNT(DISTINCT qa.question_id)::int AS "totalWrongQuestions",
-          COUNT(*)::int AS "totalWrongAnswers",
-          COUNT(DISTINCT chapter.course_id)::int AS "courseCount",
-          MAX(attempt.submitted_at) AS "latestWrongAt"
-        FROM quiz_answers qa
-        INNER JOIN quiz_attempts attempt ON attempt.id = qa.attempt_id
-        INNER JOIN quiz_questions question ON question.id = qa.question_id
-        INNER JOIN quizzes quiz ON quiz.id = question.quiz_id
-        INNER JOIN course_chapters chapter ON chapter.id = quiz.chapter_id
-        WHERE attempt.user_id = ${currentUser.id}::uuid
-          AND qa.is_correct = false
-      `,
-    );
-
-    const row = rows[0];
-
-    return {
-      success: true as const,
-      data: {
-        totalWrongQuestions: this.toNumber(row?.totalWrongQuestions ?? 0),
-        totalWrongAnswers: this.toNumber(row?.totalWrongAnswers ?? 0),
-        courseCount: this.toNumber(row?.courseCount ?? 0),
-        latestWrongAt: row?.latestWrongAt ?? null,
-      },
-    };
-  }
-
-  async getDetail(currentUser: CurrentUserContext, questionId: string) {
-    const aggregateRows = await this.prisma.$queryRaw<
-      WrongQuestionDetailAggregateRow[]
-    >(Prisma.sql`
-        SELECT
-          COUNT(*)::int AS "wrongCount",
-          MAX(attempt.submitted_at) AS "lastWrongAt"
-        FROM quiz_answers qa
-        INNER JOIN quiz_attempts attempt ON attempt.id = qa.attempt_id
-        WHERE attempt.user_id = ${currentUser.id}::uuid
-          AND qa.is_correct = false
-          AND qa.question_id = ${questionId}::uuid
-        GROUP BY qa.question_id
-      `);
-
-    const aggregateRow = aggregateRows[0];
-
-    if (!aggregateRow) {
-      throw new NotFoundException('WRONG_QUESTION_NOT_FOUND');
-    }
-
-    const question = await this.prisma.quizQuestion.findUnique({
-      where: {
-        id: questionId,
       },
       select: {
         id: true,
@@ -258,48 +348,395 @@ export class WrongQuestionService {
           },
         },
       },
-    });
+    })) as LearningQuestionRecord[];
 
-    if (!question) {
-      throw new BadRequestException('QUIZ_NOT_READY');
-    }
+    const questionMap = new Map(questions.map((question) => [question.id, question]));
 
-    if (
-      question.type !== QuestionType.SINGLE_CHOICE &&
-      question.type !== QuestionType.TRUE_FALSE
-    ) {
-      throw new BadRequestException('QUIZ_NOT_READY');
-    }
+    return aggregateRows.map((row) => {
+      const question = questionMap.get(row.questionId);
 
-    const correctOptions = question.options.filter(
-      (option) => option.isCorrect,
-    );
+      if (!question) {
+        throw new BadRequestException('QUIZ_NOT_READY');
+      }
 
-    if (correctOptions.length !== 1) {
-      throw new BadRequestException('QUIZ_NOT_READY');
-    }
+      const correctOptions = question.options.filter(
+        (option) => option.isCorrect,
+      );
 
-    return {
-      success: true as const,
-      data: {
+      if (correctOptions.length !== 1) {
+        throw new BadRequestException('QUIZ_NOT_READY');
+      }
+
+      const correctOption = correctOptions[0]!;
+
+      return {
+        source: 'LEARNING' as const,
         questionId: question.id,
+        battleQuestionSnapshotId: null,
         questionType: question.type,
+        questionContent: question.content,
         content: question.content,
         courseId: question.quiz.chapter.courseId,
         courseTitle: question.quiz.chapter.course.title,
         chapterId: question.quiz.chapterId,
         chapterTitle: question.quiz.chapter.title,
+        wrongCount: this.toNumber(row.wrongCount),
+        lastWrongAt: row.lastWrongAt,
+        latestWrongAt: row.lastWrongAt,
+        presentation: null,
+        difficulty: null,
+        programmingLanguage: null,
+        stem: null,
         options: question.options.map((option) => ({
           optionId: option.id,
           content: option.content,
           order: option.sortOrder,
         })),
-        correctOptionId: correctOptions[0].id,
+        optionSnapshots: null,
+        correctOptionId: correctOption.id,
+        correctAnswer: {
+          type: question.type,
+          optionId: correctOption.id,
+        },
         explanation: question.explanation,
-        wrongCount: this.toNumber(aggregateRow.wrongCount),
-        lastWrongAt: aggregateRow.lastWrongAt,
+        latestWrongAnswer: null,
+        sourceQuizQuestionId: null,
+        battle: null,
+      } satisfies UnifiedWrongQuestionItem;
+    });
+  }
+
+  private async loadBattleWrongQuestions(
+    currentUserId: string,
+    filters: { courseId?: string; chapterId?: string },
+  ) {
+    const rooms = (await this.prisma.battleRoom.findMany({
+      where: {
+        status: BattleRoomStatus.COMPLETED,
+        participants: {
+          some: {
+            userId: currentUserId,
+          },
+        },
+      },
+      select: {
+        id: true,
+        mode: true,
+        status: true,
+        completedAt: true,
+        endReason: true,
+        participants: {
+          select: {
+            id: true,
+            userId: true,
+            score: true,
+            result: true,
+            correctCount: true,
+            wrongCount: true,
+            unansweredCount: true,
+            ratingBefore: true,
+            ratingDelta: true,
+            ratingAfter: true,
+            user: {
+              select: {
+                id: true,
+                nickname: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+        questionSnapshots: {
+          select: {
+            id: true,
+            battleRoomId: true,
+            sourceQuizQuestionId: true,
+            orderIndex: true,
+            questionType: true,
+            presentation: true,
+            difficulty: true,
+            stemSnapshot: true,
+            optionsSnapshot: true,
+            correctAnswerSnapshot: true,
+            explanationSnapshot: true,
+            programmingLanguage: true,
+            courseIdSnapshot: true,
+            chapterIdSnapshot: true,
+          },
+          orderBy: {
+            orderIndex: 'asc' as const,
+          },
+        },
+        answers: {
+          select: {
+            battleRoomId: true,
+            participantId: true,
+            battleQuestionSnapshotId: true,
+            answerPayload: true,
+            submittedAt: true,
+            timeSpentMs: true,
+            isCorrect: true,
+            scoreDelta: true,
+          },
+        },
+      },
+    })) as BattleRoomRecord[];
+
+    if (rooms.length === 0) {
+      return [];
+    }
+
+    const items = new Map<string, UnifiedWrongQuestionItem>();
+
+    for (const room of rooms) {
+      if (room.endReason === BattleEndReason.SYSTEM_CANCELLED) {
+        continue;
+      }
+
+      const currentParticipant = room.participants.find(
+        (participant) => participant.userId === currentUserId,
+      );
+      const opponentParticipant = room.participants.find(
+        (participant) => participant.userId !== currentUserId,
+      );
+
+      if (!currentParticipant || currentParticipant.result === BattleResult.NONE) {
+        continue;
+      }
+
+      const snapshotMap = new Map(
+        room.questionSnapshots.map((snapshot) => [snapshot.id, snapshot] as const),
+      );
+
+      const answers = room.answers
+        .filter((answer) => answer.participantId === currentParticipant.id)
+        .filter((answer) => answer.isCorrect === false)
+        .sort((left, right) => {
+          const diff = right.submittedAt.getTime() - left.submittedAt.getTime();
+
+          if (diff !== 0) {
+            return diff;
+          }
+
+          return right.battleQuestionSnapshotId.localeCompare(
+            left.battleQuestionSnapshotId,
+          );
+        });
+
+      for (const answer of answers) {
+        const snapshot = snapshotMap.get(answer.battleQuestionSnapshotId);
+
+        if (!snapshot) {
+          continue;
+        }
+
+        if (
+          filters.courseId &&
+          snapshot.courseIdSnapshot !== filters.courseId
+        ) {
+          continue;
+        }
+
+        if (
+          filters.chapterId &&
+          snapshot.chapterIdSnapshot !== filters.chapterId
+        ) {
+          continue;
+        }
+
+        const questionId = snapshot.sourceQuizQuestionId ?? snapshot.id;
+        const key = this.buildBattleKey(questionId);
+        const nextItem = this.buildBattleWrongQuestionItem(
+          room,
+          opponentParticipant,
+          snapshot,
+          answer,
+          questionId,
+        );
+        const existing = items.get(key);
+
+        if (!existing) {
+          items.set(key, nextItem);
+          continue;
+        }
+
+        existing.wrongCount += 1;
+
+        if (nextItem.latestWrongAt > existing.latestWrongAt) {
+          items.set(key, {
+            ...existing,
+            ...nextItem,
+            wrongCount: existing.wrongCount,
+          });
+        }
+      }
+    }
+
+    return [...items.values()];
+  }
+
+  private buildBattleWrongQuestionItem(
+    room: BattleRoomRecord,
+    opponentParticipant: BattleRoomRecord['participants'][number] | undefined,
+    snapshot: BattleRoomRecord['questionSnapshots'][number],
+    answer: BattleRoomRecord['answers'][number],
+    questionId: string,
+  ): UnifiedWrongQuestionItem {
+    const correctAnswer = snapshot.correctAnswerSnapshot;
+    const correctOptionId =
+      typeof correctAnswer === 'object' &&
+      correctAnswer !== null &&
+      'type' in correctAnswer &&
+      (correctAnswer as { type?: string }).type === 'SINGLE_CHOICE'
+        ? (correctAnswer as { optionId?: string }).optionId ?? null
+        : null;
+
+    const stem = this.asContentBlocks(snapshot.stemSnapshot);
+    const optionSnapshots = this.asOptionSnapshots(snapshot.optionsSnapshot);
+    const options = optionSnapshots.map((option) => ({
+      optionId: option.id,
+      content: this.previewBlocks(option.blocks),
+      order: option.orderIndex,
+    }));
+
+    return {
+      source: 'BATTLE',
+      questionId,
+      battleQuestionSnapshotId: snapshot.id,
+      questionType: snapshot.questionType,
+      questionContent: this.previewBlocks(stem),
+      content: this.previewBlocks(stem),
+      courseId: snapshot.courseIdSnapshot,
+      courseTitle: null,
+      chapterId: snapshot.chapterIdSnapshot,
+      chapterTitle: null,
+      wrongCount: 1,
+      lastWrongAt: answer.submittedAt,
+      latestWrongAt: answer.submittedAt,
+      presentation: snapshot.presentation,
+      difficulty: snapshot.difficulty,
+      programmingLanguage: snapshot.programmingLanguage,
+      stem,
+      options,
+      optionSnapshots,
+      correctOptionId,
+      correctAnswer,
+      explanation: this.asMaybeContentBlocks(snapshot.explanationSnapshot),
+      latestWrongAnswer: answer.answerPayload as BattleAnswerPayload,
+      sourceQuizQuestionId: snapshot.sourceQuizQuestionId,
+      battle: {
+        battleId: room.id,
+        completedAt: room.completedAt,
+        opponent: opponentParticipant
+          ? {
+              userId: opponentParticipant.user.id,
+              nickname: opponentParticipant.user.nickname,
+              avatarUrl: opponentParticipant.user.avatarUrl,
+            }
+          : null,
       },
     };
+  }
+
+  private toListItem(item: UnifiedWrongQuestionItem) {
+    return {
+      source: item.source,
+      questionId: item.questionId,
+      battleQuestionSnapshotId: item.battleQuestionSnapshotId,
+      questionType: item.questionType,
+      questionContent: item.questionContent,
+      courseId: item.courseId,
+      courseTitle: item.courseTitle,
+      chapterId: item.chapterId,
+      chapterTitle: item.chapterTitle,
+      wrongCount: item.wrongCount,
+      lastWrongAt: item.lastWrongAt,
+      latestWrongAt: item.latestWrongAt,
+      presentation: item.presentation,
+      difficulty: item.difficulty,
+      programmingLanguage: item.programmingLanguage,
+      battle: item.battle,
+    };
+  }
+
+  private toDetailItem(item: UnifiedWrongQuestionItem) {
+    if (item.source === 'LEARNING') {
+      return {
+        source: item.source,
+        questionId: item.questionId,
+        battleQuestionSnapshotId: item.battleQuestionSnapshotId,
+        questionType: item.questionType,
+        content: item.content,
+        questionContent: item.questionContent,
+        courseId: item.courseId,
+        courseTitle: item.courseTitle,
+        chapterId: item.chapterId,
+        chapterTitle: item.chapterTitle,
+        options: item.options,
+        correctOptionId: item.correctOptionId,
+        correctAnswer: item.correctAnswer,
+        explanation: item.explanation,
+        wrongCount: item.wrongCount,
+        lastWrongAt: item.lastWrongAt,
+        latestWrongAt: item.latestWrongAt,
+        presentation: item.presentation,
+        difficulty: item.difficulty,
+        programmingLanguage: item.programmingLanguage,
+        stem: item.stem,
+        optionSnapshots: item.optionSnapshots,
+        latestWrongAnswer: item.latestWrongAnswer,
+        sourceQuizQuestionId: item.sourceQuizQuestionId,
+        battle: item.battle,
+      };
+    }
+
+    return {
+      source: item.source,
+      questionId: item.questionId,
+      battleQuestionSnapshotId: item.battleQuestionSnapshotId,
+      questionType: item.questionType,
+      content: item.content,
+      questionContent: item.questionContent,
+      courseId: item.courseId,
+      courseTitle: item.courseTitle,
+      chapterId: item.chapterId,
+      chapterTitle: item.chapterTitle,
+      options: item.options,
+      correctOptionId: item.correctOptionId,
+      correctAnswer: item.correctAnswer,
+      explanation: item.explanation,
+      wrongCount: item.wrongCount,
+      lastWrongAt: item.lastWrongAt,
+      latestWrongAt: item.latestWrongAt,
+      presentation: item.presentation,
+      difficulty: item.difficulty,
+      programmingLanguage: item.programmingLanguage,
+      stem: item.stem,
+      optionSnapshots: item.optionSnapshots,
+      latestWrongAnswer: item.latestWrongAnswer,
+      sourceQuizQuestionId: item.sourceQuizQuestionId,
+      battle: item.battle,
+    };
+  }
+
+  private buildLearningWhereClause(
+    userId: string,
+    filters: { courseId?: string; chapterId?: string },
+  ) {
+    const clauses = [
+      Prisma.sql`attempt.user_id = ${userId}::uuid`,
+      Prisma.sql`qa.is_correct = false`,
+    ];
+
+    if (filters.courseId) {
+      clauses.push(Prisma.sql`chapter.course_id = ${filters.courseId}::uuid`);
+    }
+
+    if (filters.chapterId) {
+      clauses.push(Prisma.sql`quiz.chapter_id = ${filters.chapterId}::uuid`);
+    }
+
+    return Prisma.join(clauses, ' AND ');
   }
 
   private async resolveFilters(courseId?: string, chapterId?: string) {
@@ -344,24 +781,64 @@ export class WrongQuestionService {
     return {
       courseId: course?.id,
       chapterId: chapter?.id,
-    } satisfies ResolvedFilter;
+    };
   }
 
-  private buildAggregateWhereClause(userId: string, filters: ResolvedFilter) {
-    const clauses = [
-      Prisma.sql`attempt.user_id = ${userId}::uuid`,
-      Prisma.sql`qa.is_correct = false`,
-    ];
+  private hasBattleReadModels() {
+    return Boolean(
+      (this.prisma as {
+        battleRoom?: { findMany?: unknown };
+      }).battleRoom?.findMany,
+    );
+  }
 
-    if (filters.courseId) {
-      clauses.push(Prisma.sql`chapter.course_id = ${filters.courseId}::uuid`);
+  private buildBattleKey(questionId: string) {
+    return `BATTLE:${questionId}`;
+  }
+
+  private previewBlocks(blocks: ContentBlock[]) {
+    return blocks
+      .map((block) => {
+        if (block.type === 'TEXT') {
+          return block.text;
+        }
+
+        if (block.type === 'CODE') {
+          return block.code;
+        }
+
+        return block.alt ?? block.url;
+      })
+      .join('\n')
+      .trim();
+  }
+
+  private asContentBlocks(value: unknown): ContentBlock[] {
+    if (!Array.isArray(value)) {
+      return [];
     }
 
-    if (filters.chapterId) {
-      clauses.push(Prisma.sql`quiz.chapter_id = ${filters.chapterId}::uuid`);
+    return value as ContentBlock[];
+  }
+
+  private asMaybeContentBlocks(value: unknown): ContentBlock[] | null {
+    if (value === null || value === undefined) {
+      return null;
     }
 
-    return Prisma.join(clauses, ' AND ');
+    if (!Array.isArray(value)) {
+      return null;
+    }
+
+    return value as ContentBlock[];
+  }
+
+  private asOptionSnapshots(value: unknown): BattleQuestionOptionSnapshot[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value as BattleQuestionOptionSnapshot[];
   }
 
   private toNumber(value: number | bigint) {

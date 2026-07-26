@@ -10,8 +10,10 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import {
   BattleInvitationStatus,
+  BattleParticipantStatus,
   BattleQuestionDifficulty,
   BattleQuestionPresentation,
+  BattleRoomStatus,
   QuestionType,
 } from '../generated/prisma/enums';
 import { AppModule } from './../src/app.module';
@@ -287,6 +289,233 @@ describe('Battle routes (e2e)', () => {
       .get('/api/v1/battles/not-a-uuid')
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
       .expect(400);
+  });
+
+  it('supports submit, result, timeout settlement, and forfeit routes end to end', async () => {
+    const createdRoom = await request(app.getHttpServer())
+      .post('/api/v1/battles/friend-rooms')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201);
+
+    const invitationToken = createdRoom.body.data.invitationToken as string;
+
+    const joinedRoom = await request(app.getHttpServer())
+      .post(`/api/v1/battles/friend-rooms/${invitationToken}/join`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(201);
+
+    const battleId = joinedRoom.body.data.battleId as string;
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${battleId}/ready`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${battleId}/ready`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(201);
+
+    const liveRoom = mockState.battleRooms.get(battleId);
+    if (liveRoom) {
+      liveRoom.startedAt = new Date(Date.now() - 1000);
+      liveRoom.expiresAt = new Date(Date.now() + 60000);
+      liveRoom.status = BattleRoomStatus.COUNTDOWN;
+      mockState.battleRooms.set(liveRoom.id, liveRoom);
+    }
+
+    const questionResponse = await request(app.getHttpServer())
+      .get(`/api/v1/battles/${battleId}/questions`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200);
+
+    const firstQuestion = questionResponse.body.data.questions[0] as {
+      battleQuestionId: string;
+      options: Array<{ id: string }>;
+    };
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${battleId}/answers`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({
+        battleQuestionId: firstQuestion.battleQuestionId,
+        clientRequestId: 'battle-submit-user-a-1',
+        answer: {
+          optionId: firstQuestion.options[0].id,
+        },
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/battles/${battleId}/result`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.completed).toBe(false);
+        expect(response.body.data).not.toHaveProperty('myScore');
+      });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${battleId}/submit`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.participantStatus).toBe('SUBMITTED');
+        expect(response.body.data.completed).toBe(false);
+      });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${battleId}/submit`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.participantStatus).toBe('SUBMITTED');
+        expect(response.body.data.completed).toBe(false);
+      });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${battleId}/answers`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({
+        battleQuestionId: firstQuestion.battleQuestionId,
+        clientRequestId: 'battle-submit-user-a-after-submit',
+        answer: {
+          optionId: firstQuestion.options[0].id,
+        },
+      })
+      .expect(409);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${battleId}/answers`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .send({
+        battleQuestionId: firstQuestion.battleQuestionId,
+        clientRequestId: 'battle-submit-user-b-1',
+        answer: {
+          optionId: firstQuestion.options[0].id,
+        },
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${battleId}/submit`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.completed).toBe(true);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/battles/${battleId}/result`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.completed).toBe(true);
+        expect(response.body.data.status).toBe('COMPLETED');
+        expect(response.body.data.ratingDelta).toBe(0);
+      });
+
+    const timeoutRoom = await request(app.getHttpServer())
+      .post('/api/v1/battles/friend-rooms')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201);
+
+    const timeoutJoin = await request(app.getHttpServer())
+      .post(
+        `/api/v1/battles/friend-rooms/${timeoutRoom.body.data.invitationToken as string}/join`,
+      )
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(201);
+
+    const timeoutBattleId = timeoutJoin.body.data.battleId as string;
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${timeoutBattleId}/ready`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${timeoutBattleId}/ready`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(201);
+
+    const timeoutLiveRoom = mockState.battleRooms.get(timeoutBattleId);
+    if (timeoutLiveRoom) {
+      timeoutLiveRoom.startedAt = new Date(Date.now() - 61000);
+      timeoutLiveRoom.expiresAt = new Date(Date.now() - 1000);
+      timeoutLiveRoom.status = BattleRoomStatus.IN_PROGRESS;
+      mockState.battleRooms.set(timeoutLiveRoom.id, timeoutLiveRoom);
+    }
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/battles/${timeoutBattleId}/result`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.completed).toBe(true);
+        expect(response.body.data.status).toBe('COMPLETED');
+      });
+
+    expect(mockState.battleRooms.get(timeoutBattleId)?.status).toBe(
+      BattleRoomStatus.COMPLETED,
+    );
+    expect(
+      [...mockState.battleParticipants.values()].filter(
+        (item) =>
+          item.battleRoomId === timeoutBattleId &&
+          item.status === BattleParticipantStatus.COMPLETED,
+      ),
+    ).toHaveLength(2);
+
+    const forfeitRoom = await request(app.getHttpServer())
+      .post('/api/v1/battles/friend-rooms')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201);
+
+    const forfeitJoin = await request(app.getHttpServer())
+      .post(
+        `/api/v1/battles/friend-rooms/${forfeitRoom.body.data.invitationToken as string}/join`,
+      )
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(201);
+
+    const forfeitBattleId = forfeitJoin.body.data.battleId as string;
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${forfeitBattleId}/ready`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${forfeitBattleId}/ready`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(201);
+
+    const forfeitLiveRoom = mockState.battleRooms.get(forfeitBattleId);
+    if (forfeitLiveRoom) {
+      forfeitLiveRoom.startedAt = new Date(Date.now() - 1000);
+      forfeitLiveRoom.expiresAt = new Date(Date.now() + 60000);
+      forfeitLiveRoom.status = BattleRoomStatus.IN_PROGRESS;
+      mockState.battleRooms.set(forfeitLiveRoom.id, forfeitLiveRoom);
+    }
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${forfeitBattleId}/forfeit`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.completed).toBe(true);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/battles/${forfeitBattleId}/result`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.completed).toBe(true);
+        expect(response.body.data.result).toBe('WIN');
+        expect(response.body.data.ratingDelta).toBe(0);
+      });
   });
 });
 

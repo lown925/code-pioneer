@@ -8,6 +8,7 @@ import {
   LearningStatus,
 } from '../../generated/prisma/enums';
 import { LearningService } from './learning.service';
+import type { PrismaService } from '../prisma/prisma.service';
 
 type CourseRecord = {
   id: string;
@@ -301,7 +302,7 @@ function createMockPrisma() {
   };
 
   return {
-    prisma,
+    prisma: prisma as unknown as PrismaService,
     courses,
     chapters,
     courseLearningRecords,

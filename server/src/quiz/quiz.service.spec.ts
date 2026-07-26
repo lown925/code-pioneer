@@ -330,7 +330,7 @@ function createMockPrisma() {
       ),
     },
     $transaction: jest.fn(
-      async (callback: (client: typeof prisma) => Promise<unknown>) =>
+      async (callback: (client: any) => Promise<unknown>) =>
         callback(prisma),
     ),
   };

@@ -14,6 +14,7 @@ import {
 import { BattleNormalizationService } from './battle-normalization.service';
 import { BattleRoomService } from './battle-room.service';
 import { BATTLE_ERROR_CODES } from './battle.errors';
+import { BattleSettlementService } from './battle-settlement.service';
 import { type SubmitBattleAnswerDto } from './dto/submit-battle-answer.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
@@ -48,6 +49,7 @@ export class BattleAnswerService {
     private readonly prisma: PrismaService,
     private readonly battleRoomService: BattleRoomService,
     private readonly battleNormalizationService: BattleNormalizationService,
+    private readonly battleSettlementService?: BattleSettlementService,
   ) {}
 
   async submitAnswer(
@@ -58,6 +60,7 @@ export class BattleAnswerService {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
       await this.battleRoomService.advanceRoomStateIfNeeded(battleId, now, tx);
+      await this.battleSettlementService?.normalizeBattleState(battleId, now, tx);
 
       const participant = await tx.battleParticipant.findFirst({
         where: {
@@ -297,6 +300,16 @@ export class BattleAnswerService {
     }
 
     if (room.status !== BattleRoomStatus.IN_PROGRESS) {
+      if (room.status === BattleRoomStatus.SETTLING) {
+        throw new ConflictException(
+          BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_IN_PROGRESS,
+        );
+      }
+
+      if (room.status === BattleRoomStatus.COMPLETED) {
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_ALREADY_COMPLETED);
+      }
+
       throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
     }
 

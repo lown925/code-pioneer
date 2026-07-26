@@ -648,6 +648,7 @@ function seedQuizCourse(mock: ReturnType<typeof createMockPrisma>) {
     courseId,
     introChapterId,
     quizChapterId,
+    quizId,
     questionOneId,
     questionTwoId,
     optionOneId,

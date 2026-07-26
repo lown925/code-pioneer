@@ -5,6 +5,7 @@ import {
 } from '../../generated/prisma/enums';
 import { BATTLE_ERROR_CODES } from './battle.errors';
 import { type CurrentUserContext } from '../auth/auth.types';
+import { BattleSettlementService } from './battle-settlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   BattleParticipantSummary,
@@ -39,12 +40,16 @@ type RoomRecord = {
 
 @Injectable()
 export class BattleRoomService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly battleSettlementService?: BattleSettlementService,
+  ) {}
 
   async getBattleRoom(currentUser: CurrentUserContext, battleId: string) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
       await this.advanceRoomStateIfNeeded(battleId, now, tx);
+      await this.battleSettlementService?.normalizeBattleState(battleId, now, tx);
 
       const room = await this.getBattleRoomDetailByIdForUser(
         currentUser.id,
@@ -227,6 +232,8 @@ export class BattleRoomService {
       currentParticipantStatus,
       answeredCount,
       totalQuestionCount: room.questionCount,
+      completed: room.status === BattleRoomStatus.COMPLETED,
+      resultAvailable: room.status === BattleRoomStatus.COMPLETED,
     };
   }
 

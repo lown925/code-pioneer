@@ -48,3 +48,14 @@ D-047：`GET /api/v1/battles/:battleId/questions` 在 `startedAt` 之前只返�
 D-048：`CODE_FILL` 在 `CP-011D` 只做字符串规范化匹配，规范化顺序固定为“换行归一化 -> trim -> collapseWhitespace -> 按需大小写归一化”；禁止执行用户代码、`eval`、`Function`、`vm`、shell 或任何真实编译运行。
 D-049：Battle 单题提交正式采用双重唯一约束 `@@unique([participantId, clientRequestId])` 与 `@@unique([participantId, battleQuestionSnapshotId])`；相同 `clientRequestId` 的安全重试返回首个提交摘要，不重复计分；不同 `clientRequestId` 重答同题一律拒绝。
 D-050：Battle 对战进行中不返回正确性、正确答案、acceptedAnswers、解析、实时得分、对手答案或对手答题统计；仅允许返回自己的已答题数量、已提交原始答案、`startedAt`、`expiresAt`、`serverTime` 与房间状态。
+D-051：`CP-011E` 结算采用 `BattleRoom.status = SETTLING` 的条件 `updateMany` 抢占方案；只有抢占成功的请求可以进入最终结算事务，未抢占者统一回读房间最新状态，从而避免重复结算、重复更新 profile 和重复写入 rating log。
+D-052：Battle 最终 `score`、`correctCount`、`wrongCount`、`unansweredCount` 以 `BattleAnswer` 为唯一可信来源在结算时重算；`BattleParticipant` 中的中间聚合字段只作为运行态缓存，不作为最终结算权威依据。
+D-053：Battle 自然答题时间到期属于有效对局结束；`expiresAt` 到达后，尚未提交且未认输的参与者统一视为自动交卷，未作答题目按 `unansweredCount` 统计但不创建 `BattleAnswer`。
+D-054：`RANKED` 结算必须使用双方结算前的 rating 快照分别计算 Elo，不允许串行使用一方更新后的新 rating 再计算另一方；`FRIEND` 对局只记录战绩统计，`ratingDelta` 固定为 0，且不写 `BattleRatingLog`。
+D-055：认输属于有效对局结果而不是 `CANCELLED`；认输方直接记 `LOSS`，对手直接记 `WIN`，但双方已提交答案形成的 `score` 与答题统计仍按现有作答记录正常重算保留。
+D-056：`COMPLETED` 是不可变终态；一旦房间完成，后续 `submit`、`forfeit`、`timeout` 或 `result` 重入都只能读取既有结果，不允许再改写胜负、积分、profile 统计或 rating log。
+D-057：当前 schema 不新增 `settlingStartedAt`；`CP-011E` 先复用 `BattleRoom.updatedAt` 作为 `SETTLING` 卡死恢复依据，统一阈值为 `BATTLE_SETTLEMENT_STALE_SECONDS = 30`。
+D-058：`CP-011F` 的 Battle 排行榜权威排序固定为 `rating DESC`、`highestRating DESC`、`wins DESC`、`userId ASC`；`myRank`、`rank/currentRank` 与 `winRate` 全部按查询时动态计算，不做冗余持久化。
+D-059：Battle 战绩列表与详情只允许当前对局参与者读取；历史详情严格基于 `BattleQuestionSnapshot`、当前用户自己的 `BattleAnswer` 与对手汇总信息构建，永不返回对手逐题答案。
+D-060：统一错题中心在 `CP-011F` 正式接入 `BATTLE` 来源，但仍不新增 `WrongQuestion` 或 Battle 专属错题表；Battle 错题只聚合“已完成且非 `SYSTEM_CANCELLED` 对局中的错误作答”，未作答、跳过、超时未提交与正确答案均不计入。
+D-061：统一错题中心当前按 `source + questionId` 分开聚合 `LEARNING` 与 `BATTLE`；Battle 聚合优先使用最新一次错误作答对应的 `BattleQuestionSnapshot` 展示题干、选项、正确答案和解析，课程/章节关联优先读取快照中的 `courseIdSnapshot` 与 `chapterIdSnapshot`。

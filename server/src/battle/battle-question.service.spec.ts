@@ -18,6 +18,7 @@ describe('BattleQuestionService', () => {
       mock.prisma as never,
       roomService,
     );
+    const now = Date.now();
 
     mock.users.set(USER_A_ID, {
       id: USER_A_ID,
@@ -34,13 +35,13 @@ describe('BattleQuestionService', () => {
       wrongScore: -1,
       unansweredScore: 0,
       createdByUserId: USER_A_ID,
-      expiresAt: new Date('2026-07-25T10:03:03.000Z'),
-      startedAt: new Date('2026-07-25T10:00:03.000Z'),
+      expiresAt: new Date(now + 183000),
+      startedAt: new Date(now + 3000),
       settledAt: null,
       completedAt: null,
       cancelledAt: null,
       endReason: null,
-      createdAt: new Date('2026-07-25T10:00:00.000Z'),
+      createdAt: new Date(now),
     });
     mock.battleParticipants.set('participant-a', {
       id: 'participant-a',
@@ -49,7 +50,7 @@ describe('BattleQuestionService', () => {
       seat: 1,
       status: BattleParticipantStatus.READY,
       result: 'NONE',
-      joinedAt: new Date('2026-07-25T10:00:00.000Z'),
+      joinedAt: new Date(now),
     });
     mock.battleQuestionSnapshots.set('snapshot-1', {
       id: 'snapshot-1',
@@ -79,7 +80,7 @@ describe('BattleQuestionService', () => {
       programmingLanguage: null,
       courseIdSnapshot: 'course-1',
       chapterIdSnapshot: 'chapter-1',
-      createdAt: new Date('2026-07-25T10:00:00.000Z'),
+      createdAt: new Date(now),
     });
     mock.battleQuestionSnapshots.set('snapshot-2', {
       id: 'snapshot-2',
@@ -105,7 +106,7 @@ describe('BattleQuestionService', () => {
       programmingLanguage: 'python',
       courseIdSnapshot: 'course-1',
       chapterIdSnapshot: 'chapter-1',
-      createdAt: new Date('2026-07-25T10:00:00.000Z'),
+      createdAt: new Date(now),
     });
 
     return { mock, service };

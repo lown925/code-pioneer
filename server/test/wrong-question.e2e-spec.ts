@@ -660,6 +660,10 @@ function createMockPrisma() {
               id: question.id,
               type: question.type,
               content: question.content,
+              explanation: question.explanation,
+              options: [...options.values()]
+                .filter((option) => option.questionId === question.id)
+                .sort((left, right) => left.sortOrder - right.sortOrder),
               quiz: {
                 chapterId: chapter.id,
                 chapter: {
@@ -856,14 +860,19 @@ function createMockPrisma() {
 
       if (text.includes('qa.question_id AS "questionId"')) {
         const { userId, courseId, chapterId, cursor } = parseFilters();
-        const skip = Number(values[cursor]);
-        const limit = Number(values[cursor + 1]);
         const grouped = getGroupedWrongRows(userId, {
           courseId,
           chapterId,
         });
 
-        return grouped.slice(skip, skip + limit).map((row) => ({
+        const skip = Number(values[cursor]);
+        const limit = Number(values[cursor + 1]);
+        const rows =
+          Number.isFinite(skip) && Number.isFinite(limit)
+            ? grouped.slice(skip, skip + limit)
+            : grouped;
+
+        return rows.map((row) => ({
           questionId: row.questionId,
           wrongCount: row.wrongCount,
           lastWrongAt: row.lastWrongAt,
@@ -900,7 +909,7 @@ function createMockPrisma() {
       throw new Error(`Unexpected raw query: ${text}`);
     }),
     $transaction: jest.fn(
-      async (callback: (client: typeof prisma) => Promise<unknown>) =>
+      async (callback: (client: any) => Promise<unknown>) =>
         callback(prisma),
     ),
   };

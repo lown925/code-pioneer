@@ -21,7 +21,6 @@ function createMockPrisma() {
     },
     quizQuestion: {
       findMany: jest.fn(),
-      findUnique: jest.fn(),
     },
   };
 }
@@ -29,9 +28,7 @@ function createMockPrisma() {
 describe('WrongQuestionService', () => {
   it('returns a stable empty list response', async () => {
     const prisma = createMockPrisma();
-    prisma.$queryRaw
-      .mockResolvedValueOnce([{ total: 0 }])
-      .mockResolvedValueOnce([]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
     const service = new WrongQuestionService(prisma as never);
 
     await expect(service.getList(CURRENT_USER, {})).resolves.toEqual({
@@ -51,14 +48,7 @@ describe('WrongQuestionService', () => {
 
   it('returns stable zero statistics when the user has no wrong answers', async () => {
     const prisma = createMockPrisma();
-    prisma.$queryRaw.mockResolvedValueOnce([
-      {
-        totalWrongQuestions: 0,
-        totalWrongAnswers: 0,
-        courseCount: 0,
-        latestWrongAt: null,
-      },
-    ]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
     const service = new WrongQuestionService(prisma as never);
 
     await expect(service.getStatistics(CURRENT_USER)).resolves.toEqual({
@@ -75,27 +65,40 @@ describe('WrongQuestionService', () => {
   it('aggregates multiple wrong answers for one question into one list item', async () => {
     const prisma = createMockPrisma();
     const lastWrongAt = new Date('2026-07-21T09:00:00.000Z');
-    prisma.$queryRaw
-      .mockResolvedValueOnce([{ total: 1 }])
-      .mockResolvedValueOnce([
-        {
-          questionId: 'q-1',
-          wrongCount: 2,
-          lastWrongAt,
-        },
-      ]);
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        questionId: 'q-1',
+        wrongCount: 2,
+        lastWrongAt,
+      },
+    ]);
     prisma.quizQuestion.findMany.mockResolvedValueOnce([
       {
         id: 'q-1',
         type: QuestionType.SINGLE_CHOICE,
         content: 'Which function prints text in Python?',
+        explanation: 'print() writes text to standard output.',
+        options: [
+          {
+            id: 'opt-1',
+            content: 'print()',
+            isCorrect: true,
+            sortOrder: 1,
+          },
+          {
+            id: 'opt-2',
+            content: 'echo()',
+            isCorrect: false,
+            sortOrder: 2,
+          },
+        ],
         quiz: {
           chapterId: 'chapter-1',
           chapter: {
-            title: '认识输出',
+            title: 'Output Basics',
             courseId: 'course-1',
             course: {
-              title: 'Python 基础',
+              title: 'Python Basics',
             },
           },
         },
@@ -109,17 +112,24 @@ describe('WrongQuestionService', () => {
       success: true,
       data: {
         items: [
-          {
+          expect.objectContaining({
+            source: 'LEARNING',
             questionId: 'q-1',
+            battleQuestionSnapshotId: null,
             questionType: QuestionType.SINGLE_CHOICE,
             questionContent: 'Which function prints text in Python?',
             courseId: 'course-1',
-            courseTitle: 'Python 基础',
+            courseTitle: 'Python Basics',
             chapterId: 'chapter-1',
-            chapterTitle: '认识输出',
+            chapterTitle: 'Output Basics',
             wrongCount: 2,
             lastWrongAt,
-          },
+            latestWrongAt: lastWrongAt,
+            presentation: null,
+            difficulty: null,
+            programmingLanguage: null,
+            battle: null,
+          }),
         ],
         pagination: {
           page: 1,
@@ -132,15 +142,13 @@ describe('WrongQuestionService', () => {
     expect(result.data.items[0]).not.toHaveProperty('correctOptionId');
     expect(result.data.items[0]).not.toHaveProperty('explanation');
     expect(result.data.items[0]).not.toHaveProperty('selectedOptionId');
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prisma.quizQuestion.findMany).toHaveBeenCalledTimes(1);
   });
 
   it('uses a stable secondary sort in the aggregate query', async () => {
     const prisma = createMockPrisma();
-    prisma.$queryRaw
-      .mockResolvedValueOnce([{ total: 0 }])
-      .mockResolvedValueOnce([]);
+    prisma.$queryRaw.mockResolvedValueOnce([]);
     const service = new WrongQuestionService(prisma as never);
 
     await service.getList(CURRENT_USER, {
@@ -148,11 +156,10 @@ describe('WrongQuestionService', () => {
       pageSize: 5,
     });
 
-    const aggregateQuery = prisma.$queryRaw.mock.calls[1][0];
+    const aggregateQuery = prisma.$queryRaw.mock.calls[0][0];
     expect(aggregateQuery.text).toContain(
       'ORDER BY MAX(attempt.submitted_at) DESC, qa.question_id ASC',
     );
-    expect(aggregateQuery.values).toContain(5);
   });
 
   it('rejects mismatched course and chapter filters', async () => {
@@ -198,54 +205,60 @@ describe('WrongQuestionService', () => {
     const lastWrongAt = new Date('2026-07-21T10:00:00.000Z');
     prisma.$queryRaw.mockResolvedValueOnce([
       {
+        questionId: 'q-1',
         wrongCount: 2,
         lastWrongAt,
       },
     ]);
-    prisma.quizQuestion.findUnique.mockResolvedValueOnce({
-      id: 'q-1',
-      type: QuestionType.TRUE_FALSE,
-      content: 'Python is case-sensitive.',
-      explanation: 'Python treats Name and name as different identifiers.',
-      options: [
-        {
-          id: 'opt-1',
-          content: 'TRUE',
-          isCorrect: true,
-          sortOrder: 1,
-        },
-        {
-          id: 'opt-2',
-          content: 'FALSE',
-          isCorrect: false,
-          sortOrder: 2,
-        },
-      ],
-      quiz: {
-        chapterId: 'chapter-1',
-        chapter: {
-          title: '变量',
-          courseId: 'course-1',
-          course: {
-            title: 'Python 基础',
+    prisma.quizQuestion.findMany.mockResolvedValueOnce([
+      {
+        id: 'q-1',
+        type: QuestionType.TRUE_FALSE,
+        content: 'Python is case-sensitive.',
+        explanation: 'Python treats Name and name as different identifiers.',
+        options: [
+          {
+            id: 'opt-1',
+            content: 'TRUE',
+            isCorrect: true,
+            sortOrder: 1,
+          },
+          {
+            id: 'opt-2',
+            content: 'FALSE',
+            isCorrect: false,
+            sortOrder: 2,
+          },
+        ],
+        quiz: {
+          chapterId: 'chapter-1',
+          chapter: {
+            title: 'Variables',
+            courseId: 'course-1',
+            course: {
+              title: 'Python Basics',
+            },
           },
         },
       },
-    });
+    ]);
     const service = new WrongQuestionService(prisma as never);
 
     const result = await service.getDetail(CURRENT_USER, 'q-1');
 
     expect(result).toEqual({
       success: true,
-      data: {
+      data: expect.objectContaining({
+        source: 'LEARNING',
         questionId: 'q-1',
+        battleQuestionSnapshotId: null,
         questionType: QuestionType.TRUE_FALSE,
         content: 'Python is case-sensitive.',
+        questionContent: 'Python is case-sensitive.',
         courseId: 'course-1',
-        courseTitle: 'Python 基础',
+        courseTitle: 'Python Basics',
         chapterId: 'chapter-1',
-        chapterTitle: '变量',
+        chapterTitle: 'Variables',
         options: [
           {
             optionId: 'opt-1',
@@ -262,7 +275,9 @@ describe('WrongQuestionService', () => {
         explanation: 'Python treats Name and name as different identifiers.',
         wrongCount: 2,
         lastWrongAt,
-      },
+        latestWrongAt: lastWrongAt,
+        battle: null,
+      }),
     });
   });
 
@@ -282,40 +297,43 @@ describe('WrongQuestionService', () => {
     const prisma = createMockPrisma();
     prisma.$queryRaw.mockResolvedValueOnce([
       {
+        questionId: 'q-1',
         wrongCount: 1,
         lastWrongAt: new Date('2026-07-21T10:00:00.000Z'),
       },
     ]);
-    prisma.quizQuestion.findUnique.mockResolvedValueOnce({
-      id: 'q-1',
-      type: QuestionType.SINGLE_CHOICE,
-      content: 'Broken question',
-      explanation: null,
-      options: [
-        {
-          id: 'opt-1',
-          content: 'A',
-          isCorrect: true,
-          sortOrder: 1,
-        },
-        {
-          id: 'opt-2',
-          content: 'B',
-          isCorrect: true,
-          sortOrder: 2,
-        },
-      ],
-      quiz: {
-        chapterId: 'chapter-1',
-        chapter: {
-          title: '变量',
-          courseId: 'course-1',
-          course: {
-            title: 'Python 基础',
+    prisma.quizQuestion.findMany.mockResolvedValueOnce([
+      {
+        id: 'q-1',
+        type: QuestionType.SINGLE_CHOICE,
+        content: 'Broken question',
+        explanation: null,
+        options: [
+          {
+            id: 'opt-1',
+            content: 'A',
+            isCorrect: true,
+            sortOrder: 1,
+          },
+          {
+            id: 'opt-2',
+            content: 'B',
+            isCorrect: true,
+            sortOrder: 2,
+          },
+        ],
+        quiz: {
+          chapterId: 'chapter-1',
+          chapter: {
+            title: 'Variables',
+            courseId: 'course-1',
+            course: {
+              title: 'Python Basics',
+            },
           },
         },
       },
-    });
+    ]);
     const service = new WrongQuestionService(prisma as never);
 
     await expect(service.getDetail(CURRENT_USER, 'q-1')).rejects.toEqual(
@@ -327,15 +345,13 @@ describe('WrongQuestionService', () => {
 
   it('returns quiz not ready when aggregated list rows cannot be resolved to questions', async () => {
     const prisma = createMockPrisma();
-    prisma.$queryRaw
-      .mockResolvedValueOnce([{ total: 1 }])
-      .mockResolvedValueOnce([
-        {
-          questionId: 'q-missing',
-          wrongCount: 1,
-          lastWrongAt: new Date('2026-07-21T10:00:00.000Z'),
-        },
-      ]);
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        questionId: 'q-missing',
+        wrongCount: 1,
+        lastWrongAt: new Date('2026-07-21T10:00:00.000Z'),
+      },
+    ]);
     prisma.quizQuestion.findMany.mockResolvedValueOnce([]);
     const service = new WrongQuestionService(prisma as never);
 
@@ -348,27 +364,40 @@ describe('WrongQuestionService', () => {
 
   it('does not perform any write operations while reading wrong questions', async () => {
     const prisma = createMockPrisma();
-    prisma.$queryRaw
-      .mockResolvedValueOnce([{ total: 1 }])
-      .mockResolvedValueOnce([
-        {
-          questionId: 'q-1',
-          wrongCount: 1,
-          lastWrongAt: new Date('2026-07-21T10:00:00.000Z'),
-        },
-      ]);
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        questionId: 'q-1',
+        wrongCount: 1,
+        lastWrongAt: new Date('2026-07-21T10:00:00.000Z'),
+      },
+    ]);
     prisma.quizQuestion.findMany.mockResolvedValueOnce([
       {
         id: 'q-1',
         type: QuestionType.SINGLE_CHOICE,
         content: 'Question',
+        explanation: null,
+        options: [
+          {
+            id: 'opt-1',
+            content: 'A',
+            isCorrect: true,
+            sortOrder: 1,
+          },
+          {
+            id: 'opt-2',
+            content: 'B',
+            isCorrect: false,
+            sortOrder: 2,
+          },
+        ],
         quiz: {
           chapterId: 'chapter-1',
           chapter: {
-            title: '章节',
+            title: 'Chapter',
             courseId: 'course-1',
             course: {
-              title: '课程',
+              title: 'Course',
             },
           },
         },

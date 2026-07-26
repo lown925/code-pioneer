@@ -5,6 +5,7 @@ import {
   BattleParticipantStatus,
   BattleQuestionDifficulty,
   BattleQuestionPresentation,
+  BattleRatingReason,
   BattleQuestionType,
   BattleResult,
   BattleRoomStatus,
@@ -26,6 +27,14 @@ type BattleProfileRecord = {
   userId: string;
   rating: number;
   highestRating: number;
+  totalBattles?: number;
+  rankedBattles?: number;
+  friendBattles?: number;
+  wins?: number;
+  losses?: number;
+  draws?: number;
+  currentWinStreak?: number;
+  bestWinStreak?: number;
 };
 
 type BattleQueueRecord = {
@@ -52,11 +61,13 @@ type BattleRoomRecord = {
   createdByUserId: string | null;
   expiresAt: Date | null;
   startedAt: Date | null;
-  settledAt: Date | null;
-  completedAt: Date | null;
-  cancelledAt: Date | null;
+  settledAt?: Date | null;
+  completedAt?: Date | null;
+  cancelledAt?: Date | null;
   endReason: string | null;
+  winnerUserId?: string | null;
   createdAt: Date;
+  updatedAt?: Date;
 };
 
 type BattleParticipantRecord = {
@@ -75,6 +86,10 @@ type BattleParticipantRecord = {
   correctCount?: number;
   wrongCount?: number;
   unansweredCount?: number;
+  ratingBefore?: number | null;
+  ratingDelta?: number;
+  ratingAfter?: number | null;
+  updatedAt?: Date;
 };
 
 type BattleInvitationRecord = {
@@ -123,6 +138,18 @@ type BattleAnswerRecord = {
   scoreDelta: number;
   submittedAt: Date;
   timeSpentMs: number | null;
+  createdAt: Date;
+};
+
+type BattleRatingLogRecord = {
+  id: string;
+  userId: string;
+  battleRoomId: string | null;
+  participantId: string | null;
+  reason: BattleRatingReason;
+  ratingBefore: number;
+  ratingDelta: number;
+  ratingAfter: number;
   createdAt: Date;
 };
 
@@ -187,6 +214,10 @@ function normalizeParticipant(record: Partial<BattleParticipantRecord>) {
     correctCount: record.correctCount ?? 0,
     wrongCount: record.wrongCount ?? 0,
     unansweredCount: record.unansweredCount ?? 0,
+    ratingBefore: record.ratingBefore ?? null,
+    ratingDelta: record.ratingDelta ?? 0,
+    ratingAfter: record.ratingAfter ?? null,
+    updatedAt: record.updatedAt ?? new Date(),
   } satisfies BattleParticipantRecord;
 }
 
@@ -195,6 +226,7 @@ function toRoomView(
   participants: Map<string, BattleParticipantRecord>,
   users: Map<string, UserRecord>,
   questionSnapshots: Map<string, BattleQuestionSnapshotRecord>,
+  answers: Map<string, BattleAnswerRecord>,
   roomId: string,
 ) {
   const room = rooms.get(roomId);
@@ -210,12 +242,18 @@ function toRoomView(
       userId: participant.userId,
       seat: participant.seat,
       status: participant.status,
+      result: participant.result,
       score: participant.score ?? 0,
       correctCount: participant.correctCount ?? 0,
       wrongCount: participant.wrongCount ?? 0,
       unansweredCount: participant.unansweredCount ?? 0,
+      ratingBefore: participant.ratingBefore ?? null,
+      ratingDelta: participant.ratingDelta ?? 0,
+      ratingAfter: participant.ratingAfter ?? null,
       readyAt: participant.readyAt ?? null,
       submittedAt: participant.submittedAt ?? null,
+      forfeitedAt: participant.forfeitedAt ?? null,
+      completedAt: participant.completedAt ?? null,
       user: {
         id: participant.userId,
         nickname: users.get(participant.userId)?.nickname ?? null,
@@ -227,10 +265,41 @@ function toRoomView(
     .filter((snapshot) => snapshot.battleRoomId === roomId)
     .sort((left, right) => left.orderIndex - right.orderIndex);
 
+  const roomAnswers = [...answers.values()]
+    .filter((answer) => answer.battleRoomId === roomId)
+    .sort((left, right) => {
+      const submittedDiff =
+        left.submittedAt.getTime() - right.submittedAt.getTime();
+
+      if (submittedDiff !== 0) {
+        return submittedDiff;
+      }
+
+      return left.createdAt.getTime() - right.createdAt.getTime();
+    })
+    .map((answer) => ({
+      id: answer.id,
+      battleRoomId: answer.battleRoomId,
+      participantId: answer.participantId,
+      battleQuestionSnapshotId: answer.battleQuestionSnapshotId,
+      userId: answer.userId,
+      clientRequestId: answer.clientRequestId,
+      answerPayload: answer.answerPayload,
+      normalizedAnswer: answer.normalizedAnswer,
+      isCorrect: answer.isCorrect,
+      scoreDelta: answer.scoreDelta,
+      submittedAt: answer.submittedAt,
+      timeSpentMs: answer.timeSpentMs,
+      createdAt: answer.createdAt,
+    }));
+
   return {
     ...room,
+    winnerUserId: room.winnerUserId ?? null,
+    updatedAt: room.updatedAt ?? room.createdAt,
     participants: roomParticipants,
     questionSnapshots: snapshots,
+    answers: roomAnswers,
   };
 }
 
@@ -241,6 +310,7 @@ export function createBattlePrismaMock() {
   const battleRooms = new Map<string, BattleRoomRecord>();
   const battleParticipants = new Map<string, BattleParticipantRecord>();
   const battleInvitations = new Map<string, BattleInvitationRecord>();
+  const battleRatingLogs = new Map<string, BattleRatingLogRecord>();
   const battleQuestionSnapshots = new Map<
     string,
     BattleQuestionSnapshotRecord
@@ -282,6 +352,14 @@ export function createBattlePrismaMock() {
             userId: create.userId,
             rating: create.rating,
             highestRating: create.highestRating,
+            totalBattles: 0,
+            rankedBattles: 0,
+            friendBattles: 0,
+            wins: 0,
+            losses: 0,
+            draws: 0,
+            currentWinStreak: 0,
+            bestWinStreak: 0,
           };
 
           battleProfiles.set(record.userId, record);
@@ -291,6 +369,52 @@ export function createBattlePrismaMock() {
       findUnique: jest.fn(async ({ where }: { where: { userId: string } }) => {
         return battleProfiles.get(where.userId) ?? null;
       }),
+      update: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { userId: string };
+          data: Record<string, unknown>;
+        }) => {
+          const existing = battleProfiles.get(where.userId);
+
+          if (!existing) {
+            throw new Error('Battle profile not found');
+          }
+
+          const updated = applyScalarUpdate(existing, data);
+          battleProfiles.set(where.userId, updated);
+          return updated;
+        },
+      ),
+      findMany: jest.fn(
+        async ({ where }: { where?: Record<string, unknown> }) => {
+          return [...battleProfiles.values()]
+            .filter((record) => {
+              if (!where) {
+                return true;
+              }
+
+              if (
+                where.userId !== undefined &&
+                record.userId !== where.userId
+              ) {
+                return false;
+              }
+
+              return true;
+            })
+            .map((record) => ({
+              ...record,
+              user: {
+                id: record.userId,
+                nickname: users.get(record.userId)?.nickname ?? null,
+                avatarUrl: users.get(record.userId)?.avatarUrl ?? null,
+              },
+            }));
+        },
+      ),
     },
     battleMatchQueue: {
       findUnique: jest.fn(async ({ where }: { where: { userId: string } }) => {
@@ -387,7 +511,9 @@ export function createBattlePrismaMock() {
           completedAt: data.completedAt ?? null,
           cancelledAt: data.cancelledAt ?? null,
           endReason: data.endReason ?? null,
+          winnerUserId: data.winnerUserId ?? null,
           createdAt: data.createdAt ?? new Date(),
+          updatedAt: data.updatedAt ?? new Date(),
         };
         battleRooms.set(record.id, record);
         return record;
@@ -398,9 +524,32 @@ export function createBattlePrismaMock() {
           battleParticipants,
           users,
           battleQuestionSnapshots,
+          battleAnswers,
           where.id,
         );
       }),
+      findMany: jest.fn(
+        async ({
+          where,
+        }: {
+          where?: Record<string, unknown>;
+        }) => {
+          return [...battleRooms.values()]
+            .filter((room) =>
+              matchesRoomWhere(room, where ?? {}, battleParticipants),
+            )
+            .map((room) =>
+              toRoomView(
+                battleRooms,
+                battleParticipants,
+                users,
+                battleQuestionSnapshots,
+                battleAnswers,
+                room.id,
+              ),
+            );
+        },
+      ),
       findFirst: jest.fn(
         async ({
           where,
@@ -418,6 +567,7 @@ export function createBattlePrismaMock() {
               battleParticipants,
               users,
               battleQuestionSnapshots,
+              battleAnswers,
               roomId,
             );
 
@@ -458,6 +608,9 @@ export function createBattlePrismaMock() {
           const updated = {
             ...existing,
             ...data,
+            updatedAt:
+              (data.updatedAt as Date | undefined) ??
+              new Date(),
           };
           battleRooms.set(where.id, updated);
           return updated;
@@ -474,13 +627,16 @@ export function createBattlePrismaMock() {
           let count = 0;
 
           for (const [id, room] of battleRooms.entries()) {
-            if (!matchesRoomWhere(room, where)) {
+            if (!matchesRoomWhere(room, where, battleParticipants)) {
               continue;
             }
 
             battleRooms.set(id, {
               ...room,
               ...data,
+              updatedAt:
+                (data.updatedAt as Date | undefined) ??
+                new Date(),
             });
             count += 1;
           }
@@ -531,6 +687,9 @@ export function createBattlePrismaMock() {
               correctCount: participant.correctCount ?? 0,
               wrongCount: participant.wrongCount ?? 0,
               unansweredCount: participant.unansweredCount ?? 0,
+              ratingBefore: participant.ratingBefore ?? null,
+              ratingDelta: participant.ratingDelta ?? 0,
+              ratingAfter: participant.ratingAfter ?? null,
               battleRoom: {
                 id: room.id,
                 mode: room.mode,
@@ -541,6 +700,7 @@ export function createBattlePrismaMock() {
                 wrongScore: room.wrongScore,
                 startedAt: room.startedAt,
                 expiresAt: room.expiresAt,
+                settledAt: room.settledAt,
                 completedAt: room.completedAt,
                 cancelledAt: room.cancelledAt,
                 endReason: room.endReason,
@@ -555,7 +715,7 @@ export function createBattlePrismaMock() {
         async ({ where }: { where: Record<string, unknown> }) => {
           return [...battleParticipants.values()]
             .filter((participant) =>
-              matchesParticipantWhere(participant, where),
+              matchesParticipantWhere(participant, where, battleRooms),
             )
             .map((participant) => ({
               ...participant,
@@ -563,6 +723,9 @@ export function createBattlePrismaMock() {
               correctCount: participant.correctCount ?? 0,
               wrongCount: participant.wrongCount ?? 0,
               unansweredCount: participant.unansweredCount ?? 0,
+              ratingBefore: participant.ratingBefore ?? null,
+              ratingDelta: participant.ratingDelta ?? 0,
+              ratingAfter: participant.ratingAfter ?? null,
             }));
         },
       ),
@@ -632,7 +795,7 @@ export function createBattlePrismaMock() {
           let count = 0;
 
           for (const [id, participant] of battleParticipants.entries()) {
-            if (!matchesParticipantWhere(participant, where)) {
+            if (!matchesParticipantWhere(participant, where, battleRooms)) {
               continue;
             }
 
@@ -695,11 +858,12 @@ export function createBattlePrismaMock() {
           },
           battleRoom: toRoomView(
             battleRooms,
-            battleParticipants,
-            users,
-            battleQuestionSnapshots,
-            invitation.battleRoomId,
-          ),
+          battleParticipants,
+          users,
+          battleQuestionSnapshots,
+          battleAnswers,
+          invitation.battleRoomId,
+        ),
         };
       }),
       update: jest.fn(
@@ -750,6 +914,52 @@ export function createBattlePrismaMock() {
           return { count };
         },
       ),
+    },
+    battleRatingLog: {
+      create: jest.fn(
+        async ({ data }: { data: Partial<BattleRatingLogRecord> }) => {
+          const duplicate = [...battleRatingLogs.values()].find(
+            (record) =>
+              record.battleRoomId === (data.battleRoomId ?? null) &&
+              record.userId === data.userId &&
+              record.reason === data.reason,
+          );
+
+          if (duplicate) {
+            const error = Object.assign(new Error('Unique constraint failed'), {
+              code: 'P2002',
+            });
+            throw error;
+          }
+
+          const record: BattleRatingLogRecord = {
+            id: data.id ?? nextId(),
+            userId: data.userId!,
+            battleRoomId: data.battleRoomId ?? null,
+            participantId: data.participantId ?? null,
+            reason: data.reason!,
+            ratingBefore: data.ratingBefore ?? 0,
+            ratingDelta: data.ratingDelta ?? 0,
+            ratingAfter: data.ratingAfter ?? 0,
+            createdAt: data.createdAt ?? new Date(),
+          };
+
+          battleRatingLogs.set(record.id, record);
+          return record;
+        },
+      ),
+      findMany: jest.fn(
+        async ({ where }: { where?: Record<string, unknown> }) => {
+          return [...battleRatingLogs.values()].filter((record) =>
+            matchesRatingLogWhere(record, where ?? {}),
+          );
+        },
+      ),
+      count: jest.fn(async ({ where }: { where?: Record<string, unknown> }) => {
+        return [...battleRatingLogs.values()].filter((record) =>
+          matchesRatingLogWhere(record, where ?? {}),
+        ).length;
+      }),
     },
     battleQuestionSnapshot: {
       createMany: jest.fn(
@@ -919,6 +1129,7 @@ export function createBattlePrismaMock() {
         battleRooms: structuredClone([...battleRooms.entries()]),
         battleParticipants: structuredClone([...battleParticipants.entries()]),
         battleInvitations: structuredClone([...battleInvitations.entries()]),
+        battleRatingLogs: structuredClone([...battleRatingLogs.entries()]),
         battleQuestionSnapshots: structuredClone([
           ...battleQuestionSnapshots.entries(),
         ]),
@@ -935,6 +1146,7 @@ export function createBattlePrismaMock() {
         restoreMap(battleRooms, snapshot.battleRooms);
         restoreMap(battleParticipants, snapshot.battleParticipants);
         restoreMap(battleInvitations, snapshot.battleInvitations);
+        restoreMap(battleRatingLogs, snapshot.battleRatingLogs);
         restoreMap(battleQuestionSnapshots, snapshot.battleQuestionSnapshots);
         restoreMap(battleAnswers, snapshot.battleAnswers);
         restoreMap(quizQuestions, snapshot.quizQuestions);
@@ -952,6 +1164,7 @@ export function createBattlePrismaMock() {
     battleRooms,
     battleParticipants,
     battleInvitations,
+    battleRatingLogs,
     battleQuestionSnapshots,
     battleAnswers,
     quizQuestions,
@@ -1013,6 +1226,7 @@ function matchesQueueWhere(
 function matchesRoomWhere(
   room: BattleRoomRecord,
   where: Record<string, unknown>,
+  battleParticipants: Map<string, BattleParticipantRecord>,
 ) {
   if (where.id !== undefined && room.id !== where.id) {
     return false;
@@ -1048,12 +1262,40 @@ function matchesRoomWhere(
     }
   }
 
+  if (where.participants && typeof where.participants === 'object') {
+    const participantsWhere = where.participants as {
+      some?: { userId?: string };
+    };
+
+    if (participantsWhere.some?.userId) {
+      const hasParticipant = [...battleParticipants.values()].some(
+        (participant) =>
+          participant.battleRoomId === room.id &&
+          participant.userId === participantsWhere.some?.userId,
+      );
+
+      if (!hasParticipant) {
+        return false;
+      }
+    }
+  }
+
+  if (where.updatedAt && typeof where.updatedAt === 'object') {
+    const updatedAt = where.updatedAt as { lte?: Date };
+    const roomUpdatedAt = room.updatedAt ?? room.createdAt;
+
+    if (updatedAt.lte && !(roomUpdatedAt <= updatedAt.lte)) {
+      return false;
+    }
+  }
+
   return true;
 }
 
 function matchesParticipantWhere(
   participant: BattleParticipantRecord,
   where: Record<string, unknown>,
+  battleRooms: Map<string, BattleRoomRecord>,
 ) {
   if (where.id !== undefined && participant.id !== where.id) {
     return false;
@@ -1092,6 +1334,81 @@ function matchesParticipantWhere(
     }
   }
 
+  if (where.result !== undefined) {
+    if (
+      typeof where.result === 'string' &&
+      participant.result !== where.result
+    ) {
+      return false;
+    }
+
+    if (
+      typeof where.result === 'object' &&
+      where.result !== null &&
+      'in' in where.result
+    ) {
+      const values = (where.result as { in?: BattleResult[] }).in ?? [];
+
+      if (!values.includes(participant.result)) {
+        return false;
+      }
+    }
+  }
+
+  if (where.battleRoom && typeof where.battleRoom === 'object') {
+    const roomWhere = where.battleRoom as {
+      status?: BattleRoomStatus | { in?: BattleRoomStatus[] };
+      mode?: string | { in?: string[] };
+    };
+    const room = battleRooms.get(participant.battleRoomId);
+
+    if (!room) {
+      return false;
+    }
+
+    if (roomWhere.status !== undefined) {
+      if (
+        typeof roomWhere.status === 'string' &&
+        room.status !== roomWhere.status
+      ) {
+        return false;
+      }
+
+      if (
+        typeof roomWhere.status === 'object' &&
+        roomWhere.status !== null &&
+        'in' in roomWhere.status
+      ) {
+        const values = (roomWhere.status as { in?: BattleRoomStatus[] }).in ?? [];
+
+        if (!values.includes(room.status)) {
+          return false;
+        }
+      }
+    }
+
+    if (roomWhere.mode !== undefined) {
+      if (
+        typeof roomWhere.mode === 'string' &&
+        room.mode !== roomWhere.mode
+      ) {
+        return false;
+      }
+
+      if (
+        typeof roomWhere.mode === 'object' &&
+        roomWhere.mode !== null &&
+        'in' in roomWhere.mode
+      ) {
+        const values = (roomWhere.mode as { in?: string[] }).in ?? [];
+
+        if (!values.includes(room.mode)) {
+          return false;
+        }
+      }
+    }
+  }
+
   return true;
 }
 
@@ -1120,9 +1437,22 @@ function matchesQuestionSnapshotWhere(
 
   if (
     where.battleRoomId !== undefined &&
+    typeof where.battleRoomId === 'string' &&
     record.battleRoomId !== where.battleRoomId
   ) {
     return false;
+  }
+
+  if (
+    where.battleRoomId &&
+    typeof where.battleRoomId === 'object' &&
+    'in' in where.battleRoomId
+  ) {
+    const values = (where.battleRoomId as { in?: string[] }).in ?? [];
+
+    if (!values.includes(record.battleRoomId)) {
+      return false;
+    }
   }
 
   return true;
@@ -1132,10 +1462,31 @@ function matchesBattleAnswerWhere(
   record: BattleAnswerRecord,
   where: Record<string, unknown>,
 ) {
+  if (where.isCorrect !== undefined && record.isCorrect !== where.isCorrect) {
+    return false;
+  }
+
+  if (
+    where.participantId &&
+    typeof where.participantId === 'object' &&
+    'in' in where.participantId
+  ) {
+    const values = (where.participantId as { in?: string[] }).in ?? [];
+
+    if (!values.includes(record.participantId)) {
+      return false;
+    }
+  }
+
   if (
     where.participantId !== undefined &&
+    typeof where.participantId === 'string' &&
     record.participantId !== where.participantId
   ) {
+    return false;
+  }
+
+  if (where.userId !== undefined && record.userId !== where.userId) {
     return false;
   }
 
@@ -1155,8 +1506,43 @@ function matchesBattleAnswerWhere(
 
   if (
     where.battleRoomId !== undefined &&
+    typeof where.battleRoomId === 'string' &&
     record.battleRoomId !== where.battleRoomId
   ) {
+    return false;
+  }
+
+  if (
+    where.battleRoomId &&
+    typeof where.battleRoomId === 'object' &&
+    'in' in where.battleRoomId
+  ) {
+    const values = (where.battleRoomId as { in?: string[] }).in ?? [];
+
+    if (!values.includes(record.battleRoomId)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function matchesRatingLogWhere(
+  record: BattleRatingLogRecord,
+  where: Record<string, unknown>,
+) {
+  if (where.userId !== undefined && record.userId !== where.userId) {
+    return false;
+  }
+
+  if (
+    where.battleRoomId !== undefined &&
+    record.battleRoomId !== where.battleRoomId
+  ) {
+    return false;
+  }
+
+  if (where.reason !== undefined && record.reason !== where.reason) {
     return false;
   }
 
@@ -1223,6 +1609,10 @@ function applyParticipantUpdate(
   };
 
   for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) {
+      continue;
+    }
+
     if (
       typeof value === 'object' &&
       value !== null &&
@@ -1232,6 +1622,43 @@ function applyParticipantUpdate(
       const current =
         typeof updated[key as keyof BattleParticipantRecord] === 'number'
           ? (updated[key as keyof BattleParticipantRecord] as number)
+          : 0;
+
+      (updated as Record<string, unknown>)[key] =
+        current + ((value as { increment: number }).increment ?? 0);
+      continue;
+    }
+
+    (updated as Record<string, unknown>)[key] = value;
+  }
+
+  updated.updatedAt = (data.updatedAt as Date | undefined) ?? new Date();
+
+  return updated;
+}
+
+function applyScalarUpdate<T extends Record<string, unknown>>(
+  existing: T,
+  data: Record<string, unknown>,
+) {
+  const updated = {
+    ...existing,
+  };
+
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) {
+      continue;
+    }
+
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'increment' in value &&
+      typeof (value as { increment?: unknown }).increment === 'number'
+    ) {
+      const current =
+        typeof updated[key as keyof T] === 'number'
+          ? (updated[key as keyof T] as number)
           : 0;
 
       (updated as Record<string, unknown>)[key] =
