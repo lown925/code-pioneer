@@ -1,0 +1,77 @@
+<view class="page-shell friend-room-page">
+  <view class="section-card hero-card">
+    <text class="hero-eyebrow">好友对战</text>
+    <text class="hero-title">Battle 好友房</text>
+    <text class="hero-copy">
+      创建者会生成只包含 invitationToken 的分享链接。被邀请者打开后可先预览，再决定是否加入房间。
+    </text>
+  </view>
+
+  <view class="section-card summary-card">
+    <view class="summary-item">
+      <text class="summary-label">邀请者</text>
+      <text class="summary-value">{{inviterName || '待创建'}}</text>
+    </view>
+    <view class="summary-item">
+      <text class="summary-label">当前人数</text>
+      <text class="summary-value">{{participantCountText}}</text>
+    </view>
+    <view class="summary-item">
+      <text class="summary-label">邀请有效期</text>
+      <text class="summary-value">{{expiresAtText || '以服务端状态为准'}}</text>
+    </view>
+  </view>
+
+  <view class="section-card status-card">
+    <text class="section-title">{{stateTitle}}</text>
+    <text class="section-subtitle">{{stateDescription}}</text>
+    <text wx:if="{{errorMessage}}" class="error-copy">{{errorMessage}}</text>
+
+    <view wx:if="{{state === 'CREATING' || state === 'PREVIEWING' || state === 'JOINING'}}" class="loading-box">
+      <text class="loading-text">正在同步好友房状态，请稍候。</text>
+    </view>
+
+    <view wx:if="{{shareEnabled}}" class="share-box">
+      <text class="share-copy">{{shareHint}}</text>
+      <button class="share-button" open-type="share">分享给好友</button>
+    </view>
+
+    <view class="action-row">
+      <view
+        wx:if="{{state === 'WAITING' && canJoin}}"
+        class="primary-button action-button"
+        bindtap="handleJoin"
+      >
+        加入对战
+      </view>
+
+      <view
+        wx:if="{{state === 'WAITING' && isCreator}}"
+        class="ghost-button action-button"
+        bindtap="handleOpenRoom"
+      >
+        进入房间占位页
+      </view>
+
+      <view
+        wx:if="{{state === 'JOINED'}}"
+        class="primary-button action-button"
+        bindtap="handleOpenRoom"
+      >
+        进入房间
+      </view>
+
+      <view
+        wx:if="{{state === 'EXPIRED' || state === 'FULL' || state === 'ERROR'}}"
+        class="primary-button action-button"
+        bindtap="handleRetry"
+      >
+        重新查询状态
+      </view>
+
+      <view class="ghost-button action-button" bindtap="handleBackHome">
+        返回对战首页
+      </view>
+    </view>
+  </view>
+</view>

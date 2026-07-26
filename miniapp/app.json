@@ -12,6 +12,7 @@
     "pages/battle/index",
     "pages/battle/leaderboard",
     "pages/battle/matchmaking",
+    "pages/battle/friend-room",
     "pages/battle/room",
     "pages/community/index",
     "pages/profile/index"

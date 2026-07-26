@@ -58,3 +58,50 @@ export type MatchmakingStatusResponse = {
   expiresAt: string | null;
   serverTime: string;
 };
+
+export type BattleParticipantSummary = {
+  userId: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+  seat: number;
+  status: string;
+};
+
+export type BattleRoomSummaryResponse = {
+  battleId: string;
+  mode: string;
+  status: string;
+  questionCount: number;
+  durationSeconds: number;
+  createdAt: string;
+  startedAt: string | null;
+  expiresAt: string | null;
+  serverTime: string;
+  participants: BattleParticipantSummary[];
+};
+
+export type FriendRoomCreateResponse = {
+  battleId: string;
+  mode: string;
+  status: string;
+  invitationToken: string;
+  sharePath: string;
+  expiresAt: string;
+  serverTime: string;
+};
+
+export type FriendRoomPreviewResponse = {
+  battleId: string;
+  roomStatus: string;
+  invitationStatus: string;
+  inviter: {
+    userId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+  };
+  participantCount: number;
+  expiresAt: string;
+  canJoin: boolean;
+  cannotJoinReason: string | null;
+  serverTime: string;
+};

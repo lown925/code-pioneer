@@ -75,10 +75,10 @@ const ENTRY_CARDS: BattleEntryCard[] = [
     key: 'friend',
     title: '好友对战',
     description: '通过邀请码与好友发起同房间对战。',
-    actionText: '后续开放',
-    badgeText: '即将开放',
-    badgeClassName: 'entry-badge-pending',
-    disabled: true,
+    actionText: '创建好友房',
+    badgeText: '已开放',
+    badgeClassName: 'entry-badge-live',
+    disabled: false,
   },
   {
     key: 'leaderboard',
@@ -258,6 +258,13 @@ Page<BattlePageData, BattlePageMethods>({
     if (entryKey === 'random') {
       wx.navigateTo({
         url: '/pages/battle/matchmaking',
+      });
+      return;
+    }
+
+    if (entryKey === 'friend') {
+      wx.navigateTo({
+        url: '/pages/battle/friend-room',
       });
       return;
     }
