@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "Battle 房间"
+  "navigationBarTitleText": "Battle 房间",
+  "enablePullDownRefresh": true
 }

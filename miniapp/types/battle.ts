@@ -80,6 +80,14 @@ export type BattleRoomSummaryResponse = {
   participants: BattleParticipantSummary[];
 };
 
+export type BattleRoomDetailResponse = BattleRoomSummaryResponse & {
+  currentParticipantStatus: string | null;
+  answeredCount: number;
+  totalQuestionCount: number;
+  completed: boolean;
+  resultAvailable: boolean;
+};
+
 export type FriendRoomCreateResponse = {
   battleId: string;
   mode: string;

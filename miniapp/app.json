@@ -14,6 +14,7 @@
     "pages/battle/matchmaking",
     "pages/battle/friend-room",
     "pages/battle/room",
+    "pages/battle/play",
     "pages/community/index",
     "pages/profile/index"
   ],

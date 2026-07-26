@@ -1,0 +1,25 @@
+<view class="page-shell play-page">
+  <view class="section-card hero-card">
+    <text class="hero-eyebrow">Battle 答题</text>
+    <text class="hero-title">答题页占位入口</text>
+    <text class="hero-copy">
+      当前阶段只在房间倒计时结束后跳转到这里，题目获取与正式答题将在下一阶段接入。
+    </text>
+  </view>
+
+  <view wx:if="{{isValidBattleId}}" class="section-card play-card">
+    <text class="section-title">已进入答题页占位入口</text>
+    <text class="section-subtitle">后续会在这里接入题目加载、提交答案和交卷流程。</text>
+    <view class="battle-id-box">
+      <text class="battle-id-label">battleId</text>
+      <text class="battle-id-value">{{battleId}}</text>
+    </view>
+    <view class="ghost-button action-button" bindtap="handleBackRoom">返回房间页</view>
+  </view>
+
+  <view wx:else class="section-card state-box">
+    <text class="state-title">battleId 无效</text>
+    <text class="state-text">当前页面没有收到合法的 Battle 标识。</text>
+    <view class="ghost-button action-button" bindtap="handleBackRoom">返回对战首页</view>
+  </view>
+</view>

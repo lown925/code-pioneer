@@ -1,25 +1,148 @@
 <view class="page-shell room-page">
   <view class="section-card hero-card">
     <text class="hero-eyebrow">Battle 房间</text>
-    <text class="hero-title">房间页占位入口</text>
-    <text class="hero-copy">
-      当前只保留 MATCHED 后的跳转落点，用于确认 battleId 已正确进入下一阶段页面。
-    </text>
+    <text class="hero-title">{{titleText}}</text>
+    <text class="hero-copy">{{descriptionText}}</text>
   </view>
 
-  <view wx:if="{{isValidBattleId}}" class="section-card room-card">
-    <text class="section-title">已进入房间占位页</text>
-    <text class="section-subtitle">房间、准备、题目和结算能力将在后续阶段开放。</text>
-    <view class="room-id-box">
-      <text class="room-id-label">battleId</text>
-      <text class="room-id-value">{{battleId}}</text>
+  <view wx:if="{{state === 'LOADING'}}" class="section-card state-box">
+    <text class="state-title">正在同步房间状态</text>
+    <text class="state-text">系统正在获取双方玩家、准备状态和倒计时信息。</text>
+  </view>
+
+  <view
+    wx:elif="{{state === 'ERROR'}}"
+    class="section-card state-box"
+  >
+    <text class="state-title">房间状态加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="state-actions">
+      <view class="primary-button action-button" bindtap="handleRetry">重新查询</view>
+      <view class="ghost-button action-button" bindtap="handleBackHome">返回首页</view>
     </view>
-    <view class="ghost-button action-button" bindtap="handleBackHome">返回对战首页</view>
   </view>
 
-  <view wx:else class="section-card state-box">
-    <text class="state-title">battleId 无效</text>
-    <text class="state-text">当前页面没有收到合法的 Battle 房间标识。</text>
-    <view class="ghost-button action-button" bindtap="handleBackHome">返回对战首页</view>
-  </view>
+  <block wx:else>
+    <view class="section-card room-meta-card">
+      <view class="meta-item">
+        <text class="meta-label">房间模式</text>
+        <text class="meta-value">{{roomModeText}}</text>
+      </view>
+      <view class="meta-item">
+        <text class="meta-label">房间状态</text>
+        <text class="meta-value">{{roomStatusText}}</text>
+      </view>
+      <view class="meta-item">
+        <text class="meta-label">题目数量</text>
+        <text class="meta-value">{{questionCountText}}</text>
+      </view>
+      <view class="meta-item">
+        <text class="meta-label">答题时长</text>
+        <text class="meta-value">{{durationText}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{state === 'COUNTDOWN'}}" class="section-card countdown-card">
+      <text class="countdown-title">即将开始答题</text>
+      <text class="countdown-value">{{countdownText || '3'}}</text>
+      <text class="countdown-copy">倒计时基于服务端 `startedAt` 与 `serverTime` 计算，并在轮询时持续校准。</text>
+    </view>
+
+    <view class="participant-list">
+      <view wx:if="{{myParticipant}}" class="section-card participant-card participant-card-current">
+        <view class="participant-top">
+          <view class="avatar-frame">
+            <image
+              wx:if="{{myParticipant.avatarUrl}}"
+              class="avatar-image"
+              src="{{myParticipant.avatarUrl}}"
+              mode="aspectFill"
+            />
+            <view wx:else class="avatar-fallback">{{myParticipant.avatarFallbackText}}</view>
+          </view>
+          <view class="participant-body">
+            <view class="participant-title-row">
+              <text class="participant-name">{{myParticipant.nicknameText}}</text>
+              <text class="me-badge">我</text>
+            </view>
+            <text class="participant-seat">{{myParticipant.seatText}}</text>
+            <text class="participant-status {{myParticipant.statusClassName}}">
+              {{myParticipant.statusText}}
+            </text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{opponentParticipant}}" class="section-card participant-card">
+        <view class="participant-top">
+          <view class="avatar-frame">
+            <image
+              wx:if="{{opponentParticipant.avatarUrl}}"
+              class="avatar-image"
+              src="{{opponentParticipant.avatarUrl}}"
+              mode="aspectFill"
+            />
+            <view wx:else class="avatar-fallback">{{opponentParticipant.avatarFallbackText}}</view>
+          </view>
+          <view class="participant-body">
+            <view class="participant-title-row">
+              <text class="participant-name">{{opponentParticipant.nicknameText}}</text>
+            </view>
+            <text class="participant-seat">{{opponentParticipant.seatText}}</text>
+            <text class="participant-status {{opponentParticipant.statusClassName}}">
+              {{opponentParticipant.statusText}}
+            </text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:else class="section-card participant-card participant-card-empty">
+        <text class="state-title">等待对手进入房间</text>
+        <text class="state-text">当前房间还未凑齐两名参与者，达到 2 人后才能进入准备流程。</text>
+      </view>
+    </view>
+
+    <view wx:if="{{errorMessage && state !== 'ERROR'}}" class="section-card inline-error-card">
+      <text class="inline-error-text">{{errorMessage}}</text>
+    </view>
+
+    <view class="section-card action-card">
+      <view class="action-row">
+        <view
+          wx:if="{{canReady}}"
+          class="primary-button action-button"
+          bindtap="handleReady"
+        >
+          {{readyButtonText}}
+        </view>
+
+        <view
+          wx:elif="{{state === 'READY'}}"
+          class="ghost-button action-button"
+        >
+          {{readyButtonText}}
+        </view>
+
+        <view
+          wx:elif="{{state === 'COUNTDOWN' || state === 'IN_PROGRESS'}}"
+          class="primary-button action-button"
+          bindtap="handleEnterPlay"
+        >
+          进入答题页占位入口
+        </view>
+
+        <view
+          wx:elif="{{state === 'COMPLETED' || state === 'CANCELLED' || state === 'EXPIRED'}}"
+          class="ghost-button action-button"
+          bindtap="handleRetry"
+        >
+          重新查询状态
+        </view>
+
+        <view class="ghost-button action-button" bindtap="handleBackHome">
+          返回对战首页
+        </view>
+      </view>
+    </view>
+  </block>
 </view>
