@@ -1,0 +1,135 @@
+<view class="page-shell result-page">
+  <view class="section-card hero-card">
+    <text class="hero-eyebrow">Battle 结果</text>
+    <text class="hero-title">{{titleText}}</text>
+    <text class="hero-copy">{{descriptionText}}</text>
+  </view>
+
+  <view wx:if="{{state === 'LOADING'}}" class="section-card state-box">
+    <text class="state-title">正在同步结算结果</text>
+    <text class="state-text">系统正在获取本场对战的结果、分数和 rating 变化。</text>
+  </view>
+
+  <view wx:elif="{{state === 'ERROR'}}" class="section-card state-box">
+    <text class="state-title">结果获取失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="state-actions">
+      <view class="primary-button action-button" bindtap="handleRetry">重新获取结果</view>
+      <view class="ghost-button action-button" bindtap="handleBackHome">返回 Battle 首页</view>
+    </view>
+  </view>
+
+  <block wx:else>
+    <view class="section-card summary-card">
+      <view class="summary-top">
+        <view class="result-badge {{resultBadgeClassName}}">{{resultText}}</view>
+        <view class="summary-meta">
+          <text class="summary-mode">{{modeText}}</text>
+          <text class="summary-status">{{statusText}}</text>
+        </view>
+      </view>
+      <text class="summary-hint">{{resultHintText}}</text>
+      <text wx:if="{{completedAtText}}" class="summary-time">结算时间：{{completedAtText}}</text>
+      <text wx:if="{{endReasonText}}" class="summary-time">结束原因：{{endReasonText}}</text>
+    </view>
+
+    <view wx:if="{{state === 'WAITING'}}" class="section-card state-box">
+      <text class="state-title">结算尚未完成</text>
+      <text class="state-text">页面会自动轮询服务端结果。你也可以手动下拉刷新或点下方按钮重新查询。</text>
+      <view class="state-actions">
+        <view class="primary-button action-button" bindtap="handleRetry">立即查询结果</view>
+        <view class="ghost-button action-button" bindtap="handleBackHome">返回 Battle 首页</view>
+      </view>
+    </view>
+
+    <block wx:elif="{{state === 'SUCCESS'}}">
+      <view class="score-grid">
+        <view class="section-card score-card">
+          <text class="score-label">我的分数</text>
+          <text class="score-value">{{myScoreText}}</text>
+        </view>
+        <view class="section-card score-card">
+          <text class="score-label">对手分数</text>
+          <text class="score-value">{{opponentScoreText}}</text>
+        </view>
+      </view>
+
+      <view class="section-card opponent-card">
+        <view class="opponent-avatar-frame">
+          <image
+            wx:if="{{opponentAvatarUrl}}"
+            class="opponent-avatar-image"
+            src="{{opponentAvatarUrl}}"
+            mode="aspectFill"
+          />
+          <view wx:else class="opponent-avatar-fallback">{{opponentAvatarFallbackText}}</view>
+        </view>
+        <view class="opponent-body">
+          <text class="opponent-label">本场对手</text>
+          <text class="opponent-name">{{opponentNicknameText}}</text>
+        </view>
+      </view>
+
+      <view class="section-card stats-card">
+        <text class="section-title">我的作答统计</text>
+        <view class="stats-grid">
+          <view class="stat-item">
+            <text class="stat-label">答对</text>
+            <text class="stat-value">{{myCorrectCountText}}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">答错</text>
+            <text class="stat-value">{{myWrongCountText}}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">未答</text>
+            <text class="stat-value">{{myUnansweredCountText}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="section-card stats-card">
+        <text class="section-title">对手作答统计</text>
+        <view class="stats-grid">
+          <view class="stat-item">
+            <text class="stat-label">答对</text>
+            <text class="stat-value">{{opponentCorrectCountText}}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">答错</text>
+            <text class="stat-value">{{opponentWrongCountText}}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">未答</text>
+            <text class="stat-value">{{opponentUnansweredCountText}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="section-card rating-card">
+        <text class="section-title">Rating 变化</text>
+        <view class="rating-grid">
+          <view class="rating-item">
+            <text class="rating-label">变更前</text>
+            <text class="rating-value">{{ratingBeforeText}}</text>
+          </view>
+          <view class="rating-item">
+            <text class="rating-label">本场变化</text>
+            <text class="rating-value">{{ratingDeltaText}}</text>
+          </view>
+          <view class="rating-item">
+            <text class="rating-label">变更后</text>
+            <text class="rating-value">{{ratingAfterText}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="section-card footer-card">
+        <view class="footer-actions">
+          <view class="primary-button action-button" bindtap="handleReplay">查看本场复盘</view>
+          <view class="ghost-button action-button" bindtap="handleBackHome">返回 Battle 首页</view>
+        </view>
+      </view>
+    </block>
+  </block>
+</view>

@@ -53,3 +53,37 @@ export function formatBattleDuration(totalSeconds: number) {
 
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
+
+let battleClientRequestSequence = 0;
+
+function toHex(bytes: Uint8Array) {
+  return Array.from(bytes)
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function createBattleEntropyHex() {
+  const randomProvider = (wx as unknown as {
+    getRandomValues?: (array: Uint8Array) => Uint8Array;
+  }).getRandomValues;
+
+  if (typeof randomProvider === 'function') {
+    const bytes = new Uint8Array(8);
+    randomProvider(bytes);
+    return toHex(bytes);
+  }
+
+  battleClientRequestSequence += 1;
+  return `${Date.now().toString(16)}${battleClientRequestSequence.toString(16).padStart(4, '0')}`;
+}
+
+export function generateBattleClientRequestId(prefix = 'battle-answer') {
+  battleClientRequestSequence += 1;
+
+  return [
+    prefix,
+    Date.now().toString(36),
+    battleClientRequestSequence.toString(36),
+    createBattleEntropyHex(),
+  ].join('-');
+}

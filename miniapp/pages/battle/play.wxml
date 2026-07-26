@@ -1,25 +1,185 @@
 <view class="page-shell play-page">
   <view class="section-card hero-card">
     <text class="hero-eyebrow">Battle 答题</text>
-    <text class="hero-title">答题页占位入口</text>
-    <text class="hero-copy">
-      当前阶段只在房间倒计时结束后跳转到这里，题目获取与正式答题将在下一阶段接入。
-    </text>
+    <text class="hero-title">{{titleText}}</text>
+    <text class="hero-copy">{{descriptionText}}</text>
   </view>
 
-  <view wx:if="{{isValidBattleId}}" class="section-card play-card">
-    <text class="section-title">已进入答题页占位入口</text>
-    <text class="section-subtitle">后续会在这里接入题目加载、提交答案和交卷流程。</text>
-    <view class="battle-id-box">
-      <text class="battle-id-label">battleId</text>
-      <text class="battle-id-value">{{battleId}}</text>
+  <view wx:if="{{state === 'LOADING'}}" class="section-card state-box">
+    <text class="state-title">正在加载题目</text>
+    <text class="state-text">系统正在同步题目快照、已答状态和剩余时间。</text>
+  </view>
+
+  <view wx:elif="{{state === 'ERROR'}}" class="section-card state-box">
+    <text class="state-title">题目加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="state-actions">
+      <view class="primary-button action-button" bindtap="handleRetry">重新获取题目</view>
+      <view class="ghost-button action-button" bindtap="handleBackRoom">返回房间页</view>
     </view>
-    <view class="ghost-button action-button" bindtap="handleBackRoom">返回房间页</view>
   </view>
 
-  <view wx:else class="section-card state-box">
-    <text class="state-title">battleId 无效</text>
-    <text class="state-text">当前页面没有收到合法的 Battle 标识。</text>
-    <view class="ghost-button action-button" bindtap="handleBackRoom">返回对战首页</view>
-  </view>
+  <block wx:else>
+    <view class="section-card status-card">
+      <view class="status-item">
+        <text class="status-label">剩余时间</text>
+        <text class="status-value">{{remainingTimeText}}</text>
+      </view>
+      <view class="status-item">
+        <text class="status-label">当前题号</text>
+        <text class="status-value">{{questionCountText}}</text>
+      </view>
+      <view wx:if="{{state === 'COUNTDOWN'}}" class="status-item status-item-countdown">
+        <text class="status-label">开始倒计时</text>
+        <text class="status-value countdown-value">{{countdownText || '3'}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{questions.length > 0}}" class="section-card question-nav-card">
+      <text class="section-title">题号导航</text>
+      <view class="question-nav-grid">
+        <view
+          wx:for="{{questions}}"
+          wx:key="battleQuestionId"
+          class="nav-chip nav-chip-{{item.navStatus}}"
+          data-index="{{index}}"
+          bindtap="handleSelectQuestion"
+        >
+          {{item.navLabel}}
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{questions.length > 0}}" class="section-card question-card">
+      <block wx:for="{{questions}}" wx:key="battleQuestionId">
+        <block wx:if="{{index === currentQuestionIndex}}">
+          <view class="question-header">
+            <text class="question-number">{{item.questionNumberText}}</text>
+            <view class="question-meta">
+              <text class="question-type">{{item.questionTypeText}}</text>
+              <text class="question-difficulty">{{item.difficultyText}}</text>
+            </view>
+          </view>
+
+          <view class="content-block-list">
+            <block wx:for="{{item.stem}}" wx:key="blockKey">
+              <text wx:if="{{item.type === 'TEXT'}}" class="content-text">{{item.text}}</text>
+              <text wx:elif="{{item.type === 'CODE'}}" class="content-code">{{item.code}}</text>
+              <view wx:elif="{{item.type === 'IMAGE'}}" class="content-image-box">
+                <image
+                  wx:if="{{!item.imageFailed}}"
+                  class="content-image"
+                  src="{{item.url}}"
+                  mode="widthFix"
+                  data-question-id="{{../battleQuestionId}}"
+                  data-block-key="{{item.blockKey}}"
+                  binderror="handleImageError"
+                />
+                <view wx:else class="image-fallback">{{item.altText}}</view>
+              </view>
+            </block>
+          </view>
+
+          <view wx:if="{{item.questionType === 'SINGLE_CHOICE'}}" class="option-list">
+            <view
+              wx:for="{{item.options}}"
+              wx:key="optionId"
+              class="option-card {{item.isSelected ? 'option-card-selected' : ''}} {{item.isSubmittedSelected ? 'option-card-submitted' : ''}} {{questions[currentQuestionIndex].answered ? 'option-card-locked' : ''}}"
+              data-question-id="{{questions[currentQuestionIndex].battleQuestionId}}"
+              data-option-id="{{item.optionId}}"
+              bindtap="handleOptionSelect"
+            >
+              <view class="option-label">{{item.optionLabel}}</view>
+              <view class="option-body">
+                <block wx:for="{{item.blocks}}" wx:key="blockKey">
+                  <text wx:if="{{item.type === 'TEXT'}}" class="content-text">{{item.text}}</text>
+                  <text wx:elif="{{item.type === 'CODE'}}" class="content-code">{{item.code}}</text>
+                  <view wx:elif="{{item.type === 'IMAGE'}}" class="content-image-box">
+                    <image
+                      wx:if="{{!item.imageFailed}}"
+                      class="content-image"
+                      src="{{item.url}}"
+                      mode="widthFix"
+                      data-question-id="{{../../questions[currentQuestionIndex].battleQuestionId}}"
+                      data-option-id="{{../optionId}}"
+                      data-block-key="{{item.blockKey}}"
+                      binderror="handleImageError"
+                    />
+                    <view wx:else class="image-fallback">{{item.altText}}</view>
+                  </view>
+                </block>
+              </view>
+            </view>
+          </view>
+
+          <view wx:elif="{{item.questionType === 'CODE_FILL'}}" class="code-fill-box">
+            <textarea
+              class="code-fill-input"
+              value="{{item.draftValue}}"
+              maxlength="4000"
+              auto-height
+              disabled="{{item.answered || state !== 'PLAYING'}}"
+              placeholder="请输入你的代码填空答案"
+              data-question-id="{{item.battleQuestionId}}"
+              bindinput="handleCodeInput"
+            />
+            <text class="code-fill-hint">代码填空支持换行编辑，已提交后会锁定为只读。</text>
+          </view>
+
+          <view wx:if="{{item.answered}}" class="submitted-box">
+            <text class="submitted-text">{{item.submittedAtText || '已提交'}}</text>
+          </view>
+
+          <view wx:if="{{item.submitErrorMessage}}" class="inline-error-box">
+            <text class="inline-error-text">{{item.submitErrorMessage}}</text>
+          </view>
+        </block>
+      </block>
+    </view>
+
+    <view wx:elif="{{state === 'COUNTDOWN'}}" class="section-card state-box">
+      <text class="state-title">倒计时未结束</text>
+      <text class="state-text">服务端题目已锁定，达到 startedAt 后会自动进入可作答状态。</text>
+    </view>
+
+    <view wx:elif="{{state === 'WAITING_SETTLEMENT'}}" class="section-card state-box">
+      <text class="state-title">等待结算中</text>
+      <text class="state-text">当前已停止作答，服务端正在处理本场结果。结果准备完成后会自动跳转结果页。</text>
+      <text wx:if="{{errorMessage}}" class="state-text state-text-warning">{{errorMessage}}</text>
+    </view>
+
+    <view wx:elif="{{state === 'COMPLETED'}}" class="section-card state-box">
+      <text class="state-title">本场对战已结束</text>
+      <text class="state-text">当前页面只保留题目和已提交状态展示，不展示正误、解析和得分变化。</text>
+    </view>
+
+    <view class="section-card footer-card">
+      <view class="footer-actions">
+        <view class="ghost-button action-button" bindtap="handlePrevQuestion">上一题</view>
+        <view class="ghost-button action-button" bindtap="handleNextQuestion">下一题</view>
+        <view
+          class="primary-button action-button"
+          bindtap="handleSubmitCurrentQuestion"
+          wx:if="{{questions.length > 0 && !questions[currentQuestionIndex].answered && (state === 'PLAYING' || state === 'SUBMITTING')}}"
+        >
+          {{submitButtonText}}
+        </view>
+        <view
+          wx:if="{{questions.length > 0 && (state === 'PLAYING' || state === 'SUBMITTING')}}"
+          class="primary-button action-button {{isBattleActionPending ? 'action-button-disabled' : ''}}"
+          bindtap="handleSubmitBattle"
+        >
+          {{submitBattleButtonText}}
+        </view>
+        <view
+          wx:if="{{state === 'COUNTDOWN' || state === 'PLAYING' || state === 'SUBMITTING'}}"
+          class="danger-button action-button {{isBattleActionPending ? 'action-button-disabled' : ''}}"
+          bindtap="handleForfeitBattle"
+        >
+          {{forfeitButtonText}}
+        </view>
+        <view class="ghost-button action-button" bindtap="handleBackRoom">返回房间页</view>
+      </view>
+    </view>
+  </block>
 </view>
