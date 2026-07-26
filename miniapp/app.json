@@ -10,6 +10,7 @@
     "pages/wrong-question/index",
     "pages/wrong-question/detail",
     "pages/battle/index",
+    "pages/battle/leaderboard",
     "pages/community/index",
     "pages/profile/index"
   ],

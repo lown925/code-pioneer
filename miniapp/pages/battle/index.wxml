@@ -1,6 +1,106 @@
-<view class="page-shell">
-  <view class="section-card state-box">
-    <text class="state-title">对战页占位</text>
-    <text class="state-text">本次工单只按文档保留对战一级入口，具体业务功能后续开发。</text>
+<view class="page-shell battle-page">
+  <view class="section-card hero-card">
+    <text class="hero-eyebrow">Battle V1</text>
+    <text class="hero-title">1v1 编程知识对战</text>
+    <text class="hero-copy">
+      查看当前评分、胜负表现和连胜数据，并从这里进入排行榜与后续对战能力。
+    </text>
   </view>
+
+  <view wx:if="{{state === 'guest'}}" class="section-card state-box">
+    <text class="state-title">登录后查看你的对战数据</text>
+    <text class="state-text">
+      当前 Battle 首页需要登录后才能获取个人评分、战绩统计和排行榜信息。
+    </text>
+    <view class="primary-button retry-button" bindtap="handleLogin">去登录</view>
+  </view>
+
+  <view wx:elif="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">对战数据加载中</text>
+    <text class="state-text">正在获取你的评分和战绩统计，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
+    <text class="state-title">对战数据加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button retry-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <block wx:elif="{{state === 'success' && profile}}">
+    <view class="section-card profile-card">
+      <view class="profile-top">
+        <view>
+          <text class="section-title">{{displayName}}</text>
+          <text class="section-subtitle">以下数据以 Battle 后端正式接口实时返回为准</text>
+        </view>
+        <view class="rank-pill">{{profile.currentRankText}}</view>
+      </view>
+
+      <view class="profile-grid">
+        <view class="profile-main-card profile-grid-span">
+          <text class="profile-main-label">当前评分</text>
+          <text class="profile-main-value">{{profile.ratingText}}</text>
+          <text class="profile-main-copy">历史最高 {{profile.highestRatingText}}</text>
+        </view>
+        <view class="profile-stat-card">
+          <text class="profile-stat-label">总场次</text>
+          <text class="profile-stat-value">{{profile.totalBattlesText}}</text>
+        </view>
+        <view class="profile-stat-card">
+          <text class="profile-stat-label">胜率</text>
+          <text class="profile-stat-value">{{profile.winRateText}}</text>
+        </view>
+        <view class="profile-stat-card">
+          <text class="profile-stat-label">当前连胜</text>
+          <text class="profile-stat-value">{{profile.currentWinStreakText}}</text>
+        </view>
+        <view class="profile-stat-card">
+          <text class="profile-stat-label">最高连胜</text>
+          <text class="profile-stat-value">{{profile.bestWinStreakText}}</text>
+        </view>
+      </view>
+
+      <view class="record-strip">
+        <view class="record-item">
+          <text class="record-label">胜负统计</text>
+          <text class="record-value">{{profile.recordText}}</text>
+        </view>
+        <view class="record-item">
+          <text class="record-label">匹配场次</text>
+          <text class="record-value">{{profile.rankedBattlesText}}</text>
+        </view>
+        <view class="record-item">
+          <text class="record-label">好友场次</text>
+          <text class="record-value">{{profile.friendBattlesText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card entry-section">
+      <view class="entry-header">
+        <view>
+          <text class="section-title">对战入口</text>
+          <text class="section-subtitle">本轮开放排行榜，其余能力保留为明确入口占位</text>
+        </view>
+      </view>
+
+      <view class="entry-grid">
+        <view
+          wx:for="{{entries}}"
+          wx:key="key"
+          class="entry-card {{item.disabled ? 'entry-card-disabled' : ''}}"
+          data-entry-key="{{item.key}}"
+          data-disabled="{{item.disabled}}"
+          bindtap="handleEntryTap"
+        >
+          <view class="entry-card-top">
+            <text class="entry-title">{{item.title}}</text>
+            <text class="entry-badge {{item.badgeClassName}}">{{item.badgeText}}</text>
+          </view>
+          <text class="entry-copy">{{item.description}}</text>
+          <text class="entry-action">{{item.actionText}}</text>
+        </view>
+      </view>
+    </view>
+  </block>
 </view>

@@ -1,0 +1,95 @@
+<view class="page-shell leaderboard-page">
+  <view class="section-card hero-card">
+    <text class="hero-eyebrow">排行榜</text>
+    <text class="hero-title">Battle 全站排名</text>
+    <text class="hero-copy">
+      榜单数据来自正式 Battle 排行接口，当前支持分页加载、下拉刷新和当前用户高亮。
+    </text>
+  </view>
+
+  <view wx:if="{{mySummary}}" class="section-card summary-card">
+    <view class="summary-item">
+      <text class="summary-label">我的排名</text>
+      <text class="summary-value">{{mySummary.rankText}}</text>
+    </view>
+    <view class="summary-item">
+      <text class="summary-label">我的评分</text>
+      <text class="summary-value">{{mySummary.ratingText}}</text>
+    </view>
+    <text class="summary-copy">{{mySummary.hintText}}</text>
+  </view>
+
+  <view wx:if="{{state === 'loading' && items.length === 0}}" class="section-card state-box">
+    <text class="state-title">排行榜加载中</text>
+    <text class="state-text">正在获取最新排名数据，请稍候。</text>
+  </view>
+
+  <view
+    wx:elif="{{state === 'error' || state === 'unauthorized'}}"
+    class="section-card state-box"
+  >
+    <text class="state-title">排行榜加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button retry-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <view wx:elif="{{state === 'empty'}}" class="section-card state-box">
+    <text class="state-title">暂时还没有排行榜数据</text>
+    <text class="state-text">当用户产生对战评分后，排行榜会显示在这里。</text>
+    <view class="ghost-button retry-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <block wx:else>
+    <view class="leaderboard-list">
+      <view
+        wx:for="{{items}}"
+        wx:key="userId"
+        class="section-card leaderboard-card {{item.isCurrentUser ? 'leaderboard-card-current' : ''}}"
+      >
+        <view class="leaderboard-top">
+          <view class="leaderboard-rank">
+            <text class="rank-badge">{{item.rankBadgeText}}</text>
+            <text wx:if="{{item.isCurrentUser}}" class="current-user-badge">我</text>
+          </view>
+          <text class="rank-text">{{item.rankText}}</text>
+        </view>
+
+        <view class="leaderboard-body">
+          <view class="avatar-frame">
+            <image
+              wx:if="{{item.avatarUrl}}"
+              class="avatar-image"
+              src="{{item.avatarUrl}}"
+              mode="aspectFill"
+            />
+            <view wx:else class="avatar-fallback">{{item.avatarFallbackText}}</view>
+          </view>
+
+          <view class="player-info">
+            <text class="nickname">{{item.nicknameText}}</text>
+            <text class="player-meta">评分 {{item.ratingText}} · 最高 {{item.highestRatingText}}</text>
+            <text class="player-meta">{{item.recordText}}</text>
+          </view>
+
+          <view class="winrate-box">
+            <text class="winrate-label">胜率</text>
+            <text class="winrate-value">{{item.winRateText}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{isLoadingMore}}" class="section-card loading-more">
+      <text class="loading-more-text">正在加载更多排行数据...</text>
+    </view>
+
+    <view wx:elif="{{loadMoreErrorMessage}}" class="section-card footer-error">
+      <text class="footer-error-text">{{loadMoreErrorMessage}}</text>
+      <view class="ghost-button retry-button" bindtap="handleLoadMoreRetry">重试下一页</view>
+    </view>
+
+    <view wx:elif="{{!hasMore && items.length > 0}}" class="section-card loading-more">
+      <text class="loading-more-text">已经加载全部排行榜数据</text>
+    </view>
+  </block>
+</view>
