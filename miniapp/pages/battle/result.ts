@@ -336,9 +336,15 @@ Page<ResultPageData, ResultPageMethods>({
   },
 
   handleReplay() {
-    wx.showToast({
-      title: '本场复盘将在下一阶段开放',
-      icon: 'none',
+    if (!this.data.isValidBattleId) {
+      wx.switchTab({
+        url: '/pages/battle/index',
+      });
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/battle/history-detail?battleId=${encodeURIComponent(this.data.battleId)}`,
     });
   },
 

@@ -1,0 +1,122 @@
+<view class="page-shell history-page">
+  <view class="section-card hero-card">
+    <text class="hero-eyebrow">Battle 战绩</text>
+    <text class="hero-title">历史对战记录</text>
+    <text class="hero-copy">按服务端返回顺序查看 Battle 历史战绩，并按模式或结果快速筛选。</text>
+  </view>
+
+  <view class="section-card filter-card">
+    <text class="filter-title">模式筛选</text>
+    <view class="filter-row">
+      <view
+        wx:for="{{modeFilters}}"
+        wx:key="value"
+        wx:for-item="filter"
+        class="filter-chip {{selectedMode === filter.value ? 'filter-chip-active' : ''}}"
+        data-value="{{filter.value}}"
+        bindtap="handleModeFilterTap"
+      >
+        {{filter.label}}
+      </view>
+    </view>
+    <text class="filter-title">结果筛选</text>
+    <view class="filter-row">
+      <view
+        wx:for="{{resultFilters}}"
+        wx:key="value"
+        wx:for-item="filter"
+        class="filter-chip {{selectedResult === filter.value ? 'filter-chip-active' : ''}}"
+        data-value="{{filter.value}}"
+        bindtap="handleResultFilterTap"
+      >
+        {{filter.label}}
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">正在加载战绩</text>
+    <text class="state-text">系统正在获取你的 Battle 历史记录，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error' || state === 'unauthorized'}}" class="section-card state-box">
+    <text class="state-title">战绩加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="state-actions">
+      <view class="primary-button action-button" bindtap="handleRetry">重新获取战绩</view>
+    </view>
+  </view>
+
+  <view wx:elif="{{state === 'empty'}}" class="section-card state-box">
+    <text class="state-title">还没有 Battle 战绩</text>
+    <text class="state-text">完成一场 Battle 后，你的历史战绩会出现在这里。</text>
+  </view>
+
+  <block wx:else>
+    <view
+      wx:for="{{items}}"
+      wx:key="battleId"
+      wx:for-item="record"
+      class="section-card history-card"
+      data-battle-id="{{record.battleId}}"
+      bindtap="handleItemTap"
+    >
+      <view class="card-top">
+        <view class="opponent-meta">
+          <view class="avatar-frame">
+            <image
+              wx:if="{{record.opponent.avatarUrl}}"
+              class="avatar-image"
+              src="{{record.opponent.avatarUrl}}"
+              mode="aspectFill"
+            />
+            <view wx:else class="avatar-fallback">{{record.opponentAvatarFallbackText}}</view>
+          </view>
+          <view class="opponent-body">
+            <text class="opponent-name">{{record.opponentNicknameText}}</text>
+            <text class="opponent-time">{{record.completedAtText}}</text>
+          </view>
+        </view>
+        <view class="badge-row">
+          <text class="mode-badge">{{record.modeText}}</text>
+          <text class="result-badge {{record.resultClassName}}">{{record.resultText}}</text>
+        </view>
+      </view>
+
+      <view class="card-score-row">
+        <text class="score-label">比分</text>
+        <text class="score-value">{{record.scoreText}}</text>
+      </view>
+
+      <view class="card-summary-grid">
+        <view class="summary-item">
+          <text class="summary-label">Rating 变化</text>
+          <text class="summary-value">{{record.ratingDeltaText}}</text>
+        </view>
+        <view class="summary-item">
+          <text class="summary-label">我的答对</text>
+          <text class="summary-value">{{record.myCorrectCount}}</text>
+        </view>
+        <view class="summary-item">
+          <text class="summary-label">我的未答</text>
+          <text class="summary-value">{{record.myUnansweredCount}}</text>
+        </view>
+      </view>
+
+      <text class="card-end-reason">结束原因：{{record.endReasonText}}</text>
+    </view>
+
+    <view wx:if="{{loadMoreErrorMessage}}" class="section-card inline-error-card">
+      <text class="inline-error-text">{{loadMoreErrorMessage}}</text>
+      <view class="ghost-button action-button" bindtap="handleLoadMoreRetry">重试加载更多</view>
+    </view>
+
+    <view wx:if="{{isLoadingMore}}" class="section-card footer-card">
+      <text class="footer-text">正在加载更多战绩...</text>
+    </view>
+
+    <view wx:elif="{{!hasMore && items.length > 0}}" class="section-card footer-card">
+      <text class="footer-text">已经到底了</text>
+    </view>
+  </block>
+</view>

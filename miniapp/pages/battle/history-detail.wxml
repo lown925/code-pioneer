@@ -1,0 +1,307 @@
+<view class="page-shell history-detail-page">
+  <view class="section-card hero-card">
+    <text class="hero-eyebrow">Battle 复盘</text>
+    <text class="hero-title">{{titleText}}</text>
+    <text class="hero-copy">{{descriptionText}}</text>
+  </view>
+
+  <view wx:if="{{state === 'LOADING'}}" class="section-card state-box">
+    <text class="state-title">正在加载复盘详情</text>
+    <text class="state-text">系统正在获取本场 Battle 的题目快照、我的作答和服务端结算结果。</text>
+  </view>
+
+  <view wx:elif="{{state === 'ERROR'}}" class="section-card state-box">
+    <text class="state-title">复盘详情加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="state-actions">
+      <view class="primary-button action-button" bindtap="handleRetry">重新获取复盘</view>
+      <view class="ghost-button action-button" bindtap="handleBackHome">返回 Battle 首页</view>
+    </view>
+  </view>
+
+  <block wx:else>
+    <view class="section-card summary-card">
+      <view class="summary-top">
+        <view class="result-badge {{resultBadgeClassName}}">{{resultText}}</view>
+        <view class="summary-meta">
+          <text class="summary-mode">{{modeText}}</text>
+          <text class="summary-status">{{statusText}}</text>
+        </view>
+      </view>
+      <view class="summary-grid">
+        <view class="summary-item">
+          <text class="summary-label">结算时间</text>
+          <text class="summary-value">{{completedAtText}}</text>
+        </view>
+        <view class="summary-item">
+          <text class="summary-label">开始时间</text>
+          <text class="summary-value">{{startedAtText || '未记录'}}</text>
+        </view>
+        <view class="summary-item">
+          <text class="summary-label">答题时长</text>
+          <text class="summary-value">{{durationText}}</text>
+        </view>
+      </view>
+      <text class="summary-end-reason">结束原因：{{endReasonText}}</text>
+    </view>
+
+    <view class="score-grid">
+      <view class="section-card score-card">
+        <text class="score-label">我的分数</text>
+        <text class="score-value">{{myScoreText}}</text>
+      </view>
+      <view class="section-card score-card">
+        <text class="score-label">对手分数</text>
+        <text class="score-value">{{opponentScoreText}}</text>
+      </view>
+    </view>
+
+    <view class="section-card opponent-card">
+      <view class="opponent-avatar-frame">
+        <image
+          wx:if="{{opponentAvatarUrl}}"
+          class="opponent-avatar-image"
+          src="{{opponentAvatarUrl}}"
+          mode="aspectFill"
+        />
+        <view wx:else class="opponent-avatar-fallback">{{opponentAvatarFallbackText}}</view>
+      </view>
+      <view class="opponent-body">
+        <text class="opponent-label">本场对手</text>
+        <text class="opponent-name">{{opponentNicknameText}}</text>
+      </view>
+    </view>
+
+    <view class="section-card stats-card">
+      <text class="section-title">我的汇总</text>
+      <view class="stats-grid">
+        <view class="stat-item">
+          <text class="stat-label">答对</text>
+          <text class="stat-value">{{myCorrectCountText}}</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-label">答错</text>
+          <text class="stat-value">{{myWrongCountText}}</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-label">未答</text>
+          <text class="stat-value">{{myUnansweredCountText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card stats-card">
+      <text class="section-title">对手汇总</text>
+      <view class="stats-grid">
+        <view class="stat-item">
+          <text class="stat-label">答对</text>
+          <text class="stat-value">{{opponentCorrectCountText}}</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-label">答错</text>
+          <text class="stat-value">{{opponentWrongCountText}}</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-label">未答</text>
+          <text class="stat-value">{{opponentUnansweredCountText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card rating-card">
+      <text class="section-title">Rating 变化</text>
+      <view class="rating-grid">
+        <view class="rating-item">
+          <text class="rating-label">变更前</text>
+          <text class="rating-value">{{ratingBeforeText}}</text>
+        </view>
+        <view class="rating-item">
+          <text class="rating-label">本场变化</text>
+          <text class="rating-value">{{ratingDeltaText}}</text>
+        </view>
+        <view class="rating-item">
+          <text class="rating-label">变更后</text>
+          <text class="rating-value">{{ratingAfterText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view
+      wx:for="{{questions}}"
+      wx:key="battleQuestionSnapshotId"
+      wx:for-item="question"
+      class="section-card question-card"
+    >
+      <view class="question-header">
+        <text class="question-number">{{question.questionNumberText}}</text>
+        <view class="question-meta">
+          <text class="question-type">{{question.questionTypeText}}</text>
+          <text class="question-difficulty">{{question.difficultyText}}</text>
+          <text class="result-pill {{question.resultClassName}}">{{question.resultText}}</text>
+        </view>
+      </view>
+
+      <view class="question-score-row">
+        <text class="score-delta-label">本题得分</text>
+        <text class="score-delta-value">{{question.scoreDeltaText}}</text>
+      </view>
+
+      <view class="content-block-list">
+        <block wx:for="{{question.stem}}" wx:key="blockKey" wx:for-item="stemBlock">
+          <text wx:if="{{stemBlock.type === 'TEXT'}}" class="content-text">{{stemBlock.text}}</text>
+          <text wx:elif="{{stemBlock.type === 'CODE'}}" class="content-code">{{stemBlock.code}}</text>
+          <view wx:elif="{{stemBlock.type === 'IMAGE'}}" class="content-image-box">
+            <image
+              wx:if="{{!stemBlock.imageFailed}}"
+              class="content-image"
+              src="{{stemBlock.url}}"
+              mode="widthFix"
+              data-question-id="{{question.battleQuestionSnapshotId}}"
+              data-block-key="{{stemBlock.blockKey}}"
+              data-section="stem"
+              binderror="handleImageError"
+            />
+            <view wx:else class="image-fallback">{{stemBlock.altText}}</view>
+          </view>
+        </block>
+      </view>
+
+      <view wx:if="{{question.options.length > 0}}" class="option-list">
+        <view
+          wx:for="{{question.options}}"
+          wx:key="optionId"
+          wx:for-item="option"
+          class="option-card {{option.isCorrectOption ? 'option-card-correct' : ''}} {{option.isMyOption ? 'option-card-my' : ''}}"
+        >
+          <view class="option-top">
+            <view class="option-label">{{option.optionLabel}}</view>
+            <view class="option-badges">
+              <text wx:if="{{option.isCorrectOption}}" class="option-badge option-badge-correct">正确答案</text>
+              <text wx:if="{{option.isMyOption}}" class="option-badge option-badge-my">我的选择</text>
+            </view>
+          </view>
+          <view class="option-body">
+            <block wx:for="{{option.blocks}}" wx:key="blockKey" wx:for-item="optionBlock">
+              <text wx:if="{{optionBlock.type === 'TEXT'}}" class="content-text">{{optionBlock.text}}</text>
+              <text wx:elif="{{optionBlock.type === 'CODE'}}" class="content-code">{{optionBlock.code}}</text>
+              <view wx:elif="{{optionBlock.type === 'IMAGE'}}" class="content-image-box">
+                <image
+                  wx:if="{{!optionBlock.imageFailed}}"
+                  class="content-image"
+                  src="{{optionBlock.url}}"
+                  mode="widthFix"
+                  data-question-id="{{question.battleQuestionSnapshotId}}"
+                  data-option-id="{{option.optionId}}"
+                  data-block-key="{{optionBlock.blockKey}}"
+                  data-section="option"
+                  binderror="handleImageError"
+                />
+                <view wx:else class="image-fallback">{{optionBlock.altText}}</view>
+              </view>
+            </block>
+          </view>
+        </view>
+      </view>
+
+      <view class="section-subcard">
+        <text class="section-subtitle">{{question.myAnswerLabel}}</text>
+        <text class="answer-summary">{{question.myAnswerText}}</text>
+        <text wx:if="{{question.myAnswerSubmittedAtText}}" class="answer-meta">提交时间：{{question.myAnswerSubmittedAtText}}</text>
+        <text wx:if="{{question.myAnswerTimeSpentText}}" class="answer-meta">{{question.myAnswerTimeSpentText}}</text>
+        <view wx:if="{{question.myAnswerBlocks.length > 0}}" class="content-block-list">
+          <block wx:for="{{question.myAnswerBlocks}}" wx:key="blockKey" wx:for-item="answerBlock">
+            <text wx:if="{{answerBlock.type === 'TEXT'}}" class="content-text">{{answerBlock.text}}</text>
+            <text wx:elif="{{answerBlock.type === 'CODE'}}" class="content-code">{{answerBlock.code}}</text>
+            <view wx:elif="{{answerBlock.type === 'IMAGE'}}" class="content-image-box">
+              <image
+                wx:if="{{!answerBlock.imageFailed}}"
+                class="content-image"
+                src="{{answerBlock.url}}"
+                mode="widthFix"
+                data-question-id="{{question.battleQuestionSnapshotId}}"
+                data-block-key="{{answerBlock.blockKey}}"
+                data-section="my-answer"
+                binderror="handleImageError"
+              />
+              <view wx:else class="image-fallback">{{answerBlock.altText}}</view>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <view class="section-subcard">
+        <text class="section-subtitle">{{question.correctAnswerLabel}}</text>
+        <text class="answer-summary">{{question.correctAnswerText}}</text>
+        <view wx:if="{{question.correctAnswerBlocks.length > 0}}" class="content-block-list">
+          <block wx:for="{{question.correctAnswerBlocks}}" wx:key="blockKey" wx:for-item="correctBlock">
+            <text wx:if="{{correctBlock.type === 'TEXT'}}" class="content-text">{{correctBlock.text}}</text>
+            <text wx:elif="{{correctBlock.type === 'CODE'}}" class="content-code">{{correctBlock.code}}</text>
+            <view wx:elif="{{correctBlock.type === 'IMAGE'}}" class="content-image-box">
+              <image
+                wx:if="{{!correctBlock.imageFailed}}"
+                class="content-image"
+                src="{{correctBlock.url}}"
+                mode="widthFix"
+                data-question-id="{{question.battleQuestionSnapshotId}}"
+                data-block-key="{{correctBlock.blockKey}}"
+                data-section="correct-answer"
+                binderror="handleImageError"
+              />
+              <view wx:else class="image-fallback">{{correctBlock.altText}}</view>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <view class="section-subcard">
+        <text class="section-subtitle">解析</text>
+        <view wx:if="{{question.hasExplanation}}" class="content-block-list">
+          <block wx:for="{{question.explanation}}" wx:key="blockKey" wx:for-item="explainBlock">
+            <text wx:if="{{explainBlock.type === 'TEXT'}}" class="content-text">{{explainBlock.text}}</text>
+            <text wx:elif="{{explainBlock.type === 'CODE'}}" class="content-code">{{explainBlock.code}}</text>
+            <view wx:elif="{{explainBlock.type === 'IMAGE'}}" class="content-image-box">
+              <image
+                wx:if="{{!explainBlock.imageFailed}}"
+                class="content-image"
+                src="{{explainBlock.url}}"
+                mode="widthFix"
+                data-question-id="{{question.battleQuestionSnapshotId}}"
+                data-block-key="{{explainBlock.blockKey}}"
+                data-section="explanation"
+                binderror="handleImageError"
+              />
+              <view wx:else class="image-fallback">{{explainBlock.altText}}</view>
+            </view>
+          </block>
+        </view>
+        <text wx:else class="answer-summary">暂无解析</text>
+      </view>
+
+      <view class="section-subcard">
+        <text class="section-subtitle">知识点</text>
+        <text class="answer-summary">{{question.knowledgeHintText}}</text>
+      </view>
+
+      <view class="section-subcard">
+        <text class="section-subtitle">课程与章节关联</text>
+        <view class="relation-row">
+          <text class="relation-label">课程标题：</text>
+          <text class="relation-value">{{question.courseTitle}}</text>
+        </view>
+        <view wx:if="{{question.canOpenCourse}}" class="ghost-button small-button" data-course-id="{{question.courseId}}" bindtap="handleCourseTap">查看课程详情</view>
+        <view class="relation-row">
+          <text class="relation-label">章节标题：</text>
+          <text class="relation-value">{{question.chapterTitle}}</text>
+        </view>
+        <view wx:if="{{question.canOpenChapter}}" class="ghost-button small-button" data-chapter-id="{{question.chapterId}}" bindtap="handleChapterTap">查看章节详情</view>
+      </view>
+    </view>
+
+    <view class="section-card footer-card">
+      <view class="footer-actions">
+        <view class="primary-button action-button" bindtap="handleBackResult">查看本场结果</view>
+        <view class="ghost-button action-button" bindtap="handleBackHome">返回 Battle 首页</view>
+      </view>
+    </view>
+  </block>
+</view>

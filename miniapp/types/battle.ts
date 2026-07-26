@@ -226,3 +226,123 @@ export type CompletedBattleResultResponse = {
 export type BattleResultResponse =
   | PendingBattleResultResponse
   | CompletedBattleResultResponse;
+
+export type BattleHistoryQuery = {
+  page: number;
+  pageSize: number;
+  mode?: 'RANKED' | 'FRIEND';
+  result?: 'WIN' | 'LOSS' | 'DRAW';
+};
+
+export type BattleHistoryListItemResponse = {
+  battleId: string;
+  mode: string;
+  result: 'WIN' | 'LOSS' | 'DRAW';
+  opponent: {
+    userId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+  };
+  myScore: number;
+  opponentScore: number;
+  myCorrectCount: number;
+  myWrongCount: number;
+  myUnansweredCount: number;
+  ratingBefore: number;
+  ratingDelta: number;
+  ratingAfter: number;
+  endReason: string | null;
+  completedAt: string;
+};
+
+export type BattleHistoryResponse = {
+  items: BattleHistoryListItemResponse[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  serverTime: string;
+};
+
+export type BattleCorrectAnswerResponse =
+  | {
+      type: 'SINGLE_CHOICE';
+      optionId: string;
+    }
+  | {
+      type: 'CODE_FILL';
+    };
+
+export type BattleHistoryMyAnswerResponse = {
+  answer: BattleSubmittedAnswerResponse;
+  submittedAt: string;
+  timeSpentMs: number | null;
+};
+
+export type BattleHistoryQuestionResponse = {
+  battleQuestionSnapshotId: string;
+  questionId: string;
+  sourceQuizQuestionId: string | null;
+  source: 'LEARNING' | 'BATTLE';
+  questionType: string;
+  presentation: string;
+  difficulty: string | null;
+  stem: BattleContentBlock[];
+  options: BattleQuestionOptionSnapshotResponse[];
+  myAnswer: BattleHistoryMyAnswerResponse | null;
+  correctAnswer: BattleCorrectAnswerResponse;
+  correctOptionId: string | null;
+  isCorrect: boolean | null;
+  scoreDelta: number;
+  explanation: BattleContentBlock[] | null;
+  courseId: string | null;
+  courseTitle: string | null;
+  chapterId: string | null;
+  chapterTitle: string | null;
+  orderIndex: number;
+};
+
+export type BattleHistorySummaryResponse = {
+  score: number;
+  correctCount: number;
+  wrongCount: number;
+  unansweredCount: number;
+  ratingBefore: number;
+  ratingDelta: number;
+  ratingAfter: number;
+};
+
+export type BattleHistoryDetailResponse = {
+  battleId: string;
+  mode: string;
+  status: string;
+  result: 'WIN' | 'LOSS' | 'DRAW';
+  startedAt: string | null;
+  durationSeconds: number;
+  myScore: number;
+  opponentScore: number;
+  myCorrectCount: number;
+  myWrongCount: number;
+  myUnansweredCount: number;
+  opponentCorrectCount: number;
+  opponentWrongCount: number;
+  opponentUnansweredCount: number;
+  ratingBefore: number;
+  ratingDelta: number;
+  ratingAfter: number;
+  opponent: {
+    userId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+  };
+  mySummary: BattleHistorySummaryResponse;
+  opponentSummary: BattleHistorySummaryResponse & {
+    userId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+  };
+  endReason: string | null;
+  completedAt: string;
+  serverTime: string;
+  questions: BattleHistoryQuestionResponse[];
+};

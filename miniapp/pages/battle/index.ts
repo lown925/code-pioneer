@@ -93,10 +93,10 @@ const ENTRY_CARDS: BattleEntryCard[] = [
     key: 'history',
     title: '战绩',
     description: '查看历史对战记录、胜负结果和局数统计。',
-    actionText: '后续开放',
-    badgeText: '即将开放',
-    badgeClassName: 'entry-badge-pending',
-    disabled: true,
+    actionText: '查看战绩',
+    badgeText: '已开放',
+    badgeClassName: 'entry-badge-live',
+    disabled: false,
   },
 ];
 
@@ -265,6 +265,13 @@ Page<BattlePageData, BattlePageMethods>({
     if (entryKey === 'friend') {
       wx.navigateTo({
         url: '/pages/battle/friend-room',
+      });
+      return;
+    }
+
+    if (entryKey === 'history') {
+      wx.navigateTo({
+        url: '/pages/battle/history',
       });
       return;
     }
