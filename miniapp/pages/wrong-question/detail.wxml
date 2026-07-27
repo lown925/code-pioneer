@@ -25,7 +25,7 @@
 
       <text class="hero-title">错题详情</text>
       <text class="hero-copy">
-        {{detail.wrongCountText}} · 最近错误 {{detail.lastWrongAtText}}
+        {{detail.wrongCountText}} · {{detail.isBattleSource ? '最近对战' : '最近错误'}} {{detail.isBattleSource ? detail.battleCompletedAtText : detail.lastWrongAtText}}
       </text>
     </view>
 
@@ -46,48 +46,198 @@
         <text class="info-label">最近错误</text>
         <text class="info-value">{{detail.lastWrongAtText}}</text>
       </view>
+      <view wx:if="{{detail.isBattleSource}}" class="info-row">
+        <text class="info-label">最近对战</text>
+        <text class="info-value">{{detail.battleCompletedAtText}}</text>
+      </view>
+      <view wx:if="{{detail.isBattleSource}}" class="info-row">
+        <text class="info-label">对手信息</text>
+        <text class="info-value">{{detail.battleOpponentText}}</text>
+      </view>
     </view>
 
-    <view class="section-card content-card">
-      <text class="section-title">题干</text>
-      <view class="question-content">{{detail.contentText}}</view>
-    </view>
+    <block wx:if="{{!detail.isBattleSource}}">
+      <view class="section-card content-card">
+        <text class="section-title">题干</text>
+        <view class="question-content">{{detail.contentText}}</view>
+      </view>
 
-    <view class="section-card content-card">
-      <text class="section-title">选项</text>
-      <view wx:if="{{detail.options.length > 0}}" class="option-list">
-        <view
-          wx:for="{{detail.options}}"
-          wx:key="optionId"
-          wx:for-item="option"
-          class="option-card {{option.isCorrect ? 'option-card-correct' : ''}}"
-        >
-          <view class="option-head">
-            <text class="option-label">{{option.labelText}}</text>
-            <text class="option-tag {{option.statusClassName}}">{{option.statusText}}</text>
+      <view class="section-card content-card">
+        <text class="section-title">选项</text>
+        <view wx:if="{{detail.options.length > 0}}" class="option-list">
+          <view
+            wx:for="{{detail.options}}"
+            wx:key="optionId"
+            wx:for-item="option"
+            class="option-card {{option.isCorrect ? 'option-card-correct' : ''}}"
+          >
+            <view class="option-head">
+              <text class="option-label">{{option.labelText}}</text>
+              <text class="option-tag {{option.statusClassName}}">{{option.statusText}}</text>
+            </view>
+            <text class="option-content">{{option.contentText}}</text>
           </view>
-          <text class="option-content">{{option.contentText}}</text>
+        </view>
+        <view wx:else class="state-box compact-state">
+          <text class="state-title">当前题目暂无可展示选项</text>
         </view>
       </view>
-      <view wx:else class="state-box compact-state">
-        <text class="state-title">当前题目暂无可展示选项</text>
+
+      <view class="section-card content-card">
+        <text class="section-title">正确答案</text>
+        <text class="answer-text">{{detail.correctAnswerText}}</text>
       </view>
-    </view>
 
-    <view class="section-card content-card">
-      <text class="section-title">正确答案</text>
-      <text class="answer-text">{{detail.correctAnswerText}}</text>
-    </view>
+      <view class="section-card content-card">
+        <text class="section-title">解析</text>
+        <text class="answer-text">{{detail.explanationText}}</text>
+      </view>
 
-    <view class="section-card content-card">
-      <text class="section-title">解析</text>
-      <text class="answer-text">{{detail.explanationText}}</text>
-    </view>
+      <view class="section-card content-card">
+        <text class="section-title">用户答案</text>
+        <text class="answer-text">{{detail.answerUnavailableText}}</text>
+      </view>
+    </block>
 
-    <view class="section-card content-card">
-      <text class="section-title">用户答案</text>
-      <text class="answer-text">{{detail.answerUnavailableText}}</text>
-    </view>
+    <block wx:else>
+      <view class="section-card content-card">
+        <text class="section-title">Battle Snapshot 题干</text>
+        <view class="content-block-list">
+          <block wx:for="{{detail.battleStemBlocks}}" wx:key="blockKey" wx:for-item="stemBlock">
+            <text wx:if="{{stemBlock.type === 'TEXT'}}" class="question-content">{{stemBlock.text}}</text>
+            <text wx:elif="{{stemBlock.type === 'CODE'}}" class="content-code">{{stemBlock.code}}</text>
+            <view wx:elif="{{stemBlock.type === 'IMAGE'}}" class="content-image-box">
+              <image
+                wx:if="{{!stemBlock.imageFailed}}"
+                class="content-image"
+                src="{{stemBlock.url}}"
+                mode="widthFix"
+                data-section="stem"
+                data-block-key="{{stemBlock.blockKey}}"
+                binderror="handleImageError"
+              />
+              <view wx:else class="image-fallback">{{stemBlock.altText}}</view>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <view class="section-card content-card">
+        <text class="section-title">Battle Snapshot 选项</text>
+        <view wx:if="{{detail.battleOptions.length > 0}}" class="battle-option-list">
+          <view
+            wx:for="{{detail.battleOptions}}"
+            wx:key="optionId"
+            wx:for-item="option"
+            class="battle-option-card {{option.isCorrect ? 'battle-option-card-correct' : ''}} {{option.isMyAnswer ? 'battle-option-card-my' : ''}}"
+          >
+            <view class="option-head">
+              <text class="option-label">{{option.labelText}}</text>
+              <view class="option-tag-group">
+                <text wx:if="{{option.isCorrect}}" class="option-tag option-tag-correct">正确答案</text>
+                <text wx:if="{{option.isMyAnswer}}" class="option-tag option-tag-battle">我的错误作答</text>
+              </view>
+            </view>
+            <view class="content-block-list">
+              <block wx:for="{{option.blocks}}" wx:key="blockKey" wx:for-item="optionBlock">
+                <text wx:if="{{optionBlock.type === 'TEXT'}}" class="question-content">{{optionBlock.text}}</text>
+                <text wx:elif="{{optionBlock.type === 'CODE'}}" class="content-code">{{optionBlock.code}}</text>
+                <view wx:elif="{{optionBlock.type === 'IMAGE'}}" class="content-image-box">
+                  <image
+                    wx:if="{{!optionBlock.imageFailed}}"
+                    class="content-image"
+                    src="{{optionBlock.url}}"
+                    mode="widthFix"
+                    data-section="option"
+                    data-option-id="{{option.optionId}}"
+                    data-block-key="{{optionBlock.blockKey}}"
+                    binderror="handleImageError"
+                  />
+                  <view wx:else class="image-fallback">{{optionBlock.altText}}</view>
+                </view>
+              </block>
+            </view>
+          </view>
+        </view>
+        <view wx:else class="state-box compact-state">
+          <text class="state-title">当前题目暂无可展示选项</text>
+        </view>
+      </view>
+
+      <view class="section-card content-card">
+        <text class="section-title">{{detail.battleMyAnswerLabel}}</text>
+        <text class="answer-text">{{detail.battleMyAnswerText}}</text>
+        <view wx:if="{{detail.battleMyAnswerBlocks.length > 0}}" class="content-block-list">
+          <block wx:for="{{detail.battleMyAnswerBlocks}}" wx:key="blockKey" wx:for-item="answerBlock">
+            <text wx:if="{{answerBlock.type === 'TEXT'}}" class="question-content">{{answerBlock.text}}</text>
+            <text wx:elif="{{answerBlock.type === 'CODE'}}" class="content-code">{{answerBlock.code}}</text>
+            <view wx:elif="{{answerBlock.type === 'IMAGE'}}" class="content-image-box">
+              <image
+                wx:if="{{!answerBlock.imageFailed}}"
+                class="content-image"
+                src="{{answerBlock.url}}"
+                mode="widthFix"
+                data-section="my-answer"
+                data-block-key="{{answerBlock.blockKey}}"
+                binderror="handleImageError"
+              />
+              <view wx:else class="image-fallback">{{answerBlock.altText}}</view>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <view class="section-card content-card">
+        <text class="section-title">{{detail.battleCorrectAnswerLabel}}</text>
+        <text class="answer-text">{{detail.battleCorrectAnswerText}}</text>
+        <view wx:if="{{detail.battleCorrectAnswerBlocks.length > 0}}" class="content-block-list">
+          <block wx:for="{{detail.battleCorrectAnswerBlocks}}" wx:key="blockKey" wx:for-item="correctBlock">
+            <text wx:if="{{correctBlock.type === 'TEXT'}}" class="question-content">{{correctBlock.text}}</text>
+            <text wx:elif="{{correctBlock.type === 'CODE'}}" class="content-code">{{correctBlock.code}}</text>
+            <view wx:elif="{{correctBlock.type === 'IMAGE'}}" class="content-image-box">
+              <image
+                wx:if="{{!correctBlock.imageFailed}}"
+                class="content-image"
+                src="{{correctBlock.url}}"
+                mode="widthFix"
+                data-section="correct-answer"
+                data-block-key="{{correctBlock.blockKey}}"
+                binderror="handleImageError"
+              />
+              <view wx:else class="image-fallback">{{correctBlock.altText}}</view>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <view class="section-card content-card">
+        <text class="section-title">解析</text>
+        <view wx:if="{{detail.hasBattleExplanation}}" class="content-block-list">
+          <block wx:for="{{detail.battleExplanationBlocks}}" wx:key="blockKey" wx:for-item="explainBlock">
+            <text wx:if="{{explainBlock.type === 'TEXT'}}" class="question-content">{{explainBlock.text}}</text>
+            <text wx:elif="{{explainBlock.type === 'CODE'}}" class="content-code">{{explainBlock.code}}</text>
+            <view wx:elif="{{explainBlock.type === 'IMAGE'}}" class="content-image-box">
+              <image
+                wx:if="{{!explainBlock.imageFailed}}"
+                class="content-image"
+                src="{{explainBlock.url}}"
+                mode="widthFix"
+                data-section="explanation"
+                data-block-key="{{explainBlock.blockKey}}"
+                binderror="handleImageError"
+              />
+              <view wx:else class="image-fallback">{{explainBlock.altText}}</view>
+            </view>
+          </block>
+        </view>
+        <text wx:else class="answer-text">暂无解析</text>
+      </view>
+
+      <view class="section-card content-card">
+        <text class="section-title">知识点</text>
+        <text class="answer-text">{{detail.battleKnowledgeHintText}}</text>
+      </view>
+    </block>
 
     <view class="section-card content-card">
       <text class="section-title">相关入口</text>

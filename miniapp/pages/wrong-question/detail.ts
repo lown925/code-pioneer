@@ -2,7 +2,12 @@ import type {
   WrongQuestionDetail,
   WrongQuestionDetailResponse,
   WrongQuestionOption,
+  WrongQuestionSource,
 } from '../../types/wrong-question';
+import type {
+  BattleContentBlock,
+  BattleQuestionOptionSnapshotResponse,
+} from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import { formatLearningTimestamp } from '../../utils/time';
 import {
@@ -11,10 +16,23 @@ import {
   formatWrongQuestionType,
   getWrongQuestionOptionLabel,
   getWrongQuestionSourceClassName,
+  normalizeWrongQuestionSource,
 } from '../../utils/wrong-question';
 import { request, RequestError } from '../../utils/request';
 
-type PageState = 'loading' | 'success' | 'invalid' | 'notFound' | 'error' | 'unauthorized';
+type PageState =
+  | 'loading'
+  | 'success'
+  | 'invalid'
+  | 'notFound'
+  | 'error'
+  | 'unauthorized';
+
+type ViewBlock = BattleContentBlock & {
+  blockKey: string;
+  imageFailed: boolean;
+  altText: string;
+};
 
 type WrongQuestionOptionCard = WrongQuestionOption & {
   labelText: string;
@@ -22,6 +40,14 @@ type WrongQuestionOptionCard = WrongQuestionOption & {
   isCorrect: boolean;
   statusText: string;
   statusClassName: string;
+};
+
+type BattleOptionCard = {
+  optionId: string;
+  labelText: string;
+  blocks: ViewBlock[];
+  isCorrect: boolean;
+  isMyAnswer: boolean;
 };
 
 type WrongQuestionDetailCard = WrongQuestionDetail & {
@@ -37,6 +63,20 @@ type WrongQuestionDetailCard = WrongQuestionDetail & {
   hasCourseEntry: boolean;
   hasChapterEntry: boolean;
   answerUnavailableText: string;
+  isBattleSource: boolean;
+  battleCompletedAtText: string;
+  battleOpponentText: string;
+  battleStemBlocks: ViewBlock[];
+  battleOptions: BattleOptionCard[];
+  battleMyAnswerLabel: string;
+  battleMyAnswerText: string;
+  battleMyAnswerBlocks: ViewBlock[];
+  battleCorrectAnswerLabel: string;
+  battleCorrectAnswerText: string;
+  battleCorrectAnswerBlocks: ViewBlock[];
+  battleExplanationBlocks: ViewBlock[];
+  hasBattleExplanation: boolean;
+  battleKnowledgeHintText: string;
 };
 
 type WrongQuestionDetailPageData = {
@@ -44,6 +84,7 @@ type WrongQuestionDetailPageData = {
   errorTitle: string;
   errorMessage: string;
   questionId: string;
+  source: '' | WrongQuestionSource;
   isReloading: boolean;
   detail: WrongQuestionDetailCard | null;
 };
@@ -57,11 +98,30 @@ type WrongQuestionDetailPageMethods = {
   handleBack(): void;
   handleOpenCourseDetail(): void;
   handleOpenChapterDetail(): void;
+  handleImageError(
+    event: WechatMiniprogram.BaseEvent<{
+      section?: string;
+      blockKey?: string;
+      optionId?: string;
+    }>,
+  ): void;
   mapDetail(data: WrongQuestionDetailResponse): WrongQuestionDetailCard;
+  mapLearningOptions(data: WrongQuestionDetailResponse): WrongQuestionOptionCard[];
+  mapBattleOptions(data: WrongQuestionDetailResponse): BattleOptionCard[];
+  mapBlocks(blocks: BattleContentBlock[], keyPrefix: string): ViewBlock[];
   formatCorrectAnswer(
     options: WrongQuestionOptionCard[],
-    correctOptionId: string,
+    correctOptionId: string | null,
   ): string;
+  getBattleOptionBlocks(
+    options: BattleQuestionOptionSnapshotResponse[] | null | undefined,
+    optionId: string,
+  ): BattleContentBlock[];
+  getBattleOptionLabel(
+    options: BattleQuestionOptionSnapshotResponse[] | null | undefined,
+    optionId: string,
+  ): string;
+  updateDetail(updater: (detail: WrongQuestionDetailCard) => WrongQuestionDetailCard): void;
   getReadableError(error: unknown): {
     title: string;
     message: string;
@@ -95,6 +155,7 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
     errorTitle: '',
     errorMessage: '',
     questionId: '',
+    source: '',
     isReloading: false,
     detail: null,
   },
@@ -104,6 +165,7 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
 
     const questionIdRaw =
       typeof query.questionId === 'string' ? decodeQueryValue(query.questionId) : '';
+    const source = normalizeWrongQuestionSource(query.source);
 
     if (!isNonEmptyString(questionIdRaw) || !this.validateQuestionId(questionIdRaw)) {
       this.setData({
@@ -111,6 +173,7 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
         errorTitle: '题目参数无效',
         errorMessage: '当前题目参数无效，无法查看错题详情。',
         questionId: '',
+        source,
         detail: null,
       });
       return;
@@ -118,6 +181,7 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
 
     this.setData({
       questionId: questionIdRaw,
+      source,
       state: 'loading',
       errorTitle: '',
       errorMessage: '',
@@ -160,10 +224,14 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
 
   buildRedirectPath() {
     if (!this.data.questionId) {
-      return '/pages/wrong-question/index';
+      return this.data.source
+        ? `/pages/wrong-question/index?source=${this.data.source}`
+        : '/pages/wrong-question/index';
     }
 
-    return `/pages/wrong-question/detail?questionId=${encodeURIComponent(this.data.questionId)}`;
+    const sourceQuery = this.data.source ? `&source=${this.data.source}` : '';
+
+    return `/pages/wrong-question/detail?questionId=${encodeURIComponent(this.data.questionId)}${sourceQuery}`;
   },
 
   async loadDetail() {
@@ -196,6 +264,9 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
       const response = await request<WrongQuestionDetailResponse>({
         url: `/users/me/wrong-questions/${encodeURIComponent(this.data.questionId)}`,
         method: 'GET',
+        data: this.data.source
+          ? ({ source: this.data.source } as WechatMiniprogram.IAnyObject)
+          : undefined,
         authMode: 'required',
       });
 
@@ -242,8 +313,12 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
       return;
     }
 
+    const url = this.data.source
+      ? `/pages/wrong-question/index?source=${this.data.source}`
+      : '/pages/wrong-question/index';
+
     wx.reLaunch({
-      url: '/pages/wrong-question/index',
+      url,
     });
   },
 
@@ -267,8 +342,184 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
     });
   },
 
+  handleImageError(
+    event: WechatMiniprogram.BaseEvent<{
+      section?: string;
+      blockKey?: string;
+      optionId?: string;
+    }>,
+  ) {
+    const section = event.currentTarget.dataset.section ?? '';
+    const blockKey = event.currentTarget.dataset.blockKey ?? '';
+    const optionId = event.currentTarget.dataset.optionId ?? '';
+
+    if (!blockKey || !this.data.detail) {
+      return;
+    }
+
+    const markBlocks = (blocks: ViewBlock[]) =>
+      blocks.map((block) =>
+        block.blockKey === blockKey ? { ...block, imageFailed: true } : block,
+      );
+
+    this.updateDetail((detail) => {
+      if (section === 'stem') {
+        return {
+          ...detail,
+          battleStemBlocks: markBlocks(detail.battleStemBlocks),
+        };
+      }
+
+      if (section === 'my-answer') {
+        return {
+          ...detail,
+          battleMyAnswerBlocks: markBlocks(detail.battleMyAnswerBlocks),
+        };
+      }
+
+      if (section === 'correct-answer') {
+        return {
+          ...detail,
+          battleCorrectAnswerBlocks: markBlocks(detail.battleCorrectAnswerBlocks),
+        };
+      }
+
+      if (section === 'explanation') {
+        return {
+          ...detail,
+          battleExplanationBlocks: markBlocks(detail.battleExplanationBlocks),
+        };
+      }
+
+      if (section === 'option') {
+        return {
+          ...detail,
+          battleOptions: detail.battleOptions.map((option) =>
+            option.optionId === optionId
+              ? {
+                  ...option,
+                  blocks: markBlocks(option.blocks),
+                }
+              : option,
+          ),
+        };
+      }
+
+      return detail;
+    });
+  },
+
   mapDetail(data: WrongQuestionDetailResponse) {
-    const options = data.options
+    const source = normalizeWrongQuestionSource(data.source) || 'LEARNING';
+    const isBattleSource = source === 'BATTLE';
+    const learningOptions = this.mapLearningOptions(data);
+    const battleOptions = isBattleSource ? this.mapBattleOptions(data) : [];
+
+    let battleMyAnswerLabel = '我的错误作答';
+    let battleMyAnswerText = '当前接口暂未提供该题的原始作答记录';
+    let battleMyAnswerBlocks: ViewBlock[] = [];
+
+    if (isBattleSource && data.latestWrongAnswer) {
+      if (data.latestWrongAnswer.type === 'SINGLE_CHOICE') {
+        const optionLabel = this.getBattleOptionLabel(
+          data.optionSnapshots,
+          data.latestWrongAnswer.optionId,
+        );
+        battleMyAnswerLabel = '我的错误作答';
+        battleMyAnswerText = optionLabel
+          ? `错误选择：${optionLabel}`
+          : '已提交错误单选答案';
+        battleMyAnswerBlocks = this.mapBlocks(
+          this.getBattleOptionBlocks(
+            data.optionSnapshots,
+            data.latestWrongAnswer.optionId,
+          ),
+          `${data.questionId}-my-answer`,
+        );
+      } else {
+        battleMyAnswerLabel = '我的错误作答';
+        battleMyAnswerText = '已提交错误代码填空答案';
+        battleMyAnswerBlocks = this.mapBlocks(
+          [
+            {
+              type: 'CODE',
+              code: data.latestWrongAnswer.value,
+              language: data.programmingLanguage ?? undefined,
+            },
+          ],
+          `${data.questionId}-my-answer`,
+        );
+      }
+    }
+
+    let battleCorrectAnswerLabel = '正确答案';
+    let battleCorrectAnswerText = '';
+    let battleCorrectAnswerBlocks: ViewBlock[] = [];
+
+    if (isBattleSource && data.correctAnswer?.type === 'SINGLE_CHOICE') {
+      const optionLabel = this.getBattleOptionLabel(
+        data.optionSnapshots,
+        data.correctAnswer.optionId,
+      );
+      battleCorrectAnswerText = optionLabel
+        ? `正确选项：${optionLabel}`
+        : '正确单选答案';
+      battleCorrectAnswerBlocks = this.mapBlocks(
+        this.getBattleOptionBlocks(
+          data.optionSnapshots,
+          data.correctAnswer.optionId,
+        ),
+        `${data.questionId}-correct-answer`,
+      );
+    } else if (isBattleSource) {
+      battleCorrectAnswerLabel = '代码填空标准答案';
+      battleCorrectAnswerText = '当前正式接口未返回代码填空标准答案文本';
+    }
+
+    const battleExplanationBlocks =
+      isBattleSource && Array.isArray(data.explanation)
+        ? this.mapBlocks(data.explanation, `${data.questionId}-explanation`)
+        : [];
+
+    return {
+      ...data,
+      sourceText: formatWrongQuestionSource(source),
+      sourceClassName: getWrongQuestionSourceClassName(source),
+      questionTypeText: formatWrongQuestionType(data.questionType),
+      contentText: data.content.trim() || '题干内容暂缺',
+      explanationText:
+        typeof data.explanation === 'string'
+          ? data.explanation.trim() || '暂无解析'
+          : '暂无解析',
+      wrongCountText: formatWrongQuestionCount(data.wrongCount),
+      lastWrongAtText: formatLearningTimestamp(data.lastWrongAt),
+      correctAnswerText: this.formatCorrectAnswer(learningOptions, data.correctOptionId),
+      options: learningOptions,
+      hasCourseEntry: isNonEmptyString(data.courseId),
+      hasChapterEntry: isNonEmptyString(data.chapterId),
+      answerUnavailableText: '当前接口暂未提供该题的原始作答记录',
+      isBattleSource,
+      battleCompletedAtText: data.battle?.completedAt
+        ? formatLearningTimestamp(data.battle.completedAt)
+        : formatLearningTimestamp(data.lastWrongAt),
+      battleOpponentText:
+        data.battle?.opponent?.nickname?.trim() || '对手信息暂缺',
+      battleStemBlocks: this.mapBlocks(data.stem ?? [], `${data.questionId}-stem`),
+      battleOptions,
+      battleMyAnswerLabel,
+      battleMyAnswerText,
+      battleMyAnswerBlocks,
+      battleCorrectAnswerLabel,
+      battleCorrectAnswerText,
+      battleCorrectAnswerBlocks,
+      battleExplanationBlocks,
+      hasBattleExplanation: battleExplanationBlocks.length > 0,
+      battleKnowledgeHintText: '当前正式接口未返回知识点信息',
+    };
+  },
+
+  mapLearningOptions(data: WrongQuestionDetailResponse) {
+    return (data.options ?? [])
       .slice()
       .sort((left, right) => left.order - right.order)
       .map((option, index) => {
@@ -283,25 +534,40 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
           statusClassName: isCorrect ? 'option-tag-correct' : 'option-tag-normal',
         };
       });
-
-    return {
-      ...data,
-      sourceText: formatWrongQuestionSource('LEARNING'),
-      sourceClassName: getWrongQuestionSourceClassName('LEARNING'),
-      questionTypeText: formatWrongQuestionType(data.questionType),
-      contentText: data.content.trim() || '题干内容暂缺',
-      explanationText: data.explanation?.trim() || '暂无解析',
-      wrongCountText: formatWrongQuestionCount(data.wrongCount),
-      lastWrongAtText: formatLearningTimestamp(data.lastWrongAt),
-      correctAnswerText: this.formatCorrectAnswer(options, data.correctOptionId),
-      options,
-      hasCourseEntry: isNonEmptyString(data.courseId),
-      hasChapterEntry: isNonEmptyString(data.chapterId),
-      answerUnavailableText: '当前接口暂未提供该题的原始作答记录',
-    };
   },
 
-  formatCorrectAnswer(options: WrongQuestionOptionCard[], correctOptionId: string) {
+  mapBattleOptions(data: WrongQuestionDetailResponse) {
+    return (data.optionSnapshots ?? [])
+      .slice()
+      .sort((left, right) => left.orderIndex - right.orderIndex)
+      .map((option, index) => ({
+        optionId: option.id,
+        labelText: getWrongQuestionOptionLabel(index),
+        blocks: this.mapBlocks(option.blocks, `${data.questionId}-option-${option.id}`),
+        isCorrect: data.correctOptionId === option.id,
+        isMyAnswer:
+          data.latestWrongAnswer?.type === 'SINGLE_CHOICE' &&
+          data.latestWrongAnswer.optionId === option.id,
+      }));
+  },
+
+  mapBlocks(blocks: BattleContentBlock[], keyPrefix: string) {
+    return blocks.map((block, index) => ({
+      ...block,
+      blockKey: `${keyPrefix}-${index}`,
+      imageFailed: false,
+      altText: block.type === 'IMAGE' ? block.alt?.trim() || '图片加载失败' : '',
+    }));
+  },
+
+  formatCorrectAnswer(
+    options: WrongQuestionOptionCard[],
+    correctOptionId: string | null,
+  ) {
+    if (!correctOptionId) {
+      return '当前接口暂未提供可展示的正确答案';
+    }
+
     const option = options.find((item) => item.optionId === correctOptionId);
 
     if (!option) {
@@ -309,6 +575,36 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
     }
 
     return `${option.labelText}. ${option.contentText}`;
+  },
+
+  getBattleOptionBlocks(
+    options: BattleQuestionOptionSnapshotResponse[] | null | undefined,
+    optionId: string,
+  ) {
+    return options?.find((option) => option.id === optionId)?.blocks ?? [];
+  },
+
+  getBattleOptionLabel(
+    options: BattleQuestionOptionSnapshotResponse[] | null | undefined,
+    optionId: string,
+  ) {
+    const list =
+      options
+        ?.slice()
+        .sort((left, right) => left.orderIndex - right.orderIndex) ?? [];
+    const index = list.findIndex((option) => option.id === optionId);
+
+    return index >= 0 ? getWrongQuestionOptionLabel(index) : '';
+  },
+
+  updateDetail(updater: (detail: WrongQuestionDetailCard) => WrongQuestionDetailCard) {
+    if (!this.data.detail) {
+      return;
+    }
+
+    this.setData({
+      detail: updater(this.data.detail),
+    });
   },
 
   getReadableError(error: unknown) {

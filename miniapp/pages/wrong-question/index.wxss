@@ -8,6 +8,7 @@
 
 .hero-card,
 .statistics-card,
+.filter-card,
 .wrong-question-card,
 .loading-more,
 .footer-error {
@@ -108,6 +109,27 @@
   gap: 18rpx;
 }
 
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.filter-chip {
+  padding: 12rpx 20rpx;
+  border-radius: 999rpx;
+  background: #f0f4f9;
+  color: #6e84a3;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.filter-chip-active {
+  background: #edf3ff;
+  color: #2f6bff;
+}
+
 .wrong-question-card {
   display: flex;
   flex-direction: column;
@@ -126,6 +148,11 @@
 .source-learning {
   background: #ebf3ff;
   color: #2f6bff;
+}
+
+.source-battle {
+  background: #fff1f1;
+  color: #c24343;
 }
 
 .question-type {

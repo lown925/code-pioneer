@@ -1,24 +1,48 @@
+import type {
+  BattleContentBlock,
+  BattleQuestionOptionSnapshotResponse,
+  BattleSubmittedAnswerResponse,
+} from './battle';
+
 export type WrongQuestionSource = 'LEARNING' | 'BATTLE';
 
-export type WrongQuestionType = 'SINGLE_CHOICE' | 'TRUE_FALSE';
+export type WrongQuestionType = 'SINGLE_CHOICE' | 'TRUE_FALSE' | 'CODE_FILL';
 
 export type WrongQuestionListQuery = {
+  source?: WrongQuestionSource;
   courseId?: string;
   chapterId?: string;
   page?: number;
   pageSize?: number;
 };
 
+export type WrongQuestionBattleReference = {
+  battleId: string;
+  completedAt: string | null;
+  opponent: {
+    userId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+  } | null;
+} | null;
+
 export type WrongQuestionListItem = {
+  source: WrongQuestionSource;
   questionId: string;
-  questionType: WrongQuestionType;
+  battleQuestionSnapshotId: string | null;
+  questionType: WrongQuestionType | string;
   questionContent: string;
-  courseId: string;
-  courseTitle: string;
-  chapterId: string;
-  chapterTitle: string;
+  courseId: string | null;
+  courseTitle: string | null;
+  chapterId: string | null;
+  chapterTitle: string | null;
   wrongCount: number;
   lastWrongAt: string;
+  latestWrongAt: string;
+  presentation: string | null;
+  difficulty: string | null;
+  programmingLanguage: string | null;
+  battle: WrongQuestionBattleReference;
 };
 
 export type WrongQuestionPagination = {
@@ -48,19 +72,41 @@ export type WrongQuestionOption = {
   order: number;
 };
 
+export type WrongQuestionCorrectAnswer =
+  | {
+      type: 'SINGLE_CHOICE';
+      optionId: string;
+    }
+  | {
+      type: 'CODE_FILL';
+    };
+
 export type WrongQuestionDetail = {
+  source: WrongQuestionSource;
   questionId: string;
-  questionType: WrongQuestionType;
+  battleQuestionSnapshotId: string | null;
+  questionType: WrongQuestionType | string;
   content: string;
-  courseId: string;
-  courseTitle: string;
-  chapterId: string;
-  chapterTitle: string;
-  options: WrongQuestionOption[];
-  correctOptionId: string;
-  explanation: string | null;
+  questionContent: string;
+  courseId: string | null;
+  courseTitle: string | null;
+  chapterId: string | null;
+  chapterTitle: string | null;
+  options: WrongQuestionOption[] | null;
+  correctOptionId: string | null;
+  correctAnswer: WrongQuestionCorrectAnswer | null;
+  explanation: string | BattleContentBlock[] | null;
   wrongCount: number;
   lastWrongAt: string;
+  latestWrongAt: string;
+  presentation: string | null;
+  difficulty: string | null;
+  programmingLanguage: string | null;
+  stem: BattleContentBlock[] | null;
+  optionSnapshots: BattleQuestionOptionSnapshotResponse[] | null;
+  latestWrongAnswer: BattleSubmittedAnswerResponse | null;
+  sourceQuizQuestionId: string | null;
+  battle: WrongQuestionBattleReference;
 };
 
 export type WrongQuestionDetailResponse = WrongQuestionDetail;

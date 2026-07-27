@@ -116,6 +116,29 @@
   background: #effaf4;
 }
 
+.battle-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 18rpx;
+}
+
+.battle-option-card {
+  padding: 22rpx;
+  border-radius: 20rpx;
+  background: #f6f9fd;
+  border: 2rpx solid transparent;
+}
+
+.battle-option-card-correct {
+  border-color: rgba(21, 148, 85, 0.22);
+  background: #effaf4;
+}
+
+.battle-option-card-my {
+  border-color: rgba(47, 107, 255, 0.22);
+}
+
 .option-head {
   display: flex;
   align-items: center;
@@ -150,6 +173,17 @@
   color: #6e84a3;
 }
 
+.option-tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10rpx;
+}
+
+.option-tag-battle {
+  color: #2f6bff;
+}
+
 .option-content {
   display: block;
   margin-top: 12rpx;
@@ -163,6 +197,50 @@
   flex-wrap: wrap;
   gap: 14rpx;
   margin-top: 18rpx;
+}
+
+.content-block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 18rpx;
+}
+
+.content-code {
+  display: block;
+  padding: 18rpx;
+  border-radius: 18rpx;
+  background: #0f1f33;
+  color: #f4f8fc;
+  font-size: 24rpx;
+  line-height: 1.8;
+  font-family: "Courier New", Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.content-image-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.content-image {
+  width: 100%;
+  border-radius: 18rpx;
+  background: #f6f9fd;
+}
+
+.image-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180rpx;
+  padding: 18rpx;
+  border-radius: 18rpx;
+  background: #f6f9fd;
+  color: #6e84a3;
+  font-size: 24rpx;
+  text-align: center;
 }
 
 .compact-state {

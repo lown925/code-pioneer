@@ -2,6 +2,7 @@ import type {
   WrongQuestionListItem,
   WrongQuestionListQuery,
   WrongQuestionListResponse,
+  WrongQuestionSource,
   WrongQuestionStatisticsResponse,
 } from '../../types/wrong-question';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
@@ -11,11 +12,19 @@ import {
   formatWrongQuestionSource,
   formatWrongQuestionType,
   getWrongQuestionSourceClassName,
+  normalizeWrongQuestionSource,
 } from '../../utils/wrong-question';
 import { request, RequestError } from '../../utils/request';
 
 type PageState = 'loading' | 'success' | 'empty' | 'error' | 'unauthorized';
 type StatisticsState = 'loading' | 'success' | 'error';
+
+type SourceFilterValue = '' | WrongQuestionSource;
+
+type SourceFilterOption = {
+  value: SourceFilterValue;
+  label: string;
+};
 
 type WrongQuestionStatisticsCard = {
   totalWrongQuestionsText: string;
@@ -25,6 +34,7 @@ type WrongQuestionStatisticsCard = {
 };
 
 type WrongQuestionListCard = WrongQuestionListItem & {
+  listKey: string;
   sourceText: string;
   sourceClassName: string;
   questionTypeText: string;
@@ -33,6 +43,9 @@ type WrongQuestionListCard = WrongQuestionListItem & {
   lastWrongAtText: string;
   courseTagText: string;
   chapterTagText: string;
+  recentTimeLabel: string;
+  recentTimeText: string;
+  battleMetaText: string;
 };
 
 type WrongQuestionPageData = {
@@ -53,6 +66,9 @@ type WrongQuestionPageData = {
   hasMore: boolean;
   isLoadingMore: boolean;
   isRefreshing: boolean;
+  selectedSource: SourceFilterValue;
+  sourceFilters: SourceFilterOption[];
+  listSubtitleText: string;
 };
 
 type WrongQuestionPageMethods = {
@@ -67,8 +83,21 @@ type WrongQuestionPageMethods = {
   handleStatisticsRetry(): void;
   handleLoadMoreRetry(): void;
   handleBack(): void;
-  handleOpenDetail(event: WechatMiniprogram.BaseEvent<{ questionId?: string }>): void;
+  handleOpenDetail(
+    event: WechatMiniprogram.BaseEvent<{
+      questionId?: string;
+      source?: string;
+    }>,
+  ): void;
+  handleSourceFilterTap(
+    event: WechatMiniprogram.BaseEvent<{ source?: string }>,
+  ): void;
   buildQuery(page: number): WrongQuestionListQuery;
+  resolveEmptyState(source: SourceFilterValue): {
+    title: string;
+    message: string;
+    subtitle: string;
+  };
   mapStatistics(data: WrongQuestionStatisticsResponse): WrongQuestionStatisticsCard;
   mapListItem(item: WrongQuestionListItem): WrongQuestionListCard;
   getReadableError(error: unknown): {
@@ -79,8 +108,11 @@ type WrongQuestionPageMethods = {
 };
 
 const PAGE_SIZE = 10;
-const EMPTY_TITLE = '还没有错题记录';
-const EMPTY_MESSAGE = '完成课程测验后，答错的题目会出现在这里。';
+const SOURCE_FILTERS: SourceFilterOption[] = [
+  { value: '', label: '全部' },
+  { value: 'LEARNING', label: '学习' },
+  { value: 'BATTLE', label: 'Battle' },
+];
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
@@ -100,8 +132,8 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
     errorMessage: '',
     statisticsErrorMessage: '',
     loadMoreErrorMessage: '',
-    emptyTitle: EMPTY_TITLE,
-    emptyMessage: EMPTY_MESSAGE,
+    emptyTitle: '还没有错题记录',
+    emptyMessage: '完成课程测验后，答错的题目会出现在这里。',
     statistics: null,
     items: [],
     page: 1,
@@ -111,10 +143,23 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
     hasMore: false,
     isLoadingMore: false,
     isRefreshing: false,
+    selectedSource: '',
+    sourceFilters: SOURCE_FILTERS,
+    listSubtitleText: '当前列表支持按学习和 Battle 两种正式来源筛选，统计卡片仍展示全来源聚合结果。',
   },
 
-  onLoad() {
+  onLoad(query) {
     isPageActive = true;
+    const selectedSource = normalizeWrongQuestionSource(query?.source);
+    const emptyState = this.resolveEmptyState(selectedSource);
+
+    this.setData({
+      selectedSource,
+      emptyTitle: emptyState.title,
+      emptyMessage: emptyState.message,
+      listSubtitleText: emptyState.subtitle,
+    });
+
     void this.loadInitialData();
   },
 
@@ -150,7 +195,9 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
   },
 
   buildRedirectPath() {
-    return '/pages/wrong-question/index';
+    return this.data.selectedSource
+      ? `/pages/wrong-question/index?source=${this.data.selectedSource}`
+      : '/pages/wrong-question/index';
   },
 
   async loadInitialData() {
@@ -158,7 +205,10 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
       return;
     }
 
-    await Promise.allSettled([this.loadStatistics(), this.loadList({ page: 1, replace: true })]);
+    await Promise.allSettled([
+      this.loadStatistics(),
+      this.loadList({ page: 1, replace: true }),
+    ]);
   },
 
   async loadStatistics() {
@@ -220,11 +270,16 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
     listRequestCount += 1;
 
     if (replace) {
+      const emptyState = this.resolveEmptyState(this.data.selectedSource);
+
       this.setData({
         state: 'loading',
         errorTitle: '',
         errorMessage: '',
         loadMoreErrorMessage: '',
+        emptyTitle: emptyState.title,
+        emptyMessage: emptyState.message,
+        listSubtitleText: emptyState.subtitle,
         items: [],
         page: 1,
         total: 0,
@@ -259,8 +314,6 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
         state: items.length > 0 ? 'success' : 'empty',
         errorTitle: '',
         errorMessage: '',
-        emptyTitle: EMPTY_TITLE,
-        emptyMessage: EMPTY_MESSAGE,
         items,
         page: response.pagination.page,
         pageSize: response.pagination.pageSize,
@@ -312,7 +365,10 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
       isRefreshing: true,
     });
 
-    await Promise.allSettled([this.loadStatistics(), this.loadList({ page: 1, replace: true })]);
+    await Promise.allSettled([
+      this.loadStatistics(),
+      this.loadList({ page: 1, replace: true }),
+    ]);
 
     if (isPageActive) {
       this.setData({
@@ -359,8 +415,14 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
     });
   },
 
-  handleOpenDetail(event: WechatMiniprogram.BaseEvent<{ questionId?: string }>) {
+  handleOpenDetail(
+    event: WechatMiniprogram.BaseEvent<{
+      questionId?: string;
+      source?: string;
+    }>,
+  ) {
     const questionId = event.currentTarget.dataset.questionId;
+    const source = normalizeWrongQuestionSource(event.currentTarget.dataset.source);
 
     if (!isNonEmptyString(questionId)) {
       wx.showToast({
@@ -370,8 +432,36 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
       return;
     }
 
+    const sourceQuery = source ? `&source=${source}` : '';
+
     wx.navigateTo({
-      url: `/pages/wrong-question/detail?questionId=${encodeURIComponent(questionId)}`,
+      url: `/pages/wrong-question/detail?questionId=${encodeURIComponent(questionId)}${sourceQuery}`,
+    });
+  },
+
+  handleSourceFilterTap(
+    event: WechatMiniprogram.BaseEvent<{ source?: string }>,
+  ) {
+    const selectedSource = normalizeWrongQuestionSource(
+      event.currentTarget.dataset.source,
+    );
+
+    if (selectedSource === this.data.selectedSource) {
+      return;
+    }
+
+    const emptyState = this.resolveEmptyState(selectedSource);
+
+    this.setData({
+      selectedSource,
+      emptyTitle: emptyState.title,
+      emptyMessage: emptyState.message,
+      listSubtitleText: emptyState.subtitle,
+    });
+
+    void this.loadList({
+      page: 1,
+      replace: true,
     });
   },
 
@@ -381,7 +471,35 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
       pageSize: PAGE_SIZE,
     };
 
+    if (this.data.selectedSource) {
+      query.source = this.data.selectedSource;
+    }
+
     return query;
+  },
+
+  resolveEmptyState(source: SourceFilterValue) {
+    if (source === 'BATTLE') {
+      return {
+        title: '还没有 Battle 错题记录',
+        message: '完成 Battle 对战后，已提交且答错的题目会出现在这里。',
+        subtitle: '当前列表已切换为 Battle 来源，统计卡片仍展示全来源聚合结果。',
+      };
+    }
+
+    if (source === 'LEARNING') {
+      return {
+        title: '还没有学习错题记录',
+        message: '完成课程测验后，答错的题目会出现在这里。',
+        subtitle: '当前列表已切换为学习来源，统计卡片仍展示全来源聚合结果。',
+      };
+    }
+
+    return {
+      title: '还没有错题记录',
+      message: '完成课程测验或 Battle 对战后，答错的题目会出现在这里。',
+      subtitle: '当前列表支持按学习和 Battle 两种正式来源筛选，统计卡片仍展示全来源聚合结果。',
+    };
   },
 
   mapStatistics(data: WrongQuestionStatisticsResponse) {
@@ -396,16 +514,34 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
   },
 
   mapListItem(item: WrongQuestionListItem) {
+    const source = normalizeWrongQuestionSource(item.source) || 'LEARNING';
+    const recentBattleAt = item.battle?.completedAt
+      ? formatLearningTimestamp(item.battle.completedAt)
+      : '';
+    const opponentName = item.battle?.opponent?.nickname?.trim() || '';
+
     return {
       ...item,
-      sourceText: formatWrongQuestionSource('LEARNING'),
-      sourceClassName: getWrongQuestionSourceClassName('LEARNING'),
+      listKey: `${source}:${item.questionId}:${item.battleQuestionSnapshotId ?? ''}`,
+      sourceText: formatWrongQuestionSource(source),
+      sourceClassName: getWrongQuestionSourceClassName(source),
       questionTypeText: formatWrongQuestionType(item.questionType),
       questionContentText: item.questionContent.trim() || '题干内容暂缺',
       wrongCountText: formatWrongQuestionCount(item.wrongCount),
       lastWrongAtText: formatLearningTimestamp(item.lastWrongAt),
-      courseTagText: item.courseTitle.trim() || '课程名称暂缺',
-      chapterTagText: item.chapterTitle.trim() || '章节名称暂缺',
+      courseTagText: item.courseTitle?.trim() || '课程标题暂缺',
+      chapterTagText: item.chapterTitle?.trim() || '章节标题暂缺',
+      recentTimeLabel: source === 'BATTLE' ? '最近对战' : '最近错误',
+      recentTimeText:
+        source === 'BATTLE'
+          ? recentBattleAt || formatLearningTimestamp(item.lastWrongAt)
+          : formatLearningTimestamp(item.lastWrongAt),
+      battleMetaText:
+        source === 'BATTLE'
+          ? opponentName
+            ? `对手：${opponentName}`
+            : '对手信息暂缺'
+          : '',
     };
   },
 
@@ -413,8 +549,8 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
     if (error instanceof RequestError) {
       if (error.statusCode === 404 || error.code === 'WRONG_QUESTION_NOT_FOUND') {
         return {
-          title: EMPTY_TITLE,
-          message: EMPTY_MESSAGE,
+          title: this.data.emptyTitle,
+          message: this.data.emptyMessage,
           state: 'empty' as const,
         };
       }

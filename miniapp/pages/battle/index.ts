@@ -28,7 +28,7 @@ type BattleProfileCard = {
 };
 
 type BattleEntryCard = {
-  key: 'random' | 'friend' | 'leaderboard' | 'history';
+  key: 'random' | 'friend' | 'leaderboard' | 'history' | 'wrongQuestion';
   title: string;
   description: string;
   actionText: string;
@@ -94,6 +94,15 @@ const ENTRY_CARDS: BattleEntryCard[] = [
     title: '战绩',
     description: '查看历史对战记录、胜负结果和局数统计。',
     actionText: '查看战绩',
+    badgeText: '已开放',
+    badgeClassName: 'entry-badge-live',
+    disabled: false,
+  },
+  {
+    key: 'wrongQuestion',
+    title: 'Battle 错题',
+    description: '进入统一错题中心，并默认查看 Battle 来源的错题记录。',
+    actionText: '查看 Battle 错题',
     badgeText: '已开放',
     badgeClassName: 'entry-badge-live',
     disabled: false,
@@ -272,6 +281,13 @@ Page<BattlePageData, BattlePageMethods>({
     if (entryKey === 'history') {
       wx.navigateTo({
         url: '/pages/battle/history',
+      });
+      return;
+    }
+
+    if (entryKey === 'wrongQuestion') {
+      wx.navigateTo({
+        url: '/pages/wrong-question/index?source=BATTLE',
       });
       return;
     }

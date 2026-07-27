@@ -3,6 +3,7 @@ import type { WrongQuestionSource, WrongQuestionType } from '../types/wrong-ques
 const QUESTION_TYPE_LABELS: Record<WrongQuestionType, string> = {
   SINGLE_CHOICE: '单选题',
   TRUE_FALSE: '判断题',
+  CODE_FILL: '代码填空题',
 };
 
 const SOURCE_LABELS: Record<WrongQuestionSource, string> = {
@@ -24,11 +25,23 @@ function normalizeIndex(value: number) {
 }
 
 export function formatWrongQuestionType(value: string | null | undefined) {
-  if (value === 'SINGLE_CHOICE' || value === 'TRUE_FALSE') {
+  if (
+    value === 'SINGLE_CHOICE' ||
+    value === 'TRUE_FALSE' ||
+    value === 'CODE_FILL'
+  ) {
     return QUESTION_TYPE_LABELS[value];
   }
 
   return '未知题型';
+}
+
+export function isWrongQuestionSource(value: unknown): value is WrongQuestionSource {
+  return value === 'LEARNING' || value === 'BATTLE';
+}
+
+export function normalizeWrongQuestionSource(value: unknown) {
+  return isWrongQuestionSource(value) ? value : '';
 }
 
 export function formatWrongQuestionSource(value?: string | null) {
