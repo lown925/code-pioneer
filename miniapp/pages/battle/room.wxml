@@ -1,8 +1,41 @@
 <view class="page-shell room-page">
+  <view
+    class="custom-nav"
+    style="padding-top: {{navTopPadding}}px; height: {{navTopPadding + navBarHeight}}px;"
+  >
+    <view class="custom-nav-bar" style="height: {{navBarHeight}}px;">
+      <view class="custom-nav-back" bindtap="handleNavBack">
+        <text class="custom-nav-back-icon">&lt;</text>
+        <text class="custom-nav-back-text">返回</text>
+      </view>
+      <text class="custom-nav-title">对战房间</text>
+    </view>
+  </view>
+
   <view class="section-card hero-card">
-    <text class="hero-eyebrow">Battle 房间</text>
     <text class="hero-title">{{titleText}}</text>
     <text class="hero-copy">{{descriptionText}}</text>
+  </view>
+
+  <view wx:if="{{showInviteCode}}" class="section-card invite-card">
+    <text class="invite-label">好友邀请码</text>
+    <text class="invite-code">{{inviteCode}}</text>
+    <text class="invite-copy">
+      {{showInviteTools ? '复制邀请码或直接邀请好友，好友加入后即可准备开始。' : '当前好友房的邀请码以服务端状态为准。'}}
+    </text>
+
+    <view wx:if="{{showInviteTools}}" class="invite-actions">
+      <view class="ghost-button compact-button" bindtap="handleCopyInviteCode">
+        复制邀请码
+      </view>
+      <button class="share-button compact-button" open-type="share">
+        邀请好友
+      </button>
+    </view>
+  </view>
+
+  <view wx:if="{{friendStatusNotice}}" class="section-card notice-card">
+    <text class="notice-text">{{friendStatusNotice}}</text>
   </view>
 
   <view wx:if="{{state === 'LOADING'}}" class="section-card state-box">
@@ -10,15 +43,11 @@
     <text class="state-text">系统正在获取双方玩家、准备状态和倒计时信息。</text>
   </view>
 
-  <view
-    wx:elif="{{state === 'ERROR'}}"
-    class="section-card state-box"
-  >
+  <view wx:elif="{{state === 'ERROR'}}" class="section-card state-box">
     <text class="state-title">房间状态加载失败</text>
-    <text class="state-text">{{errorMessage}}</text>
+    <text class="state-text">{{errorMessage || '请稍后重试。'}}</text>
     <view class="state-actions">
       <view class="primary-button action-button" bindtap="handleRetry">重新查询</view>
-      <view class="ghost-button action-button" bindtap="handleBackHome">返回首页</view>
     </view>
   </view>
 
@@ -45,7 +74,9 @@
     <view wx:if="{{state === 'COUNTDOWN'}}" class="section-card countdown-card">
       <text class="countdown-title">即将开始答题</text>
       <text class="countdown-value">{{countdownText || '3'}}</text>
-      <text class="countdown-copy">倒计时基于服务端 `startedAt` 与 `serverTime` 计算，并在轮询时持续校准。</text>
+      <text class="countdown-copy">
+        倒计时完全以服务端 startedAt 和 serverTime 为准，页面会持续校准。
+      </text>
     </view>
 
     <view class="participant-list">
@@ -97,8 +128,10 @@
       </view>
 
       <view wx:else class="section-card participant-card participant-card-empty">
-        <text class="state-title">等待对手进入房间</text>
-        <text class="state-text">当前房间还未凑齐两名参与者，达到 2 人后才能进入准备流程。</text>
+        <text class="state-title">等待好友加入</text>
+        <text class="state-text">
+          当前房间还未凑齐两名参与者。好友加入后，双方才能进入准备流程。
+        </text>
       </view>
     </view>
 
@@ -107,41 +140,11 @@
     </view>
 
     <view class="section-card action-card">
-      <view class="action-row">
-        <view
-          wx:if="{{canReady}}"
-          class="primary-button action-button"
-          bindtap="handleReady"
-        >
-          {{readyButtonText}}
-        </view>
-
-        <view
-          wx:elif="{{state === 'READY'}}"
-          class="ghost-button action-button"
-        >
-          {{readyButtonText}}
-        </view>
-
-        <view
-          wx:elif="{{state === 'COUNTDOWN' || state === 'IN_PROGRESS'}}"
-          class="primary-button action-button"
-          bindtap="handleEnterPlay"
-        >
-          进入答题页占位入口
-        </view>
-
-        <view
-          wx:elif="{{state === 'COMPLETED' || state === 'CANCELLED' || state === 'EXPIRED'}}"
-          class="ghost-button action-button"
-          bindtap="handleRetry"
-        >
-          重新查询状态
-        </view>
-
-        <view class="ghost-button action-button" bindtap="handleBackHome">
-          返回对战首页
-        </view>
+      <view
+        class="primary-button action-button {{!primaryActionEnabled ? 'action-button-disabled' : ''}}"
+        bindtap="handlePrimaryAction"
+      >
+        {{primaryActionText}}
       </view>
     </view>
   </block>

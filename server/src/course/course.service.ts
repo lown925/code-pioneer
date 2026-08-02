@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { LearningStatus } from '../../generated/prisma/enums';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -538,41 +539,48 @@ export class CourseService {
       return new Map<string, number>();
     }
 
-    const records = await this.prisma.courseLearningRecord.findMany({
-      where: {
-        userId,
-        courseId: {
-          in: courseIds,
-        },
-      },
-      select: {
-        courseId: true,
-        progressPercent: true,
-      },
-    });
+    const snapshots = await Promise.all(
+      courseIds.map(async (courseId) => {
+        const [totalChapterCount, completedChapterCount] = await Promise.all([
+          this.prisma.courseChapter.count({
+            where: {
+              courseId,
+              status: PUBLISHED_CHAPTER_STATUS,
+              deletedAt: null,
+            },
+          }),
+          this.prisma.chapterLearningRecord.count({
+            where: {
+              userId,
+              courseId,
+              status: LearningStatus.COMPLETED,
+              chapter: {
+                status: PUBLISHED_CHAPTER_STATUS,
+                deletedAt: null,
+              },
+            },
+          }),
+        ]);
 
-    return new Map(
-      records.map((record) => [
-        record.courseId,
-        this.decimalToNumber(record.progressPercent),
-      ]),
+        return [
+          courseId,
+          this.calculateProgressPercent(
+            completedChapterCount,
+            totalChapterCount,
+          ),
+        ] as const;
+      }),
     );
+
+    return new Map(snapshots);
   }
 
   private async getCourseProgressPercent(userId: string, courseId: string) {
-    const record = await this.prisma.courseLearningRecord.findUnique({
-      where: {
-        userId_courseId: {
-          userId,
-          courseId,
-        },
-      },
-      select: {
-        progressPercent: true,
-      },
-    });
+    const progressByCourseId = await this.getProgressByCourseIds(userId, [
+      courseId,
+    ]);
 
-    return record ? this.decimalToNumber(record.progressPercent) : 0;
+    return progressByCourseId.get(courseId) ?? 0;
   }
 
   private async getChapterLearningStatus(userId: string, chapterId: string) {
@@ -593,6 +601,17 @@ export class CourseService {
 
   private decimalToNumber(value: { toNumber(): number } | number) {
     return typeof value === 'number' ? value : value.toNumber();
+  }
+
+  private calculateProgressPercent(
+    completedChapterCount: number,
+    totalChapterCount: number,
+  ) {
+    if (totalChapterCount <= 0) {
+      return 0;
+    }
+
+    return Math.floor((completedChapterCount / totalChapterCount) * 100);
   }
 
   private get courseModel(): CourseDelegate {

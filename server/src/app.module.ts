@@ -3,6 +3,7 @@ import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BattleModule } from './battle/battle.module';
+import { CommunityModule } from './community/community.module';
 import { CourseModule } from './course/course.module';
 import { LearningModule } from './learning/learning.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -15,6 +16,7 @@ import { WrongQuestionModule } from './wrong-question/wrong-question.module';
     PrismaModule,
     UserModule,
     BattleModule,
+    CommunityModule,
     CourseModule,
     LearningModule,
     QuizModule,

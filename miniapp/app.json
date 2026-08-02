@@ -1,15 +1,24 @@
 {
   "pages": [
-    "pages/home/index",
+    "pages/battle/index",
+    "pages/learning/index",
+    "pages/community/index",
+    "pages/community/create",
+    "pages/community/detail",
+    "pages/profile/index",
+    "pages/profile/user-profile",
+    "pages/profile/follow-list",
+    "pages/profile/community-posts",
+    "pages/profile/community-favorites",
+    "pages/profile/community-history",
     "pages/course/list",
     "pages/course/detail",
     "pages/chapter/detail",
+    "pages/chapter/quiz",
     "pages/auth/login",
-    "pages/learning/index",
     "pages/learning/course-progress",
     "pages/wrong-question/index",
     "pages/wrong-question/detail",
-    "pages/battle/index",
     "pages/battle/leaderboard",
     "pages/battle/matchmaking",
     "pages/battle/friend-room",
@@ -18,8 +27,7 @@
     "pages/battle/history",
     "pages/battle/history-detail",
     "pages/battle/result",
-    "pages/community/index",
-    "pages/profile/index"
+    "pages/home/index"
   ],
   "window": {
     "navigationBarTitleText": "码站先锋",
@@ -35,14 +43,14 @@
     "borderStyle": "black",
     "list": [
       {
-        "pagePath": "pages/home/index",
-        "text": "首页",
+        "pagePath": "pages/battle/index",
+        "text": "对战",
         "iconPath": "assets/tab-default.png",
         "selectedIconPath": "assets/tab-selected.png"
       },
       {
-        "pagePath": "pages/battle/index",
-        "text": "对战",
+        "pagePath": "pages/learning/index",
+        "text": "学习",
         "iconPath": "assets/tab-default.png",
         "selectedIconPath": "assets/tab-selected.png"
       },

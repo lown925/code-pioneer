@@ -49,6 +49,23 @@ enum UserStatus {
   DELETED
 }
 
+enum CommunityCategoryStatus {
+  ENABLED
+  DISABLED
+}
+
+enum CommunityPostStatus {
+  PUBLISHED
+  HIDDEN
+  DELETED
+}
+
+enum CommunityCommentStatus {
+  PUBLISHED
+  HIDDEN
+  DELETED
+}
+
 enum LearningStatus {
   NOT_STARTED
   LEARNING
@@ -158,40 +175,61 @@ model SystemHealth {
 }
 
 model User {
-  id                     String                  @id @default(uuid()) @db.Uuid
-  openId                 String                  @unique @map("open_id")
-  unionId                String?                 @unique @map("union_id")
+  id                     String                     @id @default(uuid()) @db.Uuid
+  openId                 String                     @unique @map("open_id")
+  unionId                String?                    @unique @map("union_id")
   nickname               String?
-  avatarUrl              String?                 @map("avatar_url")
-  status                 UserStatus              @default(NORMAL)
-  experience             Int                     @default(0)
-  battleRating           Int                     @default(1000) @map("battle_rating")
-  continuousLearningDays Int                     @default(0) @map("continuous_learning_days")
-  lastLearningDate       DateTime?               @map("last_learning_date")
-  lastLoginAt            DateTime?               @map("last_login_at")
-  disabledReason         String?                 @map("disabled_reason")
-  disabledAt             DateTime?               @map("disabled_at")
-  deletedAt              DateTime?               @map("deleted_at")
-  createdAt              DateTime                @default(now()) @map("created_at")
-  updatedAt              DateTime                @updatedAt @map("updated_at")
+  avatarUrl              String?                    @map("avatar_url")
+  status                 UserStatus                 @default(NORMAL)
+  experience             Int                        @default(0)
+  battleRating           Int                        @default(1000) @map("battle_rating")
+  continuousLearningDays Int                        @default(0) @map("continuous_learning_days")
+  lastLearningDate       DateTime?                  @map("last_learning_date")
+  lastLoginAt            DateTime?                  @map("last_login_at")
+  disabledReason         String?                    @map("disabled_reason")
+  disabledAt             DateTime?                  @map("disabled_at")
+  deletedAt              DateTime?                  @map("deleted_at")
+  createdAt              DateTime                   @default(now()) @map("created_at")
+  updatedAt              DateTime                   @updatedAt @map("updated_at")
   sessions               UserSession[]
   courseLearningRecords  CourseLearningRecord[]
   chapterLearningRecords ChapterLearningRecord[]
   quizAttempts           QuizAttempt[]
   battleProfile          BattleProfile?
-  createdBattleRooms     BattleRoom[]            @relation("BattleRoomCreatedBy")
-  wonBattleRooms         BattleRoom[]            @relation("BattleRoomWinner")
+  createdBattleRooms     BattleRoom[]               @relation("BattleRoomCreatedBy")
+  wonBattleRooms         BattleRoom[]               @relation("BattleRoomWinner")
   battleParticipants     BattleParticipant[]
   battleAnswers          BattleAnswer[]
-  sentBattleInvitations  BattleInvitation[]      @relation("BattleInvitationInviter")
-  receivedBattleInvites  BattleInvitation[]      @relation("BattleInvitationInvitee")
+  sentBattleInvitations  BattleInvitation[]         @relation("BattleInvitationInviter")
+  receivedBattleInvites  BattleInvitation[]         @relation("BattleInvitationInvitee")
   battleRatingLogs       BattleRatingLog[]
   battleMatchQueue       BattleMatchQueue?
+  communityPosts         CommunityPost[]
+  communityPostFavorites CommunityPostFavorite[]
+  communityPostHistories CommunityPostViewHistory[]
+  communityPostLikes     CommunityPostLike[]
+  communityComments      CommunityComment[]
+  followingRelations     UserFollow[]               @relation("UserFollowFollower")
+  followerRelations      UserFollow[]               @relation("UserFollowFollowed")
 
   @@index([status])
   @@index([createdAt])
   @@index([lastLoginAt])
   @@map("users")
+}
+
+model UserFollow {
+  id             String   @id @default(uuid()) @db.Uuid
+  followerUserId String   @map("follower_user_id") @db.Uuid
+  followedUserId String   @map("followed_user_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  followerUser   User     @relation("UserFollowFollower", fields: [followerUserId], references: [id])
+  followedUser   User     @relation("UserFollowFollowed", fields: [followedUserId], references: [id])
+
+  @@unique([followerUserId, followedUserId])
+  @@index([followerUserId, createdAt])
+  @@index([followedUserId, createdAt])
+  @@map("user_follows")
 }
 
 model UserSession {
@@ -553,6 +591,7 @@ model BattleAnswer {
   battleQuestionSnapshotId String                 @map("battle_question_snapshot_id") @db.Uuid
   userId                   String                 @map("user_id") @db.Uuid
   clientRequestId          String                 @map("client_request_id")
+  answerVersion            Int                    @default(1) @map("answer_version")
   answerPayload            Json                   @map("answer_payload")
   normalizedAnswer         String?                @map("normalized_answer")
   isCorrect                Boolean                @default(false) @map("is_correct")
@@ -579,6 +618,7 @@ model BattleInvitation {
   inviterUserId String                 @map("inviter_user_id") @db.Uuid
   inviteeUserId String?                @map("invitee_user_id") @db.Uuid
   token         String                 @unique
+  inviteCode    String?                @unique @map("invite_code")
   status        BattleInvitationStatus @default(ACTIVE)
   expiresAt     DateTime               @map("expires_at")
   acceptedAt    DateTime?              @map("accepted_at")
@@ -632,4 +672,126 @@ model BattleMatchQueue {
   @@index([status])
   @@index([expiresAt])
   @@map("battle_match_queues")
+}
+
+model CommunityCategory {
+  id          String                  @id @default(uuid()) @db.Uuid
+  key         String                  @unique
+  name        String
+  description String?
+  sortOrder   Int                     @default(0) @map("sort_order")
+  status      CommunityCategoryStatus @default(ENABLED)
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+  posts       CommunityPost[]
+
+  @@index([status, sortOrder])
+  @@map("community_categories")
+}
+
+model CommunityPost {
+  id            String                     @id @default(uuid()) @db.Uuid
+  authorId      String                     @map("author_id") @db.Uuid
+  categoryId    String                     @map("category_id") @db.Uuid
+  title         String
+  content       String
+  status        CommunityPostStatus        @default(PUBLISHED)
+  likeCount     Int                        @default(0) @map("like_count")
+  commentCount  Int                        @default(0) @map("comment_count")
+  favoriteCount Int                        @default(0) @map("favorite_count")
+  viewCount     Int                        @default(0) @map("view_count")
+  deletedAt     DateTime?                  @map("deleted_at")
+  createdAt     DateTime                   @default(now()) @map("created_at")
+  updatedAt     DateTime                   @updatedAt @map("updated_at")
+  author        User                       @relation(fields: [authorId], references: [id])
+  category      CommunityCategory          @relation(fields: [categoryId], references: [id])
+  images        CommunityPostImage[]
+  favorites     CommunityPostFavorite[]
+  histories     CommunityPostViewHistory[]
+  likes         CommunityPostLike[]
+  comments      CommunityComment[]
+
+  @@index([categoryId, status, createdAt])
+  @@index([authorId, createdAt])
+  @@index([status, createdAt])
+  @@index([deletedAt])
+  @@map("community_posts")
+}
+
+model CommunityPostImage {
+  id        String        @id @default(uuid()) @db.Uuid
+  postId    String        @map("post_id") @db.Uuid
+  objectKey String?       @map("object_key")
+  url       String
+  width     Int?
+  height    Int?
+  sortOrder Int           @map("sort_order")
+  createdAt DateTime      @default(now()) @map("created_at")
+  post      CommunityPost @relation(fields: [postId], references: [id])
+
+  @@index([postId, sortOrder])
+  @@map("community_post_images")
+}
+
+model CommunityPostFavorite {
+  id        String        @id @default(uuid()) @db.Uuid
+  postId    String        @map("post_id") @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  createdAt DateTime      @default(now()) @map("created_at")
+  post      CommunityPost @relation(fields: [postId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+  @@index([postId])
+  @@map("community_post_favorites")
+}
+
+model CommunityPostViewHistory {
+  id            String        @id @default(uuid()) @db.Uuid
+  postId        String        @map("post_id") @db.Uuid
+  userId        String        @map("user_id") @db.Uuid
+  firstViewedAt DateTime      @default(now()) @map("first_viewed_at")
+  lastViewedAt  DateTime      @default(now()) @map("last_viewed_at")
+  viewCount     Int           @default(1) @map("view_count")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  post          CommunityPost @relation(fields: [postId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+  @@index([userId, lastViewedAt])
+  @@index([postId])
+  @@map("community_post_view_histories")
+}
+
+model CommunityPostLike {
+  id        String        @id @default(uuid()) @db.Uuid
+  postId    String        @map("post_id") @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  createdAt DateTime      @default(now()) @map("created_at")
+  post      CommunityPost @relation(fields: [postId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+  @@index([postId])
+  @@map("community_post_likes")
+}
+
+model CommunityComment {
+  id        String                 @id @default(uuid()) @db.Uuid
+  postId    String                 @map("post_id") @db.Uuid
+  authorId  String                 @map("author_id") @db.Uuid
+  content   String
+  status    CommunityCommentStatus @default(PUBLISHED)
+  deletedAt DateTime?              @map("deleted_at")
+  createdAt DateTime               @default(now()) @map("created_at")
+  updatedAt DateTime               @updatedAt @map("updated_at")
+  post      CommunityPost          @relation(fields: [postId], references: [id])
+  author    User                   @relation(fields: [authorId], references: [id])
+
+  @@index([postId, createdAt])
+  @@index([authorId, createdAt])
+  @@map("community_comments")
 }

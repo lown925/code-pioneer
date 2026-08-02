@@ -252,7 +252,51 @@ describe('BattleMatchmakingService', () => {
     expect(mock.battleQueues.get(USER_A.id)?.status).toBe('CANCELLED');
   });
 
-  it('does not allow cancelling an already matched active room', async () => {
+  it('does not allow cancelling an already started matched room', async () => {
+    const { mock, service } = createService();
+
+    mock.battleRooms.set('room-1', {
+      id: 'room-1',
+      mode: BattleMode.RANKED,
+      status: BattleRoomStatus.IN_PROGRESS,
+      questionCount: 20,
+      durationSeconds: 180,
+      correctScore: 2,
+      wrongScore: -1,
+      unansweredScore: 0,
+      createdByUserId: USER_A.id,
+      expiresAt: new Date(Date.now() + 60000),
+      endReason: null,
+      createdAt: new Date(),
+      startedAt: new Date(Date.now() - 1000),
+    });
+    mock.battleParticipants.set('participant-a', {
+      id: 'participant-a',
+      battleRoomId: 'room-1',
+      userId: USER_A.id,
+      seat: 1,
+      status: BattleParticipantStatus.PLAYING,
+      result: 'NONE',
+      joinedAt: new Date(),
+    });
+    mock.battleQueues.set(USER_A.id, {
+      id: 'queue-1',
+      userId: USER_A.id,
+      status: 'MATCHED',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: 'room-1',
+      searchStartedAt: new Date(),
+      matchedAt: new Date(),
+      cancelledAt: null,
+      expiresAt: new Date(Date.now() + 120000),
+    });
+
+    await expect(service.cancelMatchmaking(USER_A)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('releases a matched waiting ranked room so the user can create a friend room immediately', async () => {
     const { mock, service } = createService();
 
     mock.battleRooms.set('room-1', {
@@ -270,6 +314,15 @@ describe('BattleMatchmakingService', () => {
       createdAt: new Date(),
       startedAt: null,
     });
+    mock.battleParticipants.set('participant-a', {
+      id: 'participant-a',
+      battleRoomId: 'room-1',
+      userId: USER_A.id,
+      seat: 1,
+      status: BattleParticipantStatus.JOINED,
+      result: 'NONE',
+      joinedAt: new Date(),
+    });
     mock.battleQueues.set(USER_A.id, {
       id: 'queue-1',
       userId: USER_A.id,
@@ -282,8 +335,13 @@ describe('BattleMatchmakingService', () => {
       expiresAt: new Date(Date.now() + 120000),
     });
 
-    await expect(service.cancelMatchmaking(USER_A)).rejects.toBeInstanceOf(
-      ConflictException,
+    const result = await service.cancelMatchmaking(USER_A);
+
+    expect(result.data.status).toBe('CANCELLED');
+    expect(mock.battleQueues.get(USER_A.id)?.status).toBe('CANCELLED');
+    expect(mock.battleQueues.get(USER_A.id)?.matchedBattleRoomId).toBeNull();
+    expect(mock.battleRooms.get('room-1')?.status).toBe(
+      BattleRoomStatus.CANCELLED,
     );
   });
 });

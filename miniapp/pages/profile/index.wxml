@@ -1,65 +1,125 @@
-<view class="page-shell">
-  <view class="section-card profile-hero">
-    <text class="profile-eyebrow">我的主页</text>
-    <text class="profile-title">{{displayName}}</text>
-    <text class="profile-copy">
-      {{isAuthenticated ? '当前阶段已接入最小认证展示、我的学习和统一错题中心入口。' : '请先登录，再进入学习中心和错题中心。'}}
+<view class="page-shell profile-page">
+  <view wx:if="{{!isAuthenticated}}" class="section-card guest-card">
+    <text class="guest-title">登录后查看个人主页</text>
+    <text class="guest-copy">
+      登录后可查看 Battle 战绩、统一错题、社区收藏与历史，以及你发布过的帖子。
     </text>
-    <view wx:if="{{showMockHint && !isAuthenticated}}" class="env-pill">
-      仅开发环境可见的测试登录入口
-    </view>
-  </view>
-
-  <view wx:if="{{!isAuthenticated}}" class="section-card state-box">
-    <text class="state-title">你还没有登录</text>
-    <text class="state-text">
-      登录后会保存最小认证状态，并自动为后续用户接口注入认证头。
-    </text>
-    <view class="primary-button profile-action" bindtap="handleLogin">去登录</view>
+    <view class="primary-button guest-action" bindtap="handleLogin">去登录</view>
+    <view wx:if="{{showMockHint}}" class="guest-hint">仅开发环境可见测试登录入口</view>
   </view>
 
   <block wx:else>
-    <view class="section-card summary-card">
-      <view class="summary-row">
-        <text class="summary-label">用户状态</text>
-        <text class="summary-value">{{statusText}}</text>
+    <view class="section-card profile-card">
+      <view class="profile-head">
+        <view class="profile-avatar">
+          <image
+            wx:if="{{user.avatarUrl}}"
+            class="profile-avatar-image"
+            src="{{user.avatarUrl}}"
+            mode="aspectFill"
+          />
+          <text wx:else class="profile-avatar-text">{{profileInitial}}</text>
+        </view>
+
+        <view class="profile-main">
+          <text class="profile-name">{{displayName}}</text>
+          <text class="profile-meta">Battle Rating {{battleSummary ? battleSummary.ratingText : user.battleRating}}</text>
+
+            <view class="profile-social-row">
+              <view class="profile-social-item" bindtap="handleFollowEntry">
+                <text class="profile-social-label">关注</text>
+                <text class="profile-social-value">{{followingCountText}}</text>
+              </view>
+              <view class="profile-social-divider"></view>
+              <view class="profile-social-item" bindtap="handleFansEntry">
+                <text class="profile-social-label">粉丝</text>
+                <text class="profile-social-value">{{followerCountText}}</text>
+              </view>
+            </view>
+        </view>
       </view>
-      <view class="summary-row">
-        <text class="summary-label">经验值</text>
-        <text class="summary-value">{{user.experience}}</text>
+
+      <view wx:if="{{overviewErrorMessage && !isOverviewLoading}}" class="overview-error-bar">
+        <text class="overview-error-text">{{overviewErrorMessage}}</text>
+        <view class="ghost-button overview-error-action" bindtap="handleOverviewRetry">重试</view>
       </view>
-      <view class="summary-row">
-        <text class="summary-label">对战分</text>
-        <text class="summary-value">{{user.battleRating}}</text>
+
+      <view class="metric-grid">
+        <view
+          wx:for="{{metrics}}"
+          wx:key="key"
+          class="metric-card"
+          data-metric-key="{{item.key}}"
+          bindtap="handleMetricTap"
+        >
+          <text class="metric-value">{{item.valueText}}</text>
+          <text class="metric-title">{{item.title}}</text>
+          <text class="metric-helper">{{item.helperText}}</text>
+        </view>
       </view>
-      <view class="summary-row">
-        <text class="summary-label">连续学习天数</text>
-        <text class="summary-value">{{user.continuousLearningDays}} 天</text>
+
+      <view class="profile-footer">
+        <view class="profile-footer-chip" bindtap="handleLearningEntry">
+          <text class="profile-footer-chip-title">学习中心</text>
+        </view>
+        <text wx:if="{{battleSummary}}" class="profile-footer-text">{{battleSummary.recordText}}</text>
       </view>
     </view>
 
-    <view class="section-card entry-card">
-      <text class="section-title">个人入口</text>
-      <text class="section-subtitle">
-        我的学习和统一错题中心都已接入正式认证链路。
-      </text>
-      <view class="entry-list">
-        <view class="entry-item" bindtap="handleLearningEntry">
-          <text class="entry-title">我的学习</text>
-          <text class="entry-copy">查看课程学习记录、筛选进度并继续学习。</text>
+    <view class="section-card post-section">
+      <view class="section-head-inline">
+        <view>
+          <text class="section-title">我的帖子</text>
+          <text class="section-subtitle">展示你最近发布的社区帖子。</text>
         </view>
-        <view class="entry-item" bindtap="handleWrongQuestionEntry">
-          <text class="entry-title">我的错题</text>
-          <text class="entry-copy">查看错题统计、列表和单题详情。</text>
+        <view class="ghost-button section-link" bindtap="handleOpenAllPosts">查看全部</view>
+      </view>
+
+      <view wx:if="{{isPostsLoading}}" class="state-box compact-state">
+        <text class="state-text">正在加载帖子，请稍候。</text>
+      </view>
+
+      <view wx:elif="{{postsErrorMessage}}" class="state-box compact-state">
+        <text class="state-text">{{postsErrorMessage}}</text>
+        <view class="ghost-button state-button" bindtap="handlePostsRetry">重新加载</view>
+      </view>
+
+      <view wx:elif="{{postItems.length === 0}}" class="state-box compact-state">
+        <text class="state-text">你还没有发布帖子，去互助社区发第一条内容吧。</text>
+      </view>
+
+      <view wx:else class="post-list">
+        <view
+          wx:for="{{postItems}}"
+          wx:key="postId"
+          class="post-card"
+          data-post-id="{{item.postId}}"
+          bindtap="handleOpenPostDetail"
+        >
+          <view class="post-head">
+            <view class="post-author-badge">{{profileInitial}}</view>
+            <view class="post-author-meta">
+              <text class="post-author-name">{{displayName}}</text>
+              <text class="post-author-time">{{item.createdAtText}}</text>
+            </view>
+            <view class="post-category-tag">{{item.categoryText}}</view>
+          </view>
+
+          <text class="post-title">{{item.title}}</text>
+          <text class="post-preview">{{item.contentPreview}}</text>
+
+          <view class="post-metrics">
+            <text class="post-metric-item">收藏 {{item.favoriteCountText}}</text>
+            <text class="post-metric-item">评论 {{item.commentCountText}}</text>
+            <text class="post-metric-item">浏览 {{item.viewCountText}}</text>
+          </view>
         </view>
       </view>
     </view>
 
     <view class="section-card action-card">
-      <text class="section-title">会话管理</text>
-      <text class="section-subtitle">
-        退出登录会调用正式接口撤销当前会话，并清理本地认证状态。
-      </text>
+      <text class="section-title">账号操作</text>
+      <text class="section-subtitle">退出登录会清理当前本地登录态，并返回游客视图。</text>
       <button
         class="logout-button"
         loading="{{isLoggingOut}}"

@@ -26,6 +26,7 @@ import { BattleSubmitService } from './battle-submit.service';
 import { BattleIdParamDto } from './dto/battle-id-param.dto';
 import { BattleHistoryQueryDto } from './dto/battle-history-query.dto';
 import { BattleLeaderboardQueryDto } from './dto/battle-leaderboard-query.dto';
+import { InviteCodeParamDto } from './dto/invite-code-param.dto';
 import { InvitationTokenParamDto } from './dto/invitation-token-param.dto';
 import { SubmitBattleAnswerDto } from './dto/submit-battle-answer.dto';
 
@@ -114,12 +115,46 @@ export class BattleController {
     );
   }
 
+  @Get('friend-rooms/code/:inviteCode')
+  previewFriendRoomByInviteCode(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Param() params: InviteCodeParamDto,
+  ) {
+    return this.battleFriendRoomService.previewFriendRoomByInviteCode(
+      currentUser,
+      params.inviteCode,
+    );
+  }
+
   @Post('friend-rooms/:invitationToken/join')
   joinFriendRoom(
     @CurrentUser() currentUser: CurrentUserContext,
     @Param() params: InvitationTokenParamDto,
   ) {
     return this.battleFriendRoomService.joinFriendRoom(
+      currentUser,
+      params.invitationToken,
+    );
+  }
+
+  @Post('friend-rooms/code/:inviteCode/join')
+  joinFriendRoomByInviteCode(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Param() params: InviteCodeParamDto,
+  ) {
+    return this.battleFriendRoomService.joinFriendRoomByInviteCode(
+      currentUser,
+      params.inviteCode,
+    );
+  }
+
+  @HttpCode(200)
+  @Delete('friend-rooms/:invitationToken')
+  cancelFriendRoom(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Param() params: InvitationTokenParamDto,
+  ) {
+    return this.battleFriendRoomService.cancelFriendRoom(
       currentUser,
       params.invitationToken,
     );

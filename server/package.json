@@ -18,6 +18,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
+    "prisma:generate": "prisma generate --config prisma.config.ts",
+    "seed:content": "node scripts/run-seed-content.cjs",
     "seed:quiz": "prisma db execute --file prisma/seed.sql --config prisma.config.ts"
   },
   "dependencies": {
@@ -81,6 +83,6 @@
     "testEnvironment": "node"
   },
   "prisma": {
-    "seed": "prisma db execute --file prisma/seed.sql --config prisma.config.ts"
+    "seed": "npm run seed:content"
   }
 }

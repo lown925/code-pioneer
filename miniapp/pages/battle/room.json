@@ -1,4 +1,5 @@
 {
-  "navigationBarTitleText": "Battle 房间",
+  "navigationStyle": "custom",
+  "navigationBarTitleText": "对战房间",
   "enablePullDownRefresh": true
 }

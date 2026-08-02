@@ -25,6 +25,9 @@
       <view class="chapter-overview-meta">
         <text class="chapter-overview-pill">{{estimatedMinutesText}}</text>
         <text wx:if="{{chapterPositionText}}" class="chapter-overview-pill">{{chapterPositionText}}</text>
+        <text class="chapter-overview-pill chapter-overview-pill-status {{learningStatusClassName}}">
+          {{learningStatusText}}
+        </text>
       </view>
     </view>
 
@@ -82,30 +85,38 @@
             <view class="code-content">{{item.code}}</view>
           </scroll-view>
         </view>
-
-        <view wx:elif="{{item.type === 'QUESTION'}}" class="section-card content-card question-card">
-          <text class="question-title">练习题待开放</text>
-          <text class="question-text">当前阅读页仅展示内容，章节题目将在后续工单中接入。</text>
-        </view>
       </block>
     </view>
 
     <view wx:else class="section-card state-box">
       <text class="state-title">暂无章节内容</text>
-      <text class="state-text">当前章节尚未配置可展示的内容块。</text>
+      <text class="state-text">当前章节尚未配置可展示的正文内容。</text>
+    </view>
+
+    <view class="section-card chapter-action-card">
+      <text class="section-title">章节收尾</text>
+      <text class="chapter-action-description">{{primaryActionDescription}}</text>
+      <button
+        class="chapter-primary-button"
+        loading="{{isActionLoading}}"
+        disabled="{{isActionLoading || isPrimaryActionDisabled}}"
+        bindtap="handlePrimaryAction"
+      >
+        {{primaryActionText}}
+      </button>
     </view>
 
     <view class="section-card chapter-nav-card">
       <view class="nav-action {{previousChapterId ? '' : 'nav-action-disabled'}}" bindtap="handleNavigatePrevious">
-        <text class="nav-action-label">上一节</text>
-        <text class="nav-action-title">{{previousChapterTitle || '已是第一节'}}</text>
+        <text class="nav-action-label">上一章</text>
+        <text class="nav-action-title">{{previousChapterTitle || '已经是第一章'}}</text>
       </view>
       <view class="nav-position">
         <text class="nav-position-text">{{chapterPositionText || '章节阅读'}}</text>
       </view>
       <view class="nav-action nav-action-next {{nextChapterId ? '' : 'nav-action-disabled'}}" bindtap="handleNavigateNext">
-        <text class="nav-action-label">下一节</text>
-        <text class="nav-action-title">{{nextChapterTitle || '已是最后一节'}}</text>
+        <text class="nav-action-label">下一章</text>
+        <text class="nav-action-title">{{nextChapterTitle || '已经是最后一章'}}</text>
       </view>
     </view>
 

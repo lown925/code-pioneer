@@ -196,6 +196,7 @@ describe('BattleSubmitService', () => {
       answerService.submitAnswer(USER_A_ID, 'room-1', {
         battleQuestionId: 'snapshot-1',
         clientRequestId: 'after-submit',
+        answerVersion: 1,
         answer: {
           optionId: 'option-a',
         },
@@ -206,6 +207,7 @@ describe('BattleSubmitService', () => {
       answerService.submitAnswer(USER_B_ID, 'room-1', {
         battleQuestionId: 'snapshot-1',
         clientRequestId: 'opponent-can-answer',
+        answerVersion: 1,
         answer: {
           optionId: 'option-a',
         },
@@ -236,6 +238,7 @@ describe('BattleSubmitService', () => {
       battleQuestionSnapshotId: 'snapshot-1',
       userId: USER_B_ID,
       clientRequestId: 'request-b-1',
+      answerVersion: 1,
       answerPayload: { type: 'SINGLE_CHOICE', optionId: 'option-a' },
       normalizedAnswer: null,
       isCorrect: true,

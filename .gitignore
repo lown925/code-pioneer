@@ -4,6 +4,7 @@ server/.tsbuildinfo
 server/coverage/
 server/.env
 server/generated/
+server/public/uploads/
 # Runtime logs
 *.log
 server/.start-dev.*.log

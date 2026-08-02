@@ -1,9 +1,11 @@
 import { Type } from 'class-transformer';
 import {
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -24,6 +26,10 @@ export class SubmitBattleAnswerDto {
   @IsString()
   @Length(1, 128)
   clientRequestId!: string;
+
+  @IsInt()
+  @Min(1)
+  answerVersion!: number;
 
   @ValidateNested()
   @Type(() => SubmitBattleAnswerPayloadDto)

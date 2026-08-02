@@ -1,113 +1,68 @@
-import type { BattleProfileResponse } from '../../types/battle';
+import type {
+  BattleLeaderboardItem,
+  BattleLeaderboardResponse,
+  BattleProfileResponse,
+} from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
+  formatBattleInitial,
+  formatBattleNickname,
   formatBattleRank,
   formatBattleRating,
-  formatBattleRecord,
-  formatBattleWinRate,
+  getBattleErrorMessage,
 } from '../../utils/battle';
-import { request, RequestError } from '../../utils/request';
+import { request } from '../../utils/request';
 
-type PageState = 'guest' | 'loading' | 'success' | 'error';
+type PageState = 'guest' | 'loading' | 'success' | 'empty' | 'error';
 
-type BattleProfileCard = {
-  ratingText: string;
-  highestRatingText: string;
-  totalBattlesText: string;
-  rankedBattlesText: string;
-  friendBattlesText: string;
-  winsText: string;
-  lossesText: string;
-  drawsText: string;
-  winRateText: string;
-  currentWinStreakText: string;
-  bestWinStreakText: string;
+type LeaderboardRow = {
+  rank: number;
+  userId: string;
+  avatarUrl: string | null;
+  nicknameText: string;
+  avatarFallbackText: string;
   rankText: string;
-  currentRankText: string;
-  recordText: string;
+  ratingText: string;
+  totalBattlesText: string;
+  rankClassName: string;
+  isCurrentUser: boolean;
 };
 
-type BattleEntryCard = {
-  key: 'random' | 'friend' | 'leaderboard' | 'history' | 'wrongQuestion';
-  title: string;
-  description: string;
-  actionText: string;
-  badgeText: string;
-  badgeClassName: string;
-  disabled: boolean;
+type MyRankCard = {
+  avatarUrl: string | null;
+  avatarFallbackText: string;
+  nicknameText: string;
+  rankText: string;
+  ratingText: string;
+  totalBattlesText: string;
 };
 
 type BattlePageData = {
   state: PageState;
   isAuthenticated: boolean;
-  displayName: string;
   errorMessage: string;
-  profile: BattleProfileCard | null;
-  entries: BattleEntryCard[];
+  rankings: LeaderboardRow[];
+  myRank: MyRankCard | null;
 };
 
 type BattlePageMethods = {
   syncAuthState(): boolean;
-  loadProfile(): Promise<void>;
+  loadBattleHome(): Promise<void>;
   handleLogin(): void;
   handleRetry(): void;
-  handleEntryTap(
-    event: WechatMiniprogram.BaseEvent<{
-      entryKey?: BattleEntryCard['key'];
-      disabled?: boolean;
-    }>,
-  ): void;
-  mapProfile(profile: BattleProfileResponse): BattleProfileCard;
+  handleRandomMatch(): void;
+  handleFriendBattle(): void;
+  handleHistory(): void;
+  openBattlePage(path: string): void;
+  mapLeaderboardItem(item: BattleLeaderboardItem): LeaderboardRow;
+  mapMyRank(
+    profile: BattleProfileResponse,
+    leaderboard: BattleLeaderboardResponse,
+  ): MyRankCard;
   getReadableErrorMessage(error: unknown): string;
 };
 
-const ENTRY_CARDS: BattleEntryCard[] = [
-  {
-    key: 'random',
-    title: '随机匹配',
-    description: '进入匹配池后按评分范围轮询寻找对手，并在匹配成功后跳转房间。',
-    actionText: '开始匹配',
-    badgeText: '已开放',
-    badgeClassName: 'entry-badge-live',
-    disabled: false,
-  },
-  {
-    key: 'friend',
-    title: '好友对战',
-    description: '通过邀请码与好友发起同房间对战。',
-    actionText: '创建好友房',
-    badgeText: '已开放',
-    badgeClassName: 'entry-badge-live',
-    disabled: false,
-  },
-  {
-    key: 'leaderboard',
-    title: '排行榜',
-    description: '查看全站对战排名、评分和当前自己的名次。',
-    actionText: '查看排行',
-    badgeText: '已开放',
-    badgeClassName: 'entry-badge-live',
-    disabled: false,
-  },
-  {
-    key: 'history',
-    title: '战绩',
-    description: '查看历史对战记录、胜负结果和局数统计。',
-    actionText: '查看战绩',
-    badgeText: '已开放',
-    badgeClassName: 'entry-badge-live',
-    disabled: false,
-  },
-  {
-    key: 'wrongQuestion',
-    title: 'Battle 错题',
-    description: '进入统一错题中心，并默认查看 Battle 来源的错题记录。',
-    actionText: '查看 Battle 错题',
-    badgeText: '已开放',
-    badgeClassName: 'entry-badge-live',
-    disabled: false,
-  },
-];
+const LEADERBOARD_LIMIT = 20;
 
 let isPageActive = false;
 let isRequesting = false;
@@ -117,30 +72,19 @@ Page<BattlePageData, BattlePageMethods>({
   data: {
     state: 'guest',
     isAuthenticated: false,
-    displayName: '游客用户',
     errorMessage: '',
-    profile: null,
-    entries: ENTRY_CARDS,
+    rankings: [],
+    myRank: null,
   },
 
   onLoad() {
     isPageActive = true;
-    void this.loadProfile();
+    void this.loadBattleHome();
   },
 
   onShow() {
-    if (!isPageActive) {
-      isPageActive = true;
-    }
-
-    if (getAuthStateSummary().isAuthenticated) {
-      void this.loadProfile();
-      return;
-    }
-
-    if (this.data.isAuthenticated !== getAuthStateSummary().isAuthenticated) {
-      void this.loadProfile();
-    }
+    isPageActive = true;
+    void this.loadBattleHome();
   },
 
   onUnload() {
@@ -149,27 +93,23 @@ Page<BattlePageData, BattlePageMethods>({
   },
 
   onPullDownRefresh() {
-    void this.loadProfile().finally(() => {
+    void this.loadBattleHome().finally(() => {
       wx.stopPullDownRefresh();
     });
   },
 
   syncAuthState() {
-    const authState = getAuthStateSummary();
-    const displayName = authState.user?.nickname?.trim() || '微信用户';
+    const isAuthenticated = getAuthStateSummary().isAuthenticated;
 
     this.setData({
-      isAuthenticated: authState.isAuthenticated,
-      displayName,
+      isAuthenticated,
     });
 
-    return authState.isAuthenticated;
+    return isAuthenticated;
   },
 
-  async loadProfile() {
-    const isAuthenticated = this.syncAuthState();
-
-    if (!isAuthenticated) {
+  async loadBattleHome() {
+    if (!this.syncAuthState()) {
       if (!isPageActive) {
         return;
       }
@@ -177,8 +117,8 @@ Page<BattlePageData, BattlePageMethods>({
       this.setData({
         state: 'guest',
         errorMessage: '',
-        profile: null,
-        entries: ENTRY_CARDS,
+        rankings: [],
+        myRank: null,
       });
       return;
     }
@@ -193,25 +133,39 @@ Page<BattlePageData, BattlePageMethods>({
     this.setData({
       state: 'loading',
       errorMessage: '',
-      profile: null,
-      entries: ENTRY_CARDS,
     });
 
     try {
-      const response = await request<BattleProfileResponse>({
-        url: '/battles/profile',
-        method: 'GET',
-        authMode: 'required',
-      });
+      const [profile, leaderboard] = await Promise.all([
+        request<BattleProfileResponse>({
+          url: '/battles/profile',
+          method: 'GET',
+          authMode: 'required',
+        }),
+        request<BattleLeaderboardResponse>({
+          url: '/battles/leaderboard',
+          method: 'GET',
+          data: {
+            page: 1,
+            pageSize: LEADERBOARD_LIMIT,
+          },
+          authMode: 'required',
+        }),
+      ]);
 
       if (!isPageActive || currentRequestSerial !== requestSerial) {
         return;
       }
 
+      const rankings = leaderboard.items
+        .slice(0, LEADERBOARD_LIMIT)
+        .map((item) => this.mapLeaderboardItem(item));
+
       this.setData({
-        state: 'success',
+        state: rankings.length > 0 ? 'success' : 'empty',
         errorMessage: '',
-        profile: this.mapProfile(response),
+        rankings,
+        myRank: this.mapMyRank(profile, leaderboard),
       });
     } catch (error) {
       if (!isPageActive || currentRequestSerial !== requestSerial) {
@@ -221,7 +175,8 @@ Page<BattlePageData, BattlePageMethods>({
       this.setData({
         state: 'error',
         errorMessage: this.getReadableErrorMessage(error),
-        profile: null,
+        rankings: [],
+        myRank: null,
       });
     } finally {
       isRequesting = false;
@@ -233,107 +188,72 @@ Page<BattlePageData, BattlePageMethods>({
   },
 
   handleRetry() {
-    void this.loadProfile();
+    void this.loadBattleHome();
   },
 
-  handleEntryTap(
-    event: WechatMiniprogram.BaseEvent<{
-      entryKey?: BattleEntryCard['key'];
-      disabled?: boolean;
-    }>,
-  ) {
-    const { entryKey, disabled } = event.currentTarget.dataset;
+  handleRandomMatch() {
+    this.openBattlePage('/pages/battle/matchmaking');
+  },
 
+  handleFriendBattle() {
+    this.openBattlePage('/pages/battle/friend-room');
+  },
+
+  handleHistory() {
+    this.openBattlePage('/pages/battle/history');
+  },
+
+  openBattlePage(path: string) {
     if (!this.data.isAuthenticated) {
       redirectToLogin('/pages/battle/index');
       return;
     }
 
-    if (disabled) {
-      wx.showToast({
-        title: '该功能将在后续阶段开放',
-        icon: 'none',
-      });
-      return;
-    }
-
-    if (entryKey === 'leaderboard') {
-      wx.navigateTo({
-        url: '/pages/battle/leaderboard',
-      });
-      return;
-    }
-
-    if (entryKey === 'random') {
-      wx.navigateTo({
-        url: '/pages/battle/matchmaking',
-      });
-      return;
-    }
-
-    if (entryKey === 'friend') {
-      wx.navigateTo({
-        url: '/pages/battle/friend-room',
-      });
-      return;
-    }
-
-    if (entryKey === 'history') {
-      wx.navigateTo({
-        url: '/pages/battle/history',
-      });
-      return;
-    }
-
-    if (entryKey === 'wrongQuestion') {
-      wx.navigateTo({
-        url: '/pages/wrong-question/index?source=BATTLE',
-      });
-      return;
-    }
-
-    wx.showToast({
-      title: '该功能将在后续阶段开放',
-      icon: 'none',
+    wx.navigateTo({
+      url: path,
     });
   },
 
-  mapProfile(profile: BattleProfileResponse) {
+  mapLeaderboardItem(item: BattleLeaderboardItem) {
+    const currentUserId = getAuthStateSummary().user?.id ?? '';
+
     return {
-      ratingText: formatBattleRating(profile.rating),
-      highestRatingText: formatBattleRating(profile.highestRating),
+      rank: item.rank,
+      userId: item.userId,
+      avatarUrl: item.avatarUrl,
+      nicknameText: formatBattleNickname(item.nickname),
+      avatarFallbackText: formatBattleInitial(item.nickname),
+      rankText: formatBattleRank(item.rank),
+      ratingText: formatBattleRating(item.rating),
+      totalBattlesText: String(
+        Math.max(0, item.wins) + Math.max(0, item.losses) + Math.max(0, item.draws),
+      ),
+      rankClassName: item.rank <= 3 ? `rank-${item.rank}` : 'rank-default',
+      isCurrentUser: item.userId === currentUserId,
+    };
+  },
+
+  mapMyRank(
+    profile: BattleProfileResponse,
+    leaderboard: BattleLeaderboardResponse,
+  ) {
+    const user = getAuthStateSummary().user;
+
+    return {
+      avatarUrl: user?.avatarUrl ?? null,
+      avatarFallbackText: formatBattleInitial(user?.nickname ?? null),
+      nicknameText: user?.nickname?.trim() || '微信用户',
+      rankText: formatBattleRank(leaderboard.myRank ?? profile.currentRank),
+      ratingText: formatBattleRating(leaderboard.myRating ?? profile.rating),
       totalBattlesText: String(Math.max(0, profile.totalBattles)),
-      rankedBattlesText: String(Math.max(0, profile.rankedBattles)),
-      friendBattlesText: String(Math.max(0, profile.friendBattles)),
-      winsText: String(Math.max(0, profile.wins)),
-      lossesText: String(Math.max(0, profile.losses)),
-      drawsText: String(Math.max(0, profile.draws)),
-      winRateText: formatBattleWinRate(profile.winRate),
-      currentWinStreakText: String(Math.max(0, profile.currentWinStreak)),
-      bestWinStreakText: String(Math.max(0, profile.bestWinStreak)),
-      rankText: formatBattleRank(profile.rank),
-      currentRankText: formatBattleRank(profile.currentRank),
-      recordText: formatBattleRecord(profile.wins, profile.losses, profile.draws),
     };
   },
 
   getReadableErrorMessage(error: unknown) {
-    if (error instanceof RequestError) {
-      if (error.statusCode === 401 || error.code === 'UNAUTHORIZED') {
-        return '登录状态已失效，请重新登录后再查看对战首页。';
-      }
-
-      if (error.code === 'NETWORK_ERROR') {
-        return '无法连接对战服务，请确认后端服务已启动。';
-      }
-
-      return error.message || '对战首页加载失败，请稍后重试。';
-    }
-
-    if (error instanceof Error && error.message) {
-      return error.message;
-    }
-
-    return '对战首页加载失败，请稍后重试。';
+    return getBattleErrorMessage(error, {
+      unauthorized: '登录状态已失效，请重新登录后查看对战排行。',
+      network: '网络连接失败，请检查网络后重试。',
+      fallback: '对战首页加载失败，请稍后重试。',
+    });
   },
 });

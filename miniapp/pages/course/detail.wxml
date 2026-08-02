@@ -36,6 +36,25 @@
           <text class="overview-grid-label">当前进度</text>
           <text class="overview-grid-value">{{progressPercent}}%</text>
         </view>
+        <view class="overview-grid-item">
+          <text class="overview-grid-label">章节完成</text>
+          <text class="overview-grid-value">{{completedChapterCount}} / {{totalChapterCount}}</text>
+        </view>
+        <view class="overview-grid-item">
+          <text class="overview-grid-label">学习状态</text>
+          <text class="overview-grid-value">{{courseStatusText}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{lastLearnedChapterTitle}}" class="last-learned-box">
+        <text class="last-learned-label">最近学习位置</text>
+        <text class="last-learned-value">{{lastLearnedChapterTitle}}</text>
+      </view>
+
+      <view wx:if="{{canOpenCourseProgress}}" class="overview-actions">
+        <view class="primary-button overview-action" bindtap="handleOpenCourseProgress">
+          查看学习进度
+        </view>
       </view>
     </view>
 
@@ -74,11 +93,20 @@
       >
         <view class="chapter-badge">{{index + 1}}</view>
         <view class="chapter-main">
-          <text class="chapter-title">{{item.title}}</text>
+          <view class="chapter-title-row">
+            <text class="chapter-title">{{item.title}}</text>
+            <text class="status-tag {{item.learningStatusClassName}}">{{item.learningStatusText}}</text>
+          </view>
           <text class="chapter-summary">{{item.summary || '当前章节暂未填写简介。'}}</text>
+          <text class="chapter-quiz-status">{{item.quizStatusText}}</text>
+          <text wx:if="{{item.startedAtText}}" class="chapter-time-text">开始学习：{{item.startedAtText}}</text>
+          <text wx:if="{{item.completedAtText}}" class="chapter-time-text">完成时间：{{item.completedAtText}}</text>
           <view class="chapter-footer">
             <text class="chapter-minutes">{{item.estimatedMinutesText}}</text>
-            <text class="chapter-link">进入学习</text>
+            <view class="chapter-footer-right">
+              <text wx:if="{{item.isLastLearned}}" class="chapter-last-learned">最近学习</text>
+              <text class="chapter-link">进入学习</text>
+            </view>
           </view>
         </view>
       </view>

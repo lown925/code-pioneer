@@ -1,0 +1,143 @@
+<view class="page-shell chapter-quiz-page">
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">章节测验加载中</text>
+    <text class="state-text">正在获取本章题目，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
+    <text class="state-title">章节测验加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <block wx:else>
+    <view class="section-card hero-card">
+      <text class="hero-title">{{title}}</text>
+      <text class="hero-description">{{description}}</text>
+      <text class="hero-meta">{{attemptSummaryText}}</text>
+      <text class="hero-meta">{{summaryText}}</text>
+      <text wx:if="{{scoreSummaryText}}" class="hero-score">{{scoreSummaryText}}</text>
+      <text class="hero-hint">{{feedbackHintText}}</text>
+    </view>
+
+    <view
+      wx:for="{{questions}}"
+      wx:key="questionId"
+      wx:for-item="question"
+      class="section-card question-card"
+    >
+      <view class="question-head">
+        <text class="question-index">{{question.indexText}}</text>
+        <text class="question-score">{{question.scoreText}}</text>
+      </view>
+
+      <view class="content-block-list">
+        <block wx:for="{{question.stemBlocks}}" wx:key="blockKey" wx:for-item="stemBlock">
+          <text wx:if="{{stemBlock.type === 'TEXT'}}" class="question-content">{{stemBlock.text}}</text>
+          <text wx:elif="{{stemBlock.type === 'CODE'}}" class="content-code">{{stemBlock.code}}</text>
+          <view wx:elif="{{stemBlock.type === 'IMAGE'}}" class="content-image-box">
+            <image
+              wx:if="{{!stemBlock.imageFailed}}"
+              class="content-image"
+              src="{{stemBlock.url}}"
+              mode="widthFix"
+              data-question-id="{{question.questionId}}"
+              data-block-key="{{stemBlock.blockKey}}"
+              data-section="stem"
+              binderror="handleImageError"
+            />
+            <view wx:else class="image-fallback">{{stemBlock.altText}}</view>
+          </view>
+        </block>
+      </view>
+
+      <view class="option-list">
+        <view
+          wx:for="{{question.options}}"
+          wx:key="optionId"
+          wx:for-item="option"
+          class="option-card {{option.isSelected ? 'option-card-selected' : ''}} {{option.isCorrect ? 'option-card-correct' : ''}} {{option.isWrongSelection ? 'option-card-wrong' : ''}} {{state === 'submitted' ? 'option-card-locked' : ''}}"
+          bindtap="handleSelectOption"
+          data-question-id="{{question.questionId}}"
+          data-option-id="{{option.optionId}}"
+        >
+          <view class="option-badge">{{option.label}}</view>
+          <view class="option-body">
+            <block wx:if="{{option.contentBlocks.length > 0}}">
+              <block wx:for="{{option.contentBlocks}}" wx:key="blockKey" wx:for-item="optionBlock">
+                <text wx:if="{{optionBlock.type === 'TEXT'}}" class="option-content">{{optionBlock.text}}</text>
+                <text wx:elif="{{optionBlock.type === 'CODE'}}" class="content-code option-code">{{optionBlock.code}}</text>
+                <view wx:elif="{{optionBlock.type === 'IMAGE'}}" class="content-image-box">
+                  <image
+                    wx:if="{{!optionBlock.imageFailed}}"
+                    class="content-image"
+                    src="{{optionBlock.url}}"
+                    mode="widthFix"
+                    data-question-id="{{question.questionId}}"
+                    data-option-id="{{option.optionId}}"
+                    data-block-key="{{optionBlock.blockKey}}"
+                    data-section="option"
+                    binderror="handleImageError"
+                  />
+                  <view wx:else class="image-fallback">{{optionBlock.altText}}</view>
+                </view>
+              </block>
+            </block>
+            <text wx:else class="option-content">{{option.content}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{question.result}}" class="result-card">
+        <text class="result-title {{question.result.resultClassName}}">{{question.result.resultText}}</text>
+        <text class="result-answer">正确答案：{{question.result.correctAnswerText}}</text>
+        <view wx:if="{{question.result.hasExplanation}}" class="content-block-list explanation-list">
+          <block
+            wx:for="{{question.result.explanationBlocks}}"
+            wx:key="blockKey"
+            wx:for-item="explainBlock"
+          >
+            <text wx:if="{{explainBlock.type === 'TEXT'}}" class="result-explanation">{{explainBlock.text}}</text>
+            <text wx:elif="{{explainBlock.type === 'CODE'}}" class="content-code">{{explainBlock.code}}</text>
+            <view wx:elif="{{explainBlock.type === 'IMAGE'}}" class="content-image-box">
+              <image
+                wx:if="{{!explainBlock.imageFailed}}"
+                class="content-image"
+                src="{{explainBlock.url}}"
+                mode="widthFix"
+                data-question-id="{{question.questionId}}"
+                data-block-key="{{explainBlock.blockKey}}"
+                data-section="explanation"
+                binderror="handleImageError"
+              />
+              <view wx:else class="image-fallback">{{explainBlock.altText}}</view>
+            </view>
+          </block>
+        </view>
+        <text wx:else class="result-explanation">本题暂无解析。</text>
+      </view>
+    </view>
+
+    <view wx:if="{{state === 'submitting'}}" class="section-card state-box compact-state">
+      <text class="state-title">测验提交中</text>
+      <text class="state-text">正在判题并同步章节进度，请稍候。</text>
+    </view>
+
+    <view class="section-card footer-card">
+      <button
+        wx:if="{{state !== 'submitted'}}"
+        class="primary-button submit-button"
+        loading="{{state === 'submitting'}}"
+        disabled="{{state === 'submitting' || isSubmitDisabled}}"
+        bindtap="handleSubmit"
+      >
+        {{submitButtonText}}
+      </button>
+
+      <view wx:else class="footer-actions">
+        <button class="ghost-button footer-button" bindtap="handleRestart">重新作答</button>
+        <button class="primary-button footer-button" bindtap="handleBack">返回章节</button>
+      </view>
+    </view>
+  </block>
+</view>

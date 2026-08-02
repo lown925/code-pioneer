@@ -307,7 +307,7 @@ Page<CourseProgressPageData, CourseProgressPageMethods>({
       return;
     }
 
-    wx.reLaunch({
+    wx.switchTab({
       url: '/pages/learning/index',
     });
   },

@@ -1,0 +1,23 @@
+@import "./community-posts.wxss";
+
+.section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.toolbar-card {
+  padding: 28rpx;
+}
+
+.toolbar-button,
+.delete-button {
+  min-height: 64rpx;
+  padding: 0 24rpx;
+  font-size: 24rpx;
+}
+
+.delete-button {
+  margin-top: 18rpx;
+}

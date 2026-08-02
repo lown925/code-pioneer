@@ -220,10 +220,24 @@ export class BattleMatchmakingService {
       }
 
       if (queue.status === 'MATCHED' && queue.matchedBattleRoomId) {
-        if (await this.isActiveBattleRoom(tx, queue.matchedBattleRoomId)) {
-          throw new ConflictException(
-            BATTLE_ERROR_CODES.BATTLE_MATCH_ALREADY_COMPLETED,
-          );
+        const activeBattle = await this.battleDomainService.getActiveBattleForUser(
+          currentUser.id,
+          tx,
+        );
+
+        if (activeBattle) {
+          const released =
+            await this.battleDomainService.cancelCancellableBattleRoomForUser(
+              currentUser.id,
+              now,
+              tx,
+            );
+
+          if (!released) {
+            throw new ConflictException(
+              BATTLE_ERROR_CODES.BATTLE_MATCH_ALREADY_COMPLETED,
+            );
+          }
         }
 
         await tx.battleMatchQueue.update({

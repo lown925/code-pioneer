@@ -62,6 +62,10 @@ type QuizAttemptRecord = {
   userId: string;
   quizId: string;
   passed: boolean;
+  answers?: Array<{
+    questionId: string;
+    isCorrect: boolean;
+  }>;
 };
 
 function createMockPrisma() {
@@ -133,6 +137,7 @@ function createMockPrisma() {
           id: chapter.id,
           title: chapter.title,
           sortOrder: chapter.sortOrder,
+          quiz: null,
         }));
       }),
       count: jest.fn(async ({ where }: { where: any }) => {
@@ -149,6 +154,50 @@ function createMockPrisma() {
             ),
           ) ?? null
         );
+      }),
+      findMany: jest.fn(async ({ where }: { where: any }) => {
+        return [...courseLearningRecords.values()]
+          .filter((record) => {
+            const course = courses.get(record.courseId);
+
+            return (
+              record.userId === where.userId &&
+              course?.status === where.course.status &&
+              course?.deletedAt === where.course.deletedAt
+            );
+          })
+          .sort((left, right) => {
+            const leftTime = left.lastLearnedAt?.getTime() ?? 0;
+            const rightTime = right.lastLearnedAt?.getTime() ?? 0;
+
+            if (leftTime !== rightTime) {
+              return rightTime - leftTime;
+            }
+
+            return right.updatedAt.getTime() - left.updatedAt.getTime();
+          })
+          .map((record) => {
+            const course = courses.get(record.courseId);
+            const lastChapter = record.lastChapterId
+              ? chapters.get(record.lastChapterId)
+              : null;
+
+            return {
+              ...record,
+              course: {
+                title: course?.title ?? '',
+                coverUrl: course?.coverUrl ?? null,
+              },
+              lastChapter: lastChapter
+                ? {
+                    id: lastChapter.id,
+                    title: lastChapter.title,
+                    status: lastChapter.status,
+                    deletedAt: lastChapter.deletedAt,
+                  }
+                : null,
+            };
+          });
       }),
       create: jest.fn(async ({ data }: { data: any }) => {
         const now = new Date();
@@ -290,9 +339,16 @@ function createMockPrisma() {
             (attempt) =>
               attempt.userId === where.userId &&
               attempt.quizId === where.quizId &&
-              attempt.passed === where.passed,
+              (where.passed === undefined || attempt.passed === where.passed),
           ) ?? null
         );
+      }),
+      findMany: jest.fn(async ({ where }: { where: any }) => {
+        return [...quizAttempts.values()]
+          .filter((attempt) => attempt.userId === where.userId)
+          .map((attempt) => ({
+            answers: attempt.answers ?? [],
+          }));
       }),
     },
     $transaction: jest.fn(
@@ -386,6 +442,9 @@ describe('LearningService', () => {
         chapters: [
           {
             chapterId: '22222222-2222-4222-8222-222222222221',
+            hasQuiz: false,
+            lastLearnedAt: null,
+            quizCompleted: false,
             title: 'Intro',
             sortOrder: 1,
             status: LearningStatus.NOT_STARTED,
@@ -394,6 +453,9 @@ describe('LearningService', () => {
           },
           {
             chapterId: '22222222-2222-4222-8222-222222222222',
+            hasQuiz: false,
+            lastLearnedAt: null,
+            quizCompleted: false,
             title: 'Variables',
             sortOrder: 2,
             status: LearningStatus.NOT_STARTED,
@@ -466,7 +528,7 @@ describe('LearningService', () => {
     ).toBe(100);
   });
 
-  it('rejects completing a started chapter when the linked quiz has not been passed', async () => {
+  it('rejects completing a started chapter when the linked quiz has not been submitted', async () => {
     const mock = createMockPrisma();
     const service = new LearningService(mock.prisma, quizServiceMock as never);
     const { chapterOneId } = seedPublishedCourse(mock);
@@ -483,7 +545,7 @@ describe('LearningService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('still rejects completion when quizCompleted is true but no passed attempt exists', async () => {
+  it('still rejects completion when quizCompleted is true but no submitted attempt exists', async () => {
     const mock = createMockPrisma();
     const service = new LearningService(mock.prisma, quizServiceMock as never);
     const { chapterOneId } = seedPublishedCourse(mock);
@@ -509,7 +571,7 @@ describe('LearningService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('allows completing a chapter when any historical passed attempt exists', async () => {
+  it('allows completing a chapter when any historical submitted attempt exists', async () => {
     const mock = createMockPrisma();
     const service = new LearningService(mock.prisma, quizServiceMock as never);
     const { courseId, chapterOneId } = seedPublishedCourse(mock);
@@ -524,7 +586,7 @@ describe('LearningService', () => {
       id: 'attempt-1',
       userId: currentUser.id,
       quizId: '33333333-3333-4333-8333-333333333333',
-      passed: true,
+      passed: false,
     });
 
     await service.startChapter(currentUser, chapterOneId);
@@ -553,5 +615,52 @@ describe('LearningService', () => {
     await expect(
       service.completeChapter(currentUser, chapterOneId),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('aggregates learning summary from course progress and quiz answers', async () => {
+    const mock = createMockPrisma();
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
+    const { courseId, chapterOneId, chapterTwoId } = seedPublishedCourse(mock);
+
+    await service.startChapter(currentUser, chapterOneId);
+    await service.completeChapter(currentUser, chapterOneId);
+    await service.startChapter(currentUser, chapterTwoId);
+
+    mock.quizAttempts.set('attempt-1', {
+      id: 'attempt-1',
+      userId: currentUser.id,
+      quizId: 'quiz-1',
+      passed: true,
+      answers: [
+        {
+          questionId: 'question-1',
+          isCorrect: true,
+        },
+        {
+          questionId: 'question-2',
+          isCorrect: false,
+        },
+      ],
+    });
+
+    const result = await service.getLearningSummary(currentUser);
+
+    expect(result).toEqual({
+      success: true,
+      data: {
+        inProgressCourseCount: 1,
+        completedCourseCount: 0,
+        completedChapterCount: 1,
+        totalQuizAnswerCount: 2,
+        quizAccuracyPercent: 50,
+        learningWrongQuestionCount: 1,
+        continueLearningCourse: expect.objectContaining({
+          courseId,
+          status: LearningStatus.LEARNING,
+          completedChapterCount: 1,
+          totalChapterCount: 2,
+        }),
+      },
+    });
   });
 });

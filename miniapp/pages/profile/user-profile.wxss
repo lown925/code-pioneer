@@ -1,0 +1,260 @@
+@import "../../app.wxss";
+
+.user-profile-page {
+  display: flex;
+  flex-direction: column;
+  gap: 22rpx;
+}
+
+.profile-card,
+.post-section {
+  padding: 30rpx;
+}
+
+.profile-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.profile-avatar {
+  width: 132rpx;
+  height: 132rpx;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #e8f0ff 0%, #d7e7ff 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.profile-avatar-image {
+  width: 100%;
+  height: 100%;
+}
+
+.profile-avatar-text {
+  font-size: 46rpx;
+  font-weight: 700;
+  color: #2f6bff;
+}
+
+.profile-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name {
+  display: block;
+  font-size: 38rpx;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.profile-meta {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #5f7596;
+}
+
+.profile-social-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  margin-top: 20rpx;
+}
+
+.profile-social-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10rpx;
+}
+
+.profile-social-label {
+  font-size: 24rpx;
+  color: #6e84a3;
+}
+
+.profile-social-value {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.profile-social-divider {
+  width: 1rpx;
+  height: 24rpx;
+  background: rgba(23, 50, 77, 0.12);
+}
+
+.follow-button {
+  min-width: 168rpx;
+  min-height: 72rpx;
+  padding: 0 24rpx;
+  flex: 0 0 auto;
+}
+
+.follow-button-disabled {
+  opacity: 0.72;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18rpx;
+  margin-top: 28rpx;
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: #f6f9fd;
+  box-shadow: inset 0 0 0 1rpx rgba(47, 107, 255, 0.08);
+}
+
+.metric-value {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.metric-title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.metric-helper {
+  font-size: 22rpx;
+  line-height: 1.6;
+  color: #6e84a3;
+}
+
+.section-head-inline {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.compact-state {
+  margin-top: 24rpx;
+  padding: 48rpx 28rpx;
+}
+
+.post-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+  margin-top: 24rpx;
+}
+
+.post-card {
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: #f8fbff;
+  box-shadow: inset 0 0 0 1rpx rgba(47, 107, 255, 0.06);
+}
+
+.post-head {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.post-author-badge {
+  width: 70rpx;
+  height: 70rpx;
+  border-radius: 50%;
+  background: #eaf1ff;
+  color: #2f6bff;
+  font-size: 30rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.post-author-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.post-author-name {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.post-author-time {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #6e84a3;
+}
+
+.post-category-tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54rpx;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  background: #eef4ff;
+  color: #2f6bff;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.post-title {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 34rpx;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.post-preview {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  line-height: 1.8;
+  color: #546b8b;
+}
+
+.post-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.post-metric-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52rpx;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  background: #ffffff;
+  color: #6e84a3;
+  font-size: 22rpx;
+}
+
+.state-button {
+  min-height: 72rpx;
+}

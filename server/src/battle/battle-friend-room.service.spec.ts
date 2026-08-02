@@ -42,6 +42,11 @@ describe('BattleFriendRoomService', () => {
       .mockReturnValueOnce('safe-token-one')
       .mockReturnValueOnce('safe-token-two')
       .mockReturnValue('safe-token-next');
+    jest
+      .spyOn(tokenService, 'generateInviteCode')
+      .mockReturnValueOnce('ABC234')
+      .mockReturnValueOnce('XYZ789')
+      .mockReturnValue('NEXT56');
 
     mock.users.set(USER_A.id, {
       id: USER_A.id,
@@ -80,6 +85,7 @@ describe('BattleFriendRoomService', () => {
     expect(result.data.mode).toBe(BattleMode.FRIEND);
     expect(result.data.status).toBe(BattleRoomStatus.WAITING);
     expect(result.data.invitationToken).toBe('safe-token-one');
+    expect(result.data.inviteCode).toBe('ABC234');
     expect(result.data.sharePath).toContain('safe-token-one');
     expect(mock.battleRooms.size).toBe(1);
     expect(mock.battleParticipants.size).toBe(1);
@@ -119,8 +125,22 @@ describe('BattleFriendRoomService', () => {
     );
 
     expect(preview.data.canJoin).toBe(true);
+    expect(preview.data.inviteCode).toBe('ABC234');
     expect(preview.data.inviter.userId).toBe(USER_A.id);
     expect(preview.data.participantCount).toBe(1);
+  });
+
+  it('previews and joins a friend room by inviteCode case-insensitively', async () => {
+    const { service } = createService();
+    const created = await service.createFriendRoom(USER_A);
+
+    const preview = await service.previewFriendRoomByInviteCode(USER_B, 'abc234');
+    expect(preview.data.canJoin).toBe(true);
+    expect(preview.data.inviteCode).toBe('ABC234');
+
+    const joined = await service.joinFriendRoomByInviteCode(USER_B, 'abc234');
+    expect(joined.data.battleId).toBe(created.data.battleId);
+    expect(joined.data.participants).toHaveLength(2);
   });
 
   it('returns canJoin=false when the inviter previews their own invitation', async () => {
@@ -272,6 +292,7 @@ describe('BattleFriendRoomService', () => {
       inviterUserId: USER_C.id,
       inviteeUserId: null,
       token: 'safe-token-one',
+      inviteCode: 'ABC234',
       status: BattleInvitationStatus.ACTIVE,
       expiresAt: new Date(Date.now() + 600000),
       acceptedAt: null,
@@ -281,6 +302,28 @@ describe('BattleFriendRoomService', () => {
     const result = await service.createFriendRoom(USER_A);
 
     expect(result.data.invitationToken).toBe('safe-token-two');
+    expect(result.data.inviteCode).toBe('XYZ789');
     expect(/^[A-Za-z0-9_-]+$/.test(result.data.invitationToken)).toBe(true);
+  });
+
+  it('cancels a waiting friend room and allows the host to join matchmaking immediately', async () => {
+    const { mock, service } = createService();
+    const created = await service.createFriendRoom(USER_A);
+
+    const cancelled = await service.cancelFriendRoom(
+      USER_A,
+      created.data.invitationToken,
+    );
+
+    expect(cancelled.data.roomStatus).toBe(BattleRoomStatus.CANCELLED);
+    expect(cancelled.data.invitationStatus).toBe(
+      BattleInvitationStatus.CANCELLED,
+    );
+    expect(mock.battleRooms.get(created.data.battleId)?.status).toBe(
+      BattleRoomStatus.CANCELLED,
+    );
+    expect([...mock.battleInvitations.values()][0].status).toBe(
+      BattleInvitationStatus.CANCELLED,
+    );
   });
 });

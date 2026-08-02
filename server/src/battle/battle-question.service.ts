@@ -75,6 +75,7 @@ type SnapshotRecord = {
 type AnswerRecord = {
   battleQuestionSnapshotId: string;
   submittedAt: Date;
+  answerVersion: number;
   answerPayload: unknown;
 };
 
@@ -149,6 +150,7 @@ export class BattleQuestionService {
             select: {
               battleQuestionSnapshotId: true,
               submittedAt: true,
+              answerVersion: true,
               answerPayload: true,
             },
           })
@@ -195,6 +197,7 @@ export class BattleQuestionService {
           programmingLanguage: snapshot.programmingLanguage,
           answered: Boolean(answer),
           submittedAt: answer?.submittedAt ?? null,
+          answerVersion: answer?.answerVersion ?? null,
           submittedAnswer: answer
             ? this.asBattleAnswerPayload(answer.answerPayload)
             : null,

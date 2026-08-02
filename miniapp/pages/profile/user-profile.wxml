@@ -1,0 +1,107 @@
+<view class="page-shell user-profile-page">
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">用户主页加载中</text>
+    <text class="state-text">正在获取用户信息，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
+    <text class="state-title">暂时无法查看</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button state-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <block wx:elif="{{profile}}">
+    <view class="section-card profile-card">
+      <view class="profile-head">
+        <view class="profile-avatar">
+          <image
+            wx:if="{{profile.avatarUrl}}"
+            class="profile-avatar-image"
+            src="{{profile.avatarUrl}}"
+            mode="aspectFill"
+          />
+          <text wx:else class="profile-avatar-text">{{profileInitial}}</text>
+        </view>
+
+        <view class="profile-main">
+          <text class="profile-name">{{displayName}}</text>
+          <text class="profile-meta">Battle Rating {{profile.battleRating}}</text>
+
+          <view class="profile-social-row">
+            <view class="profile-social-item" bindtap="handleOpenFollowing">
+              <text class="profile-social-label">关注</text>
+              <text class="profile-social-value">{{profile.followingCount}}</text>
+            </view>
+            <view class="profile-social-divider"></view>
+            <view class="profile-social-item" bindtap="handleOpenFollowers">
+              <text class="profile-social-label">粉丝</text>
+              <text class="profile-social-value">{{profile.followerCount}}</text>
+            </view>
+          </view>
+        </view>
+
+        <view
+          wx:if="{{!profile.viewerIsSelf}}"
+          class="{{profile.viewerHasFollowed ? 'ghost-button' : 'primary-button'}} follow-button {{isFollowSubmitting ? 'follow-button-disabled' : ''}}"
+          bindtap="handleFollowToggle"
+        >
+          {{isFollowSubmitting ? '处理中...' : (profile.viewerHasFollowed ? '已关注' : '关注')}}
+        </view>
+      </view>
+
+      <view class="metric-grid">
+        <view class="metric-card">
+          <text class="metric-value">{{profile.totalBattles}}</text>
+          <text class="metric-title">战绩</text>
+          <text class="metric-helper">累计 Battle 对局</text>
+        </view>
+        <view class="metric-card">
+          <text class="metric-value">{{profile.postCount}}</text>
+          <text class="metric-title">帖子</text>
+          <text class="metric-helper">已发布社区帖子</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card post-section">
+      <view class="section-head-inline">
+        <view>
+          <text class="section-title">Ta 的帖子</text>
+          <text class="section-subtitle">查看该用户最近发布的社区帖子。</text>
+        </view>
+      </view>
+
+      <view wx:if="{{postItems.length === 0}}" class="state-box compact-state">
+        <text class="state-text">该用户暂时还没有公开帖子。</text>
+      </view>
+
+      <view wx:else class="post-list">
+        <view
+          wx:for="{{postItems}}"
+          wx:key="postId"
+          class="post-card"
+          data-post-id="{{item.postId}}"
+          bindtap="handleOpenPost"
+        >
+          <view class="post-head">
+            <view class="post-author-badge">{{profileInitial}}</view>
+            <view class="post-author-meta">
+              <text class="post-author-name">{{displayName}}</text>
+              <text class="post-author-time">{{item.createdAtText}}</text>
+            </view>
+            <view class="post-category-tag">{{item.category.name}}</view>
+          </view>
+
+          <text class="post-title">{{item.title}}</text>
+          <text class="post-preview">{{item.contentPreview}}</text>
+
+          <view class="post-metrics">
+            <text class="post-metric-item">收藏 {{item.favoriteCountText}}</text>
+            <text class="post-metric-item">评论 {{item.commentCountText}}</text>
+            <text class="post-metric-item">浏览 {{item.viewCountText}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

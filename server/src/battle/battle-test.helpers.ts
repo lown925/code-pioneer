@@ -98,6 +98,7 @@ type BattleInvitationRecord = {
   inviterUserId: string;
   inviteeUserId: string | null;
   token: string;
+  inviteCode: string | null;
   status: BattleInvitationStatus;
   expiresAt: Date;
   acceptedAt: Date | null;
@@ -132,6 +133,7 @@ type BattleAnswerRecord = {
   battleQuestionSnapshotId: string;
   userId: string;
   clientRequestId: string;
+  answerVersion: number;
   answerPayload: unknown;
   normalizedAnswer: string | null;
   isCorrect: boolean;
@@ -704,6 +706,10 @@ export function createBattlePrismaMock() {
                 completedAt: room.completedAt,
                 cancelledAt: room.cancelledAt,
                 endReason: room.endReason,
+                invitation:
+                  [...battleInvitations.values()].find(
+                    (invitation) => invitation.battleRoomId === room.id,
+                  ) ?? null,
               },
             };
           }
@@ -816,8 +822,14 @@ export function createBattlePrismaMock() {
           const tokenExists = [...battleInvitations.values()].some(
             (invitation) => invitation.token === data.token,
           );
+          const inviteCodeExists =
+            data.inviteCode !== undefined &&
+            data.inviteCode !== null &&
+            [...battleInvitations.values()].some(
+              (invitation) => invitation.inviteCode === data.inviteCode,
+            );
 
-          if (tokenExists) {
+          if (tokenExists || inviteCodeExists) {
             const error = Object.assign(new Error('Unique constraint failed'), {
               code: 'P2002',
             });
@@ -830,6 +842,7 @@ export function createBattlePrismaMock() {
             inviterUserId: data.inviterUserId!,
             inviteeUserId: data.inviteeUserId ?? null,
             token: data.token!,
+            inviteCode: data.inviteCode ?? null,
             status: data.status ?? BattleInvitationStatus.ACTIVE,
             expiresAt: data.expiresAt!,
             acceptedAt: data.acceptedAt ?? null,
@@ -840,9 +853,20 @@ export function createBattlePrismaMock() {
           return record;
         },
       ),
-      findUnique: jest.fn(async ({ where }: { where: { token: string } }) => {
+      findUnique: jest.fn(
+        async ({
+          where,
+        }: {
+          where: {
+            token?: string;
+            inviteCode?: string;
+          };
+        }) => {
         const invitation = [...battleInvitations.values()].find(
-          (item) => item.token === where.token,
+          (item) =>
+            (where.token !== undefined && item.token === where.token) ||
+            (where.inviteCode !== undefined &&
+              item.inviteCode === where.inviteCode),
         );
 
         if (!invitation) {
@@ -865,7 +889,8 @@ export function createBattlePrismaMock() {
           invitation.battleRoomId,
         ),
         };
-      }),
+        },
+      ),
       update: jest.fn(
         async ({
           where,
@@ -1089,6 +1114,7 @@ export function createBattlePrismaMock() {
             battleQuestionSnapshotId: data.battleQuestionSnapshotId!,
             userId: data.userId!,
             clientRequestId: data.clientRequestId!,
+            answerVersion: data.answerVersion ?? 1,
             answerPayload: data.answerPayload ?? null,
             normalizedAnswer: data.normalizedAnswer ?? null,
             isCorrect: data.isCorrect ?? false,
@@ -1100,6 +1126,31 @@ export function createBattlePrismaMock() {
 
           battleAnswers.set(record.id, record);
           return record;
+        },
+      ),
+      updateMany: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: Record<string, unknown>;
+          data: Partial<BattleAnswerRecord>;
+        }) => {
+          let count = 0;
+
+          for (const [id, answer] of battleAnswers.entries()) {
+            if (!matchesBattleAnswerWhere(answer, where)) {
+              continue;
+            }
+
+            battleAnswers.set(id, {
+              ...answer,
+              ...data,
+            });
+            count += 1;
+          }
+
+          return { count };
         },
       ),
       count: jest.fn(async ({ where }: { where: Record<string, unknown> }) => {
@@ -1420,7 +1471,30 @@ function matchesInvitationWhere(
     return false;
   }
 
-  if (where.status !== undefined && record.status !== where.status) {
+  if (where.status !== undefined) {
+    if (typeof where.status === 'string' && record.status !== where.status) {
+      return false;
+    }
+
+    if (
+      typeof where.status === 'object' &&
+      where.status !== null &&
+      'in' in where.status
+    ) {
+      const values =
+        (where.status as { in?: BattleInvitationStatus[] }).in ?? [];
+
+      if (!values.includes(record.status)) {
+        return false;
+      }
+    }
+  }
+
+  if (
+    where.inviteCode !== undefined &&
+    typeof where.inviteCode === 'string' &&
+    record.inviteCode !== where.inviteCode
+  ) {
     return false;
   }
 
@@ -1493,6 +1567,13 @@ function matchesBattleAnswerWhere(
   if (
     where.clientRequestId !== undefined &&
     record.clientRequestId !== where.clientRequestId
+  ) {
+    return false;
+  }
+
+  if (
+    where.answerVersion !== undefined &&
+    record.answerVersion !== where.answerVersion
   ) {
     return false;
   }

@@ -1,76 +1,112 @@
 <view class="page-shell friend-room-page">
+  <view
+    class="custom-nav"
+    style="padding-top: {{navTopPadding}}px; height: {{navTopPadding + navBarHeight}}px;"
+  >
+    <view class="custom-nav-bar" style="height: {{navBarHeight}}px;">
+      <view class="custom-nav-back" bindtap="handleNavBack">
+        <text class="custom-nav-back-icon">&lt;</text>
+        <text class="custom-nav-back-text">返回</text>
+      </view>
+      <text class="custom-nav-title">好友对战</text>
+    </view>
+  </view>
+
   <view class="section-card hero-card">
-    <text class="hero-eyebrow">好友对战</text>
-    <text class="hero-title">Battle 好友房</text>
+    <text class="hero-title">发起一场好友对战</text>
     <text class="hero-copy">
-      创建者会生成只包含 invitationToken 的分享链接。被邀请者打开后可先预览，再决定是否加入房间。
+      创建成功后会直接进入统一房间页。你可以复制邀请码、邀请好友，并在好友加入后直接准备开始。
     </text>
   </view>
 
-  <view class="section-card summary-card">
-    <view class="summary-item">
-      <text class="summary-label">邀请者</text>
-      <text class="summary-value">{{inviterName || '待创建'}}</text>
+  <view wx:if="{{state === 'IDLE'}}" class="entry-list">
+    <view class="section-card entry-card">
+      <text class="entry-title">创建好友房</text>
+      <text class="entry-copy">
+        适合你先发起房间，再通过微信分享或邀请码邀请好友加入。
+      </text>
+      <view class="primary-button action-button" bindtap="handleCreateRoom">
+        创建好友房
+      </view>
     </view>
-    <view class="summary-item">
-      <text class="summary-label">当前人数</text>
-      <text class="summary-value">{{participantCountText}}</text>
-    </view>
-    <view class="summary-item">
-      <text class="summary-label">邀请有效期</text>
-      <text class="summary-value">{{expiresAtText || '以服务端状态为准'}}</text>
+
+    <view class="section-card entry-card">
+      <text class="entry-title">加入好友房</text>
+      <text class="entry-copy">
+        输入 6 位邀请码，系统会先校验房间状态，再决定是否允许加入。
+      </text>
+      <view class="ghost-button action-button" bindtap="handleShowJoinInput">
+        {{isJoinInputVisible ? '收起邀请码输入' : '输入邀请码'}}
+      </view>
+
+      <view wx:if="{{isJoinInputVisible}}" class="invite-input-box">
+        <input
+          class="invite-input"
+          type="text"
+          maxlength="6"
+          value="{{inviteCodeInput}}"
+          placeholder="例如 ABC234"
+          bindinput="handleJoinCodeInput"
+        />
+        <view
+          class="primary-button action-button {{!inviteCodeInput || isBusy ? 'action-button-disabled' : ''}}"
+          bindtap="handleConfirmJoinByCode"
+        >
+          {{joinButtonText}}
+        </view>
+      </view>
     </view>
   </view>
 
-  <view class="section-card status-card">
-    <text class="section-title">{{stateTitle}}</text>
-    <text class="section-subtitle">{{stateDescription}}</text>
-    <text wx:if="{{errorMessage}}" class="error-copy">{{errorMessage}}</text>
+  <view wx:elif="{{state === 'CREATING' || state === 'LOOKING_UP' || state === 'PREVIEWING' || state === 'JOINING'}}" class="section-card state-box">
+    <text class="state-title">{{stateTitle}}</text>
+    <text class="state-text">{{stateDescription}}</text>
+  </view>
 
-    <view wx:if="{{state === 'CREATING' || state === 'PREVIEWING' || state === 'JOINING'}}" class="loading-box">
-      <text class="loading-text">正在同步好友房状态，请稍候。</text>
+  <view wx:else class="preview-stack">
+    <view class="section-card preview-card">
+      <text class="preview-title">{{stateTitle}}</text>
+      <text class="preview-copy">{{stateDescription}}</text>
+
+      <view class="preview-meta">
+        <view class="preview-meta-item">
+          <text class="preview-meta-label">房主</text>
+          <text class="preview-meta-value">{{inviterName || '匿名用户'}}</text>
+        </view>
+        <view class="preview-meta-item">
+          <text class="preview-meta-label">邀请码</text>
+          <text class="preview-meta-value">{{inviteCode || '暂未生成'}}</text>
+        </view>
+        <view class="preview-meta-item">
+          <text class="preview-meta-label">房间人数</text>
+          <text class="preview-meta-value">{{participantCountText}}</text>
+        </view>
+        <view class="preview-meta-item">
+          <text class="preview-meta-label">有效期</text>
+          <text class="preview-meta-value">{{expiresAtText || '以服务端状态为准'}}</text>
+        </view>
+      </view>
     </view>
 
-    <view wx:if="{{shareEnabled}}" class="share-box">
-      <text class="share-copy">{{shareHint}}</text>
-      <button class="share-button" open-type="share">分享给好友</button>
+    <view wx:if="{{errorMessage}}" class="section-card inline-error-card">
+      <text class="inline-error-text">{{errorMessage}}</text>
     </view>
 
-    <view class="action-row">
+    <view class="section-card action-card">
       <view
-        wx:if="{{state === 'WAITING' && canJoin}}"
+        wx:if="{{canJoin}}"
         class="primary-button action-button"
-        bindtap="handleJoin"
+        bindtap="handleJoinFromPreview"
       >
-        加入对战
-      </view>
-
-      <view
-        wx:if="{{state === 'WAITING' && isCreator}}"
-        class="ghost-button action-button"
-        bindtap="handleOpenRoom"
-      >
-        进入房间占位页
-      </view>
-
-      <view
-        wx:if="{{state === 'JOINED'}}"
-        class="primary-button action-button"
-        bindtap="handleOpenRoom"
-      >
-        进入房间
+        加入好友房
       </view>
 
       <view
         wx:if="{{state === 'EXPIRED' || state === 'FULL' || state === 'ERROR'}}"
-        class="primary-button action-button"
+        class="ghost-button action-button"
         bindtap="handleRetry"
       >
-        重新查询状态
-      </view>
-
-      <view class="ghost-button action-button" bindtap="handleBackHome">
-        返回对战首页
+        重新查询
       </view>
     </view>
   </view>

@@ -128,12 +128,13 @@ describe('BattleAnswerService', () => {
     return { mock, service };
   }
 
-  it('scores a correct SINGLE_CHOICE answer and updates participant aggregates once', async () => {
+  it('saves a correct SINGLE_CHOICE answer without mutating participant aggregates before settlement', async () => {
     const { mock, service } = createService();
 
     const result = await service.submitAnswer(USER_A_ID, 'room-1', {
       battleQuestionId: 'snapshot-choice',
       clientRequestId: 'request-choice',
+      answerVersion: 1,
       answer: {
         optionId: 'option-correct',
       },
@@ -141,8 +142,10 @@ describe('BattleAnswerService', () => {
 
     expect(result.data.accepted).toBe(true);
     expect(result.data).not.toHaveProperty('isCorrect');
-    expect(mock.battleParticipants.get('participant-a')?.score).toBe(2);
-    expect(mock.battleParticipants.get('participant-a')?.correctCount).toBe(1);
+    expect(result.data.answerVersion).toBe(1);
+    expect(mock.battleParticipants.get('participant-a')?.score).toBe(0);
+    expect(mock.battleParticipants.get('participant-a')?.correctCount).toBe(0);
+    expect([...mock.battleAnswers.values()][0]?.isCorrect).toBe(true);
   });
 
   it('returns the same response idempotently for repeated clientRequestId', async () => {
@@ -151,6 +154,7 @@ describe('BattleAnswerService', () => {
     const first = await service.submitAnswer(USER_A_ID, 'room-1', {
       battleQuestionId: 'snapshot-choice',
       clientRequestId: 'same-request',
+      answerVersion: 1,
       answer: {
         optionId: 'option-wrong',
       },
@@ -158,6 +162,7 @@ describe('BattleAnswerService', () => {
     const second = await service.submitAnswer(USER_A_ID, 'room-1', {
       battleQuestionId: 'snapshot-choice',
       clientRequestId: 'same-request',
+      answerVersion: 1,
       answer: {
         optionId: 'option-wrong',
       },
@@ -165,29 +170,66 @@ describe('BattleAnswerService', () => {
 
     expect(first.data.battleQuestionId).toBe(second.data.battleQuestionId);
     expect(mock.battleAnswers.size).toBe(1);
-    expect(mock.battleParticipants.get('participant-a')?.wrongCount).toBe(1);
+    expect(first.data.answerVersion).toBe(second.data.answerVersion);
   });
 
-  it('rejects answering the same question with a different request id', async () => {
-    const { service } = createService();
+  it('updates the same question when a newer answerVersion arrives', async () => {
+    const { mock, service } = createService();
 
     await service.submitAnswer(USER_A_ID, 'room-1', {
       battleQuestionId: 'snapshot-choice',
       clientRequestId: 'request-1',
+      answerVersion: 1,
       answer: {
         optionId: 'option-wrong',
       },
     });
 
-    await expect(
-      service.submitAnswer(USER_A_ID, 'room-1', {
-        battleQuestionId: 'snapshot-choice',
-        clientRequestId: 'request-2',
-        answer: {
-          optionId: 'option-correct',
-        },
-      }),
-    ).rejects.toBeInstanceOf(ConflictException);
+    const result = await service.submitAnswer(USER_A_ID, 'room-1', {
+      battleQuestionId: 'snapshot-choice',
+      clientRequestId: 'request-2',
+      answerVersion: 2,
+      answer: {
+        optionId: 'option-correct',
+      },
+    });
+
+    expect(result.data.answerVersion).toBe(2);
+    expect(mock.battleAnswers.size).toBe(1);
+    expect([...mock.battleAnswers.values()][0]).toMatchObject({
+      clientRequestId: 'request-2',
+      answerVersion: 2,
+      isCorrect: true,
+    });
+  });
+
+  it('ignores an outdated answerVersion so old requests cannot overwrite the latest answer', async () => {
+    const { mock, service } = createService();
+
+    await service.submitAnswer(USER_A_ID, 'room-1', {
+      battleQuestionId: 'snapshot-choice',
+      clientRequestId: 'request-new',
+      answerVersion: 3,
+      answer: {
+        optionId: 'option-correct',
+      },
+    });
+
+    const stale = await service.submitAnswer(USER_A_ID, 'room-1', {
+      battleQuestionId: 'snapshot-choice',
+      clientRequestId: 'request-old',
+      answerVersion: 2,
+      answer: {
+        optionId: 'option-wrong',
+      },
+    });
+
+    expect(stale.data.answerVersion).toBe(3);
+    expect([...mock.battleAnswers.values()][0]).toMatchObject({
+      clientRequestId: 'request-new',
+      answerVersion: 3,
+      isCorrect: true,
+    });
   });
 
   it('normalizes CODE_FILL answers before scoring', async () => {
@@ -196,12 +238,12 @@ describe('BattleAnswerService', () => {
     await service.submitAnswer(USER_A_ID, 'room-1', {
       battleQuestionId: 'snapshot-code',
       clientRequestId: 'request-code',
+      answerVersion: 1,
       answer: {
         value: '  PRINT(1)  ',
       },
     });
 
-    expect(mock.battleParticipants.get('participant-a')?.score).toBe(2);
     expect([...mock.battleAnswers.values()][0].normalizedAnswer).toBe(
       'print(1)',
     );
@@ -214,6 +256,7 @@ describe('BattleAnswerService', () => {
       service.submitAnswer(USER_A_ID, 'room-1', {
         battleQuestionId: 'snapshot-choice',
         clientRequestId: 'request-invalid',
+        answerVersion: 1,
         answer: {
           optionId: 'not-an-option',
         },
@@ -226,10 +269,35 @@ describe('BattleAnswerService', () => {
       service.submitAnswer(USER_A_ID, 'room-1', {
         battleQuestionId: 'snapshot-code',
         clientRequestId: 'request-expired',
+        answerVersion: 1,
         answer: {
           value: 'print(1)',
         },
       }),
     ).rejects.toBeInstanceOf(GoneException);
+  });
+
+  it('rejects clientRequestId reuse when payload or version differs', async () => {
+    const { service } = createService();
+
+    await service.submitAnswer(USER_A_ID, 'room-1', {
+      battleQuestionId: 'snapshot-choice',
+      clientRequestId: 'same-request',
+      answerVersion: 1,
+      answer: {
+        optionId: 'option-correct',
+      },
+    });
+
+    await expect(
+      service.submitAnswer(USER_A_ID, 'room-1', {
+        battleQuestionId: 'snapshot-choice',
+        clientRequestId: 'same-request',
+        answerVersion: 2,
+        answer: {
+          optionId: 'option-wrong',
+        },
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

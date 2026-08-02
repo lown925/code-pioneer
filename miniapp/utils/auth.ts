@@ -8,8 +8,10 @@ import type {
 } from '../types/auth';
 import {
   LOGIN_PAGE_PATH,
-  PROFILE_PAGE_PATH,
+  DEFAULT_TAB_PAGE_PATH,
+  CURRENT_ENV_VERSION,
   isTabBarPage,
+  getMiniProgramEnvVersion as getConfiguredEnvVersion,
   normalizePagePath,
 } from './config';
 
@@ -85,7 +87,7 @@ function getCurrentPageUrl() {
   const currentPage = pages[pages.length - 1];
 
   if (!currentPage?.route) {
-    return PROFILE_PAGE_PATH;
+    return DEFAULT_TAB_PAGE_PATH;
   }
 
   const path = normalizePagePath(currentPage.route);
@@ -140,26 +142,11 @@ function persistSession(session: AuthSession | null) {
 }
 
 export function getMiniProgramEnvVersion(): MiniProgramEnvVersion {
-  try {
-    const accountInfo = wx.getAccountInfoSync();
-    const envVersion = accountInfo.miniProgram.envVersion;
-
-    if (
-      envVersion === 'develop' ||
-      envVersion === 'trial' ||
-      envVersion === 'release'
-    ) {
-      return envVersion;
-    }
-
-    return 'unknown';
-  } catch {
-    return 'unknown';
-  }
+  return getConfiguredEnvVersion();
 }
 
 export function isDevelopmentEnvironment() {
-  return getMiniProgramEnvVersion() === 'develop';
+  return CURRENT_ENV_VERSION === 'develop';
 }
 
 export function initializeAuthState() {
@@ -250,7 +237,7 @@ export function redirectToLogin(redirectPath?: string) {
 }
 
 export function finishLoginNavigation(redirectPath?: string) {
-  const target = normalizePagePath(redirectPath || PROFILE_PAGE_PATH);
+  const target = normalizePagePath(redirectPath || DEFAULT_TAB_PAGE_PATH);
   const [pagePath] = target.split('?');
 
   if (isTabBarPage(pagePath)) {
@@ -264,7 +251,7 @@ export function finishLoginNavigation(redirectPath?: string) {
     url: target,
     fail: () => {
       wx.reLaunch({
-        url: PROFILE_PAGE_PATH,
+        url: DEFAULT_TAB_PAGE_PATH,
       });
     },
   });

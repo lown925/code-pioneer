@@ -1,9 +1,15 @@
-import type { BattleResultResponse } from '../../types/battle';
+import type {
+  BattleEndReason,
+  BattleMode,
+  BattleResult,
+  BattleResultResponse,
+} from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatBattleInitial,
   formatBattleNickname,
   formatBattleRating,
+  getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
 
@@ -49,16 +55,21 @@ type ResultPageMethods = {
   handleRetry(): void;
   handleBackHome(): void;
   handleReplay(): void;
-  getPendingTitle(status: string): string;
-  getPendingDescription(status: string): string;
-  getStatusText(status: string, completed: boolean): string;
-  getModeText(mode: string): string;
-  getResultMeta(result: 'WIN' | 'LOSS' | 'DRAW'): {
+  getPendingTitle(status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING'): string;
+  getPendingDescription(
+    status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING',
+  ): string;
+  getStatusText(
+    status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING' | 'COMPLETED',
+    completed: boolean,
+  ): string;
+  getModeText(mode: BattleMode): string;
+  getResultMeta(result: BattleResult): {
     resultText: string;
     resultHintText: string;
     resultBadgeClassName: string;
   };
-  getEndReasonText(endReason: string | null): string;
+  getEndReasonText(endReason: BattleEndReason | null): string;
   formatCompletedAt(value: string): string;
   formatRatingDelta(value: number): string;
   getReadableError(error: unknown): string;
@@ -204,21 +215,6 @@ Page<ResultPageData, ResultPageMethods>({
       this.stopPolling();
 
       if (!response.completed) {
-        if (response.status === 'CANCELLED' || response.status === 'EXPIRED') {
-          this.setData({
-            state: 'ERROR',
-            titleText: response.status === 'CANCELLED' ? '对战已取消' : '对战已过期',
-            descriptionText:
-              response.status === 'CANCELLED'
-                ? '当前对战已取消，暂无可展示的结算结果。'
-                : '当前对战已过期，暂无可展示的结算结果。',
-            errorMessage: '',
-            modeText: this.getModeText(response.mode),
-            statusText: this.getStatusText(response.status, false),
-          });
-          return;
-        }
-
         this.setData({
           state: 'WAITING',
           titleText: this.getPendingTitle(response.status),
@@ -348,7 +344,7 @@ Page<ResultPageData, ResultPageMethods>({
     });
   },
 
-  getPendingTitle(status: string) {
+  getPendingTitle(status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING') {
     if (status === 'COUNTDOWN') {
       return '对战尚未正式开始';
     }
@@ -360,7 +356,7 @@ Page<ResultPageData, ResultPageMethods>({
     return '等待结算中';
   },
 
-  getPendingDescription(status: string) {
+  getPendingDescription(status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING') {
     if (status === 'COUNTDOWN') {
       return '当前对战还在共享倒计时阶段，整场结算结果会在对战结束后提供。';
     }
@@ -372,7 +368,10 @@ Page<ResultPageData, ResultPageMethods>({
     return '服务端正在整理本场结算结果，完成后会自动刷新当前页面。';
   },
 
-  getStatusText(status: string, completed: boolean) {
+  getStatusText(
+    status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING' | 'COMPLETED',
+    completed: boolean,
+  ) {
     if (completed) {
       return '已完成';
     }
@@ -389,22 +388,14 @@ Page<ResultPageData, ResultPageMethods>({
       return '结算中';
     }
 
-    if (status === 'CANCELLED') {
-      return '已取消';
-    }
-
-    if (status === 'EXPIRED') {
-      return '已过期';
-    }
-
     return '处理中';
   },
 
-  getModeText(mode: string) {
+  getModeText(mode: BattleMode) {
     return mode === 'FRIEND' ? '好友对战' : '排位对战';
   },
 
-  getResultMeta(result: 'WIN' | 'LOSS' | 'DRAW') {
+  getResultMeta(result: BattleResult) {
     if (result === 'WIN') {
       return {
         resultText: '胜利',
@@ -428,7 +419,7 @@ Page<ResultPageData, ResultPageMethods>({
     };
   },
 
-  getEndReasonText(endReason: string | null) {
+  getEndReasonText(endReason: BattleEndReason | null) {
     if (endReason === 'USER_FORFEIT') {
       return '认输结束';
     }
@@ -481,30 +472,24 @@ Page<ResultPageData, ResultPageMethods>({
         );
         return '登录状态已失效，请重新登录后再查看 Battle 结果。';
       }
-
-      if (error.code === 'NETWORK_ERROR') {
-        return '无法连接 Battle 结果服务，请确认后端服务已启动。';
-      }
-
-      if (error.code === 'BATTLE_NOT_PARTICIPANT') {
-        return '你不是这场 Battle 的参与者，无法查看结果。';
-      }
-
-      if (error.code === 'BATTLE_SETTLEMENT_DATA_INVALID') {
-        return '当前对战尚未生成有效结算数据，请稍后再试。';
-      }
-
-      if (error.code === 'BATTLE_ALREADY_COMPLETED') {
-        return '本场 Battle 已完成，正在同步最终结果。';
-      }
-
-      return error.message || 'Battle 结果获取失败，请稍后重试。';
     }
 
-    if (error instanceof Error && error.message) {
-      return error.message;
-    }
-
-    return 'Battle 结果获取失败，请稍后重试。';
+    return getBattleErrorMessage(
+      error,
+      {
+        unauthorized: '登录状态已失效，请重新登录后再查看 Battle 结果。',
+        network: '网络连接失败，请确认后端服务已启动后重试。',
+        fallback: 'Battle 结果获取失败，请稍后重试。',
+      },
+      {
+        BATTLE_NOT_PARTICIPANT:
+          '你不是这场对战的参与者，无法查看 Battle 结果。',
+        BATTLE_SETTLEMENT_DATA_INVALID:
+          '当前对战尚未生成有效结算数据，请稍后再试。',
+        BATTLE_ALREADY_COMPLETED: '本场 Battle 已完成，正在同步最终结果。',
+        BATTLE_INVALID_STATUS:
+          '当前结算状态已变化，请重新同步服务端状态后再继续查看。',
+      },
+    );
   },
 });

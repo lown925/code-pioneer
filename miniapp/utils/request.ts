@@ -7,7 +7,11 @@ import {
   redirectToLogin,
   saveRefreshedSession,
 } from './auth';
-import { API_BASE_URL } from './config';
+import {
+  API_BASE_URL,
+  getApiConfigurationErrorMessage,
+  hasApiConfigurationError,
+} from './config';
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 type AuthMode = 'auto' | 'required' | 'none';
@@ -18,6 +22,16 @@ type RequestOptions = {
   data?: WechatMiniprogram.IAnyObject;
   authMode?: AuthMode;
   retryOnAuthFailure?: boolean;
+  disableAuthRedirect?: boolean;
+  headers?: Record<string, string>;
+};
+
+type UploadFileOptions = {
+  url: string;
+  filePath: string;
+  name?: string;
+  formData?: WechatMiniprogram.IAnyObject;
+  authMode?: AuthMode;
   disableAuthRedirect?: boolean;
   headers?: Record<string, string>;
 };
@@ -200,6 +214,24 @@ function buildHeaders(options: InternalRequestOptions) {
   return headers;
 }
 
+function sanitizeRequestData(
+  data: WechatMiniprogram.IAnyObject | undefined,
+) {
+  if (!data) {
+    return undefined;
+  }
+
+  const sanitizedEntries = Object.entries(data).filter(
+    ([, value]) => value !== undefined,
+  );
+
+  if (sanitizedEntries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(sanitizedEntries) as WechatMiniprogram.IAnyObject;
+}
+
 function handleTerminalAuthFailure(options: InternalRequestOptions) {
   clearAuthSession();
 
@@ -213,10 +245,20 @@ function sendRequest<T>(
   headers: Record<string, string>,
 ) {
   return new Promise<T>((resolve, reject) => {
+    if (hasApiConfigurationError()) {
+      reject(
+        new RequestError({
+          code: 'API_CONFIG_INVALID',
+          message: getApiConfigurationErrorMessage(),
+        }),
+      );
+      return;
+    }
+
     wx.request<ApiSuccess<T> | ApiFailureEnvelope | NestExceptionPayload>({
       url: toAbsoluteUrl(options.url),
       method: options.method,
-      data: options.data,
+      data: sanitizeRequestData(options.data),
       header: headers,
       timeout: DEFAULT_TIMEOUT_MS,
       success: (response) => {
@@ -379,4 +421,93 @@ export function request<T>(options: RequestOptions) {
 
 export function getApiBaseUrl() {
   return getAppApiBaseUrl();
+}
+
+export function uploadFile<T>(options: UploadFileOptions) {
+  return new Promise<T>((resolve, reject) => {
+    if (hasApiConfigurationError()) {
+      reject(
+        new RequestError({
+          code: 'API_CONFIG_INVALID',
+          message: getApiConfigurationErrorMessage(),
+        }),
+      );
+      return;
+    }
+
+    const authMode = options.authMode ?? 'required';
+
+    if (authMode === 'required' && !getAccessToken()) {
+      if (!options.disableAuthRedirect) {
+        redirectToLogin();
+      }
+
+      reject(
+        new RequestError({
+          statusCode: 401,
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is missing or expired. Please log in again.',
+        }),
+      );
+      return;
+    }
+
+    const headers: Record<string, string> = {
+      ...(options.headers ?? {}),
+    };
+
+    if (authMode !== 'none') {
+      const accessToken = getAccessToken();
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+    }
+
+    wx.uploadFile({
+      url: toAbsoluteUrl(options.url),
+      filePath: options.filePath,
+      name: options.name ?? 'file',
+      formData: sanitizeRequestData(options.formData),
+      header: headers,
+      success: (response) => {
+        let payload:
+          | ApiSuccess<T>
+          | ApiFailureEnvelope
+          | NestExceptionPayload
+          | string;
+
+        try {
+          payload =
+            typeof response.data === 'string'
+              ? JSON.parse(response.data)
+              : response.data;
+        } catch {
+          payload = response.data;
+        }
+
+        if (
+          response.statusCode >= 200 &&
+          response.statusCode < 300 &&
+          isObject(payload) &&
+          'success' in payload &&
+          payload.success === true
+        ) {
+          resolve((payload as ApiSuccess<T>).data);
+          return;
+        }
+
+        reject(toRequestError(response.statusCode, payload));
+      },
+      fail: () => {
+        reject(
+          new RequestError({
+            code: 'NETWORK_ERROR',
+            message:
+              'Network request failed. Please confirm the backend is reachable from WeChat devtools.',
+          }),
+        );
+      },
+    });
+  });
 }

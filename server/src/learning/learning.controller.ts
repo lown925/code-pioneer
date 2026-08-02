@@ -79,4 +79,9 @@ export class LearningController {
       status,
     );
   }
+
+  @Get('users/me/learning-summary')
+  getLearningSummary(@CurrentUser() currentUser: CurrentUserContext) {
+    return this.learningService.getLearningSummary(currentUser);
+  }
 }

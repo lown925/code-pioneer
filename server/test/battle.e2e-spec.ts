@@ -162,7 +162,9 @@ describe('Battle routes (e2e)', () => {
       .expect(201);
 
     const invitationToken = createdRoom.body.data.invitationToken as string;
+    const inviteCode = createdRoom.body.data.inviteCode as string;
     expect(/^[A-Za-z0-9_-]+$/.test(invitationToken)).toBe(true);
+    expect(/^[A-Z2-9]{6}$/.test(inviteCode)).toBe(true);
     expect(createdRoom.body.data.sharePath).toContain(invitationToken);
 
     await request(app.getHttpServer())
@@ -176,6 +178,16 @@ describe('Battle routes (e2e)', () => {
       .expect(200)
       .expect((response) => {
         expect(response.body.data.canJoin).toBe(true);
+        expect(response.body.data.inviteCode).toBe(inviteCode);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/battles/friend-rooms/code/${inviteCode.toLowerCase()}`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.canJoin).toBe(true);
+        expect(response.body.data.inviteCode).toBe(inviteCode);
       });
 
     const joinedRoom = await request(app.getHttpServer())
@@ -256,6 +268,7 @@ describe('Battle routes (e2e)', () => {
       .send({
         battleQuestionId: firstQuestion.battleQuestionId,
         clientRequestId: 'request-e2e-1',
+        answerVersion: 1,
         answer: {
           optionId: firstQuestion.options[0].id,
         },
@@ -340,6 +353,7 @@ describe('Battle routes (e2e)', () => {
       .send({
         battleQuestionId: firstQuestion.battleQuestionId,
         clientRequestId: 'battle-submit-user-a-1',
+        answerVersion: 1,
         answer: {
           optionId: firstQuestion.options[0].id,
         },
@@ -379,6 +393,7 @@ describe('Battle routes (e2e)', () => {
       .send({
         battleQuestionId: firstQuestion.battleQuestionId,
         clientRequestId: 'battle-submit-user-a-after-submit',
+        answerVersion: 2,
         answer: {
           optionId: firstQuestion.options[0].id,
         },
@@ -391,6 +406,7 @@ describe('Battle routes (e2e)', () => {
       .send({
         battleQuestionId: firstQuestion.battleQuestionId,
         clientRequestId: 'battle-submit-user-b-1',
+        answerVersion: 1,
         answer: {
           optionId: firstQuestion.options[0].id,
         },
@@ -515,6 +531,65 @@ describe('Battle routes (e2e)', () => {
         expect(response.body.data.completed).toBe(true);
         expect(response.body.data.result).toBe('WIN');
         expect(response.body.data.ratingDelta).toBe(0);
+      });
+  });
+
+  it('allows creating a friend room after cancelling matchmaking and allows rejoining matchmaking after cancellation', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/battles/matchmaking/join')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201)
+      .expect((response) => {
+        expect(response.body.data.status).toBe('SEARCHING');
+      });
+
+    await request(app.getHttpServer())
+      .delete('/api/v1/battles/matchmaking')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.status).toBe('CANCELLED');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/battles/friend-rooms')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201)
+      .expect((response) => {
+        expect(response.body.data.status).toBe('WAITING');
+      });
+
+    const secondJoin = await request(app.getHttpServer())
+      .post('/api/v1/battles/matchmaking/join')
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(201);
+
+    expect(secondJoin.body.data.status).toBe('SEARCHING');
+  });
+
+  it('allows joining matchmaking after cancelling a waiting friend room', async () => {
+    const createdRoom = await request(app.getHttpServer())
+      .post('/api/v1/battles/friend-rooms')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201);
+
+    const invitationToken = createdRoom.body.data.invitationToken as string;
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/battles/friend-rooms/${invitationToken}`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.roomStatus).toBe('CANCELLED');
+        expect(response.body.data.invitationStatus).toBe('CANCELLED');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/battles/matchmaking/join')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201)
+      .expect((response) => {
+        expect(response.body.data.status).toBe('SEARCHING');
       });
   });
 });

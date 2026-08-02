@@ -87,3 +87,122 @@ export function generateBattleClientRequestId(prefix = 'battle-answer') {
     createBattleEntropyHex(),
   ].join('-');
 }
+
+export function normalizeBattleInviteCode(value: string | null | undefined) {
+  return (value ?? '').trim().toUpperCase();
+}
+
+type ConfirmModalOptions = {
+  title: string;
+  content: string;
+  confirmText?: string;
+  cancelText?: string;
+  confirmColor?: string;
+};
+
+export function showBattleConfirmModal(options: ConfirmModalOptions) {
+  return new Promise<{ confirm: boolean; cancel: boolean }>((resolve) => {
+    (
+      wx as unknown as {
+        showModal: (
+          modalOptions: ConfirmModalOptions & {
+            success?: (result: {
+              confirm: boolean;
+              cancel: boolean;
+            }) => void;
+            fail?: () => void;
+          },
+        ) => void;
+      }
+    ).showModal({
+      ...options,
+      success(result) {
+        resolve(result);
+      },
+      fail() {
+        resolve({
+          confirm: false,
+          cancel: true,
+        });
+      },
+    });
+  });
+}
+
+export function enableBattleLeaveAlert(message: string) {
+  const leaveAlertApi = (
+    wx as unknown as {
+      enableAlertBeforeUnload?: (options: {
+        message: string;
+      }) => void;
+    }
+  ).enableAlertBeforeUnload;
+
+  if (typeof leaveAlertApi !== 'function') {
+    return;
+  }
+
+  leaveAlertApi({
+    message,
+  });
+}
+
+export function disableBattleLeaveAlert() {
+  const leaveAlertApi = (
+    wx as unknown as {
+      disableAlertBeforeUnload?: () => void;
+    }
+  ).disableAlertBeforeUnload;
+
+  if (typeof leaveAlertApi !== 'function') {
+    return;
+  }
+
+  leaveAlertApi();
+}
+
+type BattleErrorMessages = {
+  unauthorized: string;
+  network: string;
+  fallback: string;
+};
+
+type BattleErrorCodeMap = Partial<Record<string, string>>;
+
+export function getBattleErrorMessage(
+  error: unknown,
+  messages: BattleErrorMessages,
+  codeMap: BattleErrorCodeMap = {},
+) {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as { code?: unknown }).code === 'string'
+  ) {
+    const code = (error as { code: string }).code;
+
+    if (code === 'UNAUTHORIZED') {
+      return messages.unauthorized;
+    }
+
+    if (code === 'NETWORK_ERROR') {
+      return messages.network;
+    }
+
+    if (codeMap[code]) {
+      return codeMap[code] as string;
+    }
+  }
+
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'statusCode' in error &&
+    (error as { statusCode?: unknown }).statusCode === 401
+  ) {
+    return messages.unauthorized;
+  }
+
+  return messages.fallback;
+}

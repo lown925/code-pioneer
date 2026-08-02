@@ -1,0 +1,61 @@
+<view class="page-shell follow-list-page">
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">{{titleText}}加载中</text>
+    <text class="state-text">正在获取用户列表，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
+    <text class="state-title">暂时无法查看</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button state-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <view wx:elif="{{state === 'empty'}}" class="section-card state-box">
+    <text class="state-title">还没有{{titleText}}</text>
+    <text class="state-text">当前列表为空，之后有人关注或被关注时会显示在这里。</text>
+  </view>
+
+  <block wx:else>
+    <view class="section-card summary-card">
+      <text class="summary-title">{{titleText}} {{total}}</text>
+      <text class="summary-text">点击用户卡片可进入该用户主页查看详情。</text>
+    </view>
+
+    <view class="card-list">
+      <view
+        wx:for="{{items}}"
+        wx:key="userId"
+        class="section-card user-card"
+        data-user-id="{{item.userId}}"
+        bindtap="handleOpenUser"
+      >
+        <view class="user-avatar">
+          <image
+            wx:if="{{item.avatarUrl}}"
+            class="user-avatar-image"
+            src="{{item.avatarUrl}}"
+            mode="aspectFill"
+          />
+          <text wx:else class="user-avatar-text">{{item.profileInitial}}</text>
+        </view>
+
+        <view class="user-main">
+          <text class="user-name">{{item.displayName}}</text>
+          <text class="user-meta">Battle Rating {{item.ratingText}}</text>
+        </view>
+
+        <view class="user-tag">
+          <text class="user-tag-text">{{item.isFollowedByViewer ? '已关注' : '查看主页'}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{isLoadingMore}}" class="section-card loading-more">
+      <text class="loading-more-text">正在加载更多用户...</text>
+    </view>
+
+    <view wx:elif="{{!hasMore && items.length > 0}}" class="section-card loading-more">
+      <text class="loading-more-text">已经加载全部{{titleText}}</text>
+    </view>
+  </block>
+</view>

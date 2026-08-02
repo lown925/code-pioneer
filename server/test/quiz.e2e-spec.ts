@@ -83,6 +83,8 @@ type QuizQuestionRecord = {
   type: QuestionType;
   content: string;
   explanation: string | null;
+  stemBlocks?: unknown;
+  explanationBlocks?: unknown;
   score: number;
   sortOrder: number;
 };
@@ -91,6 +93,7 @@ type QuizOptionRecord = {
   id: string;
   questionId: string;
   content: string;
+  contentBlocks?: unknown;
   isCorrect: boolean;
   sortOrder: number;
 };
@@ -219,11 +222,17 @@ function createMockPrisma() {
             type: question.type,
             content: question.content,
             explanation: question.explanation,
+            stemBlocks: question.stemBlocks ?? null,
+            explanationBlocks: question.explanationBlocks ?? null,
             score: question.score,
             sortOrder: question.sortOrder,
             options: [...options.values()]
               .filter((option) => option.questionId === question.id)
-              .sort((left, right) => left.sortOrder - right.sortOrder),
+              .sort((left, right) => left.sortOrder - right.sortOrder)
+              .map((option) => ({
+                ...option,
+                contentBlocks: option.contentBlocks ?? null,
+              })),
           },
         };
       });
@@ -476,7 +485,7 @@ function createMockPrisma() {
             (attempt) =>
               attempt.userId === where.userId &&
               attempt.quizId === where.quizId &&
-              attempt.passed === where.passed,
+              (where.passed === undefined || attempt.passed === where.passed),
           ) ?? null
         );
       }),
@@ -603,6 +612,19 @@ function seedQuizCourse(mock: ReturnType<typeof createMockPrisma>) {
     type: QuestionType.SINGLE_CHOICE,
     content: 'Which function prints text in Python?',
     explanation: 'print() writes text to standard output.',
+    stemBlocks: [
+      {
+        type: 'CODE',
+        code: "print('Hello')",
+        language: 'python',
+      },
+    ],
+    explanationBlocks: [
+      {
+        type: 'TEXT',
+        text: 'print() is the standard output function in Python.',
+      },
+    ],
     score: 20,
     sortOrder: 1,
   });
@@ -619,6 +641,13 @@ function seedQuizCourse(mock: ReturnType<typeof createMockPrisma>) {
     id: optionOneId,
     questionId: questionOneId,
     content: 'print()',
+    contentBlocks: [
+      {
+        type: 'CODE',
+        code: 'print()',
+        language: 'python',
+      },
+    ],
     isCorrect: true,
     sortOrder: 1,
   });
@@ -758,6 +787,13 @@ describe('Quiz flow (e2e)', () => {
         expect(response.body.data.questions[0]).not.toHaveProperty(
           'explanation',
         );
+        expect(response.body.data.questions[0].stemBlocks).toEqual([
+          {
+            type: 'CODE',
+            code: "print('Hello')",
+            language: 'python',
+          },
+        ]);
       });
 
     expect(mockState.courseLearningRecords.size).toBe(0);
@@ -798,9 +834,9 @@ describe('Quiz flow (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/api/v1/chapters/${quizChapterId}/complete`)
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
-      .expect(400)
+      .expect(200)
       .expect((response) => {
-        expect(response.body.message).toBe('CHAPTER_QUIZ_NOT_PASSED');
+        expect(response.body.data.chapterStatus).toBe(LearningStatus.COMPLETED);
       });
 
     const correctAttempt = await request(app.getHttpServer())
@@ -843,6 +879,12 @@ describe('Quiz flow (e2e)', () => {
         expect(response.body.data.passed).toBe(true);
         expect(response.body.data.results[0]).toHaveProperty('correctOptionId');
         expect(response.body.data.results[0]).toHaveProperty('explanation');
+        expect(response.body.data.results[0].explanationBlocks).toEqual([
+          {
+            type: 'TEXT',
+            text: 'print() is the standard output function in Python.',
+          },
+        ]);
       });
 
     await request(app.getHttpServer())

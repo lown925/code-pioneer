@@ -22,6 +22,20 @@ declare namespace WechatMiniprogram {
     statusCode: number;
     data: T;
   };
+
+  type ShowModalSuccessCallbackResult = {
+    confirm: boolean;
+    cancel: boolean;
+  };
+
+  type ChooseImageSuccessCallbackResult = {
+    tempFilePaths: string[];
+  };
+
+  type UploadFileSuccessCallbackResult = {
+    statusCode: number;
+    data: string;
+  };
 }
 
 type MiniProgramPageInstance<TData, TMethods extends Record<string, (...args: any[]) => any>> = {
@@ -86,6 +100,22 @@ declare const wx: {
     success?(result: WechatMiniprogram.LoginSuccessCallbackResult): void;
     fail?(): void;
   }): void;
+  chooseImage(options: {
+    count?: number;
+    sizeType?: string[];
+    sourceType?: string[];
+    success?(result: WechatMiniprogram.ChooseImageSuccessCallbackResult): void;
+    fail?(error: { errMsg?: string }): void;
+  }): void;
+  uploadFile(options: {
+    url: string;
+    filePath: string;
+    name: string;
+    formData?: Record<string, unknown>;
+    header?: Record<string, string>;
+    success?(result: WechatMiniprogram.UploadFileSuccessCallbackResult): void;
+    fail?(): void;
+  }): void;
   stopPullDownRefresh(): void;
   navigateTo(options: {
     url: string;
@@ -113,6 +143,21 @@ declare const wx: {
   showToast(options: {
     title: string;
     icon?: string;
+  }): void;
+  setNavigationBarTitle(options: {
+    title: string;
+  }): void;
+  showModal(options: {
+    title?: string;
+    content: string;
+    showCancel?: boolean;
+    cancelText?: string;
+    cancelColor?: string;
+    confirmText?: string;
+    confirmColor?: string;
+    success?(result: WechatMiniprogram.ShowModalSuccessCallbackResult): void;
+    fail?(): void;
+    complete?(): void;
   }): void;
   previewImage(options: {
     current?: string;

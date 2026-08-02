@@ -27,3 +27,43 @@ export function toPublicUser(user: PublicUserSource): PublicUser {
     createdAt: user.createdAt,
   };
 }
+
+export type UserFollowListItem = {
+  userId: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+  battleRating: number;
+  isFollowedByViewer: boolean;
+};
+
+export type UserProfilePostSummary = {
+  postId: string;
+  title: string;
+  contentPreview: string;
+  createdAt: Date;
+  category: {
+    id: string;
+    key: string;
+    name: string;
+    description: string | null;
+    sortOrder: number;
+  };
+  favoriteCount: number;
+  commentCount: number;
+  viewCount: number;
+};
+
+export type PublicUserProfile = {
+  userId: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+  battleRating: number;
+  totalBattles: number;
+  followingCount: number;
+  followerCount: number;
+  wrongQuestionCount: number;
+  postCount: number;
+  viewerIsSelf: boolean;
+  viewerHasFollowed: boolean;
+  recentPosts: UserProfilePostSummary[];
+};

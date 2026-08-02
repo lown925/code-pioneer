@@ -12,6 +12,8 @@ import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatBattleDuration,
   generateBattleClientRequestId,
+  getBattleErrorMessage,
+  showBattleConfirmModal,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
 
@@ -21,12 +23,18 @@ type PlayPageState =
   | 'LOADING'
   | 'COUNTDOWN'
   | 'PLAYING'
-  | 'SUBMITTING'
   | 'WAITING_SETTLEMENT'
   | 'COMPLETED'
   | 'ERROR';
 
 type QuestionType = 'SINGLE_CHOICE' | 'CODE_FILL';
+type QuestionSyncState = 'idle' | 'saving' | 'error' | 'saved';
+type QuestionNavState =
+  | 'current'
+  | 'answered'
+  | 'saving'
+  | 'error'
+  | 'pending';
 
 type ViewBlock = BattleContentBlock & {
   blockKey: string;
@@ -39,7 +47,6 @@ type OptionCard = {
   optionLabel: string;
   blocks: ViewBlock[];
   isSelected: boolean;
-  isSubmittedSelected: boolean;
 };
 
 type QuestionCard = {
@@ -54,15 +61,20 @@ type QuestionCard = {
   programmingLanguage: string;
   answered: boolean;
   submittedAtText: string;
-  submittedAnswerOptionId: string;
-  submittedAnswerValue: string;
+  savedAnswerOptionId: string;
+  savedAnswerValue: string;
   draftOptionId: string;
   draftValue: string;
-  navStatus: 'current' | 'submitted' | 'pending';
-  navLabel: string;
+  answerVersion: number;
+  savedAnswerVersion: number;
+  inFlightAnswerVersion: number;
   pendingClientRequestId: string;
-  pendingDraftSignature: string;
-  submitErrorMessage: string;
+  pendingRequestVersion: number;
+  syncState: QuestionSyncState;
+  syncErrorMessage: string;
+  syncStatusText: string;
+  navStatus: QuestionNavState;
+  navLabel: string;
 };
 
 type PlayPageData = {
@@ -76,7 +88,6 @@ type PlayPageData = {
   countdownText: string;
   currentQuestionIndex: number;
   questionCountText: string;
-  submitButtonText: string;
   submitBattleButtonText: string;
   forfeitButtonText: string;
   isBattleActionPending: boolean;
@@ -96,6 +107,7 @@ type PlayPageMethods = {
   stopCountdownPolling(): void;
   startSettlementPolling(): void;
   stopSettlementPolling(): void;
+  stopAllQuestionDebounceTimers(): void;
   updateTimeDisplay(): void;
   loadResultStatus(): Promise<void>;
   enterWaitingSettlement(descriptionText: string, errorMessage?: string): void;
@@ -124,12 +136,25 @@ type PlayPageMethods = {
       };
     },
   ): void;
-  handleSubmitCurrentQuestion(): void;
+  handleRetryQuestionSync(
+    event: WechatMiniprogram.BaseEvent<{
+      questionId?: string;
+    }>,
+  ): void;
   handleSubmitBattle(): void;
   submitBattle(): Promise<void>;
+  flushPendingQuestionSaves(): Promise<void>;
   handleForfeitBattle(): void;
   forfeitBattle(): Promise<void>;
-  submitQuestion(questionId: string): Promise<void>;
+  scheduleQuestionSync(questionId: string, immediate?: boolean): void;
+  executeQuestionSync(questionId: string): Promise<void>;
+  buildAnswerPayload(
+    question: QuestionCard,
+  ): { optionId: string } | { value: string } | null;
+  hasAnswerDraft(question: QuestionCard): boolean;
+  hasUnsyncedDraft(question: QuestionCard): boolean;
+  isQuestionEditable(question: QuestionCard): boolean;
+  getQuestionSyncLabel(question: QuestionCard): string;
   handleImageError(
     event: WechatMiniprogram.BaseEvent<{
       questionId?: string;
@@ -159,7 +184,6 @@ type PlayPageMethods = {
     options: BattleQuestionOptionSnapshotResponse[],
     questionId: string,
     draftOptionId: string,
-    submittedAnswerOptionId: string,
     previousQuestion: QuestionCard | null,
   ): OptionCard[];
   getCurrentQuestion(): QuestionCard | null;
@@ -172,7 +196,7 @@ type PlayPageMethods = {
     questionId: string,
     updater: (question: QuestionCard) => QuestionCard,
   ): void;
-  getDraftSignature(question: QuestionCard): string;
+  findQuestion(questionId: string): QuestionCard | null;
   getReadableError(error: unknown, fallback: string): string;
   mapPlayState(payload: BattleQuestionsResponse): PlayPageState;
   getQuestionTypeText(type: QuestionType): string;
@@ -180,9 +204,14 @@ type PlayPageMethods = {
   normalizeSubmittedAnswer(
     answer: BattleSubmittedAnswerResponse | null,
   ): {
-    submittedAnswerOptionId: string;
-    submittedAnswerValue: string;
+    savedAnswerOptionId: string;
+    savedAnswerValue: string;
   };
+};
+
+type QuestionSyncRuntime = {
+  debounceTimer: number | null;
+  inFlight: boolean;
 };
 
 const UUID_PATTERN =
@@ -191,8 +220,10 @@ const TIME_TICK_MS = 500;
 const COUNTDOWN_POLL_MS = 1800;
 const SETTLEMENT_POLL_MS = 1800;
 const CODE_FILL_MAX_LENGTH = 4000;
+const CODE_FILL_AUTOSAVE_DELAY_MS = 650;
 
 let isPageActive = false;
+let isPageVisible = false;
 let hasLoadedOnce = false;
 let requestSerial = 0;
 let timeTicker: number | null = null;
@@ -200,12 +231,12 @@ let countdownPollTicker: number | null = null;
 let settlementPollTicker: number | null = null;
 let isQuestionsRequesting = false;
 let isResultRequesting = false;
-let isSubmitting = false;
 let isBattleActionRequesting = false;
 let serverTimeOffsetMs = 0;
 let startedAtTimestampMs = 0;
 let expiresAtTimestampMs = 0;
 let hasRedirectedToResult = false;
+const questionSyncRuntimeMap = new Map<string, QuestionSyncRuntime>();
 
 function parseTimestamp(value: string | null | undefined) {
   if (!value) {
@@ -213,7 +244,6 @@ function parseTimestamp(value: string | null | undefined) {
   }
 
   const timestamp = Date.parse(value);
-
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
@@ -221,19 +251,33 @@ function getServerNowMs() {
   return Date.now() + serverTimeOffsetMs;
 }
 
-function showConfirmModal(options: {
-  title: string;
-  content: string;
-  confirmText: string;
-  cancelText: string;
-  confirmColor?: string;
-  success: (result: { confirm: boolean; cancel: boolean }) => void;
-}) {
-  (
-    wx as unknown as {
-      showModal: (modalOptions: typeof options) => void;
-    }
-  ).showModal(options);
+function getQuestionRuntime(questionId: string) {
+  const existing = questionSyncRuntimeMap.get(questionId);
+
+  if (existing) {
+    return existing;
+  }
+
+  const created: QuestionSyncRuntime = {
+    debounceTimer: null,
+    inFlight: false,
+  };
+  questionSyncRuntimeMap.set(questionId, created);
+  return created;
+}
+
+function clearQuestionRuntime(questionId: string) {
+  const runtime = questionSyncRuntimeMap.get(questionId);
+
+  if (!runtime) {
+    return;
+  }
+
+  if (runtime.debounceTimer !== null) {
+    clearTimeout(runtime.debounceTimer);
+  }
+
+  questionSyncRuntimeMap.delete(questionId);
 }
 
 function formatSubmittedAtLabel(value: string | null) {
@@ -244,7 +288,7 @@ function formatSubmittedAtLabel(value: string | null) {
   const timestamp = Date.parse(value);
 
   if (!Number.isFinite(timestamp)) {
-    return '已提交';
+    return '已保存';
   }
 
   const date = new Date(timestamp);
@@ -252,7 +296,13 @@ function formatSubmittedAtLabel(value: string | null) {
   const minutes = String(date.getMinutes()).padStart(2, '0');
   const seconds = String(date.getSeconds()).padStart(2, '0');
 
-  return `已提交 ${hours}:${minutes}:${seconds}`;
+  return `已保存 ${hours}:${minutes}:${seconds}`;
+}
+
+function wait(delayMs: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(() => resolve(), delayMs);
+  });
 }
 
 Page<PlayPageData, PlayPageMethods>({
@@ -267,7 +317,6 @@ Page<PlayPageData, PlayPageMethods>({
     countdownText: '',
     currentQuestionIndex: 0,
     questionCountText: '0 / 0',
-    submitButtonText: '确认提交',
     submitBattleButtonText: '交卷',
     forfeitButtonText: '认输',
     isBattleActionPending: false,
@@ -276,6 +325,7 @@ Page<PlayPageData, PlayPageMethods>({
 
   onLoad(options) {
     isPageActive = true;
+    isPageVisible = true;
     hasRedirectedToResult = false;
     const battleId =
       typeof options?.battleId === 'string' ? options.battleId.trim() : '';
@@ -300,6 +350,7 @@ Page<PlayPageData, PlayPageMethods>({
   },
 
   onShow() {
+    isPageVisible = true;
     isPageActive = true;
 
     if (hasLoadedOnce && this.data.isValidBattleId) {
@@ -317,18 +368,23 @@ Page<PlayPageData, PlayPageMethods>({
   },
 
   onHide() {
+    isPageVisible = false;
     this.stopTimeTicker();
     this.stopCountdownPolling();
     this.stopSettlementPolling();
+    this.stopAllQuestionDebounceTimers();
   },
 
   onUnload() {
+    isPageVisible = false;
     isPageActive = false;
     hasRedirectedToResult = false;
     requestSerial += 1;
     this.stopTimeTicker();
     this.stopCountdownPolling();
     this.stopSettlementPolling();
+    this.stopAllQuestionDebounceTimers();
+    questionSyncRuntimeMap.clear();
   },
 
   onPullDownRefresh() {
@@ -407,7 +463,7 @@ Page<PlayPageData, PlayPageMethods>({
       this.setData({
         state: 'ERROR',
         titleText: '题目加载失败',
-        descriptionText: '你可以重新获取服务端题目状态，或返回 Battle 房间页。',
+        descriptionText: '你可以重新获取题目，或先回到 Battle 房间。',
         errorMessage: this.getReadableError(
           error,
           'Battle 题目加载失败，请稍后重试。',
@@ -454,19 +510,18 @@ Page<PlayPageData, PlayPageMethods>({
               : 'Battle 答题中',
       descriptionText:
         nextState === 'COUNTDOWN'
-          ? '服务端倒计时尚未结束，题目将在可作答时自动加载。'
+          ? '服务端倒计时尚未结束，到达 startedAt 后会自动进入作答状态。'
           : nextState === 'WAITING_SETTLEMENT'
-            ? '作答时间已结束，当前已停止提交，等待后续结算阶段开放。'
+            ? '当前已停止作答，系统正在等待对手或处理结算。'
             : nextState === 'COMPLETED'
-              ? '当前房间已经结束，本页只保留题目和已提交状态展示。'
-              : '题目数据以服务端快照为准，已提交题目不会展示正确与错误。',
+              ? '当前对局已完成，正在准备跳转结果页。'
+              : '选择答案后会自动暂存。交卷前会等待未完成的自动保存请求。'
+      ,
       errorMessage: '',
       currentQuestionIndex: built.currentQuestionIndex,
       questionCountText: currentQuestionCard
         ? `${built.currentQuestionIndex + 1} / ${built.questions.length}`
         : `0 / ${built.questions.length}`,
-      submitButtonText:
-        nextState === 'SUBMITTING' ? '提交中' : '确认提交',
       submitBattleButtonText: '交卷',
       forfeitButtonText: '认输',
       isBattleActionPending: false,
@@ -494,12 +549,12 @@ Page<PlayPageData, PlayPageMethods>({
   startTimeTicker() {
     this.stopTimeTicker();
 
-    if (!isPageActive) {
+    if (!isPageVisible) {
       return;
     }
 
     const tick = () => {
-      if (!isPageActive) {
+      if (!isPageVisible) {
         timeTicker = null;
         return;
       }
@@ -524,14 +579,14 @@ Page<PlayPageData, PlayPageMethods>({
   startCountdownPolling() {
     this.stopCountdownPolling();
 
-    if (!isPageActive || this.data.state !== 'COUNTDOWN') {
+    if (!isPageVisible || this.data.state !== 'COUNTDOWN') {
       return;
     }
 
     countdownPollTicker = setTimeout(() => {
       countdownPollTicker = null;
 
-      if (!isPageActive) {
+      if (!isPageVisible) {
         return;
       }
 
@@ -551,14 +606,14 @@ Page<PlayPageData, PlayPageMethods>({
   startSettlementPolling() {
     this.stopSettlementPolling();
 
-    if (!isPageActive || this.data.state !== 'WAITING_SETTLEMENT') {
+    if (!isPageVisible || this.data.state !== 'WAITING_SETTLEMENT') {
       return;
     }
 
     settlementPollTicker = setTimeout(() => {
       settlementPollTicker = null;
 
-      if (!isPageActive) {
+      if (!isPageVisible) {
         return;
       }
 
@@ -573,6 +628,15 @@ Page<PlayPageData, PlayPageMethods>({
     }
   },
 
+  stopAllQuestionDebounceTimers() {
+    questionSyncRuntimeMap.forEach((runtime) => {
+      if (runtime.debounceTimer !== null) {
+        clearTimeout(runtime.debounceTimer);
+        runtime.debounceTimer = null;
+      }
+    });
+  },
+
   updateTimeDisplay() {
     const now = getServerNowMs();
     const remainingSeconds =
@@ -584,12 +648,9 @@ Page<PlayPageData, PlayPageMethods>({
         ? Math.max(0, Math.ceil((startedAtTimestampMs - now) / 1000))
         : 0;
 
-    if (
-      remainingSeconds <= 0 &&
-      (this.data.state === 'PLAYING' || this.data.state === 'SUBMITTING')
-    ) {
+    if (this.data.state === 'PLAYING' && remainingSeconds <= 0) {
       this.enterWaitingSettlement(
-        '作答时间已结束，当前已停止提交，正在等待服务端完成结算。',
+        '作答时间已结束，当前已停止修改答案，系统正在等待结算。',
       );
       return;
     }
@@ -607,7 +668,9 @@ Page<PlayPageData, PlayPageMethods>({
     this.setData({
       remainingTimeText: formatBattleDuration(remainingSeconds),
       countdownText:
-        this.data.state === 'COUNTDOWN' ? String(Math.max(1, countdownSeconds)) : '',
+        this.data.state === 'COUNTDOWN'
+          ? String(Math.max(1, countdownSeconds))
+          : '',
     });
   },
 
@@ -643,9 +706,9 @@ Page<PlayPageData, PlayPageMethods>({
 
       const waitingMessage =
         response.status === 'COUNTDOWN'
-          ? '对战倒计时尚未结束，结果将在整场作答结束后生成。'
+          ? '对战倒计时尚未结束，结果会在整场答题结束后生成。'
           : response.status === 'IN_PROGRESS'
-            ? '当前对战仍在进行中，结果将在整场作答结束后生成。'
+            ? '当前对战仍在进行中，结果会在整场答题结束后生成。'
             : '服务端正在处理本场结算，请稍候。';
 
       this.enterWaitingSettlement(waitingMessage);
@@ -654,41 +717,18 @@ Page<PlayPageData, PlayPageMethods>({
         return;
       }
 
-      if (error instanceof RequestError) {
-        if (
-          error.code === 'BATTLE_NOT_PARTICIPANT' ||
-          error.code === 'BATTLE_NOT_FOUND' ||
-          error.code === 'BATTLE_SETTLEMENT_DATA_INVALID'
-        ) {
-          this.stopSettlementPolling();
-          this.setData({
-            state: 'ERROR',
-            titleText: '结果获取失败',
-            descriptionText: '当前 Battle 结果无法继续同步，你可以返回房间页或稍后重试。',
-            errorMessage: this.getReadableError(
-              error,
-              'Battle 结果暂时不可用，请稍后重试。',
-            ),
-            isBattleActionPending: false,
-            submitBattleButtonText: '交卷',
-            forfeitButtonText: '认输',
-          });
-          return;
-        }
-
-        if (error.code === 'BATTLE_NOT_STARTED') {
-          this.enterWaitingSettlement(
-            '当前对战尚未结束，结果将在整场作答完成后自动生成。',
-            '',
-          );
-          return;
-        }
-      }
-
-      this.enterWaitingSettlement(
-        '服务端正在处理本场结果，你可以稍后自动重试或手动下拉刷新。',
-        this.getReadableError(error, 'Battle 结果暂时不可用，请稍后重试。'),
-      );
+      this.setData({
+        state: 'ERROR',
+        titleText: '结果获取失败',
+        descriptionText: '当前 Battle 结果无法继续同步，你可以稍后重试。',
+        errorMessage: this.getReadableError(
+          error,
+          'Battle 结果暂时不可用，请稍后重试。',
+        ),
+        isBattleActionPending: false,
+        submitBattleButtonText: '交卷',
+        forfeitButtonText: '认输',
+      });
     } finally {
       isResultRequesting = false;
     }
@@ -697,42 +737,37 @@ Page<PlayPageData, PlayPageMethods>({
   enterWaitingSettlement(descriptionText: string, errorMessage = '') {
     this.stopTimeTicker();
     this.stopCountdownPolling();
+    this.stopAllQuestionDebounceTimers();
 
     this.setData({
       state: 'WAITING_SETTLEMENT',
       titleText: '等待结算中',
       descriptionText,
       errorMessage,
-      remainingTimeText: '00:00',
-      countdownText: '',
-      submitButtonText: '确认提交',
+      isBattleActionPending: false,
       submitBattleButtonText: '交卷',
       forfeitButtonText: '认输',
-      isBattleActionPending: false,
     });
 
     this.startSettlementPolling();
   },
 
   navigateToResult(autoNavigate = false) {
-    if (!this.data.isValidBattleId) {
-      return;
-    }
-
-    if (autoNavigate && hasRedirectedToResult) {
+    if (hasRedirectedToResult || !this.data.isValidBattleId) {
       return;
     }
 
     hasRedirectedToResult = true;
-    const url = `/pages/battle/result?battleId=${encodeURIComponent(this.data.battleId)}`;
+
+    if (!autoNavigate) {
+      wx.showToast({
+        title: '正在进入结果页',
+        icon: 'none',
+      });
+    }
 
     wx.redirectTo({
-      url,
-      fail: () => {
-        wx.navigateTo({
-          url,
-        });
-      },
+      url: `/pages/battle/result?battleId=${encodeURIComponent(this.data.battleId)}`,
     });
   },
 
@@ -751,57 +786,79 @@ Page<PlayPageData, PlayPageMethods>({
   },
 
   handleBackRoom() {
-    if (!this.data.isValidBattleId) {
-      wx.switchTab({
-        url: '/pages/battle/index',
-      });
-      return;
-    }
+    const url = `/pages/battle/room?battleId=${encodeURIComponent(this.data.battleId)}`;
 
-    wx.navigateTo({
-      url: `/pages/battle/room?battleId=${encodeURIComponent(this.data.battleId)}`,
+    wx.redirectTo({
+      url,
+      fail: () => {
+        (
+          wx as unknown as {
+            navigateBack: (options: {
+              delta?: number;
+              fail?: () => void;
+            }) => void;
+          }
+        ).navigateBack({
+          fail: () => {
+            wx.switchTab({
+              url: '/pages/battle/index',
+            });
+          },
+        });
+      },
     });
   },
 
   handlePrevQuestion() {
-    if (this.data.currentQuestionIndex <= 0) {
+    if (this.data.questions.length === 0 || this.data.currentQuestionIndex <= 0) {
       return;
     }
 
-    const nextIndex = this.data.currentQuestionIndex - 1;
     this.setData({
-      currentQuestionIndex: nextIndex,
-      questionCountText: `${nextIndex + 1} / ${this.data.questions.length}`,
-      questions: this.rebuildNavStatus(this.data.questions, nextIndex),
+      currentQuestionIndex: this.data.currentQuestionIndex - 1,
+      questions: this.rebuildNavStatus(
+        this.data.questions,
+        this.data.currentQuestionIndex - 1,
+      ),
+      questionCountText: `${this.data.currentQuestionIndex} / ${this.data.questions.length}`,
     });
   },
 
   handleNextQuestion() {
-    if (this.data.currentQuestionIndex >= this.data.questions.length - 1) {
+    if (
+      this.data.questions.length === 0 ||
+      this.data.currentQuestionIndex >= this.data.questions.length - 1
+    ) {
       return;
     }
 
-    const nextIndex = this.data.currentQuestionIndex + 1;
     this.setData({
-      currentQuestionIndex: nextIndex,
-      questionCountText: `${nextIndex + 1} / ${this.data.questions.length}`,
-      questions: this.rebuildNavStatus(this.data.questions, nextIndex),
+      currentQuestionIndex: this.data.currentQuestionIndex + 1,
+      questions: this.rebuildNavStatus(
+        this.data.questions,
+        this.data.currentQuestionIndex + 1,
+      ),
+      questionCountText: `${this.data.currentQuestionIndex + 2} / ${this.data.questions.length}`,
     });
   },
 
   handleSelectQuestion(
     event: WechatMiniprogram.BaseEvent<{ index?: number }>,
   ) {
-    const index = Number(event.currentTarget.dataset.index);
+    const nextIndex = Number(event.currentTarget.dataset.index ?? -1);
 
-    if (!Number.isInteger(index) || index < 0 || index >= this.data.questions.length) {
+    if (
+      !Number.isInteger(nextIndex) ||
+      nextIndex < 0 ||
+      nextIndex >= this.data.questions.length
+    ) {
       return;
     }
 
     this.setData({
-      currentQuestionIndex: index,
-      questionCountText: `${index + 1} / ${this.data.questions.length}`,
-      questions: this.rebuildNavStatus(this.data.questions, index),
+      currentQuestionIndex: nextIndex,
+      questions: this.rebuildNavStatus(this.data.questions, nextIndex),
+      questionCountText: `${nextIndex + 1} / ${this.data.questions.length}`,
     });
   },
 
@@ -813,40 +870,33 @@ Page<PlayPageData, PlayPageMethods>({
   ) {
     const questionId = event.currentTarget.dataset.questionId ?? '';
     const optionId = event.currentTarget.dataset.optionId ?? '';
-    const currentQuestion = this.getCurrentQuestion();
+    const question = this.findQuestion(questionId);
 
-    if (
-      !questionId ||
-      !optionId ||
-      !currentQuestion ||
-      currentQuestion.battleQuestionId !== questionId ||
-      currentQuestion.answered ||
-      this.data.state !== 'PLAYING' ||
-      this.data.isBattleActionPending
-    ) {
+    if (!question || !optionId || !this.isQuestionEditable(question)) {
       return;
     }
 
-    this.updateQuestionDraft(questionId, (question) => {
-      const nextQuestion = {
-        ...question,
+    if (question.draftOptionId === optionId && question.syncState !== 'error') {
+      return;
+    }
+
+    this.updateQuestionDraft(questionId, (current) => {
+      const nextVersion = current.answerVersion + 1;
+
+      return {
+        ...current,
         draftOptionId: optionId,
-        options: question.options.map((option) => ({
+        answerVersion: nextVersion,
+        syncState: 'idle',
+        syncErrorMessage: '',
+        options: current.options.map((option) => ({
           ...option,
           isSelected: option.optionId === optionId,
         })),
       };
-
-      const signature = this.getDraftSignature(nextQuestion);
-
-      if (signature !== question.pendingDraftSignature) {
-        nextQuestion.pendingClientRequestId = '';
-        nextQuestion.pendingDraftSignature = '';
-        nextQuestion.submitErrorMessage = '';
-      }
-
-      return nextQuestion;
     });
+
+    this.scheduleQuestionSync(questionId, true);
   },
 
   handleCodeInput(
@@ -861,76 +911,73 @@ Page<PlayPageData, PlayPageMethods>({
     },
   ) {
     const questionId = event.currentTarget.dataset.questionId ?? '';
-    const value =
-      typeof event.detail?.value === 'string'
-        ? event.detail.value.slice(0, CODE_FILL_MAX_LENGTH)
-        : '';
-    const currentQuestion = this.getCurrentQuestion();
+    const question = this.findQuestion(questionId);
 
-    if (
-      !questionId ||
-      !currentQuestion ||
-      currentQuestion.battleQuestionId !== questionId ||
-      currentQuestion.answered ||
-      this.data.state !== 'PLAYING' ||
-      this.data.isBattleActionPending
-    ) {
+    if (!question || !this.isQuestionEditable(question)) {
       return;
     }
 
-    this.updateQuestionDraft(questionId, (question) => {
-      const nextQuestion = {
-        ...question,
-        draftValue: value,
-      };
-      const signature = this.getDraftSignature(nextQuestion);
+    const nextValue = String(event.detail.value ?? '').slice(
+      0,
+      CODE_FILL_MAX_LENGTH,
+    );
 
-      if (signature !== question.pendingDraftSignature) {
-        nextQuestion.pendingClientRequestId = '';
-        nextQuestion.pendingDraftSignature = '';
-        nextQuestion.submitErrorMessage = '';
-      }
+    if (nextValue === question.draftValue && question.syncState !== 'error') {
+      return;
+    }
 
-      return nextQuestion;
-    });
+    this.updateQuestionDraft(questionId, (current) => ({
+      ...current,
+      draftValue: nextValue,
+      answerVersion: current.answerVersion + 1,
+      syncState: 'idle',
+      syncErrorMessage: '',
+    }));
+
+    if (!nextValue.trim()) {
+      return;
+    }
+
+    this.scheduleQuestionSync(questionId, false);
   },
 
-  handleSubmitCurrentQuestion() {
-    const currentQuestion = this.getCurrentQuestion();
+  handleRetryQuestionSync(
+    event: WechatMiniprogram.BaseEvent<{
+      questionId?: string;
+    }>,
+  ) {
+    const questionId = event.currentTarget.dataset.questionId ?? '';
 
-    if (!currentQuestion || this.data.isBattleActionPending) {
+    if (!questionId) {
       return;
     }
 
-    void this.submitQuestion(currentQuestion.battleQuestionId);
+    this.scheduleQuestionSync(questionId, true);
   },
 
   handleSubmitBattle() {
     if (
       this.data.isBattleActionPending ||
-      isSubmitting ||
-      (this.data.state !== 'PLAYING' && this.data.state !== 'SUBMITTING')
+      isBattleActionRequesting ||
+      (this.data.state !== 'PLAYING' && this.data.state !== 'COUNTDOWN')
     ) {
       return;
     }
 
-    const total = this.data.questions.length;
-    const submitted = this.data.questions.filter((question) => question.answered).length;
-    const unanswered = Math.max(0, total - submitted);
+    const draftCount = this.data.questions.filter((question: QuestionCard) =>
+      this.hasAnswerDraft(question),
+    ).length;
+    const unansweredCount = Math.max(0, this.data.questions.length - draftCount);
 
-    showConfirmModal({
+    void showBattleConfirmModal({
       title: '确认交卷',
-      content:
-        unanswered > 0
-          ? `当前已提交 ${submitted} / ${total} 题，仍有 ${unanswered} 题未提交。确认后将立即结束作答并进入结算等待。`
-          : `当前 ${total} 题都已提交。确认后将立即结束作答并进入结算等待。`,
+      content: `当前已答 ${draftCount} 题，共 ${this.data.questions.length} 题。还有 ${unansweredCount} 题未作答，确认后会先等待自动保存完成，再提交整场。`,
       confirmText: '确认交卷',
-      cancelText: '继续作答',
-      success: (result) => {
-        if (result.confirm) {
-          void this.submitBattle();
-        }
-      },
+      cancelText: '继续答题',
+    }).then((result) => {
+      if (result.confirm) {
+        void this.submitBattle();
+      }
     });
   },
 
@@ -939,8 +986,8 @@ Page<PlayPageData, PlayPageMethods>({
       !this.ensureAuthenticated() ||
       !this.data.isValidBattleId ||
       isBattleActionRequesting ||
-      isSubmitting ||
-      (this.data.state !== 'PLAYING' && this.data.state !== 'SUBMITTING')
+      this.data.isBattleActionPending ||
+      (this.data.state !== 'PLAYING' && this.data.state !== 'COUNTDOWN')
     ) {
       return;
     }
@@ -949,12 +996,14 @@ Page<PlayPageData, PlayPageMethods>({
 
     this.setData({
       isBattleActionPending: true,
-      submitBattleButtonText: '交卷中',
-      forfeitButtonText: '处理中',
+      submitBattleButtonText: '处理中',
+      forfeitButtonText: '认输',
       errorMessage: '',
     });
 
     try {
+      await this.flushPendingQuestionSaves();
+
       const response = await request<BattleSubmitActionResponse>({
         url: `/battles/${encodeURIComponent(this.data.battleId)}/submit`,
         method: 'POST',
@@ -974,7 +1023,7 @@ Page<PlayPageData, PlayPageMethods>({
 
       this.enterWaitingSettlement(
         response.waitingForOpponent
-          ? '你已主动交卷，正在等待对手结束作答并完成结算。'
+          ? '你已主动交卷，正在等待对手完成作答并进入结算。'
           : '整场作答已提交，服务端正在整理本场结果。',
       );
     } catch (error) {
@@ -996,28 +1045,58 @@ Page<PlayPageData, PlayPageMethods>({
     }
   },
 
+  async flushPendingQuestionSaves() {
+    const pendingQuestions = this.data.questions.filter((question: QuestionCard) =>
+      this.hasUnsyncedDraft(question),
+    );
+
+    for (const question of pendingQuestions) {
+      this.scheduleQuestionSync(question.battleQuestionId, true);
+    }
+
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const waitingForSave = this.data.questions.some(
+        (question: QuestionCard) =>
+          getQuestionRuntime(question.battleQuestionId).inFlight ||
+          this.hasUnsyncedDraft(question),
+      );
+
+      if (!waitingForSave) {
+        break;
+      }
+
+      await wait(120);
+    }
+
+    const failedQuestion = this.data.questions.find(
+      (question: QuestionCard) =>
+        question.syncState === 'error' || this.hasUnsyncedDraft(question),
+    );
+
+    if (failedQuestion) {
+      throw new Error('QUESTION_SYNC_PENDING');
+    }
+  },
+
   handleForfeitBattle() {
     if (
       this.data.isBattleActionPending ||
-      isSubmitting ||
-      (this.data.state !== 'COUNTDOWN' &&
-        this.data.state !== 'PLAYING' &&
-        this.data.state !== 'SUBMITTING')
+      isBattleActionRequesting ||
+      (this.data.state !== 'COUNTDOWN' && this.data.state !== 'PLAYING')
     ) {
       return;
     }
 
-    showConfirmModal({
+    void showBattleConfirmModal({
       title: '确认认输',
       content: '认输会立即判负，并结束你当前这场 Battle。确认后将直接进入结算等待。',
       confirmText: '确认认输',
       cancelText: '继续对战',
       confirmColor: '#c24343',
-      success: (result) => {
-        if (result.confirm) {
-          void this.forfeitBattle();
-        }
-      },
+    }).then((result) => {
+      if (result.confirm) {
+        void this.forfeitBattle();
+      }
     });
   },
 
@@ -1026,10 +1105,8 @@ Page<PlayPageData, PlayPageMethods>({
       !this.ensureAuthenticated() ||
       !this.data.isValidBattleId ||
       isBattleActionRequesting ||
-      isSubmitting ||
-      (this.data.state !== 'COUNTDOWN' &&
-        this.data.state !== 'PLAYING' &&
-        this.data.state !== 'SUBMITTING')
+      this.data.isBattleActionPending ||
+      (this.data.state !== 'COUNTDOWN' && this.data.state !== 'PLAYING')
     ) {
       return;
     }
@@ -1081,79 +1158,73 @@ Page<PlayPageData, PlayPageMethods>({
     }
   },
 
-  async submitQuestion(questionId: string) {
+  scheduleQuestionSync(questionId: string, immediate = false) {
+    const question = this.findQuestion(questionId);
+
+    if (!question || !this.isQuestionEditable(question)) {
+      return;
+    }
+
+    const runtime = getQuestionRuntime(questionId);
+
+    if (runtime.debounceTimer !== null) {
+      clearTimeout(runtime.debounceTimer);
+      runtime.debounceTimer = null;
+    }
+
+    if (immediate) {
+      void this.executeQuestionSync(questionId);
+      return;
+    }
+
+    runtime.debounceTimer = setTimeout(() => {
+      runtime.debounceTimer = null;
+      void this.executeQuestionSync(questionId);
+    }, CODE_FILL_AUTOSAVE_DELAY_MS) as unknown as number;
+  },
+
+  async executeQuestionSync(questionId: string) {
+    const question = this.findQuestion(questionId);
+
+    if (!question || !this.isQuestionEditable(question)) {
+      return;
+    }
+
+    const runtime = getQuestionRuntime(questionId);
+
+    if (runtime.inFlight) {
+      return;
+    }
+
+    const answerPayload = this.buildAnswerPayload(question);
+
+    if (!answerPayload) {
+      return;
+    }
+
     if (
-      !this.ensureAuthenticated() ||
-      !this.data.isValidBattleId ||
-      isSubmitting ||
-      this.data.isBattleActionPending ||
-      (this.data.state !== 'PLAYING' && this.data.state !== 'SUBMITTING')
+      question.savedAnswerVersion >= question.answerVersion &&
+      question.syncState !== 'error'
     ) {
       return;
     }
 
-    const question = this.data.questions.find((item) => item.battleQuestionId === questionId);
-
-    if (!question || question.answered) {
-      return;
-    }
-
-    let answerPayload:
-      | {
-          optionId: string;
-        }
-      | {
-          value: string;
-        };
-
-    if (question.questionType === 'SINGLE_CHOICE') {
-      if (!question.draftOptionId) {
-        wx.showToast({
-          title: '请先选择一个答案',
-          icon: 'none',
-        });
-        return;
-      }
-
-      answerPayload = {
-        optionId: question.draftOptionId,
-      };
-    } else {
-      const draftValue = question.draftValue.trim();
-
-      if (!draftValue) {
-        wx.showToast({
-          title: '请先填写答案',
-          icon: 'none',
-        });
-        return;
-      }
-
-      answerPayload = {
-        value: question.draftValue,
-      };
-    }
-
-    const draftSignature = this.getDraftSignature(question);
+    const requestVersion = question.answerVersion;
     const clientRequestId =
       question.pendingClientRequestId &&
-      question.pendingDraftSignature === draftSignature
+      question.pendingRequestVersion === requestVersion
         ? question.pendingClientRequestId
         : generateBattleClientRequestId('battle-answer');
 
-    isSubmitting = true;
-
-    this.setData({
-      state: 'SUBMITTING',
-      submitButtonText: '提交中',
-      errorMessage: '',
-    });
+    runtime.inFlight = true;
 
     this.updateQuestionDraft(questionId, (current) => ({
       ...current,
+      inFlightAnswerVersion: requestVersion,
       pendingClientRequestId: clientRequestId,
-      pendingDraftSignature: draftSignature,
-      submitErrorMessage: '',
+      pendingRequestVersion: requestVersion,
+      syncState: 'saving',
+      syncErrorMessage: '',
     }));
 
     try {
@@ -1164,6 +1235,7 @@ Page<PlayPageData, PlayPageMethods>({
         data: {
           battleQuestionId: questionId,
           clientRequestId,
+          answerVersion: requestVersion,
           answer: answerPayload,
         } as WechatMiniprogram.IAnyObject,
       });
@@ -1174,42 +1246,46 @@ Page<PlayPageData, PlayPageMethods>({
 
       serverTimeOffsetMs = parseTimestamp(response.serverTime) - Date.now();
 
-      this.updateQuestionDraft(questionId, (current) => ({
-        ...current,
-        answered: true,
-        submittedAtText: formatSubmittedAtLabel(response.submittedAt),
-        submittedAnswerOptionId:
-          current.questionType === 'SINGLE_CHOICE' ? current.draftOptionId : '',
-        submittedAnswerValue:
-          current.questionType === 'CODE_FILL' ? current.draftValue : '',
-        pendingClientRequestId: '',
-        pendingDraftSignature: '',
-        submitErrorMessage: '',
-        options: current.options.map((option) => ({
-          ...option,
-          isSelected:
-            current.questionType === 'SINGLE_CHOICE' &&
-            option.optionId === current.draftOptionId,
-          isSubmittedSelected:
-            current.questionType === 'SINGLE_CHOICE' &&
-            option.optionId === current.draftOptionId,
-        })),
-      }));
+      this.updateQuestionDraft(questionId, (current) => {
+        const nextSavedVersion = Math.max(
+          current.savedAnswerVersion,
+          response.answerVersion,
+        );
+        const requestWasApplied = response.answerVersion >= requestVersion;
+        const isChoice = current.questionType === 'SINGLE_CHOICE';
 
-      const nextState =
-        expiresAtTimestampMs > 0 && getServerNowMs() >= expiresAtTimestampMs
-          ? 'WAITING_SETTLEMENT'
-          : 'PLAYING';
-
-      this.setData({
-        state: nextState,
-        submitButtonText: '确认提交',
-        titleText:
-          nextState === 'WAITING_SETTLEMENT' ? '等待结算中' : 'Battle 答题中',
-        descriptionText:
-          nextState === 'WAITING_SETTLEMENT'
-            ? '作答时间已结束，当前已停止提交，等待后续结算阶段开放。'
-            : '题目数据以服务端快照为准，已提交题目不会展示正确与错误。',
+        return {
+          ...current,
+          answered: requestWasApplied ? true : current.answered,
+          submittedAtText: requestWasApplied
+            ? formatSubmittedAtLabel(response.submittedAt)
+            : current.submittedAtText,
+          savedAnswerOptionId:
+            requestWasApplied && isChoice
+              ? 'optionId' in answerPayload
+                ? answerPayload.optionId
+                : current.savedAnswerOptionId
+              : current.savedAnswerOptionId,
+          savedAnswerValue:
+            requestWasApplied && !isChoice
+              ? 'value' in answerPayload
+                ? answerPayload.value
+                : current.savedAnswerValue
+              : current.savedAnswerValue,
+          savedAnswerVersion: nextSavedVersion,
+          inFlightAnswerVersion: 0,
+          pendingClientRequestId:
+            current.pendingRequestVersion === requestVersion
+              ? ''
+              : current.pendingClientRequestId,
+          pendingRequestVersion:
+            current.pendingRequestVersion === requestVersion
+              ? 0
+              : current.pendingRequestVersion,
+          syncState:
+            current.answerVersion > response.answerVersion ? 'idle' : 'saved',
+          syncErrorMessage: '',
+        };
       });
     } catch (error) {
       if (!isPageActive) {
@@ -1217,23 +1293,12 @@ Page<PlayPageData, PlayPageMethods>({
       }
 
       if (error instanceof RequestError) {
-        if (error.code === 'BATTLE_ANSWER_ALREADY_SUBMITTED') {
-          wx.showToast({
-            title: '该题已提交，正在同步状态',
-            icon: 'none',
-          });
-          await this.loadQuestions({
-            preservePosition: true,
-          });
-          return;
-        }
-
         if (
           error.code === 'BATTLE_EXPIRED' ||
           error.code === 'BATTLE_SETTLEMENT_IN_PROGRESS'
         ) {
           this.enterWaitingSettlement(
-            '作答时间已结束，当前已停止提交，服务端正在处理本场结算。',
+            '作答时间已结束，当前已停止修改答案，系统正在等待结算。',
             this.getReadableError(error, '作答时间已结束。'),
           );
           return;
@@ -1243,8 +1308,7 @@ Page<PlayPageData, PlayPageMethods>({
           this.setData({
             state: 'COMPLETED',
             titleText: '本场对战已结束',
-            descriptionText: '当前房间已经结束，正在跳转 Battle 结果页。',
-            submitButtonText: '确认提交',
+            descriptionText: '当前对局已经完成，正在跳转结果页。',
             errorMessage: this.getReadableError(error, '本场对战已结束。'),
           });
           this.navigateToResult(true);
@@ -1254,19 +1318,88 @@ Page<PlayPageData, PlayPageMethods>({
 
       this.updateQuestionDraft(questionId, (current) => ({
         ...current,
-        submitErrorMessage: this.getReadableError(
-          error,
-          '当前题目提交失败，请稍后重试。',
-        ),
+        inFlightAnswerVersion: 0,
+        syncState: 'error',
+        syncErrorMessage:
+          error instanceof Error && error.message === 'QUESTION_SYNC_PENDING'
+            ? '仍有答案未同步，请重试。'
+            : this.getReadableError(
+                error,
+                '当前题目暂存失败，请点击重试同步。',
+              ),
       }));
-
-      this.setData({
-        state: 'PLAYING',
-        submitButtonText: '重试提交',
-      });
     } finally {
-      isSubmitting = false;
+      runtime.inFlight = false;
+      const latestQuestion = this.findQuestion(questionId);
+
+      if (
+        latestQuestion &&
+        this.isQuestionEditable(latestQuestion) &&
+        this.hasUnsyncedDraft(latestQuestion) &&
+        latestQuestion.syncState !== 'error'
+      ) {
+        void this.executeQuestionSync(questionId);
+      }
     }
+  },
+
+  buildAnswerPayload(question: QuestionCard) {
+    if (question.questionType === 'SINGLE_CHOICE') {
+      if (!question.draftOptionId) {
+        return null;
+      }
+
+      return {
+        optionId: question.draftOptionId,
+      };
+    }
+
+    if (!question.draftValue.trim()) {
+      return null;
+    }
+
+    return {
+      value: question.draftValue,
+    };
+  },
+
+  hasAnswerDraft(question: QuestionCard) {
+    if (question.questionType === 'SINGLE_CHOICE') {
+      return Boolean(question.draftOptionId);
+    }
+
+    return Boolean(question.draftValue.trim());
+  },
+
+  hasUnsyncedDraft(question: QuestionCard) {
+    return (
+      this.hasAnswerDraft(question) &&
+      question.answerVersion > question.savedAnswerVersion
+    );
+  },
+
+  isQuestionEditable(question: QuestionCard) {
+    return this.data.state === 'PLAYING' && !this.data.isBattleActionPending;
+  },
+
+  getQuestionSyncLabel(question: QuestionCard) {
+    if (question.syncState === 'saving') {
+      return '自动保存中';
+    }
+
+    if (question.syncState === 'error') {
+      return '保存失败，可重试';
+    }
+
+    if (this.hasUnsyncedDraft(question)) {
+      return '待同步';
+    }
+
+    if (question.answered) {
+      return question.submittedAtText || '已保存';
+    }
+
+    return '未作答';
   },
 
   handleImageError(
@@ -1333,7 +1466,9 @@ Page<PlayPageData, PlayPageMethods>({
     return {
       questions: this.rebuildNavStatus(builtQuestions, nextIndex),
       currentQuestionIndex:
-        builtQuestions.length === 0 ? 0 : Math.min(nextIndex, builtQuestions.length - 1),
+        builtQuestions.length === 0
+          ? 0
+          : Math.min(nextIndex, builtQuestions.length - 1),
     };
   },
 
@@ -1344,13 +1479,13 @@ Page<PlayPageData, PlayPageMethods>({
   ) {
     const questionType = item.questionType as QuestionType;
     const normalizedSubmitted = this.normalizeSubmittedAnswer(item.submittedAnswer);
-    const answered = item.answered;
-    const draftOptionId = answered
-      ? normalizedSubmitted.submittedAnswerOptionId
-      : previous?.draftOptionId ?? '';
-    const draftValue = answered
-      ? normalizedSubmitted.submittedAnswerValue
-      : previous?.draftValue ?? '';
+    const savedVersion = item.answerVersion ?? 0;
+    const draftOptionId =
+      questionType === 'SINGLE_CHOICE'
+        ? normalizedSubmitted.savedAnswerOptionId
+        : '';
+    const draftValue =
+      questionType === 'CODE_FILL' ? normalizedSubmitted.savedAnswerValue : '';
 
     return {
       battleQuestionId: item.battleQuestionId,
@@ -1368,21 +1503,27 @@ Page<PlayPageData, PlayPageMethods>({
         item.options,
         item.battleQuestionId,
         draftOptionId,
-        normalizedSubmitted.submittedAnswerOptionId,
         previous,
       ),
       programmingLanguage: item.programmingLanguage ?? '',
-      answered,
-      submittedAtText: answered ? formatSubmittedAtLabel(item.submittedAt) : '',
-      submittedAnswerOptionId: normalizedSubmitted.submittedAnswerOptionId,
-      submittedAnswerValue: normalizedSubmitted.submittedAnswerValue,
+      answered: item.answered,
+      submittedAtText: item.answered ? formatSubmittedAtLabel(item.submittedAt) : '',
+      savedAnswerOptionId: normalizedSubmitted.savedAnswerOptionId,
+      savedAnswerValue: normalizedSubmitted.savedAnswerValue,
       draftOptionId,
       draftValue,
-      navStatus: isCurrent ? 'current' : answered ? 'submitted' : 'pending',
+      answerVersion: savedVersion,
+      savedAnswerVersion: savedVersion,
+      inFlightAnswerVersion: 0,
+      pendingClientRequestId: '',
+      pendingRequestVersion: 0,
+      syncState: item.answered ? 'saved' : 'idle',
+      syncErrorMessage: '',
+      syncStatusText: item.answered
+        ? formatSubmittedAtLabel(item.submittedAt)
+        : '未作答',
+      navStatus: isCurrent ? 'current' : item.answered ? 'answered' : 'pending',
       navLabel: String(item.orderIndex + 1),
-      pendingClientRequestId: answered ? '' : previous?.pendingClientRequestId ?? '',
-      pendingDraftSignature: answered ? '' : previous?.pendingDraftSignature ?? '',
-      submitErrorMessage: answered ? '' : previous?.submitErrorMessage ?? '',
     };
   },
 
@@ -1392,10 +1533,13 @@ Page<PlayPageData, PlayPageMethods>({
     previousBlocks?: ViewBlock[],
   ) {
     const previousFailedMap = new Map(
-      (previousBlocks ?? []).map((block) => [block.blockKey, block.imageFailed]),
+      (previousBlocks ?? []).map((block: ViewBlock) => [
+        block.blockKey,
+        block.imageFailed,
+      ]),
     );
 
-    return blocks.map((block, index) => {
+    return blocks.map((block: BattleContentBlock, index: number) => {
       const blockKey = `${keyPrefix}-${index}`;
       const imageFailed = previousFailedMap.get(blockKey) ?? false;
 
@@ -1430,14 +1574,16 @@ Page<PlayPageData, PlayPageMethods>({
     options: BattleQuestionOptionSnapshotResponse[],
     questionId: string,
     draftOptionId: string,
-    submittedAnswerOptionId: string,
     previousQuestion: QuestionCard | null,
   ) {
     const previousOptionMap = new Map(
-      (previousQuestion?.options ?? []).map((option) => [option.optionId, option]),
+      (previousQuestion?.options ?? []).map((option: OptionCard) => [
+        option.optionId,
+        option,
+      ]),
     );
 
-    return options.map((option, index) => ({
+    return options.map((option: BattleQuestionOptionSnapshotResponse, index: number) => ({
       optionId: option.id,
       optionLabel: String.fromCharCode(65 + index),
       blocks: this.mapBlocks(
@@ -1446,7 +1592,6 @@ Page<PlayPageData, PlayPageMethods>({
         previousOptionMap.get(option.id)?.blocks,
       ),
       isSelected: draftOptionId === option.id,
-      isSubmittedSelected: submittedAnswerOptionId === option.id,
     }));
   },
 
@@ -1455,11 +1600,9 @@ Page<PlayPageData, PlayPageMethods>({
   },
 
   replaceQuestion(question: QuestionCard) {
-    const nextQuestions = this.data.questions.map((item) =>
+    const nextQuestions = this.data.questions.map((item: QuestionCard) =>
       item.battleQuestionId === question.battleQuestionId ? question : item,
     );
-    const currentQuestion =
-      nextQuestions[this.data.currentQuestionIndex] ?? question;
 
     this.setData({
       questions: this.rebuildNavStatus(
@@ -1467,26 +1610,32 @@ Page<PlayPageData, PlayPageMethods>({
         this.data.currentQuestionIndex,
       ),
       questionCountText: `${this.data.currentQuestionIndex + 1} / ${nextQuestions.length}`,
-      submitButtonText:
-        currentQuestion.submitErrorMessage && !currentQuestion.answered
-          ? '重试提交'
-          : '确认提交',
     });
   },
 
-  rebuildNavStatus(
-    questions: QuestionCard[],
-    currentQuestionIndex: number,
-  ) {
-    return questions.map((question, index) => ({
-      ...question,
-      navStatus:
-        index === currentQuestionIndex
-          ? 'current'
-          : question.answered
-            ? 'submitted'
-            : 'pending',
-    }));
+  rebuildNavStatus(questions: QuestionCard[], currentQuestionIndex: number) {
+    return questions.map((question: QuestionCard, index: number) => {
+      let navStatus: QuestionNavState = 'pending';
+
+      if (index === currentQuestionIndex) {
+        navStatus = 'current';
+      } else if (question.syncState === 'error') {
+        navStatus = 'error';
+      } else if (
+        question.syncState === 'saving' ||
+        this.hasUnsyncedDraft(question)
+      ) {
+        navStatus = 'saving';
+      } else if (this.hasAnswerDraft(question) || question.answered) {
+        navStatus = 'answered';
+      }
+
+      return {
+        ...question,
+        syncStatusText: this.getQuestionSyncLabel(question),
+        navStatus,
+      };
+    });
   },
 
   updateQuestionDraft(
@@ -1501,18 +1650,30 @@ Page<PlayPageData, PlayPageMethods>({
       return;
     }
 
-    this.replaceQuestion(updater(currentQuestion));
-  },
+    const nextQuestion = updater(currentQuestion);
 
-  getDraftSignature(question: QuestionCard) {
-    if (question.questionType === 'SINGLE_CHOICE') {
-      return `SINGLE_CHOICE:${question.draftOptionId}`;
+    if (nextQuestion.questionType === 'SINGLE_CHOICE') {
+      nextQuestion.options = nextQuestion.options.map((option: OptionCard) => ({
+        ...option,
+        isSelected: option.optionId === nextQuestion.draftOptionId,
+      }));
     }
 
-    return `CODE_FILL:${question.draftValue}`;
+    this.replaceQuestion(nextQuestion);
+  },
+
+  findQuestion(questionId: string) {
+    return (
+      this.data.questions.find((item) => item.battleQuestionId === questionId) ??
+      null
+    );
   },
 
   getReadableError(error: unknown, fallback: string) {
+    if (error instanceof Error && error.message === 'QUESTION_SYNC_PENDING') {
+      return '仍有题目暂存失败，请先重试失败题目，再执行交卷。';
+    }
+
     if (error instanceof RequestError) {
       if (error.statusCode === 401 || error.code === 'UNAUTHORIZED') {
         redirectToLogin(
@@ -1520,47 +1681,32 @@ Page<PlayPageData, PlayPageMethods>({
         );
         return '登录状态已失效，请重新登录后再继续答题。';
       }
-
-      if (error.code === 'NETWORK_ERROR') {
-        return '无法连接 Battle 答题服务，请确认后端服务已启动。';
-      }
-
-      if (error.code === 'BATTLE_ROOM_NOT_READY') {
-        return '当前房间尚未进入答题阶段，请等待倒计时结束后再试。';
-      }
-
-      if (error.code === 'BATTLE_COUNTDOWN_NOT_FINISHED') {
-        return '倒计时尚未结束，当前还不能正式提交答案。';
-      }
-
-      if (error.code === 'BATTLE_ANSWER_ALREADY_SUBMITTED') {
-        return '当前题目已经提交，正在同步服务端状态。';
-      }
-
-      if (error.code === 'BATTLE_INVALID_ANSWER') {
-        return '当前答案格式无效，请检查后重新提交。';
-      }
-
-      if (error.code === 'BATTLE_EXPIRED') {
-        return '本场对战作答时间已到，当前已停止提交。';
-      }
-
-      if (error.code === 'BATTLE_SETTLEMENT_IN_PROGRESS') {
-        return '当前对战正在结算中，暂时不能继续提交答案。';
-      }
-
-      if (error.code === 'BATTLE_ALREADY_COMPLETED') {
-        return '当前对战已经完成，题目只保留为只读展示。';
-      }
-
-      return error.message || fallback;
     }
 
-    if (error instanceof Error && error.message) {
-      return error.message;
-    }
-
-    return fallback;
+    return getBattleErrorMessage(
+      error,
+      {
+        unauthorized: '登录状态已失效，请重新登录后再继续答题。',
+        network: '网络连接失败，请确认后端服务已启动后重试。',
+        fallback,
+      },
+      {
+        BATTLE_ROOM_NOT_READY:
+          '当前房间尚未进入答题阶段，请等待倒计时结束后再试。',
+        BATTLE_COUNTDOWN_NOT_FINISHED:
+          '倒计时尚未结束，当前还不能正式提交答案。',
+        BATTLE_INVALID_ANSWER: '当前答案格式无效，请检查后重试。',
+        BATTLE_EXPIRED: '本场对战作答时间已结束，当前已停止修改答案。',
+        BATTLE_SETTLEMENT_IN_PROGRESS:
+          '当前对战正在结算中，暂时不能继续修改答案。',
+        BATTLE_ALREADY_COMPLETED:
+          '当前对战已经完成，题目页面只保留只读展示。',
+        BATTLE_NOT_PARTICIPANT:
+          '你不是当前对局参与者，无法继续本场 Battle。',
+        BATTLE_INVALID_STATUS:
+          '当前对战状态已变化，请重新同步服务端状态后再继续操作。',
+      },
+    );
   },
 
   mapPlayState(payload: BattleQuestionsResponse) {
@@ -1604,27 +1750,27 @@ Page<PlayPageData, PlayPageMethods>({
       return '困难';
     }
 
-    return '未知难度';
+    return '未标记难度';
   },
 
   normalizeSubmittedAnswer(answer: BattleSubmittedAnswerResponse | null) {
     if (!answer) {
       return {
-        submittedAnswerOptionId: '',
-        submittedAnswerValue: '',
+        savedAnswerOptionId: '',
+        savedAnswerValue: '',
       };
     }
 
     if (answer.type === 'SINGLE_CHOICE') {
       return {
-        submittedAnswerOptionId: answer.optionId,
-        submittedAnswerValue: '',
+        savedAnswerOptionId: answer.optionId,
+        savedAnswerValue: '',
       };
     }
 
     return {
-      submittedAnswerOptionId: '',
-      submittedAnswerValue: answer.value,
+      savedAnswerOptionId: '',
+      savedAnswerValue: answer.value,
     };
   },
 });

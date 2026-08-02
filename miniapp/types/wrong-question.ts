@@ -1,12 +1,15 @@
 import type {
   BattleContentBlock,
+  BattleQuestionDifficulty,
   BattleQuestionOptionSnapshotResponse,
+  BattleQuestionPresentation,
+  BattleQuestionType,
   BattleSubmittedAnswerResponse,
 } from './battle';
 
 export type WrongQuestionSource = 'LEARNING' | 'BATTLE';
 
-export type WrongQuestionType = 'SINGLE_CHOICE' | 'TRUE_FALSE' | 'CODE_FILL';
+export type WrongQuestionType = BattleQuestionType | 'TRUE_FALSE';
 
 export type WrongQuestionListQuery = {
   source?: WrongQuestionSource;
@@ -30,7 +33,7 @@ export type WrongQuestionListItem = {
   source: WrongQuestionSource;
   questionId: string;
   battleQuestionSnapshotId: string | null;
-  questionType: WrongQuestionType | string;
+  questionType: WrongQuestionType;
   questionContent: string;
   courseId: string | null;
   courseTitle: string | null;
@@ -39,8 +42,8 @@ export type WrongQuestionListItem = {
   wrongCount: number;
   lastWrongAt: string;
   latestWrongAt: string;
-  presentation: string | null;
-  difficulty: string | null;
+  presentation: BattleQuestionPresentation | null;
+  difficulty: BattleQuestionDifficulty | null;
   programmingLanguage: string | null;
   battle: WrongQuestionBattleReference;
 };
@@ -74,7 +77,7 @@ export type WrongQuestionOption = {
 
 export type WrongQuestionCorrectAnswer =
   | {
-      type: 'SINGLE_CHOICE';
+      type: 'SINGLE_CHOICE' | 'TRUE_FALSE';
       optionId: string;
     }
   | {
@@ -85,7 +88,7 @@ export type WrongQuestionDetail = {
   source: WrongQuestionSource;
   questionId: string;
   battleQuestionSnapshotId: string | null;
-  questionType: WrongQuestionType | string;
+  questionType: WrongQuestionType;
   content: string;
   questionContent: string;
   courseId: string | null;
@@ -99,8 +102,8 @@ export type WrongQuestionDetail = {
   wrongCount: number;
   lastWrongAt: string;
   latestWrongAt: string;
-  presentation: string | null;
-  difficulty: string | null;
+  presentation: BattleQuestionPresentation | null;
+  difficulty: BattleQuestionDifficulty | null;
   programmingLanguage: string | null;
   stem: BattleContentBlock[] | null;
   optionSnapshots: BattleQuestionOptionSnapshotResponse[] | null;

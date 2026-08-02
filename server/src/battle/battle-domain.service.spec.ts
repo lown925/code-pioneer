@@ -101,15 +101,31 @@ function createPrismaMock() {
       }),
     },
     battleParticipant: {
-      findFirst: jest.fn(async ({ where }: { where: { userId: string } }) => {
+      findFirst: jest.fn(
+        async ({
+          where,
+        }: {
+          where: {
+            userId: string;
+            battleRoom?: { status?: { in?: BattleRoomStatus[] } };
+          };
+        }) => {
         const participant = activeParticipants.get(where.userId);
 
         if (!participant) {
           return null;
         }
 
+          if (
+            where.battleRoom?.status?.in &&
+            !where.battleRoom.status.in.includes(participant.battleRoom.status)
+          ) {
+            return null;
+          }
+
         return participant;
-      }),
+        },
+      ),
     },
   };
 
@@ -198,6 +214,72 @@ describe('BattleDomainService', () => {
     await expect(
       service.assertUserHasNoActiveBattle('user-1'),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('does not treat CANCELLED rooms as active battles', async () => {
+    const { prisma, activeParticipants } = createPrismaMock();
+    activeParticipants.set('user-1', {
+      battleRoomId: 'battle-1',
+      status: BattleParticipantStatus.JOINED,
+      seat: 1,
+      battleRoom: {
+        mode: BattleMode.FRIEND,
+        status: BattleRoomStatus.CANCELLED,
+        startedAt: null,
+        expiresAt: null,
+        completedAt: null,
+        cancelledAt: new Date('2026-07-27T10:00:00.000Z'),
+        endReason: 'SYSTEM_CANCELLED',
+      },
+      joinedAt: new Date('2026-07-27T09:59:59.000Z'),
+    });
+    const service = new BattleDomainService(prisma as never);
+
+    await expect(service.assertUserHasNoActiveBattle('user-1')).resolves.toBeUndefined();
+  });
+
+  it('does not treat EXPIRED rooms as active battles', async () => {
+    const { prisma, activeParticipants } = createPrismaMock();
+    activeParticipants.set('user-1', {
+      battleRoomId: 'battle-1',
+      status: BattleParticipantStatus.JOINED,
+      seat: 1,
+      battleRoom: {
+        mode: BattleMode.FRIEND,
+        status: BattleRoomStatus.EXPIRED,
+        startedAt: null,
+        expiresAt: new Date('2026-07-27T10:00:00.000Z'),
+        completedAt: null,
+        cancelledAt: null,
+        endReason: 'EXPIRED',
+      },
+      joinedAt: new Date('2026-07-27T09:59:59.000Z'),
+    });
+    const service = new BattleDomainService(prisma as never);
+
+    await expect(service.assertUserHasNoActiveBattle('user-1')).resolves.toBeUndefined();
+  });
+
+  it('does not treat COMPLETED rooms as active battles', async () => {
+    const { prisma, activeParticipants } = createPrismaMock();
+    activeParticipants.set('user-1', {
+      battleRoomId: 'battle-1',
+      status: BattleParticipantStatus.COMPLETED,
+      seat: 1,
+      battleRoom: {
+        mode: BattleMode.RANKED,
+        status: BattleRoomStatus.COMPLETED,
+        startedAt: new Date('2026-07-27T10:00:00.000Z'),
+        expiresAt: new Date('2026-07-27T10:03:00.000Z'),
+        completedAt: new Date('2026-07-27T10:04:00.000Z'),
+        cancelledAt: null,
+        endReason: 'NORMAL',
+      },
+      joinedAt: new Date('2026-07-27T09:59:59.000Z'),
+    });
+    const service = new BattleDomainService(prisma as never);
+
+    await expect(service.assertUserHasNoActiveBattle('user-1')).resolves.toBeUndefined();
   });
 
   it('throws when user is already searching', async () => {

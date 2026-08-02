@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { QuestionType, QuizStatus } from '../../generated/prisma/enums';
 import { type CurrentUserContext } from '../auth/auth.types';
+import type { ContentBlock } from '../battle/battle.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitChapterQuizDto } from './dto/submit-chapter-quiz.dto';
 
@@ -15,6 +16,7 @@ const MAX_PAGE_SIZE = 50;
 type LoadedQuizOption = {
   id: string;
   content: string;
+  contentBlocks: unknown;
   isCorrect: boolean;
   sortOrder: number;
 };
@@ -24,6 +26,8 @@ type LoadedQuizQuestion = {
   type: QuestionType;
   content: string;
   explanation: string | null;
+  stemBlocks: unknown;
+  explanationBlocks: unknown;
   score: number;
   sortOrder: number;
   options: LoadedQuizOption[];
@@ -90,11 +94,19 @@ export class QuizService {
           questionId: question.id,
           type: question.type,
           content: question.content,
+          stemBlocks: this.resolveContentBlocks(
+            question.stemBlocks,
+            question.content,
+          ),
           score: question.score,
           order: question.sortOrder,
           options: question.options.map((option) => ({
             optionId: option.id,
             content: option.content,
+            contentBlocks: this.resolveContentBlocks(
+              option.contentBlocks,
+              option.content,
+            ),
             order: option.sortOrder,
           })),
         })),
@@ -174,7 +186,7 @@ export class QuizService {
         },
         data: {
           lastLearnedAt: submittedAt,
-          ...(passed ? { quizCompleted: true } : {}),
+          quizCompleted: true,
         },
       });
 
@@ -212,6 +224,11 @@ export class QuizService {
           scoreAwarded: answer.scoreAwarded,
           scorePossible: answer.scorePossible,
           explanation: answer.explanation,
+          explanationBlocks: this.resolveContentBlocks(
+            answer.explanationBlocks,
+            answer.explanation,
+            false,
+          ),
         })),
       },
     };
@@ -310,6 +327,7 @@ export class QuizService {
                 type: true,
                 content: true,
                 explanation: true,
+                explanationBlocks: true,
                 score: true,
                 sortOrder: true,
                 options: {
@@ -351,6 +369,11 @@ export class QuizService {
           scoreAwarded: answer.scoreAwarded,
           scorePossible: answer.question.score,
           explanation: answer.question.explanation,
+          explanationBlocks: this.resolveContentBlocks(
+            answer.question.explanationBlocks,
+            answer.question.explanation,
+            false,
+          ),
         };
       });
 
@@ -377,6 +400,7 @@ export class QuizService {
           scoreAwarded: result.scoreAwarded,
           scorePossible: result.scorePossible,
           explanation: result.explanation,
+          explanationBlocks: result.explanationBlocks,
         })),
       },
     };
@@ -397,6 +421,8 @@ export class QuizService {
             type: true,
             content: true,
             explanation: true,
+            stemBlocks: true,
+            explanationBlocks: true,
             score: true,
             sortOrder: true,
             options: {
@@ -404,6 +430,7 @@ export class QuizService {
               select: {
                 id: true,
                 content: true,
+                contentBlocks: true,
                 isCorrect: true,
                 sortOrder: true,
               },
@@ -477,6 +504,8 @@ export class QuizService {
             type: true,
             content: true,
             explanation: true,
+            stemBlocks: true,
+            explanationBlocks: true,
             score: true,
             sortOrder: true,
             options: {
@@ -484,6 +513,7 @@ export class QuizService {
               select: {
                 id: true,
                 content: true,
+                contentBlocks: true,
                 isCorrect: true,
                 sortOrder: true,
               },
@@ -590,6 +620,7 @@ export class QuizService {
         scoreAwarded: isCorrect ? question.score : 0,
         scorePossible: question.score,
         explanation: question.explanation,
+        explanationBlocks: question.explanationBlocks,
       };
     });
   }
@@ -604,5 +635,26 @@ export class QuizService {
     }
 
     return Math.round((score / totalScore) * 100);
+  }
+
+  private resolveContentBlocks(
+    rawBlocks: unknown,
+    fallbackText: string | null,
+    includeFallbackText = true,
+  ): ContentBlock[] {
+    if (Array.isArray(rawBlocks) && rawBlocks.length > 0) {
+      return rawBlocks as ContentBlock[];
+    }
+
+    if (!includeFallbackText || !fallbackText) {
+      return [];
+    }
+
+    return [
+      {
+        type: 'TEXT',
+        text: fallbackText,
+      },
+    ];
   }
 }

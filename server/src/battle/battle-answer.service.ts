@@ -30,6 +30,7 @@ type ExistingAnswerRecord = {
   id: string;
   battleQuestionSnapshotId: string;
   clientRequestId: string;
+  answerVersion: number;
   answerPayload: unknown;
   submittedAt: Date;
 };
@@ -124,6 +125,7 @@ export class BattleAnswerService {
           id: true,
           battleQuestionSnapshotId: true,
           clientRequestId: true,
+          answerVersion: true,
           answerPayload: true,
           submittedAt: true,
         },
@@ -132,6 +134,7 @@ export class BattleAnswerService {
       if (existingByRequest) {
         if (
           existingByRequest.battleQuestionSnapshotId !== dto.battleQuestionId ||
+          existingByRequest.answerVersion !== dto.answerVersion ||
           !this.isSameAnswerPayload(
             existingByRequest.answerPayload,
             dto.answer,
@@ -148,6 +151,7 @@ export class BattleAnswerService {
           participant.id,
           existingByRequest.submittedAt,
           dto.battleQuestionId,
+          existingByRequest.answerVersion,
           participant.battleRoom.questionCount,
           now,
         );
@@ -162,14 +166,86 @@ export class BattleAnswerService {
           id: true,
           battleQuestionSnapshotId: true,
           clientRequestId: true,
+          answerVersion: true,
           answerPayload: true,
           submittedAt: true,
         },
       })) as ExistingAnswerRecord | null;
 
       if (existingByQuestion) {
-        throw new ConflictException(
-          BATTLE_ERROR_CODES.BATTLE_ANSWER_ALREADY_SUBMITTED,
+        if (dto.answerVersion <= existingByQuestion.answerVersion) {
+          return this.buildSubmissionResponse(
+            tx,
+            participant.id,
+            existingByQuestion.submittedAt,
+            dto.battleQuestionId,
+            existingByQuestion.answerVersion,
+            participant.battleRoom.questionCount,
+            now,
+          );
+        }
+
+        const evaluated = this.evaluateAnswer(
+          dto.answer,
+          snapshot,
+          participant.battleRoom,
+        );
+
+        const updateResult = await tx.battleAnswer.updateMany({
+          where: {
+            id: existingByQuestion.id,
+            answerVersion: existingByQuestion.answerVersion,
+          },
+          data: {
+            clientRequestId: dto.clientRequestId,
+            answerVersion: dto.answerVersion,
+            answerPayload: evaluated.answerPayload,
+            normalizedAnswer: evaluated.normalizedAnswer,
+            isCorrect: evaluated.isCorrect,
+            scoreDelta: evaluated.scoreDelta,
+            submittedAt: now,
+          },
+        });
+
+        if (updateResult.count === 1) {
+          return this.buildSubmissionResponse(
+            tx,
+            participant.id,
+            now,
+            dto.battleQuestionId,
+            dto.answerVersion,
+            participant.battleRoom.questionCount,
+            now,
+          );
+        }
+
+        const reloadedAnswer = (await tx.battleAnswer.findFirst({
+          where: {
+            participantId: participant.id,
+            battleQuestionSnapshotId: dto.battleQuestionId,
+          },
+          select: {
+            id: true,
+            battleQuestionSnapshotId: true,
+            clientRequestId: true,
+            answerVersion: true,
+            answerPayload: true,
+            submittedAt: true,
+          },
+        })) as ExistingAnswerRecord | null;
+
+        if (!reloadedAnswer) {
+          throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
+        }
+
+        return this.buildSubmissionResponse(
+          tx,
+          participant.id,
+          reloadedAnswer.submittedAt,
+          dto.battleQuestionId,
+          reloadedAnswer.answerVersion,
+          participant.battleRoom.questionCount,
+          now,
         );
       }
 
@@ -187,6 +263,7 @@ export class BattleAnswerService {
             battleQuestionSnapshotId: snapshot.id,
             userId: currentUserId,
             clientRequestId: dto.clientRequestId,
+            answerVersion: dto.answerVersion,
             answerPayload: evaluated.answerPayload,
             normalizedAnswer: evaluated.normalizedAnswer,
             isCorrect: evaluated.isCorrect,
@@ -205,6 +282,7 @@ export class BattleAnswerService {
               id: true,
               battleQuestionSnapshotId: true,
               clientRequestId: true,
+              answerVersion: true,
               answerPayload: true,
               submittedAt: true,
             },
@@ -213,6 +291,7 @@ export class BattleAnswerService {
           if (
             retryByRequest &&
             retryByRequest.battleQuestionSnapshotId === dto.battleQuestionId &&
+            retryByRequest.answerVersion === dto.answerVersion &&
             this.isSameAnswerPayload(
               retryByRequest.answerPayload,
               dto.answer,
@@ -224,41 +303,51 @@ export class BattleAnswerService {
               participant.id,
               retryByRequest.submittedAt,
               dto.battleQuestionId,
+              retryByRequest.answerVersion,
               participant.battleRoom.questionCount,
               now,
             );
           }
 
-          throw new ConflictException(
-            BATTLE_ERROR_CODES.BATTLE_ANSWER_ALREADY_SUBMITTED,
-          );
+          const retryByQuestion = (await tx.battleAnswer.findFirst({
+            where: {
+              participantId: participant.id,
+              battleQuestionSnapshotId: dto.battleQuestionId,
+            },
+            select: {
+              id: true,
+              battleQuestionSnapshotId: true,
+              clientRequestId: true,
+              answerVersion: true,
+              answerPayload: true,
+              submittedAt: true,
+            },
+          })) as ExistingAnswerRecord | null;
+
+          if (retryByQuestion) {
+            return this.buildSubmissionResponse(
+              tx,
+              participant.id,
+              retryByQuestion.submittedAt,
+              dto.battleQuestionId,
+              retryByQuestion.answerVersion,
+              participant.battleRoom.questionCount,
+              now,
+            );
+          }
+
+          throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
         }
 
         throw error;
       }
-
-      await tx.battleParticipant.update({
-        where: {
-          id: participant.id,
-        },
-        data: {
-          score: {
-            increment: evaluated.scoreDelta,
-          },
-          correctCount: {
-            increment: evaluated.isCorrect ? 1 : 0,
-          },
-          wrongCount: {
-            increment: evaluated.isCorrect ? 0 : 1,
-          },
-        },
-      });
 
       return this.buildSubmissionResponse(
         tx,
         participant.id,
         now,
         dto.battleQuestionId,
+        dto.answerVersion,
         participant.battleRoom.questionCount,
         now,
       );
@@ -388,6 +477,7 @@ export class BattleAnswerService {
     participantId: string,
     submittedAt: Date,
     battleQuestionId: string,
+    answerVersion: number,
     totalQuestions: number,
     serverTime: Date,
   ): Promise<BattleAnswerSubmissionPayload> {
@@ -401,6 +491,7 @@ export class BattleAnswerService {
       accepted: true,
       battleQuestionId,
       submittedAt,
+      answerVersion,
       mySubmittedCount,
       totalQuestions,
       serverTime,

@@ -164,6 +164,7 @@ export type BattleQuestionView = {
   programmingLanguage: string | null;
   answered: boolean;
   submittedAt: Date | null;
+  answerVersion: number | null;
   submittedAnswer: BattleAnswerPayload | null;
 };
 
@@ -180,6 +181,7 @@ export type BattleAnswerSubmissionPayload = {
   accepted: true;
   battleQuestionId: string;
   submittedAt: Date;
+  answerVersion: number;
   mySubmittedCount: number;
   totalQuestions: number;
   serverTime: Date;
@@ -239,6 +241,7 @@ export type FriendRoomPreviewPayload = {
   battleId: string;
   roomStatus: string;
   invitationStatus: string;
+  inviteCode: string | null;
   inviter: {
     userId: string;
     nickname: string | null;

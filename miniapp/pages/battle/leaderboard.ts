@@ -11,6 +11,7 @@ import {
   formatBattleRating,
   formatBattleRecord,
   formatBattleWinRate,
+  getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
 
@@ -314,24 +315,13 @@ Page<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
           message: '登录状态已失效，请重新登录后再查看排行榜。',
         };
       }
-
-      if (error.code === 'NETWORK_ERROR') {
-        return {
-          state: 'error' as const,
-          message: '无法连接排行榜服务，请确认后端服务已启动。',
-        };
-      }
-
       return {
         state: 'error' as const,
-        message: error.message || '排行榜加载失败，请稍后重试。',
-      };
-    }
-
-    if (error instanceof Error && error.message) {
-      return {
-        state: 'error' as const,
-        message: error.message,
+        message: getBattleErrorMessage(error, {
+          unauthorized: '登录状态已失效，请重新登录后再查看排行榜。',
+          network: '网络连接失败，请确认后端服务已启动后重试。',
+          fallback: '排行榜加载失败，请稍后重试。',
+        }),
       };
     }
 

@@ -8,6 +8,7 @@ import {
   formatBattleInitial,
   formatBattleNickname,
   formatBattleRating,
+  getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
 
@@ -454,24 +455,20 @@ Page<HistoryPageData, HistoryPageMethods>({
           message: '登录状态已失效，请重新登录后再查看 Battle 战绩。',
         };
       }
-
-      if (error.code === 'NETWORK_ERROR') {
-        return {
-          state: 'error',
-          message: '无法连接 Battle 战绩服务，请确认后端服务已启动。',
-        };
-      }
-
       return {
         state: 'error',
-        message: error.message || 'Battle 战绩加载失败，请稍后重试。',
-      };
-    }
-
-    if (error instanceof Error && error.message) {
-      return {
-        state: 'error',
-        message: error.message,
+        message: getBattleErrorMessage(
+          error,
+          {
+            unauthorized: '登录状态已失效，请重新登录后再查看 Battle 战绩。',
+            network: '网络连接失败，请确认后端服务已启动后重试。',
+            fallback: 'Battle 战绩加载失败，请稍后重试。',
+          },
+          {
+            BATTLE_NOT_PARTICIPANT:
+              '你不是当前对局参与者，无法查看对应 Battle 战绩。',
+          },
+        ),
       };
     }
 

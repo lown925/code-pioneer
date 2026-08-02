@@ -1,15 +1,19 @@
+import type { CourseListData, CourseListItem } from '../../types/course';
 import type {
   LearningCourseItem,
   LearningListQuery,
   LearningListResponse,
+  LearningSummaryResponse,
   LearningStatus,
 } from '../../types/learning';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
+import { formatDifficulty, formatMinutes } from '../../utils/course';
 import { formatLearningTimestamp } from '../../utils/time';
 import { request, RequestError } from '../../utils/request';
 
 type LearningFilterKey = 'ALL' | 'LEARNING' | 'COMPLETED';
-type PageState = 'loading' | 'success' | 'empty' | 'error';
+type ProgressState = 'guest' | 'loading' | 'success' | 'empty' | 'error';
+type RecommendationState = 'loading' | 'success' | 'empty' | 'error';
 
 type LearningFilterTab = {
   key: LearningFilterKey;
@@ -28,29 +32,58 @@ type LearningCourseCard = LearningCourseItem & {
   coverFallbackText: string;
 };
 
+type RecommendedCourseCard = CourseListItem & {
+  difficultyText: string;
+  estimatedMinutesText: string;
+};
+
+type LearningSummaryCard = {
+  inProgressCourseCountText: string;
+  completedCourseCountText: string;
+  completedChapterCountText: string;
+  totalQuizAnswerCountText: string;
+  quizAccuracyPercentText: string;
+  continueCourseName: string;
+  continueCourseProgressText: string;
+  continueCourseMetaText: string;
+  continueCourseActionText: string;
+  continueCourseId: string;
+};
+
 type LearningPageData = {
-  state: PageState;
-  errorMessage: string;
-  emptyMessage: string;
+  progressState: ProgressState;
+  progressErrorMessage: string;
+  progressEmptyMessage: string;
   loadMoreErrorMessage: string;
   activeFilter: LearningFilterKey;
   filterTabs: LearningFilterTab[];
-  items: LearningCourseCard[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-  hasMore: boolean;
+  learningItems: LearningCourseCard[];
+  learningPage: number;
+  learningPageSize: number;
+  learningTotal: number;
+  learningTotalPages: number;
+  learningHasMore: boolean;
   isLoadingMore: boolean;
   isRefreshing: boolean;
+  isAuthenticated: boolean;
+  showLearningLoginHint: boolean;
+  isSummaryLoading: boolean;
+  learningSummaryErrorMessage: string;
+  learningSummary: LearningSummaryCard | null;
+  recommendationState: RecommendationState;
+  recommendationErrorMessage: string;
+  recommendedCourses: RecommendedCourseCard[];
 };
 
 type LearningPageMethods = {
-  ensureAuthenticated(): boolean;
-  loadFirstPage(forceRefresh?: boolean): Promise<void>;
-  loadMore(): Promise<void>;
-  refreshList(): Promise<void>;
-  fetchList(options: {
+  syncAuthState(): boolean;
+  loadPageData(forceRefresh?: boolean): Promise<void>;
+  loadLearningSummary(): Promise<void>;
+  loadRecommendedCourses(): Promise<void>;
+  loadLearningFirstPage(): Promise<void>;
+  loadMoreLearning(): Promise<void>;
+  refreshPage(): Promise<void>;
+  fetchLearningList(options: {
     page: number;
     replace: boolean;
     showPullDownRefresh?: boolean;
@@ -58,20 +91,31 @@ type LearningPageMethods = {
   handleFilterTap(
     event: WechatMiniprogram.BaseEvent<{ filterKey: LearningFilterKey }>,
   ): void;
-  handleRetry(): void;
+  handleProgressRetry(): void;
+  handleRecommendationRetry(): void;
   handleLoadMoreRetry(): void;
+  handleLearningLogin(): void;
+  handleContinueLearning(): void;
   openCourseProgress(
     event: WechatMiniprogram.BaseEvent<{ courseId: string }>,
   ): void;
-  buildQuery(page: number): LearningListQuery;
-  mapCourseItem(item: LearningCourseItem): LearningCourseCard;
+  openCourseList(): void;
+  openCourseDetail(
+    event: WechatMiniprogram.BaseEvent<{ courseId: string }>,
+  ): void;
+  buildLearningQuery(page: number): LearningListQuery;
+  mapLearningCourseItem(item: LearningCourseItem): LearningCourseCard;
+  mapRecommendedCourse(item: CourseListItem): RecommendedCourseCard;
   getStatusText(status: LearningStatus): string;
   getStatusClassName(status: LearningStatus): string;
   getActionText(status: LearningStatus): string;
   getEmptyMessage(filter: LearningFilterKey): string;
+  getReadableLearningError(error: unknown): string;
+  getReadableRecommendationError(error: unknown): string;
 };
 
 const PAGE_SIZE = 10;
+const LEARNING_FILTER_STORAGE_KEY = 'code-pioneer.learning.initial-filter';
 
 const FILTER_TABS: LearningFilterTab[] = [
   { key: 'ALL', label: '全部' },
@@ -109,112 +153,340 @@ function formatCoverFallback(name: string) {
   return trimmed.slice(0, 2);
 }
 
+function formatCount(value: number) {
+  return String(Math.max(0, Math.floor(value)));
+}
+
+function readPendingInitialFilter(): LearningFilterKey | null {
+  try {
+    const value = wx.getStorageSync(LEARNING_FILTER_STORAGE_KEY);
+
+    if (value === 'LEARNING' || value === 'COMPLETED' || value === 'ALL') {
+      wx.removeStorageSync(LEARNING_FILTER_STORAGE_KEY);
+      return value;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 let isPageActive = false;
-let isRequesting = false;
+let isLearningRequesting = false;
+let isRecommendationRequesting = false;
+let isSummaryRequesting = false;
 let hasLoadedOnce = false;
-let requestSerial = 0;
+let learningRequestSerial = 0;
+let recommendationRequestSerial = 0;
+let summaryRequestSerial = 0;
 
 Page<LearningPageData, LearningPageMethods>({
   data: {
-    state: 'loading',
-    errorMessage: '',
-    emptyMessage: '还没有学习记录',
+    progressState: 'loading',
+    progressErrorMessage: '',
+    progressEmptyMessage: '还没有学习记录',
     loadMoreErrorMessage: '',
     activeFilter: 'ALL',
     filterTabs: FILTER_TABS,
-    items: [],
-    page: 1,
-    pageSize: PAGE_SIZE,
-    total: 0,
-    totalPages: 0,
-    hasMore: false,
+    learningItems: [],
+    learningPage: 1,
+    learningPageSize: PAGE_SIZE,
+    learningTotal: 0,
+    learningTotalPages: 0,
+    learningHasMore: false,
     isLoadingMore: false,
     isRefreshing: false,
+    isAuthenticated: false,
+    showLearningLoginHint: false,
+    isSummaryLoading: false,
+    learningSummaryErrorMessage: '',
+    learningSummary: null,
+    recommendationState: 'loading',
+    recommendationErrorMessage: '',
+    recommendedCourses: [],
   },
 
   onLoad() {
     isPageActive = true;
-    void this.loadFirstPage(true);
+    const pendingFilter = readPendingInitialFilter();
+
+    if (pendingFilter) {
+      this.setData({
+        activeFilter: pendingFilter,
+        progressEmptyMessage: this.getEmptyMessage(pendingFilter),
+      });
+    }
+
+    void this.loadPageData(true);
   },
 
   onShow() {
-    if (!hasLoadedOnce && isPageActive && !isRequesting) {
-      void this.loadFirstPage(true);
+    isPageActive = true;
+    const pendingFilter = readPendingInitialFilter();
+
+    if (pendingFilter && pendingFilter !== this.data.activeFilter) {
+      this.setData({
+        activeFilter: pendingFilter,
+        progressEmptyMessage: this.getEmptyMessage(pendingFilter),
+      });
+
+      if (this.data.isAuthenticated) {
+        void this.fetchLearningList({
+          page: 1,
+          replace: true,
+          showPullDownRefresh: false,
+        });
+      }
+    }
+
+    if (!hasLoadedOnce) {
+      void this.loadPageData(true);
+      return;
+    }
+
+    const authChanged = this.data.isAuthenticated !== getAuthStateSummary().isAuthenticated;
+
+    if (authChanged) {
+      void this.loadPageData(true);
+      return;
+    }
+
+    if (!isLearningRequesting && this.data.isAuthenticated) {
+      void Promise.allSettled([
+        this.loadLearningSummary(),
+        this.loadLearningFirstPage(),
+      ]);
     }
   },
 
   onUnload() {
     isPageActive = false;
-    requestSerial += 1;
+    learningRequestSerial += 1;
+    recommendationRequestSerial += 1;
+    summaryRequestSerial += 1;
   },
 
   onPullDownRefresh() {
-    void this.refreshList();
+    void this.refreshPage();
   },
 
   onReachBottom() {
-    void this.loadMore();
+    void this.loadMoreLearning();
   },
 
-  ensureAuthenticated() {
-    const authState = getAuthStateSummary();
+  syncAuthState() {
+    const isAuthenticated = getAuthStateSummary().isAuthenticated;
 
-    if (authState.isAuthenticated) {
-      return true;
-    }
-
-    redirectToLogin('/pages/learning/index');
-    return false;
-  },
-
-  async loadFirstPage(forceRefresh = false) {
-    if (!this.ensureAuthenticated()) {
-      return;
-    }
-
-    await this.fetchList({
-      page: 1,
-      replace: true,
-      showPullDownRefresh: false,
+    this.setData({
+      isAuthenticated,
+      showLearningLoginHint: !isAuthenticated,
     });
+
+    return isAuthenticated;
+  },
+
+  async loadPageData(forceRefresh = false) {
+    const isAuthenticated = this.syncAuthState();
+
+    await this.loadRecommendedCourses();
+
+    if (isAuthenticated) {
+      await Promise.allSettled([
+        this.loadLearningSummary(),
+        this.loadLearningFirstPage(),
+      ]);
+    } else if (isPageActive) {
+      this.setData({
+        progressState: 'guest',
+        progressErrorMessage: '',
+        progressEmptyMessage: this.getEmptyMessage(this.data.activeFilter),
+        loadMoreErrorMessage: '',
+        learningItems: [],
+        learningPage: 1,
+        learningTotal: 0,
+        learningTotalPages: 0,
+        learningHasMore: false,
+        isLoadingMore: false,
+        isRefreshing: false,
+        isSummaryLoading: false,
+        learningSummaryErrorMessage: '',
+        learningSummary: null,
+      });
+    }
 
     if (forceRefresh) {
       hasLoadedOnce = true;
     }
   },
 
-  async loadMore() {
-    if (!this.ensureAuthenticated() || isRequesting) {
+  async loadLearningSummary() {
+    if (!this.syncAuthState()) {
       return;
     }
 
-    const nextPage = this.data.page + 1;
-
-    if (!this.data.hasMore || nextPage <= 1) {
+    if (isSummaryRequesting) {
       return;
     }
 
-    await this.fetchList({
+    const currentRequestSerial = ++summaryRequestSerial;
+    isSummaryRequesting = true;
+
+    this.setData({
+      isSummaryLoading: true,
+      learningSummaryErrorMessage: '',
+    });
+
+    try {
+      const result = await request<LearningSummaryResponse>({
+        url: '/users/me/learning-summary',
+        authMode: 'required',
+      });
+
+      if (!isPageActive || currentRequestSerial !== summaryRequestSerial) {
+        return;
+      }
+
+      const continueCourse = result.continueLearningCourse;
+
+      this.setData({
+        isSummaryLoading: false,
+        learningSummaryErrorMessage: '',
+        learningSummary: {
+          inProgressCourseCountText: formatCount(result.inProgressCourseCount),
+          completedCourseCountText: formatCount(result.completedCourseCount),
+          completedChapterCountText: formatCount(result.completedChapterCount),
+          totalQuizAnswerCountText: formatCount(result.totalQuizAnswerCount),
+          quizAccuracyPercentText: `${Math.max(
+            0,
+            Math.min(100, Math.round(result.quizAccuracyPercent)),
+          )}%`,
+          continueCourseName:
+            continueCourse?.courseName?.trim() || '暂无继续学习课程',
+          continueCourseProgressText: `${Math.max(
+            0,
+            Math.min(100, Math.round(continueCourse?.progressPercent ?? 0)),
+          )}%`,
+          continueCourseMetaText: continueCourse
+            ? `${Math.max(0, continueCourse.completedChapterCount)} / ${Math.max(
+                0,
+                continueCourse.totalChapterCount,
+              )} 章节`
+            : '开始第一门课程后会显示这里',
+          continueCourseActionText:
+            continueCourse?.status === 'COMPLETED' ? '重新查看' : '继续学习',
+          continueCourseId: continueCourse?.courseId ?? '',
+        },
+      });
+    } catch (error) {
+      if (!isPageActive || currentRequestSerial !== summaryRequestSerial) {
+        return;
+      }
+
+      this.setData({
+        isSummaryLoading: false,
+        learningSummaryErrorMessage: this.getReadableLearningError(error),
+        learningSummary: null,
+      });
+    } finally {
+      isSummaryRequesting = false;
+    }
+  },
+
+  async loadRecommendedCourses() {
+    if (isRecommendationRequesting) {
+      return;
+    }
+
+    const currentRequestSerial = ++recommendationRequestSerial;
+    isRecommendationRequesting = true;
+
+    this.setData({
+      recommendationState: 'loading',
+      recommendationErrorMessage: '',
+    });
+
+    try {
+      const result = await request<CourseListData>({
+        url: '/courses',
+      });
+
+      if (!isPageActive || currentRequestSerial !== recommendationRequestSerial) {
+        return;
+      }
+
+      const recommendedCourses = result.items.map((course) =>
+        this.mapRecommendedCourse(course),
+      );
+
+      this.setData({
+        recommendationState:
+          recommendedCourses.length > 0 ? 'success' : 'empty',
+        recommendationErrorMessage: '',
+        recommendedCourses,
+      });
+    } catch (error) {
+      if (!isPageActive || currentRequestSerial !== recommendationRequestSerial) {
+        return;
+      }
+
+      this.setData({
+        recommendationState: 'error',
+        recommendationErrorMessage: this.getReadableRecommendationError(error),
+        recommendedCourses: [],
+      });
+    } finally {
+      isRecommendationRequesting = false;
+    }
+  },
+
+  async loadLearningFirstPage() {
+    if (!this.syncAuthState()) {
+      return;
+    }
+
+    await this.fetchLearningList({
+      page: 1,
+      replace: true,
+      showPullDownRefresh: false,
+    });
+  },
+
+  async loadMoreLearning() {
+    if (!this.syncAuthState() || isLearningRequesting) {
+      return;
+    }
+
+    const nextPage = this.data.learningPage + 1;
+
+    if (!this.data.learningHasMore || nextPage <= 1) {
+      return;
+    }
+
+    await this.fetchLearningList({
       page: nextPage,
       replace: false,
       showPullDownRefresh: false,
     });
   },
 
-  async refreshList() {
-    if (!this.ensureAuthenticated()) {
-      wx.stopPullDownRefresh();
-      return;
+  async refreshPage() {
+    this.setData({
+      isRefreshing: true,
+    });
+
+    await this.loadPageData(true);
+
+    if (isPageActive) {
+      this.setData({
+        isRefreshing: false,
+      });
     }
 
-    await this.fetchList({
-      page: 1,
-      replace: true,
-      showPullDownRefresh: true,
-    });
+    wx.stopPullDownRefresh();
   },
 
-  async fetchList({
+  async fetchLearningList({
     page,
     replace,
     showPullDownRefresh,
@@ -223,30 +495,37 @@ Page<LearningPageData, LearningPageMethods>({
     replace: boolean;
     showPullDownRefresh?: boolean;
   }) {
-    if (isRequesting) {
+    if (isLearningRequesting) {
       if (showPullDownRefresh) {
         wx.stopPullDownRefresh();
       }
       return;
     }
 
-    const currentRequestSerial = ++requestSerial;
-    const filter = this.data.activeFilter;
-    const query = this.buildQuery(page);
+    if (!this.syncAuthState()) {
+      if (showPullDownRefresh) {
+        wx.stopPullDownRefresh();
+      }
+      return;
+    }
 
-    isRequesting = true;
+    const currentRequestSerial = ++learningRequestSerial;
+    const filter = this.data.activeFilter;
+    const query = this.buildLearningQuery(page);
+
+    isLearningRequesting = true;
 
     if (replace) {
       this.setData({
-        state: 'loading',
-        errorMessage: '',
-        emptyMessage: this.getEmptyMessage(filter),
+        progressState: 'loading',
+        progressErrorMessage: '',
+        progressEmptyMessage: this.getEmptyMessage(filter),
         loadMoreErrorMessage: '',
-        items: [],
-        page: 1,
-        total: 0,
-        totalPages: 0,
-        hasMore: false,
+        learningItems: [],
+        learningPage: 1,
+        learningTotal: 0,
+        learningTotalPages: 0,
+        learningHasMore: false,
         isRefreshing: showPullDownRefresh,
         isLoadingMore: false,
       });
@@ -265,49 +544,52 @@ Page<LearningPageData, LearningPageMethods>({
         authMode: 'required',
       });
 
-      if (!isPageActive || currentRequestSerial !== requestSerial) {
+      if (!isPageActive || currentRequestSerial !== learningRequestSerial) {
         return;
       }
 
-      const mappedItems = response.items.map((item) => this.mapCourseItem(item));
-      const items = replace ? mappedItems : [...this.data.items, ...mappedItems];
-      const hasMore = response.pagination.page < response.pagination.totalPages;
+      const mappedItems = response.items.map((item) =>
+        this.mapLearningCourseItem(item),
+      );
+      const learningItems = replace
+        ? mappedItems
+        : [...this.data.learningItems, ...mappedItems];
+      const learningHasMore =
+        response.pagination.page < response.pagination.totalPages;
 
       this.setData({
-        state: items.length > 0 ? 'success' : 'empty',
-        errorMessage: '',
+        progressState:
+          learningItems.length > 0 ? 'success' : 'empty',
+        progressErrorMessage: '',
         loadMoreErrorMessage: '',
-        items,
-        page: response.pagination.page,
-        pageSize: response.pagination.pageSize,
-        total: response.pagination.total,
-        totalPages: response.pagination.totalPages,
-        hasMore,
+        learningItems,
+        learningPage: response.pagination.page,
+        learningPageSize: response.pagination.pageSize,
+        learningTotal: response.pagination.total,
+        learningTotalPages: response.pagination.totalPages,
+        learningHasMore,
         isLoadingMore: false,
         isRefreshing: false,
       });
 
       hasLoadedOnce = true;
     } catch (error) {
-      if (!isPageActive || currentRequestSerial !== requestSerial) {
+      if (!isPageActive || currentRequestSerial !== learningRequestSerial) {
         return;
       }
 
-      const message =
-        error instanceof RequestError || error instanceof Error
-          ? error.message
-          : '学习记录加载失败，请稍后重试';
+      const message = this.getReadableLearningError(error);
 
       if (replace) {
         this.setData({
-          state: 'error',
-          errorMessage: message,
-          emptyMessage: this.getEmptyMessage(filter),
-          items: [],
-          total: 0,
-          totalPages: 0,
-          page: 1,
-          hasMore: false,
+          progressState: 'error',
+          progressErrorMessage: message,
+          progressEmptyMessage: this.getEmptyMessage(filter),
+          learningItems: [],
+          learningTotal: 0,
+          learningTotalPages: 0,
+          learningPage: 1,
+          learningHasMore: false,
           isLoadingMore: false,
           isRefreshing: false,
         });
@@ -319,7 +601,7 @@ Page<LearningPageData, LearningPageMethods>({
         });
       }
     } finally {
-      isRequesting = false;
+      isLearningRequesting = false;
 
       if (showPullDownRefresh) {
         wx.stopPullDownRefresh();
@@ -340,32 +622,62 @@ Page<LearningPageData, LearningPageMethods>({
       return;
     }
 
-    if (filterKey === this.data.activeFilter || isRequesting) {
+    if (filterKey === this.data.activeFilter || isLearningRequesting) {
       return;
     }
 
     this.setData({
       activeFilter: filterKey,
-      emptyMessage: this.getEmptyMessage(filterKey),
+      progressEmptyMessage: this.getEmptyMessage(filterKey),
     });
 
-    void this.fetchList({
+    if (!this.data.isAuthenticated) {
+      return;
+    }
+
+    void this.fetchLearningList({
       page: 1,
       replace: true,
       showPullDownRefresh: false,
     });
   },
 
-  handleRetry() {
-    void this.fetchList({
+  handleProgressRetry() {
+    if (!this.data.isAuthenticated) {
+      this.handleLearningLogin();
+      return;
+    }
+
+    void this.fetchLearningList({
       page: 1,
       replace: true,
       showPullDownRefresh: false,
     });
+  },
+
+  handleRecommendationRetry() {
+    void this.loadRecommendedCourses();
   },
 
   handleLoadMoreRetry() {
-    void this.loadMore();
+    void this.loadMoreLearning();
+  },
+
+  handleLearningLogin() {
+    redirectToLogin('/pages/learning/index');
+  },
+
+  handleContinueLearning() {
+    const courseId = this.data.learningSummary?.continueCourseId ?? '';
+
+    if (!courseId) {
+      this.openCourseList();
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/learning/course-progress?courseId=${encodeURIComponent(courseId)}`,
+    });
   },
 
   openCourseProgress(
@@ -377,12 +689,37 @@ Page<LearningPageData, LearningPageMethods>({
       return;
     }
 
+    if (!this.data.isAuthenticated) {
+      redirectToLogin('/pages/learning/index');
+      return;
+    }
+
     wx.navigateTo({
       url: `/pages/learning/course-progress?courseId=${encodeURIComponent(courseId)}`,
     });
   },
 
-  buildQuery(page: number) {
+  openCourseList() {
+    wx.navigateTo({
+      url: '/pages/course/list',
+    });
+  },
+
+  openCourseDetail(
+    event: WechatMiniprogram.BaseEvent<{ courseId: string }>,
+  ) {
+    const courseId = event.currentTarget.dataset.courseId;
+
+    if (!courseId) {
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/course/detail?courseId=${encodeURIComponent(courseId)}`,
+    });
+  },
+
+  buildLearningQuery(page: number) {
     const query: LearningListQuery = {
       page,
       pageSize: PAGE_SIZE,
@@ -395,9 +732,10 @@ Page<LearningPageData, LearningPageMethods>({
     return query;
   },
 
-  mapCourseItem(item: LearningCourseItem) {
+  mapLearningCourseItem(item: LearningCourseItem) {
     const progressPercent = clampProgressPercent(item.progressPercent);
-    const totalChapterCount = item.totalChapterCount < 0 ? 0 : item.totalChapterCount;
+    const totalChapterCount =
+      item.totalChapterCount < 0 ? 0 : item.totalChapterCount;
     const completedChapterCount =
       item.completedChapterCount < 0 ? 0 : item.completedChapterCount;
     const lastLearnedChapterText = item.lastLearnedChapter
@@ -421,6 +759,14 @@ Page<LearningPageData, LearningPageMethods>({
       coverFallbackText: formatCoverFallback(item.courseName),
       totalChapterCount,
       completedChapterCount,
+    };
+  },
+
+  mapRecommendedCourse(item: CourseListItem) {
+    return {
+      ...item,
+      difficultyText: formatDifficulty(item.difficulty),
+      estimatedMinutesText: formatMinutes(item.estimatedMinutes),
     };
   },
 
@@ -462,13 +808,45 @@ Page<LearningPageData, LearningPageMethods>({
 
   getEmptyMessage(filter: LearningFilterKey) {
     if (filter === 'LEARNING') {
-      return '暂无学习中的课程';
+      return '暂时没有学习中的课程';
     }
 
     if (filter === 'COMPLETED') {
-      return '暂无已完成课程';
+      return '暂时没有已完成课程';
     }
 
     return '还没有学习记录';
+  },
+
+  getReadableLearningError(error: unknown) {
+    if (error instanceof RequestError) {
+      if (error.code === 'NETWORK_ERROR') {
+        return '网络连接失败，请确认后端服务已启动后重试';
+      }
+
+      if (error.statusCode === 401 || error.code === 'UNAUTHORIZED') {
+        return '登录状态已失效，请重新登录后查看学习记录';
+      }
+
+      return '学习记录加载失败，请稍后重试';
+    }
+
+    if (error instanceof Error) {
+      return '学习记录加载失败，请稍后重试';
+    }
+
+    return '学习记录加载失败，请稍后重试';
+  },
+
+  getReadableRecommendationError(error: unknown) {
+    if (error instanceof RequestError && error.code === 'NETWORK_ERROR') {
+      return '网络连接失败，请确认后端服务已启动后重试';
+    }
+
+    if (error instanceof Error) {
+      return '课程加载失败，请稍后重试';
+    }
+
+    return '课程加载失败，请稍后重试';
   },
 });

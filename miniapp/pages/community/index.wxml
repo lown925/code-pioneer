@@ -1,6 +1,119 @@
-<view class="page-shell">
-  <view class="section-card state-box">
-    <text class="state-title">互助页占位</text>
-    <text class="state-text">本次工单不开发社区业务，只保留文档要求的一级入口。</text>
+<view class="page-shell community-page">
+  <view class="section-card hero-card">
+    <text class="hero-title">互助社区</text>
+    <text class="hero-copy">
+      浏览最新帖子、发起文字讨论，并在“我的”里查看自己的帖子、收藏和浏览历史。
+    </text>
+    <view wx:if="{{!isAuthenticated}}" class="hero-action-row">
+      <view class="ghost-button hero-action" bindtap="handleLogin">登录后可发帖和收藏</view>
+    </view>
   </view>
+
+  <view class="section-card category-card">
+    <view class="section-head">
+      <view>
+        <text class="section-title">分区筛选</text>
+        <text class="section-subtitle">{{categoryDescription}}</text>
+      </view>
+    </view>
+    <scroll-view class="category-scroll" scroll-x enable-flex show-scrollbar="{{false}}">
+      <view class="category-row">
+        <view
+          wx:for="{{categories}}"
+          wx:key="key"
+          class="category-chip {{selectedCategoryKey === item.key ? 'category-chip-active' : ''}}"
+          data-category-key="{{item.key}}"
+          bindtap="handleCategoryTap"
+        >
+          {{item.label}}
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view wx:if="{{state === 'loading' && items.length === 0}}" class="section-card state-box">
+    <text class="state-title">帖子加载中</text>
+    <text class="state-text">正在获取最新互助内容，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
+    <text class="state-title">加载失败</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button state-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <view wx:elif="{{state === 'empty'}}" class="section-card state-box">
+    <text class="state-title">还没有帖子</text>
+    <text class="state-text">当前分区暂时还没有内容，你可以先发第一条帖子。</text>
+    <view class="primary-button state-button" bindtap="handleCreatePost">去发帖</view>
+  </view>
+
+  <block wx:else>
+    <view class="feed-list">
+      <view
+        wx:for="{{items}}"
+        wx:key="postId"
+        class="section-card feed-card"
+        data-post-id="{{item.postId}}"
+        bindtap="handleOpenDetail"
+      >
+        <view class="feed-header">
+          <view class="author-avatar">
+            <image
+              wx:if="{{item.author.avatarUrl}}"
+              class="author-avatar-image"
+              src="{{item.author.avatarUrl}}"
+              mode="aspectFill"
+            />
+            <text wx:else class="author-avatar-text">{{item.authorInitial}}</text>
+          </view>
+
+          <view class="author-meta">
+            <text class="author-name">{{item.authorName}}</text>
+            <text class="author-time">{{item.createdAtText || '刚刚'}}</text>
+          </view>
+
+          <view class="category-tag">{{item.category.name}}</view>
+        </view>
+
+        <text class="feed-title">{{item.title}}</text>
+        <text class="feed-preview">{{item.contentPreview}}</text>
+
+        <view wx:if="{{item.hasImages}}" class="image-preview-row">
+          <image
+            wx:for="{{item.imagePreview}}"
+            wx:key="*this"
+            class="image-preview"
+            src="{{item}}"
+            mode="aspectFill"
+          />
+        </view>
+
+        <view class="feed-footer">
+          <view class="feed-stat">
+            <text class="feed-stat-label">收藏</text>
+            <text class="feed-stat-value">{{item.favoriteCountText}}</text>
+          </view>
+          <view class="feed-stat">
+            <text class="feed-stat-label">评论</text>
+            <text class="feed-stat-value">{{item.commentCountText}}</text>
+          </view>
+          <view class="feed-stat">
+            <text class="feed-stat-label">浏览</text>
+            <text class="feed-stat-value">{{item.viewCountText}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{isLoadingMore}}" class="section-card loading-more">
+      <text class="loading-more-text">正在加载更多帖子...</text>
+    </view>
+
+    <view wx:elif="{{!hasMore && items.length > 0}}" class="section-card loading-more">
+      <text class="loading-more-text">已经加载全部帖子</text>
+    </view>
+  </block>
+
+  <view class="compose-fab" bindtap="handleCreatePost">发帖</view>
 </view>

@@ -19,6 +19,47 @@ const MAX_PAGE_SIZE = 50;
 
 type LearningListStatus = Exclude<LearningStatus, 'NOT_STARTED'>;
 
+type PublishedChapterSummary = {
+  id: string;
+  title: string;
+  sortOrder: number;
+  hasQuiz: boolean;
+};
+
+type LearningListRecord = {
+  courseId: string;
+  startedAt: Date;
+  lastLearnedAt: Date | null;
+  completedAt: Date | null;
+  course: {
+    title: string;
+    coverUrl: string | null;
+  };
+  lastChapter: {
+    id: string;
+    title: string;
+    status: ChapterStatus;
+    deletedAt: Date | null;
+  } | null;
+};
+
+type LearningListItemPayload = {
+  courseId: string;
+  courseName: string;
+  coverUrl: string | null;
+  status: LearningStatus;
+  progressPercent: number;
+  completedChapterCount: number;
+  totalChapterCount: number;
+  lastLearnedChapter: {
+    chapterId: string;
+    title: string;
+  } | null;
+  startedAt: Date;
+  lastLearnedAt: Date | null;
+  completedAt: Date | null;
+};
+
 @Injectable()
 export class LearningService {
   constructor(
@@ -283,19 +324,18 @@ export class LearningService {
         }
 
         if (quizRequirement.kind === 'READY') {
-          const passedAttempt = await tx.quizAttempt.findFirst({
+          const submittedAttempt = await tx.quizAttempt.findFirst({
             where: {
               userId: currentUser.id,
               quizId: quizRequirement.quizId,
-              passed: true,
             },
             select: {
               id: true,
             },
           });
 
-          if (!passedAttempt) {
-            throw new BadRequestException('CHAPTER_QUIZ_NOT_PASSED');
+          if (!submittedAttempt) {
+            throw new BadRequestException('CHAPTER_QUIZ_NOT_SUBMITTED');
           }
         }
       }
@@ -416,7 +456,9 @@ export class LearningService {
             chapterId: true,
             status: true,
             firstStartedAt: true,
+            lastLearnedAt: true,
             completedAt: true,
+            quizCompleted: true,
           },
         }),
       ],
@@ -441,7 +483,10 @@ export class LearningService {
             sortOrder: chapter.sortOrder,
             status: LearningStatus.NOT_STARTED,
             startedAt: null,
+            lastLearnedAt: null,
             completedAt: null,
+            hasQuiz: chapter.hasQuiz,
+            quizCompleted: false,
           })),
         },
       };
@@ -475,7 +520,11 @@ export class LearningService {
         totalChapterCount: publishedChapters.length,
         startedAt: courseRecord.startedAt,
         lastLearnedAt: courseRecord.lastLearnedAt,
-        completedAt: courseRecord.completedAt,
+        completedAt:
+          publishedChapters.length > 0 &&
+          completedChapterCount === publishedChapters.length
+            ? courseRecord.completedAt
+            : null,
         lastLearnedChapter: lastLearnedChapter
           ? {
               chapterId: lastLearnedChapter.id,
@@ -491,7 +540,10 @@ export class LearningService {
             sortOrder: chapter.sortOrder,
             status: chapterRecord?.status ?? LearningStatus.NOT_STARTED,
             startedAt: chapterRecord?.firstStartedAt ?? null,
+            lastLearnedAt: chapterRecord?.lastLearnedAt ?? null,
             completedAt: chapterRecord?.completedAt ?? null,
+            hasQuiz: chapter.hasQuiz,
+            quizCompleted: chapterRecord?.quizCompleted ?? false,
           };
         }),
       },
@@ -508,84 +560,171 @@ export class LearningService {
       throw new BadRequestException('INVALID_PARAMETER');
     }
 
-    const where: Prisma.CourseLearningRecordWhereInput = {
-      userId: currentUser.id,
-      ...(status ? { status } : {}),
-      course: {
-        status: PUBLISHED_COURSE_STATUS,
-        deletedAt: null,
+    const allRecords = await this.prisma.courseLearningRecord.findMany({
+      where: {
+        userId: currentUser.id,
+        course: {
+          status: PUBLISHED_COURSE_STATUS,
+          deletedAt: null,
+        },
       },
-    };
-    const skip = (page - 1) * pageSize;
-
-    const [items, total] = await Promise.all([
-      this.prisma.courseLearningRecord.findMany({
-        where,
-        orderBy: [{ lastLearnedAt: 'desc' }, { updatedAt: 'desc' }],
-        skip,
-        take: pageSize,
-        select: {
-          courseId: true,
-          status: true,
-          progressPercent: true,
-          completedChapterCount: true,
-          totalChapterCountSnapshot: true,
-          startedAt: true,
-          lastLearnedAt: true,
-          completedAt: true,
-          course: {
-            select: {
-              title: true,
-              coverUrl: true,
-            },
-          },
-          lastChapter: {
-            select: {
-              id: true,
-              title: true,
-              status: true,
-              deletedAt: true,
-            },
+      orderBy: [{ lastLearnedAt: 'desc' }, { updatedAt: 'desc' }],
+      select: {
+        courseId: true,
+        startedAt: true,
+        lastLearnedAt: true,
+        completedAt: true,
+        course: {
+          select: {
+            title: true,
+            coverUrl: true,
           },
         },
-      }),
-      this.prisma.courseLearningRecord.count({
-        where,
-      }),
-    ]);
+        lastChapter: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
 
+    const dynamicItems = await Promise.all(
+      allRecords.map((record) =>
+        this.toLearningListItem(currentUser.id, record as LearningListRecord),
+      ),
+    );
+    const filteredItems = status
+      ? dynamicItems.filter((item) => item.status === status)
+      : dynamicItems;
+    const total = filteredItems.length;
+    const skip = (page - 1) * pageSize;
+    const items = filteredItems.slice(skip, skip + pageSize);
     const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
 
     return {
       success: true as const,
       data: {
-        items: items.map((item) => ({
-          courseId: item.courseId,
-          courseName: item.course.title,
-          coverUrl: item.course.coverUrl,
-          status: item.status,
-          progressPercent: this.decimalToNumber(item.progressPercent),
-          completedChapterCount: item.completedChapterCount,
-          totalChapterCount: item.totalChapterCountSnapshot,
-          lastLearnedChapter:
-            item.lastChapter &&
-            item.lastChapter.status === PUBLISHED_CHAPTER_STATUS &&
-            item.lastChapter.deletedAt === null
-              ? {
-                  chapterId: item.lastChapter.id,
-                  title: item.lastChapter.title,
-                }
-              : null,
-          startedAt: item.startedAt,
-          lastLearnedAt: item.lastLearnedAt,
-          completedAt: item.completedAt,
-        })),
+        items,
         pagination: {
           page,
           pageSize,
           total,
           totalPages,
         },
+      },
+    };
+  }
+
+  async getLearningSummary(currentUser: CurrentUserContext) {
+    const records = await this.prisma.courseLearningRecord.findMany({
+      where: {
+        userId: currentUser.id,
+        course: {
+          status: PUBLISHED_COURSE_STATUS,
+          deletedAt: null,
+        },
+      },
+      orderBy: [{ lastLearnedAt: 'desc' }, { updatedAt: 'desc' }],
+      select: {
+        courseId: true,
+        startedAt: true,
+        lastLearnedAt: true,
+        completedAt: true,
+        course: {
+          select: {
+            title: true,
+            coverUrl: true,
+          },
+        },
+        lastChapter: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    const learningCourses = await Promise.all(
+      records.map((record) =>
+        this.toLearningListItem(currentUser.id, record as LearningListRecord),
+      ),
+    );
+    const inProgressCourseCount = learningCourses.filter(
+      (item) => item.status === LearningStatus.LEARNING,
+    ).length;
+    const completedCourseCount = learningCourses.filter(
+      (item) => item.status === LearningStatus.COMPLETED,
+    ).length;
+    const completedChapterCount = learningCourses.reduce(
+      (sum, item) => sum + item.completedChapterCount,
+      0,
+    );
+    const continueLearningCourse =
+      learningCourses.find((item) => item.status === LearningStatus.LEARNING) ??
+      learningCourses[0] ??
+      null;
+    const attempts = await this.prisma.quizAttempt.findMany({
+      where: {
+        userId: currentUser.id,
+        quiz: {
+          chapter: {
+            status: PUBLISHED_CHAPTER_STATUS,
+            deletedAt: null,
+            course: {
+              status: PUBLISHED_COURSE_STATUS,
+              deletedAt: null,
+            },
+          },
+        },
+      },
+      select: {
+        answers: {
+          select: {
+            questionId: true,
+            isCorrect: true,
+          },
+        },
+      },
+    });
+    const totalQuizAnswerCount = attempts.reduce(
+      (sum, attempt) => sum + attempt.answers.length,
+      0,
+    );
+    const correctQuizAnswerCount = attempts.reduce(
+      (sum, attempt) =>
+        sum +
+        attempt.answers.filter((answer) => answer.isCorrect === true).length,
+      0,
+    );
+    const learningWrongQuestionCount = new Set(
+      attempts.flatMap((attempt) =>
+        attempt.answers
+          .filter((answer) => answer.isCorrect === false)
+          .map((answer) => answer.questionId),
+      ),
+    ).size;
+
+    return {
+      success: true as const,
+      data: {
+        inProgressCourseCount,
+        completedCourseCount,
+        completedChapterCount,
+        totalQuizAnswerCount,
+        quizAccuracyPercent:
+          totalQuizAnswerCount > 0
+            ? Math.round(
+                (correctQuizAnswerCount / totalQuizAnswerCount) * 100,
+              )
+            : 0,
+        learningWrongQuestionCount,
+        continueLearningCourse,
       },
     };
   }
@@ -655,8 +794,23 @@ export class LearningService {
         id: true,
         title: true,
         sortOrder: true,
+        quiz: {
+          select: {
+            id: true,
+          },
+        },
       },
-    });
+    }).then((chapters) =>
+      chapters.map(
+        (chapter) =>
+          ({
+            id: chapter.id,
+            title: chapter.title,
+            sortOrder: chapter.sortOrder,
+            hasQuiz: Boolean(chapter.quiz),
+          }) satisfies PublishedChapterSummary,
+      ),
+    );
   }
 
   private async getNextChapterId(courseId: string, chapterId: string) {
@@ -681,6 +835,68 @@ export class LearningService {
     }
 
     return Math.floor((completedChapterCount / totalChapterCount) * 100);
+  }
+
+  private async getDynamicCourseSnapshot(userId: string, courseId: string) {
+    const [totalChapterCount, completedChapterCount] = await Promise.all([
+      this.countPublishedChapters(courseId),
+      this.prisma.chapterLearningRecord.count({
+        where: {
+          userId,
+          courseId,
+          status: LearningStatus.COMPLETED,
+          chapter: {
+            status: PUBLISHED_CHAPTER_STATUS,
+            deletedAt: null,
+          },
+        },
+      }),
+    ]);
+    const progressPercent = this.calculateProgressPercent(
+      completedChapterCount,
+      totalChapterCount,
+    );
+    const status =
+      totalChapterCount > 0 && completedChapterCount === totalChapterCount
+        ? LearningStatus.COMPLETED
+        : LearningStatus.LEARNING;
+
+    return {
+      status,
+      progressPercent,
+      completedChapterCount,
+      totalChapterCount,
+    };
+  }
+
+  private async toLearningListItem(
+    userId: string,
+    record: LearningListRecord,
+  ): Promise<LearningListItemPayload> {
+    const snapshot = await this.getDynamicCourseSnapshot(userId, record.courseId);
+
+    return {
+      courseId: record.courseId,
+      courseName: record.course.title,
+      coverUrl: record.course.coverUrl,
+      status: snapshot.status,
+      progressPercent: snapshot.progressPercent,
+      completedChapterCount: snapshot.completedChapterCount,
+      totalChapterCount: snapshot.totalChapterCount,
+      lastLearnedChapter:
+        record.lastChapter &&
+        record.lastChapter.status === PUBLISHED_CHAPTER_STATUS &&
+        record.lastChapter.deletedAt === null
+          ? {
+              chapterId: record.lastChapter.id,
+              title: record.lastChapter.title,
+            }
+          : null,
+      startedAt: record.startedAt,
+      lastLearnedAt: record.lastLearnedAt,
+      completedAt:
+        snapshot.status === LearningStatus.COMPLETED ? record.completedAt : null,
+    };
   }
 
   private decimalToNumber(value: Prisma.Decimal | number) {

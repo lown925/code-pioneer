@@ -1,0 +1,67 @@
+<view class="page-shell profile-community-page">
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">历史加载中</text>
+    <text class="state-text">正在获取你的社区浏览历史，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error' || state === 'unauthorized'}}" class="section-card state-box">
+    <text class="state-title">暂时无法查看</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button state-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <view wx:elif="{{state === 'empty'}}" class="section-card state-box">
+    <text class="state-title">还没有浏览历史</text>
+    <text class="state-text">打开任意帖子详情后，这里会按最近浏览时间记录历史。</text>
+  </view>
+
+  <block wx:else>
+    <view class="section-card toolbar-card">
+      <view class="section-head">
+        <view>
+          <text class="section-title">历史浏览</text>
+          <text class="section-subtitle">按最近浏览时间倒序显示，可单条删除或整体清空。</text>
+        </view>
+        <view class="ghost-button toolbar-button" bindtap="handleClearAll">
+          {{isClearing ? '清空中...' : '清空全部'}}
+        </view>
+      </view>
+    </view>
+
+    <view class="card-list">
+      <view
+        wx:for="{{items}}"
+        wx:key="post.postId"
+        class="section-card post-card"
+        data-post-id="{{item.post.postId}}"
+        bindtap="handleOpenDetail"
+      >
+        <view class="post-top">
+          <text class="post-status">{{item.post.category.name}}</text>
+          <text class="post-time">{{item.lastViewedAtText || '刚刚'}}</text>
+        </view>
+        <text class="post-title">{{item.post.title}}</text>
+        <text class="post-preview">{{item.previewText}}</text>
+        <view class="post-meta">
+          <text class="post-meta-item">{{item.authorName}}</text>
+          <text class="post-meta-item">浏览 {{item.personalViewCountText}} 次</text>
+        </view>
+        <view
+          class="ghost-button delete-button"
+          data-post-id="{{item.post.postId}}"
+          catchtap="handleDeleteItem"
+        >
+          删除记录
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{isLoadingMore}}" class="section-card loading-more">
+      <text class="loading-more-text">正在加载更多历史...</text>
+    </view>
+
+    <view wx:elif="{{!hasMore && items.length > 0}}" class="section-card loading-more">
+      <text class="loading-more-text">已经加载全部历史</text>
+    </view>
+  </block>
+</view>

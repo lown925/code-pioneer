@@ -4,11 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  BattleEndReason,
+  BattleInvitationStatus,
   BattleMatchQueueStatus,
   BattleRoomStatus,
 } from '../../generated/prisma/enums';
 import {
   ACTIVE_BATTLE_ROOM_STATUSES,
+  CANCELLABLE_BATTLE_ROOM_STATUSES,
   INITIAL_BATTLE_RATING,
   MIN_BATTLE_RATING,
   MATCH_SEARCHING_STATUS,
@@ -122,6 +125,103 @@ export class BattleDomainService {
 
   isSearchingStatus(status: BattleMatchQueueStatus) {
     return status === MATCH_SEARCHING_STATUS;
+  }
+
+  async cancelCancellableBattleRoomForUser(
+    userId: string,
+    now: Date,
+    client?: BattleClient,
+  ) {
+    const prisma = client ?? this.prisma;
+    const participant = await prisma.battleParticipant.findFirst({
+      where: {
+        userId,
+        battleRoom: {
+          status: {
+            in: [...CANCELLABLE_BATTLE_ROOM_STATUSES] as BattleRoomStatus[],
+          },
+        },
+      },
+      orderBy: {
+        joinedAt: 'desc',
+      },
+      select: {
+        battleRoomId: true,
+        battleRoom: {
+          select: {
+            id: true,
+            mode: true,
+            status: true,
+            invitation: {
+              select: {
+                id: true,
+                status: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!participant) {
+      return null;
+    }
+
+    const roomUpdate = await prisma.battleRoom.updateMany({
+      where: {
+        id: participant.battleRoomId,
+        status: {
+          in: [...CANCELLABLE_BATTLE_ROOM_STATUSES] as BattleRoomStatus[],
+        },
+      },
+      data: {
+        status: BattleRoomStatus.CANCELLED,
+        cancelledAt: now,
+        completedAt: null,
+        settledAt: null,
+        endReason: BattleEndReason.SYSTEM_CANCELLED,
+      },
+    });
+
+    if (roomUpdate.count !== 1) {
+      return null;
+    }
+
+    await prisma.battleMatchQueue.updateMany({
+      where: {
+        matchedBattleRoomId: participant.battleRoomId,
+      },
+      data: {
+        status: BattleMatchQueueStatus.CANCELLED,
+        matchedBattleRoomId: null,
+        matchedAt: null,
+        cancelledAt: now,
+      },
+    });
+
+    if (participant.battleRoom.invitation) {
+      await prisma.battleInvitation.updateMany({
+        where: {
+          id: participant.battleRoom.invitation.id,
+          status: {
+            in: [
+              BattleInvitationStatus.ACTIVE,
+              BattleInvitationStatus.ACCEPTED,
+            ],
+          },
+        },
+        data: {
+          status: BattleInvitationStatus.CANCELLED,
+          cancelledAt: now,
+        },
+      });
+    }
+
+    return {
+      battleRoomId: participant.battleRoomId,
+      mode: participant.battleRoom.mode,
+      previousStatus: participant.battleRoom.status,
+    };
   }
 
   private async ensureBattleProfileWithClient(

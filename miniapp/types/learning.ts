@@ -43,7 +43,10 @@ export type CourseProgressChapter = {
   sortOrder: number;
   status: LearningStatus;
   startedAt: string | null;
+  lastLearnedAt: string | null;
   completedAt: string | null;
+  hasQuiz: boolean;
+  quizCompleted: boolean;
 };
 
 export type CourseProgress = {
@@ -60,3 +63,15 @@ export type CourseProgress = {
 };
 
 export type CourseProgressResponse = CourseProgress;
+
+export type LearningSummary = {
+  inProgressCourseCount: number;
+  completedCourseCount: number;
+  completedChapterCount: number;
+  totalQuizAnswerCount: number;
+  quizAccuracyPercent: number;
+  learningWrongQuestionCount: number;
+  continueLearningCourse: LearningCourseItem | null;
+};
+
+export type LearningSummaryResponse = LearningSummary;

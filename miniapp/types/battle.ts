@@ -1,3 +1,52 @@
+export type BattleMode = 'RANKED' | 'FRIEND';
+
+export type BattleRoomStatus =
+  | 'WAITING'
+  | 'READY'
+  | 'COUNTDOWN'
+  | 'IN_PROGRESS'
+  | 'SETTLING'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+export type BattleParticipantStatus =
+  | 'JOINED'
+  | 'READY'
+  | 'PLAYING'
+  | 'SUBMITTED'
+  | 'FORFEITED'
+  | 'COMPLETED';
+
+export type BattleResult = 'WIN' | 'LOSS' | 'DRAW';
+
+export type BattleQuestionType = 'SINGLE_CHOICE' | 'CODE_FILL';
+
+export type BattleQuestionPresentation =
+  | 'TEXT_CHOICE'
+  | 'CODE_READING'
+  | 'CODE_PURPOSE'
+  | 'OUTPUT_PREDICTION'
+  | 'BUG_FIX'
+  | 'CODE_COMPLETION_CHOICE'
+  | 'CODE_SNIPPET_CHOICE'
+  | 'INPUT_CODE_FILL';
+
+export type BattleQuestionDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export type BattleInvitationStatus =
+  | 'ACTIVE'
+  | 'ACCEPTED'
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+export type BattleEndReason =
+  | 'NORMAL'
+  | 'USER_FORFEIT'
+  | 'MATCH_TIMEOUT'
+  | 'SYSTEM_CANCELLED'
+  | 'EXPIRED';
+
 export type BattleProfileResponse = {
   userId: string;
   rating: number;
@@ -64,13 +113,13 @@ export type BattleParticipantSummary = {
   nickname: string | null;
   avatarUrl: string | null;
   seat: number;
-  status: string;
+  status: BattleParticipantStatus;
 };
 
 export type BattleRoomSummaryResponse = {
   battleId: string;
-  mode: string;
-  status: string;
+  mode: BattleMode;
+  status: BattleRoomStatus;
   questionCount: number;
   durationSeconds: number;
   createdAt: string;
@@ -81,7 +130,7 @@ export type BattleRoomSummaryResponse = {
 };
 
 export type BattleRoomDetailResponse = BattleRoomSummaryResponse & {
-  currentParticipantStatus: string | null;
+  currentParticipantStatus: BattleParticipantStatus | null;
   answeredCount: number;
   totalQuestionCount: number;
   completed: boolean;
@@ -90,9 +139,10 @@ export type BattleRoomDetailResponse = BattleRoomSummaryResponse & {
 
 export type FriendRoomCreateResponse = {
   battleId: string;
-  mode: string;
-  status: string;
+  mode: BattleMode;
+  status: BattleRoomStatus;
   invitationToken: string;
+  inviteCode: string | null;
   sharePath: string;
   expiresAt: string;
   serverTime: string;
@@ -100,8 +150,9 @@ export type FriendRoomCreateResponse = {
 
 export type FriendRoomPreviewResponse = {
   battleId: string;
-  roomStatus: string;
-  invitationStatus: string;
+  roomStatus: BattleRoomStatus;
+  invitationStatus: BattleInvitationStatus;
+  inviteCode: string | null;
   inviter: {
     userId: string;
     nickname: string | null;
@@ -150,20 +201,21 @@ export type BattleSubmittedAnswerResponse =
 export type BattleQuestionItemResponse = {
   battleQuestionId: string;
   orderIndex: number;
-  questionType: string;
-  presentation: string;
-  difficulty: string | null;
+  questionType: BattleQuestionType;
+  presentation: BattleQuestionPresentation;
+  difficulty: BattleQuestionDifficulty | null;
   stem: BattleContentBlock[];
   options: BattleQuestionOptionSnapshotResponse[];
   programmingLanguage: string | null;
   answered: boolean;
   submittedAt: string | null;
+  answerVersion: number | null;
   submittedAnswer: BattleSubmittedAnswerResponse | null;
 };
 
 export type BattleQuestionsResponse = {
   battleId: string;
-  status: string;
+  status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING' | 'COMPLETED';
   startedAt: string | null;
   expiresAt: string | null;
   serverTime: string;
@@ -174,6 +226,7 @@ export type BattleAnswerSubmissionResponse = {
   accepted: true;
   battleQuestionId: string;
   submittedAt: string;
+  answerVersion: number;
   mySubmittedCount: number;
   totalQuestions: number;
   serverTime: string;
@@ -181,8 +234,8 @@ export type BattleAnswerSubmissionResponse = {
 
 export type BattleSubmitActionResponse = {
   battleId: string;
-  roomStatus: string;
-  participantStatus: string | null;
+  roomStatus: BattleRoomStatus;
+  participantStatus: BattleParticipantStatus | null;
   waitingForOpponent: boolean;
   completed: boolean;
   serverTime: string;
@@ -190,18 +243,18 @@ export type BattleSubmitActionResponse = {
 
 export type PendingBattleResultResponse = {
   battleId: string;
-  mode: string;
-  status: string;
+  mode: BattleMode;
+  status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING';
   completed: false;
   serverTime: string;
 };
 
 export type CompletedBattleResultResponse = {
   battleId: string;
-  mode: string;
+  mode: BattleMode;
   status: 'COMPLETED';
   completed: true;
-  result: 'WIN' | 'LOSS' | 'DRAW';
+  result: BattleResult;
   myScore: number;
   opponentScore: number;
   myCorrectCount: number;
@@ -218,7 +271,7 @@ export type CompletedBattleResultResponse = {
     nickname: string | null;
     avatarUrl: string | null;
   };
-  endReason: string | null;
+  endReason: BattleEndReason | null;
   completedAt: string;
   serverTime: string;
 };
@@ -230,14 +283,14 @@ export type BattleResultResponse =
 export type BattleHistoryQuery = {
   page: number;
   pageSize: number;
-  mode?: 'RANKED' | 'FRIEND';
-  result?: 'WIN' | 'LOSS' | 'DRAW';
+  mode?: BattleMode;
+  result?: BattleResult;
 };
 
 export type BattleHistoryListItemResponse = {
   battleId: string;
-  mode: string;
-  result: 'WIN' | 'LOSS' | 'DRAW';
+  mode: BattleMode;
+  result: BattleResult;
   opponent: {
     userId: string;
     nickname: string | null;
@@ -251,7 +304,7 @@ export type BattleHistoryListItemResponse = {
   ratingBefore: number;
   ratingDelta: number;
   ratingAfter: number;
-  endReason: string | null;
+  endReason: BattleEndReason | null;
   completedAt: string;
 };
 
@@ -283,10 +336,10 @@ export type BattleHistoryQuestionResponse = {
   battleQuestionSnapshotId: string;
   questionId: string;
   sourceQuizQuestionId: string | null;
-  source: 'LEARNING' | 'BATTLE';
-  questionType: string;
-  presentation: string;
-  difficulty: string | null;
+  source: 'BATTLE';
+  questionType: BattleQuestionType;
+  presentation: BattleQuestionPresentation;
+  difficulty: BattleQuestionDifficulty | null;
   stem: BattleContentBlock[];
   options: BattleQuestionOptionSnapshotResponse[];
   myAnswer: BattleHistoryMyAnswerResponse | null;
@@ -314,9 +367,9 @@ export type BattleHistorySummaryResponse = {
 
 export type BattleHistoryDetailResponse = {
   battleId: string;
-  mode: string;
-  status: string;
-  result: 'WIN' | 'LOSS' | 'DRAW';
+  mode: BattleMode;
+  status: 'COMPLETED';
+  result: BattleResult;
   startedAt: string | null;
   durationSeconds: number;
   myScore: number;
@@ -341,7 +394,7 @@ export type BattleHistoryDetailResponse = {
     nickname: string | null;
     avatarUrl: string | null;
   };
-  endReason: string | null;
+  endReason: BattleEndReason | null;
   completedAt: string;
   serverTime: string;
   questions: BattleHistoryQuestionResponse[];

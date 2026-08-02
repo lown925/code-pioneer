@@ -7,6 +7,7 @@ import {
   formatBattleDuration,
   formatBattleRank,
   formatBattleRating,
+  getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
 
@@ -607,27 +608,25 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
         redirectToLogin('/pages/battle/matchmaking');
         return '登录状态已失效，请重新登录后再继续随机匹配。';
       }
-
-      if (error.code === 'NETWORK_ERROR') {
-        return '无法连接匹配服务，请确认后端服务已启动。';
-      }
-
-      if (error.code === 'BATTLE_ALREADY_ACTIVE') {
-        return '你当前已有进行中的对战，暂时不能再次加入随机匹配。';
-      }
-
-      if (error.code === 'BATTLE_MATCH_EXPIRED') {
-        return '本次匹配已经过期，请重新开始。';
-      }
-
-      return error.message || fallback;
     }
 
-    if (error instanceof Error && error.message) {
-      return error.message;
-    }
-
-    return fallback;
+    return getBattleErrorMessage(
+      error,
+      {
+        unauthorized: '登录状态已失效，请重新登录后再继续随机匹配。',
+        network: '网络连接失败，请确认后端服务已启动后重试。',
+        fallback,
+      },
+      {
+        BATTLE_ALREADY_ACTIVE:
+          '你当前已有进行中的对战，请先完成当前对局，再开始新的 Battle。',
+        BATTLE_ALREADY_MATCHING:
+          '你当前正在随机匹配中，请先返回匹配页取消当前匹配。',
+        BATTLE_MATCH_EXPIRED: '本次匹配已过期，请重新开始匹配。',
+        BATTLE_INVALID_STATUS:
+          '当前匹配状态已变化，请重新同步服务端状态后再继续操作。',
+      },
+    );
   },
 
   updateProfileCard(profile: BattleProfileResponse) {

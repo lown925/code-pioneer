@@ -1,0 +1,48 @@
+<view class="page-shell profile-community-page">
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">帖子加载中</text>
+    <text class="state-text">正在获取你发布过的帖子，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error' || state === 'unauthorized'}}" class="section-card state-box">
+    <text class="state-title">暂时无法查看</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button state-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <view wx:elif="{{state === 'empty'}}" class="section-card state-box">
+    <text class="state-title">还没有发布帖子</text>
+    <text class="state-text">去互助社区发布第一条帖子后，这里会显示你的内容。</text>
+  </view>
+
+  <block wx:else>
+    <view class="card-list">
+      <view
+        wx:for="{{items}}"
+        wx:key="postId"
+        class="section-card post-card"
+        data-post-id="{{item.postId}}"
+        bindtap="handleOpenDetail"
+      >
+        <view class="post-top">
+          <text class="post-status">{{item.statusText}}</text>
+          <text class="post-time">{{item.createdAtText || '刚刚'}}</text>
+        </view>
+        <text class="post-title">{{item.title}}</text>
+        <text class="post-preview">{{item.contentPreview}}</text>
+        <view class="post-meta">
+          <text class="post-meta-item">收藏 {{item.favoriteCountText}}</text>
+          <text class="post-meta-item">浏览 {{item.viewCountText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{isLoadingMore}}" class="section-card loading-more">
+      <text class="loading-more-text">正在加载更多帖子...</text>
+    </view>
+
+    <view wx:elif="{{!hasMore && items.length > 0}}" class="section-card loading-more">
+      <text class="loading-more-text">已经加载全部帖子</text>
+    </view>
+  </block>
+</view>

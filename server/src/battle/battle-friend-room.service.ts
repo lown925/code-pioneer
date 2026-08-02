@@ -38,6 +38,7 @@ type InvitationRecord = {
   inviterUserId: string;
   inviteeUserId: string | null;
   token: string;
+  inviteCode: string | null;
   status: BattleInvitationStatus;
   expiresAt: Date;
   acceptedAt: Date | null;
@@ -121,6 +122,7 @@ export class BattleFriendRoomService {
         mode: room.mode,
         status: room.status,
         invitationToken: invitation.token,
+        inviteCode: invitation.inviteCode,
         sharePath: `/pages/battle/friend-room?invitationToken=${invitation.token}`,
         expiresAt,
         serverTime: now,
@@ -167,15 +169,156 @@ export class BattleFriendRoomService {
     };
   }
 
+  async previewFriendRoomByInviteCode(
+    currentUser: CurrentUserContext,
+    inviteCode: string,
+  ) {
+    const data = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const invitation = await this.getInvitationByInviteCode(tx, inviteCode);
+
+      if (!invitation) {
+        throw new NotFoundException(
+          BATTLE_ERROR_CODES.BATTLE_INVITATION_INVALID,
+        );
+      }
+
+      const normalizedInvitation = await this.expireInvitationIfNeeded(
+        tx,
+        invitation,
+        now,
+      );
+
+      return this.toPreviewPayload(
+        currentUser.id,
+        normalizedInvitation,
+        now,
+        tx,
+      );
+    });
+
+    return {
+      success: true as const,
+      data,
+    };
+  }
+
   async joinFriendRoom(
+    currentUser: CurrentUserContext,
+    invitationToken: string,
+  ) {
+    return this.joinFriendRoomByResolver(currentUser, (tx) =>
+      this.getInvitationByToken(tx, invitationToken),
+    );
+  }
+
+  async joinFriendRoomByInviteCode(
+    currentUser: CurrentUserContext,
+    inviteCode: string,
+  ) {
+    return this.joinFriendRoomByResolver(currentUser, (tx) =>
+      this.getInvitationByInviteCode(tx, inviteCode),
+    );
+  }
+
+  async cancelFriendRoom(
     currentUser: CurrentUserContext,
     invitationToken: string,
   ) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      let invitation = await this.getInvitationByToken(tx, invitationToken);
+
+      if (!invitation) {
+        throw new NotFoundException(
+          BATTLE_ERROR_CODES.BATTLE_INVITATION_INVALID,
+        );
+      }
+
+      invitation = await this.expireInvitationIfNeeded(tx, invitation, now);
+
+      if (invitation.inviterUserId !== currentUser.id) {
+        throw new ForbiddenException(BATTLE_ERROR_CODES.BATTLE_NOT_PARTICIPANT);
+      }
+
+      if (invitation.status === BattleInvitationStatus.EXPIRED) {
+        return this.toPreviewPayload(currentUser.id, invitation, now, tx);
+      }
+
+      if (
+        invitation.battleRoom.status === BattleRoomStatus.IN_PROGRESS ||
+        invitation.battleRoom.status === BattleRoomStatus.SETTLING ||
+        invitation.battleRoom.status === BattleRoomStatus.COMPLETED
+      ) {
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
+      }
+
+      if (invitation.battleRoom.status === BattleRoomStatus.CANCELLED) {
+        return this.toPreviewPayload(
+          currentUser.id,
+          {
+            ...invitation,
+            status:
+              invitation.status === BattleInvitationStatus.ACTIVE
+                ? BattleInvitationStatus.CANCELLED
+                : invitation.status,
+          },
+          now,
+          tx,
+        );
+      }
+
+      const released =
+        await this.battleDomainService.cancelCancellableBattleRoomForUser(
+          currentUser.id,
+          now,
+          tx,
+        );
+
+      if (!released || released.battleRoomId !== invitation.battleRoomId) {
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
+      }
+
+      invitation = await this.getInvitationByToken(tx, invitationToken);
+
+      if (!invitation) {
+        throw new NotFoundException(
+          BATTLE_ERROR_CODES.BATTLE_INVITATION_INVALID,
+        );
+      }
+
+      return this.toPreviewPayload(
+        currentUser.id,
+        {
+          ...invitation,
+          status: BattleInvitationStatus.CANCELLED,
+          battleRoom: {
+            ...invitation.battleRoom,
+            status: BattleRoomStatus.CANCELLED,
+          },
+        },
+        now,
+        tx,
+      );
+    });
+
+    return {
+      success: true as const,
+      data,
+    };
+  }
+
+  private async joinFriendRoomByResolver(
+    currentUser: CurrentUserContext,
+    resolveInvitation: (
+      tx: BattleTransactionClient,
+    ) => Promise<InvitationRecord | null>,
+  ) {
+    const data = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
       await this.battleDomainService.ensureBattleProfile(currentUser.id, tx);
 
-      let invitation = await this.getInvitationByToken(tx, invitationToken);
+      let invitation = await resolveInvitation(tx);
 
       if (!invitation) {
         throw new NotFoundException(
@@ -329,6 +472,7 @@ export class BattleFriendRoomService {
   ) {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const token = this.battleTokenService.generateInvitationToken();
+      const inviteCode = this.battleTokenService.generateInviteCode();
 
       try {
         return await tx.battleInvitation.create({
@@ -337,10 +481,12 @@ export class BattleFriendRoomService {
             inviterUserId: input.inviterUserId,
             status: BattleInvitationStatus.ACTIVE,
             token,
+            inviteCode,
             expiresAt: input.expiresAt,
           },
           select: {
             token: true,
+            inviteCode: true,
           },
         });
       } catch (error) {
@@ -413,6 +559,9 @@ export class BattleFriendRoomService {
     if (invitation.status === BattleInvitationStatus.EXPIRED) {
       canJoin = false;
       cannotJoinReason = BATTLE_ERROR_CODES.BATTLE_INVITATION_EXPIRED;
+    } else if (invitation.status === BattleInvitationStatus.CANCELLED) {
+      canJoin = false;
+      cannotJoinReason = BATTLE_ERROR_CODES.BATTLE_INVITATION_INVALID;
     } else if (invitation.status === BattleInvitationStatus.ACCEPTED) {
       canJoin = isParticipant;
       cannotJoinReason = isParticipant
@@ -439,6 +588,7 @@ export class BattleFriendRoomService {
       battleId: invitation.battleRoomId,
       roomStatus: invitation.battleRoom.status,
       invitationStatus: invitation.status,
+      inviteCode: invitation.inviteCode,
       inviter: {
         userId: invitation.inviterUser.id,
         nickname: invitation.inviterUser.nickname,
@@ -472,6 +622,51 @@ export class BattleFriendRoomService {
         inviterUserId: true,
         inviteeUserId: true,
         token: true,
+        inviteCode: true,
+        status: true,
+        expiresAt: true,
+        acceptedAt: true,
+        cancelledAt: true,
+        inviterUser: {
+          select: {
+            id: true,
+            nickname: true,
+            avatarUrl: true,
+          },
+        },
+        battleRoom: {
+          select: {
+            id: true,
+            mode: true,
+            status: true,
+            expiresAt: true,
+            participants: {
+              select: {
+                userId: true,
+                seat: true,
+              },
+            },
+          },
+        },
+      },
+    }) as Promise<InvitationRecord | null>;
+  }
+
+  private async getInvitationByInviteCode(
+    tx: BattleTransactionClient,
+    inviteCode: string,
+  ) {
+    return tx.battleInvitation.findUnique({
+      where: {
+        inviteCode: inviteCode.trim().toUpperCase(),
+      },
+      select: {
+        id: true,
+        battleRoomId: true,
+        inviterUserId: true,
+        inviteeUserId: true,
+        token: true,
+        inviteCode: true,
         status: true,
         expiresAt: true,
         acceptedAt: true,

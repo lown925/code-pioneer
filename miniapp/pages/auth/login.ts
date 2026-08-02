@@ -50,6 +50,10 @@ function isWechatConfigErrorMessage(message: string) {
 
 function getReadableLoginError(error: unknown, isMockLogin: boolean) {
   if (error instanceof RequestError) {
+    if (error.code === 'API_CONFIG_INVALID') {
+      return error.message || '当前小程序环境的 API 地址未正确配置';
+    }
+
     if (error.code === 'NETWORK_ERROR') {
       return '网络请求失败，请确认后端服务已启动且开发者工具可访问本地接口';
     }

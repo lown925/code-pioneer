@@ -10,6 +10,7 @@ import {
   formatBattleInitial,
   formatBattleNickname,
   formatBattleRating,
+  getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
 
@@ -481,7 +482,6 @@ Page<DetailPageData, DetailPageMethods>({
         myAnswerBlocks.push({
           type: 'CODE',
           code: myAnswer.answer.value,
-          language: question.presentation,
         });
       }
     }
@@ -791,30 +791,22 @@ Page<DetailPageData, DetailPageMethods>({
         );
         return '登录状态已失效，请重新登录后再查看 Battle 复盘。';
       }
-
-      if (error.code === 'NETWORK_ERROR') {
-        return '无法连接 Battle 复盘服务，请确认后端服务已启动。';
-      }
-
-      if (error.code === 'BATTLE_HISTORY_NOT_FOUND') {
-        return '当前 Battle 战绩不存在或已无法查看。';
-      }
-
-      if (error.code === 'BATTLE_HISTORY_NOT_COMPLETED') {
-        return '当前 Battle 尚未形成可复盘的已完成战绩。';
-      }
-
-      if (error.code === 'BATTLE_NOT_PARTICIPANT') {
-        return '你不是这场 Battle 的参与者，无法查看复盘详情。';
-      }
-
-      return error.message || 'Battle 复盘加载失败，请稍后重试。';
     }
 
-    if (error instanceof Error && error.message) {
-      return error.message;
-    }
-
-    return 'Battle 复盘加载失败，请稍后重试。';
+    return getBattleErrorMessage(
+      error,
+      {
+        unauthorized: '登录状态已失效，请重新登录后再查看 Battle 复盘。',
+        network: '网络连接失败，请确认后端服务已启动后重试。',
+        fallback: 'Battle 复盘加载失败，请稍后重试。',
+      },
+      {
+        BATTLE_HISTORY_NOT_FOUND: '当前 Battle 战绩不存在或已无法查看。',
+        BATTLE_HISTORY_NOT_COMPLETED:
+          '当前 Battle 尚未形成可复盘的已完成战绩。',
+        BATTLE_NOT_PARTICIPANT:
+          '你不是这场对战的参与者，无法查看 Battle 复盘详情。',
+      },
+    );
   },
 });

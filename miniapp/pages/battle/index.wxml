@@ -1,106 +1,149 @@
 <view class="page-shell battle-page">
-  <view class="section-card hero-card">
-    <text class="hero-eyebrow">Battle V1</text>
+  <view class="hero-card">
+    <view class="hero-glow hero-glow-top"></view>
+    <view class="hero-glow hero-glow-bottom"></view>
+    <text class="hero-eyebrow">BATTLE V1</text>
     <text class="hero-title">1v1 编程知识对战</text>
-    <text class="hero-copy">
-      查看当前评分、胜负表现和连胜数据，并从这里进入排行榜与后续对战能力。
-    </text>
+    <text class="hero-copy">和实力相近的对手正面交锋，在每一次作答中提升排名。</text>
+    <view wx:if="{{myRank}}" class="hero-summary">
+      <text class="hero-summary-item">{{myRank.rankText}}</text>
+      <text class="hero-summary-divider"></text>
+      <text class="hero-summary-item">Rating {{myRank.ratingText}}</text>
+      <text class="hero-summary-divider"></text>
+      <text class="hero-summary-item">{{myRank.totalBattlesText}} 场对战</text>
+    </view>
   </view>
 
   <view wx:if="{{state === 'guest'}}" class="section-card state-box">
-    <text class="state-title">登录后查看你的对战数据</text>
-    <text class="state-text">
-      当前 Battle 首页需要登录后才能获取个人评分、战绩统计和排行榜信息。
-    </text>
-    <view class="primary-button retry-button" bindtap="handleLogin">去登录</view>
+    <text class="state-title">登录后开启对战</text>
+    <text class="state-text">登录后可查看实时排行榜、个人排名和完整战绩。</text>
+    <view class="primary-button state-action" bindtap="handleLogin">去登录</view>
   </view>
 
-  <view wx:elif="{{state === 'loading'}}" class="section-card state-box">
-    <text class="state-title">对战数据加载中</text>
-    <text class="state-text">正在获取你的评分和战绩统计，请稍候。</text>
-  </view>
-
-  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
-    <text class="state-title">对战数据加载失败</text>
-    <text class="state-text">{{errorMessage}}</text>
-    <view class="primary-button retry-button" bindtap="handleRetry">重新加载</view>
-  </view>
-
-  <block wx:elif="{{state === 'success' && profile}}">
-    <view class="section-card profile-card">
-      <view class="profile-top">
-        <view>
-          <text class="section-title">{{displayName}}</text>
-          <text class="section-subtitle">以下数据以 Battle 后端正式接口实时返回为准</text>
-        </view>
-        <view class="rank-pill">{{profile.currentRankText}}</view>
+  <view wx:else class="section-card leaderboard-panel">
+    <view class="leaderboard-heading">
+      <view>
+        <text class="leaderboard-title">排行榜</text>
+        <text class="leaderboard-subtitle">全站 Rating 前 20 名</text>
       </view>
-
-      <view class="profile-grid">
-        <view class="profile-main-card profile-grid-span">
-          <text class="profile-main-label">当前评分</text>
-          <text class="profile-main-value">{{profile.ratingText}}</text>
-          <text class="profile-main-copy">历史最高 {{profile.highestRatingText}}</text>
-        </view>
-        <view class="profile-stat-card">
-          <text class="profile-stat-label">总场次</text>
-          <text class="profile-stat-value">{{profile.totalBattlesText}}</text>
-        </view>
-        <view class="profile-stat-card">
-          <text class="profile-stat-label">胜率</text>
-          <text class="profile-stat-value">{{profile.winRateText}}</text>
-        </view>
-        <view class="profile-stat-card">
-          <text class="profile-stat-label">当前连胜</text>
-          <text class="profile-stat-value">{{profile.currentWinStreakText}}</text>
-        </view>
-        <view class="profile-stat-card">
-          <text class="profile-stat-label">最高连胜</text>
-          <text class="profile-stat-value">{{profile.bestWinStreakText}}</text>
-        </view>
-      </view>
-
-      <view class="record-strip">
-        <view class="record-item">
-          <text class="record-label">胜负统计</text>
-          <text class="record-value">{{profile.recordText}}</text>
-        </view>
-        <view class="record-item">
-          <text class="record-label">匹配场次</text>
-          <text class="record-value">{{profile.rankedBattlesText}}</text>
-        </view>
-        <view class="record-item">
-          <text class="record-label">好友场次</text>
-          <text class="record-value">{{profile.friendBattlesText}}</text>
-        </view>
+      <view class="leaderboard-live">
+        <text class="live-dot"></text>
+        <text>实时排名</text>
       </view>
     </view>
 
-    <view class="section-card entry-section">
-      <view class="entry-header">
-        <view>
-          <text class="section-title">对战入口</text>
-          <text class="section-subtitle">本轮开放随机匹配、好友对战和排行榜，其余能力保留为明确入口占位</text>
-        </view>
+    <view wx:if="{{state === 'loading'}}" class="leaderboard-state">
+      <view class="loading-orbit"></view>
+      <text class="leaderboard-state-title">正在更新排行榜</text>
+      <text class="leaderboard-state-copy">马上为你呈现最新对战排名</text>
+    </view>
+
+    <view wx:elif="{{state === 'error'}}" class="leaderboard-state">
+      <text class="state-symbol">!</text>
+      <text class="leaderboard-state-title">排行榜暂时无法加载</text>
+      <text class="leaderboard-state-copy">{{errorMessage}}</text>
+      <view class="ghost-button compact-action" bindtap="handleRetry">重新加载</view>
+    </view>
+
+    <view wx:elif="{{state === 'empty'}}" class="leaderboard-state">
+      <text class="state-symbol state-symbol-empty">—</text>
+      <text class="leaderboard-state-title">排行榜正在等待首场对战</text>
+      <text class="leaderboard-state-copy">完成对局后，排名会显示在这里。</text>
+      <view class="ghost-button compact-action" bindtap="handleRetry">刷新排行</view>
+    </view>
+
+    <view wx:elif="{{state === 'success'}}" class="leaderboard-content">
+      <view class="leaderboard-columns">
+        <text class="column-rank">名次</text>
+        <text class="column-player">选手</text>
+        <text class="column-rating">Rating</text>
+        <text class="column-battles">场次</text>
       </view>
 
-      <view class="entry-grid">
+      <scroll-view class="leaderboard-scroll" scroll-y enhanced show-scrollbar="{{false}}">
         <view
-          wx:for="{{entries}}"
-          wx:key="key"
-          class="entry-card {{item.disabled ? 'entry-card-disabled' : ''}}"
-          data-entry-key="{{item.key}}"
-          data-disabled="{{item.disabled}}"
-          bindtap="handleEntryTap"
+          wx:for="{{rankings}}"
+          wx:key="userId"
+          class="leaderboard-row {{item.isCurrentUser ? 'leaderboard-row-current' : ''}}"
         >
-          <view class="entry-card-top">
-            <text class="entry-title">{{item.title}}</text>
-            <text class="entry-badge {{item.badgeClassName}}">{{item.badgeText}}</text>
+          <view class="rank-number {{item.rankClassName}}">{{item.rank}}</view>
+          <view class="player-cell">
+            <view class="avatar-frame">
+              <image
+                wx:if="{{item.avatarUrl}}"
+                class="avatar-image"
+                src="{{item.avatarUrl}}"
+                mode="aspectFill"
+              />
+              <view wx:else class="avatar-fallback">{{item.avatarFallbackText}}</view>
+            </view>
+            <view class="player-copy">
+              <view class="nickname-line">
+                <text class="nickname">{{item.nicknameText}}</text>
+                <text wx:if="{{item.isCurrentUser}}" class="me-badge">我</text>
+              </view>
+              <text class="mobile-player-meta">{{item.rankText}} · {{item.totalBattlesText}} 场</text>
+            </view>
           </view>
-          <text class="entry-copy">{{item.description}}</text>
-          <text class="entry-action">{{item.actionText}}</text>
+          <text class="rating-value">{{item.ratingText}}</text>
+          <text class="battle-count">{{item.totalBattlesText}}</text>
+        </view>
+      </scroll-view>
+
+      <view wx:if="{{myRank}}" class="my-rank-dock">
+        <view class="my-rank-marker">我</view>
+        <view class="avatar-frame my-avatar-frame">
+          <image
+            wx:if="{{myRank.avatarUrl}}"
+            class="avatar-image"
+            src="{{myRank.avatarUrl}}"
+            mode="aspectFill"
+          />
+          <view wx:else class="avatar-fallback">{{myRank.avatarFallbackText}}</view>
+        </view>
+        <view class="my-rank-copy">
+          <text class="my-rank-name">{{myRank.nicknameText}}</text>
+          <text class="my-rank-position">{{myRank.rankText}}</text>
+        </view>
+        <view class="my-rank-stat">
+          <text class="my-rank-value">{{myRank.ratingText}}</text>
+          <text class="my-rank-label">Rating</text>
+        </view>
+        <view class="my-rank-stat my-rank-battles">
+          <text class="my-rank-value">{{myRank.totalBattlesText}}</text>
+          <text class="my-rank-label">总场次</text>
         </view>
       </view>
     </view>
-  </block>
+  </view>
+
+  <view class="battle-actions">
+    <view
+      class="battle-action battle-action-primary"
+      hover-class="battle-action-pressed"
+      bindtap="handleRandomMatch"
+    >
+      <text class="action-icon">⚡</text>
+      <text class="action-title">随机匹配</text>
+      <text class="action-copy">寻找实力相近的对手</text>
+    </view>
+    <view
+      class="battle-action"
+      hover-class="battle-action-pressed"
+      bindtap="handleFriendBattle"
+    >
+      <text class="action-icon action-icon-friend">双</text>
+      <text class="action-title">好友对战</text>
+      <text class="action-copy">创建或加入好友房</text>
+    </view>
+    <view
+      class="battle-action"
+      hover-class="battle-action-pressed"
+      bindtap="handleHistory"
+    >
+      <text class="action-icon action-icon-history">↗</text>
+      <text class="action-title">查询战绩</text>
+      <text class="action-copy">回顾每一场对局</text>
+    </view>
+  </view>
 </view>

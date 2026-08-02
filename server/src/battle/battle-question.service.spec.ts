@@ -133,6 +133,7 @@ describe('BattleQuestionService', () => {
       battleQuestionSnapshotId: 'snapshot-1',
       userId: USER_A_ID,
       clientRequestId: 'request-1',
+      answerVersion: 1,
       answerPayload: {
         type: 'SINGLE_CHOICE',
         optionId: 'snapshot-1-option-a',

@@ -4,9 +4,13 @@ import type {
 } from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
+  disableBattleLeaveAlert,
+  enableBattleLeaveAlert,
   formatBattleDuration,
   formatBattleInitial,
   formatBattleNickname,
+  getBattleErrorMessage,
+  showBattleConfirmModal,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
 
@@ -35,7 +39,12 @@ type ParticipantCard = {
 };
 
 type RoomPageData = {
+  navTopPadding: number;
+  navBarHeight: number;
   battleId: string;
+  invitationToken: string;
+  inviteCode: string;
+  sharePath: string;
   isValidBattleId: boolean;
   state: RoomPageState;
   roomModeText: string;
@@ -46,16 +55,29 @@ type RoomPageData = {
   questionCountText: string;
   durationText: string;
   countdownText: string;
-  canReady: boolean;
-  readyButtonText: string;
+  primaryActionText: string;
+  primaryActionEnabled: boolean;
+  canOpenPlay: boolean;
+  isFriendMode: boolean;
+  isFriendRoomCreator: boolean;
+  canShareInvitation: boolean;
+  showInviteTools: boolean;
+  showInviteCode: boolean;
+  friendStatusNotice: string;
   myParticipant: ParticipantCard | null;
   opponentParticipant: ParticipantCard | null;
 };
 
 type RoomPageMethods = {
   ensureAuthenticated(): boolean;
+  buildRedirectPath(): string;
   loadRoom(options?: { autoNavigate?: boolean }): Promise<void>;
   readyBattle(): Promise<void>;
+  cancelFriendRoom(options?: {
+    silentIdempotent?: boolean;
+    navigateHomeOnSuccess?: boolean;
+  }): Promise<boolean>;
+  confirmCancelAndLeave(): Promise<void>;
   applyRoomData(
     payload: BattleRoomDetailResponse,
     options?: { autoNavigate?: boolean },
@@ -65,11 +87,14 @@ type RoomPageMethods = {
   startCountdownTicker(): void;
   stopCountdownTicker(): void;
   updateCountdownDisplay(): void;
+  syncLeaveAlert(): void;
   handleRetry(): void;
-  handleReady(): void;
-  handleBackHome(): void;
-  handleEnterPlay(): void;
+  handlePrimaryAction(): void;
+  handleCopyInviteCode(): void;
+  handleNavBack(): Promise<void>;
   navigateToPlay(autoNavigate?: boolean): void;
+  navigateHome(): void;
+  canCreatorCancelFriendRoom(status?: RoomPageState): boolean;
   mapRoomState(payload: BattleRoomDetailResponse): RoomPageState;
   mapParticipant(
     participant: BattleParticipantSummary | null,
@@ -79,12 +104,15 @@ type RoomPageMethods = {
     titleText: string;
     descriptionText: string;
     roomStatusText: string;
-    canReady: boolean;
-    readyButtonText: string;
+    primaryActionText: string;
+    primaryActionEnabled: boolean;
+    canOpenPlay: boolean;
+    friendStatusNotice: string;
   };
   getParticipantStatusText(status: string): string;
   getParticipantStatusClassName(status: string): string;
   getReadableError(error: unknown): string;
+  getCancelConflictMessage(code: string): string;
 };
 
 const UUID_PATTERN =
@@ -100,6 +128,7 @@ let pollTimer: number | null = null;
 let countdownTimer: number | null = null;
 let isRoomRequesting = false;
 let isReadyRequesting = false;
+let isCancelRequesting = false;
 let serverTimeOffsetMs = 0;
 let startedAtTimestampMs = 0;
 let lastAutoNavigatedBattleId = '';
@@ -114,43 +143,103 @@ function parseTimestamp(value: string | null | undefined) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
+function parseStringParam(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function getServerNowMs() {
   return Date.now() + serverTimeOffsetMs;
 }
 
+function getNavigationMetrics() {
+  const systemInfo = (
+    wx as unknown as {
+      getSystemInfoSync: () => {
+        statusBarHeight?: number;
+      };
+    }
+  ).getSystemInfoSync();
+  const statusBarHeight = systemInfo.statusBarHeight ?? 20;
+  const menuButtonGetter = (
+    wx as unknown as {
+      getMenuButtonBoundingClientRect?: () => {
+        top: number;
+        height: number;
+      };
+    }
+  ).getMenuButtonBoundingClientRect;
+  const menuButtonRect =
+    typeof menuButtonGetter === 'function' ? menuButtonGetter() : null;
+
+  if (!menuButtonRect) {
+    return {
+      navTopPadding: statusBarHeight,
+      navBarHeight: 44,
+    };
+  }
+
+  return {
+    navTopPadding: statusBarHeight,
+    navBarHeight: Math.max(
+      44,
+      menuButtonRect.height + (menuButtonRect.top - statusBarHeight) * 2,
+    ),
+  };
+}
+
 Page<RoomPageData, RoomPageMethods>({
   data: {
+    navTopPadding: 0,
+    navBarHeight: 44,
     battleId: '',
+    invitationToken: '',
+    inviteCode: '',
+    sharePath: '',
     isValidBattleId: false,
     state: 'LOADING',
     roomModeText: '',
     roomStatusText: '',
-    titleText: '正在加载 Battle 房间',
+    titleText: '正在加载房间',
     descriptionText: '系统正在同步房间状态，请稍候。',
     errorMessage: '',
     questionCountText: '0 题',
     durationText: '00:00',
     countdownText: '',
-    canReady: false,
-    readyButtonText: '准备',
+    primaryActionText: '等待加载',
+    primaryActionEnabled: false,
+    canOpenPlay: false,
+    isFriendMode: false,
+    isFriendRoomCreator: false,
+    canShareInvitation: false,
+    showInviteTools: false,
+    showInviteCode: false,
+    friendStatusNotice: '',
     myParticipant: null,
     opponentParticipant: null,
   },
 
   onLoad(options) {
     isPageActive = true;
-    const battleId =
-      typeof options?.battleId === 'string' ? options.battleId.trim() : '';
+    hasLoadedOnce = false;
+    const battleId = parseStringParam(options?.battleId);
+    const invitationToken = parseStringParam(options?.invitationToken);
+    const inviteCode = parseStringParam(options?.inviteCode).toUpperCase();
     const isValidBattleId = UUID_PATTERN.test(battleId);
 
     this.setData({
+      ...getNavigationMetrics(),
       battleId,
+      invitationToken,
+      inviteCode,
+      sharePath: invitationToken
+        ? `/pages/battle/friend-room?invitationToken=${encodeURIComponent(invitationToken)}`
+        : '',
       isValidBattleId,
       state: isValidBattleId ? 'LOADING' : 'ERROR',
-      titleText: isValidBattleId ? '正在加载 Battle 房间' : 'battleId 无效',
+      titleText: isValidBattleId ? '正在加载房间' : 'battleId 无效',
       descriptionText: isValidBattleId
         ? '系统正在同步房间状态，请稍候。'
-        : '当前页面没有收到合法的 Battle 房间标识。',
+        : '当前页面没有收到合法的房间标识。',
       errorMessage: '',
     });
 
@@ -165,6 +254,7 @@ Page<RoomPageData, RoomPageMethods>({
 
   onShow() {
     isPageActive = true;
+    this.syncLeaveAlert();
 
     if (hasLoadedOnce && this.data.isValidBattleId) {
       void this.loadRoom({
@@ -176,6 +266,7 @@ Page<RoomPageData, RoomPageMethods>({
   onHide() {
     this.stopPolling();
     this.stopCountdownTicker();
+    disableBattleLeaveAlert();
   },
 
   onUnload() {
@@ -183,6 +274,7 @@ Page<RoomPageData, RoomPageMethods>({
     requestSerial += 1;
     this.stopPolling();
     this.stopCountdownTicker();
+    disableBattleLeaveAlert();
   },
 
   onPullDownRefresh() {
@@ -193,19 +285,47 @@ Page<RoomPageData, RoomPageMethods>({
     });
   },
 
+  onShareAppMessage() {
+    if (!this.data.canShareInvitation || !this.data.sharePath) {
+      return {
+        title: '好友对战',
+        path: '/pages/battle/index',
+      };
+    }
+
+    return {
+      title: `来加入好友对战，邀请码 ${this.data.inviteCode || '待生成'}`,
+      path: this.data.sharePath,
+    };
+  },
+
   ensureAuthenticated() {
     if (getAuthStateSummary().isAuthenticated) {
       return true;
     }
 
-    if (this.data.isValidBattleId) {
-      redirectToLogin(
-        `/pages/battle/room?battleId=${encodeURIComponent(this.data.battleId)}`,
-      );
-    } else {
-      redirectToLogin('/pages/battle/index');
-    }
+    redirectToLogin(this.buildRedirectPath());
     return false;
+  },
+
+  buildRedirectPath() {
+    if (!this.data.isValidBattleId) {
+      return '/pages/battle/index';
+    }
+
+    const query = [`battleId=${encodeURIComponent(this.data.battleId)}`];
+
+    if (this.data.invitationToken) {
+      query.push(
+        `invitationToken=${encodeURIComponent(this.data.invitationToken)}`,
+      );
+    }
+
+    if (this.data.inviteCode) {
+      query.push(`inviteCode=${encodeURIComponent(this.data.inviteCode)}`);
+    }
+
+    return `/pages/battle/room?${query.join('&')}`;
   },
 
   async loadRoom(options?: { autoNavigate?: boolean }) {
@@ -245,11 +365,17 @@ Page<RoomPageData, RoomPageMethods>({
       this.setData({
         state: 'ERROR',
         titleText: '房间状态加载失败',
-        descriptionText: '你可以重新查询 Battle 房间状态，或返回对战首页。',
+        descriptionText: '你可以重新查询房间状态，或稍后返回对战首页。',
         errorMessage: this.getReadableError(error),
-        canReady: false,
-        countdownText: '',
+        primaryActionText: '重新查询',
+        primaryActionEnabled: true,
+        canOpenPlay: false,
+        canShareInvitation: false,
+        showInviteTools: false,
+        showInviteCode: false,
+        friendStatusNotice: '',
       });
+      this.syncLeaveAlert();
     } finally {
       isRoomRequesting = false;
       hasLoadedOnce = true;
@@ -260,7 +386,8 @@ Page<RoomPageData, RoomPageMethods>({
     if (
       !this.data.isValidBattleId ||
       !this.ensureAuthenticated() ||
-      isReadyRequesting
+      isReadyRequesting ||
+      !this.data.primaryActionEnabled
     ) {
       return;
     }
@@ -268,8 +395,9 @@ Page<RoomPageData, RoomPageMethods>({
     isReadyRequesting = true;
 
     this.setData({
-      readyButtonText: '准备中',
       errorMessage: '',
+      primaryActionEnabled: false,
+      primaryActionText: this.data.isFriendMode ? '准备中' : '提交准备中',
     });
 
     try {
@@ -293,11 +421,116 @@ Page<RoomPageData, RoomPageMethods>({
 
       this.setData({
         errorMessage: this.getReadableError(error),
-        readyButtonText: '准备',
+      });
+      void this.loadRoom({
+        autoNavigate: true,
       });
     } finally {
       isReadyRequesting = false;
     }
+  },
+
+  async cancelFriendRoom(options?: {
+    silentIdempotent?: boolean;
+    navigateHomeOnSuccess?: boolean;
+  }) {
+    const invitationToken = this.data.invitationToken.trim();
+
+    if (
+      !this.ensureAuthenticated() ||
+      !invitationToken ||
+      isCancelRequesting ||
+      !this.canCreatorCancelFriendRoom()
+    ) {
+      return false;
+    }
+
+    isCancelRequesting = true;
+
+    this.setData({
+      errorMessage: '',
+      canShareInvitation: false,
+      showInviteTools: false,
+    });
+    disableBattleLeaveAlert();
+
+    try {
+      await request({
+        url: `/battles/friend-rooms/${encodeURIComponent(invitationToken)}`,
+        method: 'DELETE',
+        authMode: 'required',
+      });
+
+      if (!isPageActive) {
+        return true;
+      }
+
+      if (options?.navigateHomeOnSuccess !== false) {
+        this.navigateHome();
+      }
+
+      return true;
+    } catch (error) {
+      if (!isPageActive) {
+        return false;
+      }
+
+      if (error instanceof RequestError) {
+        if (
+          error.statusCode === 404 ||
+          error.code === 'BATTLE_INVITATION_INVALID' ||
+          error.code === 'BATTLE_INVITATION_EXPIRED'
+        ) {
+          if (!options?.silentIdempotent) {
+            wx.showToast({
+              title: '好友房已结束',
+              icon: 'none',
+            });
+          }
+
+          if (options?.navigateHomeOnSuccess !== false) {
+            this.navigateHome();
+          }
+
+          return true;
+        }
+
+        if (error.code === 'BATTLE_INVALID_STATUS') {
+          this.setData({
+            errorMessage: this.getCancelConflictMessage(error.code),
+          });
+          this.syncLeaveAlert();
+          return false;
+        }
+      }
+
+      this.setData({
+        errorMessage: this.getReadableError(error),
+      });
+      this.syncLeaveAlert();
+      return false;
+    } finally {
+      isCancelRequesting = false;
+    }
+  },
+
+  async confirmCancelAndLeave() {
+    const result = await showBattleConfirmModal({
+      title: '返回对战首页',
+      content: '返回首页将取消当前好友房并释放占用状态，是否继续？',
+      confirmText: '确认返回',
+      cancelText: '继续停留',
+      confirmColor: '#c24343',
+    });
+
+    if (!result.confirm) {
+      return;
+    }
+
+    await this.cancelFriendRoom({
+      silentIdempotent: true,
+      navigateHomeOnSuccess: true,
+    });
   },
 
   applyRoomData(
@@ -314,6 +547,14 @@ Page<RoomPageData, RoomPageMethods>({
       sortedParticipants.find((item) => item.userId !== currentUserId) ?? null;
     const state = this.mapRoomState(payload);
     const meta = this.getRoomMeta(payload);
+    const isFriendMode = payload.mode === 'FRIEND';
+    const isFriendRoomCreator = isFriendMode && myParticipant?.seat === 1;
+    const showInviteCode = isFriendMode && !!this.data.inviteCode;
+    const showInviteTools =
+      isFriendRoomCreator &&
+      state === 'WAITING' &&
+      !!this.data.invitationToken &&
+      !!this.data.inviteCode;
 
     serverTimeOffsetMs = parseTimestamp(payload.serverTime) - Date.now();
     startedAtTimestampMs = parseTimestamp(payload.startedAt);
@@ -327,7 +568,7 @@ Page<RoomPageData, RoomPageMethods>({
 
     this.setData({
       state,
-      roomModeText: payload.mode === 'FRIEND' ? '好友对战' : '随机匹配',
+      roomModeText: isFriendMode ? '好友对战' : '随机匹配',
       roomStatusText: meta.roomStatusText,
       titleText: meta.titleText,
       descriptionText: meta.descriptionText,
@@ -335,11 +576,19 @@ Page<RoomPageData, RoomPageMethods>({
       questionCountText: `${payload.totalQuestionCount} 题`,
       durationText: formatBattleDuration(payload.durationSeconds),
       countdownText: '',
-      canReady: meta.canReady,
-      readyButtonText: meta.readyButtonText,
+      primaryActionText: meta.primaryActionText,
+      primaryActionEnabled: meta.primaryActionEnabled,
+      canOpenPlay: meta.canOpenPlay,
+      isFriendMode,
+      isFriendRoomCreator,
+      canShareInvitation: showInviteTools,
+      showInviteTools,
+      showInviteCode,
+      friendStatusNotice: meta.friendStatusNotice,
       myParticipant: this.mapParticipant(myParticipant, currentUserId),
       opponentParticipant: this.mapParticipant(opponentParticipant, currentUserId),
     });
+    this.syncLeaveAlert();
 
     if (state === 'WAITING' || state === 'READY') {
       this.startPolling();
@@ -446,24 +695,79 @@ Page<RoomPageData, RoomPageMethods>({
     });
   },
 
+  syncLeaveAlert() {
+    if (this.canCreatorCancelFriendRoom()) {
+      enableBattleLeaveAlert('离开页面将取消当前好友房。');
+      return;
+    }
+
+    disableBattleLeaveAlert();
+  },
+
   handleRetry() {
     void this.loadRoom({
       autoNavigate: true,
     });
   },
 
-  handleReady() {
+  handlePrimaryAction() {
+    if (this.data.canOpenPlay) {
+      this.navigateToPlay(false);
+      return;
+    }
+
+    if (
+      this.data.state === 'ERROR' ||
+      this.data.state === 'COMPLETED' ||
+      this.data.state === 'CANCELLED' ||
+      this.data.state === 'EXPIRED'
+    ) {
+      this.handleRetry();
+      return;
+    }
+
+    if (!this.data.primaryActionEnabled) {
+      return;
+    }
+
     void this.readyBattle();
   },
 
-  handleBackHome() {
-    wx.switchTab({
-      url: '/pages/battle/index',
+  handleCopyInviteCode() {
+    if (!this.data.inviteCode) {
+      return;
+    }
+
+    wx.setClipboardData({
+      data: this.data.inviteCode,
     });
   },
 
-  handleEnterPlay() {
-    this.navigateToPlay(false);
+  async handleNavBack() {
+    if (!this.canCreatorCancelFriendRoom()) {
+      if (
+        this.data.isFriendMode &&
+        !this.data.isFriendRoomCreator &&
+        (this.data.state === 'WAITING' ||
+          this.data.state === 'READY' ||
+          this.data.state === 'COUNTDOWN')
+      ) {
+        await showBattleConfirmModal({
+          title: '当前不能直接离开',
+          content:
+            '你已经加入该好友房。当前阶段如果直接离开，服务端不会自动释放你的对战状态。请等待房主取消房间，或继续准备开始对战。',
+          confirmText: '我知道了',
+          cancelText: '继续停留',
+          confirmColor: '#2f6bff',
+        });
+        return;
+      }
+
+      this.navigateHome();
+      return;
+    }
+
+    await this.confirmCancelAndLeave();
   },
 
   navigateToPlay(autoNavigate = false) {
@@ -482,6 +786,25 @@ Page<RoomPageData, RoomPageMethods>({
     wx.navigateTo({
       url: `/pages/battle/play?battleId=${encodeURIComponent(this.data.battleId)}`,
     });
+  },
+
+  navigateHome() {
+    wx.switchTab({
+      url: '/pages/battle/index',
+    });
+  },
+
+  canCreatorCancelFriendRoom(status?: RoomPageState) {
+    const targetState = status ?? this.data.state;
+
+    return (
+      this.data.isFriendRoomCreator &&
+      !!this.data.invitationToken &&
+      (targetState === 'WAITING' ||
+        targetState === 'READY' ||
+        targetState === 'COUNTDOWN' ||
+        targetState === 'ERROR')
+    );
   },
 
   mapRoomState(payload: BattleRoomDetailResponse) {
@@ -535,83 +858,111 @@ Page<RoomPageData, RoomPageMethods>({
   getRoomMeta(payload: BattleRoomDetailResponse) {
     const currentParticipantStatus = payload.currentParticipantStatus ?? '';
     const participantCount = payload.participants.length;
+    const isFriendMode = payload.mode === 'FRIEND';
+    const friendJoinedNotice =
+      isFriendMode && participantCount >= 2
+        ? '好友已加入，可以准备开始对战。'
+        : '';
 
     if (payload.status === 'COUNTDOWN') {
       return {
         titleText: '双方已准备完成',
-        descriptionText: '服务端倒计时已开始，到达 startedAt 后会自动进入答题页占位入口。',
+        descriptionText:
+          '服务端倒计时已经开始，到达 startedAt 后会自动进入答题页。',
         roomStatusText: '倒计时中',
-        canReady: false,
-        readyButtonText: '等待开始',
+        primaryActionText: '即将开始',
+        primaryActionEnabled: false,
+        canOpenPlay: false,
+        friendStatusNotice: friendJoinedNotice,
       };
     }
 
     if (payload.status === 'IN_PROGRESS') {
       return {
         titleText: '对战已开始',
-        descriptionText: 'Battle 已进入答题阶段，正在为你打开答题页占位入口。',
+        descriptionText: '对战已进入答题阶段，正在为你打开答题页。',
         roomStatusText: '答题中',
-        canReady: false,
-        readyButtonText: '进入答题',
+        primaryActionText: '继续答题',
+        primaryActionEnabled: true,
+        canOpenPlay: true,
+        friendStatusNotice: friendJoinedNotice,
       };
     }
 
     if (payload.status === 'COMPLETED') {
       return {
         titleText: '本场对战已完成',
-        descriptionText: '当前房间已经结束，本页仅保留状态展示，结算页将在后续阶段开放。',
+        descriptionText: '当前房间已经结束，你可以返回对战首页继续其他流程。',
         roomStatusText: '已完成',
-        canReady: false,
-        readyButtonText: '已完成',
+        primaryActionText: '刷新状态',
+        primaryActionEnabled: true,
+        canOpenPlay: false,
+        friendStatusNotice: '',
       };
     }
 
     if (payload.status === 'CANCELLED') {
       return {
         titleText: '房间已取消',
-        descriptionText: '该 Battle 房间已被系统或业务流程取消，无法继续准备或开始。',
+        descriptionText: '该房间已经取消，当前无法继续准备或开始。',
         roomStatusText: '已取消',
-        canReady: false,
-        readyButtonText: '不可准备',
+        primaryActionText: '刷新状态',
+        primaryActionEnabled: true,
+        canOpenPlay: false,
+        friendStatusNotice: '',
       };
     }
 
     if (payload.status === 'EXPIRED') {
       return {
         titleText: '房间已过期',
-        descriptionText: '该 Battle 房间已经过期，当前无法继续进行准备或答题。',
+        descriptionText: '该房间已经过期，当前无法继续准备或答题。',
         roomStatusText: '已过期',
-        canReady: false,
-        readyButtonText: '不可准备',
+        primaryActionText: '刷新状态',
+        primaryActionEnabled: true,
+        canOpenPlay: false,
+        friendStatusNotice: '',
       };
     }
 
     if (participantCount < 2) {
       return {
-        titleText: '等待对手进入房间',
-        descriptionText: '当前房间人数未满，达到 2 人后才可以进入双方准备流程。',
-        roomStatusText: '等待入场',
-        canReady: false,
-        readyButtonText: '等待对手',
+        titleText: isFriendMode ? '等待好友加入' : '等待对手进入房间',
+        descriptionText: isFriendMode
+          ? '好友加入前，你可以先复制邀请码或直接分享邀请。'
+          : '房间人数未满，达到 2 人后才可以进入准备流程。',
+        roomStatusText: isFriendMode ? '等待好友' : '等待入场',
+        primaryActionText: isFriendMode ? '等待好友加入后才能准备' : '等待对手加入',
+        primaryActionEnabled: false,
+        canOpenPlay: false,
+        friendStatusNotice: '',
       };
     }
 
     if (currentParticipantStatus === 'READY') {
       return {
-        titleText: '你已准备完成',
-        descriptionText: '当前正在等待对手点击准备。页面会持续轮询服务端房间状态。',
+        titleText: isFriendMode ? '你已准备，等待好友确认' : '你已准备完成',
+        descriptionText: isFriendMode
+          ? '当前正在等待好友点击准备，页面会持续同步房间状态。'
+          : '当前正在等待对手点击准备，页面会持续同步房间状态。',
         roomStatusText: '等待对手',
-        canReady: false,
-        readyButtonText: '等待对手',
+        primaryActionText: isFriendMode ? '等待好友准备' : '等待对手准备',
+        primaryActionEnabled: false,
+        canOpenPlay: false,
+        friendStatusNotice: friendJoinedNotice,
       };
     }
 
     return {
-      titleText: '等待双方准备',
-      descriptionText: '当前可以点击“准备”进入待开始状态。双方都准备后会进入 3 秒倒计时。',
-      roomStatusText: '待准备',
-      canReady: true,
-      readyButtonText: '准备',
+      titleText: isFriendMode ? '可以开始好友对战' : '等待双方准备',
+      descriptionText: isFriendMode
+        ? '好友已经进入房间。你们各自点击准备后，就会进入统一倒计时。'
+        : '当前可以点击准备，双方都准备后会进入 3 秒倒计时。',
+      roomStatusText: isFriendMode ? '可准备' : '待准备',
+      primaryActionText: '准备',
+      primaryActionEnabled: true,
+      canOpenPlay: false,
+      friendStatusNotice: friendJoinedNotice,
     };
   },
 
@@ -636,7 +987,7 @@ Page<RoomPageData, RoomPageMethods>({
       return '已完成';
     }
 
-    return '待准备';
+    return '等待中';
   },
 
   getParticipantStatusClassName(status: string) {
@@ -658,35 +1009,35 @@ Page<RoomPageData, RoomPageMethods>({
   getReadableError(error: unknown) {
     if (error instanceof RequestError) {
       if (error.statusCode === 401 || error.code === 'UNAUTHORIZED') {
-        redirectToLogin(
-          `/pages/battle/room?battleId=${encodeURIComponent(this.data.battleId)}`,
-        );
-        return '登录状态已失效，请重新登录后再查看 Battle 房间。';
+        redirectToLogin(this.buildRedirectPath());
+        return '登录状态已失效，请重新登录后再查看房间。';
       }
-
-      if (error.code === 'NETWORK_ERROR') {
-        return '无法连接 Battle 房间服务，请确认后端服务已启动。';
-      }
-
-      if (error.code === 'BATTLE_NOT_PARTICIPANT') {
-        return '你不是当前 Battle 房间参与者，无法查看该房间详情。';
-      }
-
-      if (error.code === 'BATTLE_INVALID_STATUS') {
-        return '当前房间状态不允许继续准备或进入倒计时，请重新查询服务端状态。';
-      }
-
-      if (error.code === 'BATTLE_PARTICIPANTS_INCOMPLETE') {
-        return '当前房间人数未满，暂时不能开始准备流程。';
-      }
-
-      return error.message || 'Battle 房间加载失败，请稍后重试。';
     }
 
-    if (error instanceof Error && error.message) {
-      return error.message;
+    return getBattleErrorMessage(
+      error,
+      {
+        unauthorized: '登录状态已失效，请重新登录后再查看房间。',
+        network: '网络连接失败，请确认后端服务已启动后重试。',
+        fallback: '房间加载失败，请稍后重试。',
+      },
+      {
+        BATTLE_NOT_PARTICIPANT: '你不是当前对局参与者，无法查看该房间。',
+        BATTLE_INVALID_STATUS:
+          '当前房间状态已变化，请重新同步最新状态后再继续。',
+        BATTLE_PARTICIPANTS_INCOMPLETE:
+          '当前房间人数未满，暂时不能开始对战。',
+        BATTLE_ALREADY_ACTIVE:
+          '你当前已有进行中的对局，请先完成当前对局后再开始新的对战。',
+      },
+    );
+  },
+
+  getCancelConflictMessage(code: string) {
+    if (code === 'BATTLE_INVALID_STATUS') {
+      return '当前好友房已进入不可直接取消的阶段。若对局已开始，请进入答题页后通过认输结束。';
     }
 
-    return 'Battle 房间加载失败，请稍后重试。';
+    return '当前好友房暂时无法取消，请稍后重试。';
   },
 });

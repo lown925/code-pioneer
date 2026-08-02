@@ -636,22 +636,14 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
       if (error.code === 'NETWORK_ERROR') {
         return {
           title: '加载失败',
-          message: error.message,
+          message: '网络连接失败，请确认后端服务已启动后重试。',
           state: 'error' as const,
         };
       }
 
       return {
         title: '加载失败',
-        message: error.message,
-        state: 'error' as const,
-      };
-    }
-
-    if (error instanceof Error) {
-      return {
-        title: '加载失败',
-        message: error.message,
+        message: '错题详情加载失败，请稍后重试。',
         state: 'error' as const,
       };
     }

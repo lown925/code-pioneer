@@ -1,4 +1,6 @@
 import type { CourseDetailData, CourseChapter } from '../../types/course';
+import type { CourseProgressResponse, LearningStatus } from '../../types/learning';
+import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatDifficulty,
   formatMinutes,
@@ -10,6 +12,13 @@ type PageState = 'loading' | 'success' | 'error';
 
 type ChapterCard = CourseChapter & {
   estimatedMinutesText: string;
+  learningStatus: LearningStatus;
+  learningStatusText: string;
+  learningStatusClassName: string;
+  startedAtText: string;
+  completedAtText: string;
+  quizStatusText: string;
+  isLastLearned: boolean;
 };
 
 type CourseDetailPageData = {
@@ -24,8 +33,14 @@ type CourseDetailPageData = {
   targetAudience: string;
   learnerCount: number;
   progressPercent: number;
+  completedChapterCount: number;
+  totalChapterCount: number;
+  courseStatusText: string;
+  courseStatusClassName: string;
+  lastLearnedChapterTitle: string;
   learningObjectives: string[];
   chapters: ChapterCard[];
+  canOpenCourseProgress: boolean;
 };
 
 function isNonEmptyString(value: unknown): value is string {
@@ -66,6 +81,46 @@ function getReadableErrorMessage(error: unknown) {
   return '课程详情加载失败，请稍后重试';
 }
 
+function getStatusText(status: LearningStatus) {
+  if (status === 'COMPLETED') {
+    return '已完成';
+  }
+
+  if (status === 'LEARNING') {
+    return '进行中';
+  }
+
+  return '未开始';
+}
+
+function getStatusClassName(status: LearningStatus) {
+  if (status === 'COMPLETED') {
+    return 'status-completed';
+  }
+
+  if (status === 'LEARNING') {
+    return 'status-learning';
+  }
+
+  return 'status-not-started';
+}
+
+function formatTimestamp(value: string | null) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate(),
+  ).padStart(2, '0')}`;
+}
+
 function navigateBackOrCourseList() {
   if (getCurrentPages().length > 1) {
     wx.navigateBack({
@@ -74,8 +129,8 @@ function navigateBackOrCourseList() {
     return;
   }
 
-  wx.reLaunch({
-    url: '/pages/course/list',
+  wx.switchTab({
+    url: '/pages/learning/index',
   });
 }
 
@@ -92,8 +147,14 @@ Page<CourseDetailPageData>({
     targetAudience: '',
     learnerCount: 0,
     progressPercent: 0,
+    completedChapterCount: 0,
+    totalChapterCount: 0,
+    courseStatusText: '未开始',
+    courseStatusClassName: 'status-not-started',
+    lastLearnedChapterTitle: '',
     learningObjectives: [],
     chapters: [],
+    canOpenCourseProgress: false,
   },
 
   onLoad(query) {
@@ -129,25 +190,66 @@ Page<CourseDetailPageData>({
     });
 
     try {
-      const result = await request<CourseDetailData>({
-        url: `/courses/${activeCourseId}`,
-      });
+      const isAuthenticated = getAuthStateSummary().isAuthenticated;
+      const [courseDetail, progressResult] = await Promise.all([
+        request<CourseDetailData>({
+          url: `/courses/${activeCourseId}`,
+          authMode: 'auto',
+        }),
+        isAuthenticated
+          ? request<CourseProgressResponse>({
+              url: `/courses/${activeCourseId}/progress`,
+              authMode: 'required',
+            }).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      const progressByChapterId = new Map(
+        (progressResult?.chapters ?? []).map((chapter) => [chapter.chapterId, chapter]),
+      );
+      const lastLearnedChapterId = progressResult?.lastLearnedChapter?.chapterId ?? '';
+      const totalChapterCount =
+        progressResult?.totalChapterCount ?? courseDetail.chapters.length;
+      const completedChapterCount = progressResult?.completedChapterCount ?? 0;
+      const progressPercent = progressResult?.progressPercent ?? courseDetail.progressPercent;
+      const courseStatus = progressResult?.status ?? 'NOT_STARTED';
 
       this.setData({
         state: 'success',
-        title: result.title,
-        summary: result.summary,
-        description: result.description ?? '',
-        difficultyText: formatDifficulty(result.difficulty),
-        estimatedMinutesText: formatMinutes(result.estimatedMinutes),
-        targetAudience: result.targetAudience ?? '暂未填写适合人群',
-        learnerCount: result.learnerCount,
-        progressPercent: result.progressPercent,
-        learningObjectives: normalizeLearningObjectives(result.learningObjectives),
-        chapters: result.chapters.map((chapter) => ({
+        title: courseDetail.title,
+        summary: courseDetail.summary,
+        description: courseDetail.description ?? '',
+        difficultyText: formatDifficulty(courseDetail.difficulty),
+        estimatedMinutesText: formatMinutes(courseDetail.estimatedMinutes),
+        targetAudience: courseDetail.targetAudience ?? '暂未填写适合人群',
+        learnerCount: courseDetail.learnerCount,
+        progressPercent,
+        completedChapterCount,
+        totalChapterCount,
+        courseStatusText: getStatusText(courseStatus),
+        courseStatusClassName: getStatusClassName(courseStatus),
+        lastLearnedChapterTitle: progressResult?.lastLearnedChapter?.title ?? '',
+        learningObjectives: normalizeLearningObjectives(courseDetail.learningObjectives),
+        chapters: courseDetail.chapters.map((chapter) => {
+          const chapterProgress = progressByChapterId.get(chapter.id);
+          const learningStatus = chapterProgress?.status ?? 'NOT_STARTED';
+
+          return {
           ...chapter,
           estimatedMinutesText: formatMinutes(chapter.estimatedMinutes),
-        })),
+            learningStatus,
+            learningStatusText: getStatusText(learningStatus),
+            learningStatusClassName: getStatusClassName(learningStatus),
+            startedAtText: formatTimestamp(chapterProgress?.startedAt ?? null),
+            completedAtText: formatTimestamp(chapterProgress?.completedAt ?? null),
+            quizStatusText: chapterProgress?.hasQuiz
+              ? chapterProgress.quizCompleted
+                ? '章节测验已通过'
+                : '章节测验待完成'
+              : '当前章节无测验',
+            isLastLearned: chapter.id === lastLearnedChapterId,
+          };
+        }),
+        canOpenCourseProgress: isAuthenticated,
       });
     } catch (error) {
       this.setData({
@@ -170,6 +272,23 @@ Page<CourseDetailPageData>({
 
     wx.navigateTo({
       url: `/pages/chapter/detail?chapterId=${encodeURIComponent(chapterId)}`,
+    });
+  },
+
+  handleOpenCourseProgress() {
+    if (!this.data.courseId) {
+      return;
+    }
+
+    if (!getAuthStateSummary().isAuthenticated) {
+      redirectToLogin(
+        `/pages/course/detail?courseId=${encodeURIComponent(this.data.courseId)}`,
+      );
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/learning/course-progress?courseId=${encodeURIComponent(this.data.courseId)}`,
     });
   },
 });

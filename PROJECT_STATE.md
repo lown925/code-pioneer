@@ -1,117 +1,79 @@
 当前版本：v0.0.1
-当前阶段：CP-011F Battle 排行榜、战绩与统一错题中心联动
-当前任务：CP-011F Battle 排行榜、战绩与统一错题中心联动
-状态：已完成 Battle profile、leaderboard、history、history detail 与统一错题中心 BATTLE 来源联动后端实现，等待 Tech Lead 验收
-下一任务：CP-011G Battle 小程序完整页面
-当前阻塞项：
-- 当前 Battle 已完成 schema、migration、Prisma Client、基础领域服务、公开 BattleController、随机匹配、好友房创建/预览/加入、匹配状态查询、取消匹配、房间基础查询、双方 ready、统一 COUNTDOWN/IN_PROGRESS 推进、题目快照创建、题目安全下发、单题答案提交、主动交卷、认输、惰性超时结算、结果查询、最终胜负写入与 rating/profile/rating log 落库。
-- 当前代码库仍未形成完整 V1 闭环，体验版发布与答辩演示仍受学习链路未闭合、Battle 未实现、互助未开始等问题约束。
+当前日期：2026-07-27
+当前阶段：CP-011I3 Battle V1 体验版发布检查
+当前任务：CP-011I3 Battle V1 体验版发布检查
+状态：Battle V1 代码与自动化测试已达到发布前静态门槛，但当前项目仍不满足体验版发布条件，等待修复环境与发布配置阻塞项
 
-项目整体判断：
-- 当前仓库已完成“公开课程浏览 + 用户认证基础 + 学习记录后端 + 小测后端 + 错题后端 + 学习中心前端读取”的部分主链路。
-- Battle 已完成 V1 产品规则冻结，并在 `CP-011B` 落地了 Prisma 核心模型、迁移、Prisma Client、BattleModule、评分/Elo 纯函数和基础领域服务，在 `CP-011C` 落地了随机匹配、好友邀请与房间基础查询接口，在 `CP-011D` 落地了 ready、COUNTDOWN、题目快照、题目下发与单题提交接口，在 `CP-011E` 落地了主动交卷、认输、惰性超时结算、结果接口、最终胜负判定与 rating/profile/rating log 更新。
-- 当前项目不是发布准备状态，也不是完整 V1 状态。
-- 若按 PRD 与 MVP 文档的完整范围评估，整体完成度约为 25%。
-- 若只按“学习主链路”评估，后端完成度高于前端完成度，但小程序仍缺少章节开始/完成写入和小测页面，不能从新用户走通完整学习闭环。
+Battle V1 当前结论：
+- Battle V1 后端主链路已完成：profile、leaderboard、history、history detail、随机匹配、好友房、ready、COUNTDOWN、题目下发、单题提交、交卷、认输、结果查询、BATTLE 错题联动。
+- Battle V1 小程序主链路页面已落地：Battle 首页、排行榜、随机匹配、好友房、房间、答题、结果、战绩、复盘，以及统一错题中心 BATTLE 来源接入。
+- Battle 页面异常态与交互体验已完成一轮收口：409/状态冲突提示、网络失败提示、重复点击保护、分页失败重试、错误态与空态中文化、返回行为统一。
+- Battle V1 现阶段可视为“功能完成，待发布收口”。
 
-当前完整模块矩阵摘要：
-- COMPLETE：课程列表、课程详情（公开浏览）。
-- PARTIAL：用户与认证、首页、章节详情、学习进度、错题中心、积分字段展示、个人资料。
-- BACKEND_ONLY：章节小测、用户资料更新、账号注销、学习记录写接口。
-- PLACEHOLDER：对战大厅、互助首页。
-- NOT_STARTED：课程分类、练习模式、对战主链路、互助主链路、排行榜、消息通知、后台管理全链路。
-- BLOCKED：正式微信登录、部署与体验版发布。
-- 完整 34 项模块矩阵、证据和缺口见 `docs/V1_REMAINING_ROADMAP.md`。
+自动化测试状态：
+- miniapp TypeScript：通过
+  命令：`node server/node_modules/typescript/bin/tsc --noEmit -p miniapp/tsconfig.json`
+- server build：通过
+  命令：`npm run build`
+- Battle 单测：通过
+  命令：`npx jest src/battle --runInBand`
+  结果：12 个测试套件，75 个测试全部通过
+- Battle E2E：通过
+  命令：`npm run test:e2e -- battle.e2e-spec.ts`
+  结果：1 个测试套件，4 个测试全部通过
+- wrong-question 回归 E2E：通过
+  命令：`npm run test:e2e -- wrong-question.e2e-spec.ts`
+  结果：1 个测试套件，2 个测试全部通过
+- `git diff --check`：通过
+  当前仅存在 LF/CRLF warning，无 whitespace error 或冲突标记
 
-Battle V1 数据基础状态：
-- Battle 是“码站先锋”的核心产品亮点，正式基线仍以 `docs/BATTLE_V1_ARCHITECTURE.md` 为准。
-- `CP-011B` 已落地：Battle Prisma 枚举、共享题库扩展、`BattleProfile` / `BattleRoom` / `BattleParticipant` / `BattleQuestionSnapshot` / `BattleAnswer` / `BattleInvitation` / `BattleRatingLog` / `BattleMatchQueue` 模型，迁移 `20260725021220_add_battle_v1_core_models`，BattleModule、BattleScoreService、BattleRatingService、BattleDomainService 以及对应单元测试。
-- 当前确定的兼容策略是：保留 `User.battleRating` 兼容字段，首次初始化 `BattleProfile` 时继承其值，后续排位权威来源转向 `BattleProfile.rating`。
-- 当前 Battle 已实现：`GET /api/v1/battles/profile`、`GET /api/v1/battles/leaderboard`、`GET /api/v1/battles/history`、`GET /api/v1/battles/history/:battleId` 以及统一错题中心 `BATTLE` 来源聚合；当前仍未实现 Battle 小程序页面、运行态联调与体验版级产品闭环。
+人工验收状态：
+- 已有人工运行态结论：
+  微信开发者工具可正常编译运行
+  Development Mock Login 登录正常
+  登录态保存正常
+  受保护页面访问正常
+  accessToken 异常后的自动 refresh 未发现报错
+  Console 未发现新的业务异常
+- Battle 运行态联调已完成多轮收口，但本文件未把“双账号体验版最终验收完成”写成已完成结论。
 
-学习模块真实状态：
-- 已有后端：
-  `GET /api/v1/courses`
-  `GET /api/v1/courses/:courseId`
-  `GET /api/v1/chapters/:chapterId`
-  `POST /api/v1/courses/:courseId/start`
-  `POST /api/v1/chapters/:chapterId/start`
-  `POST /api/v1/chapters/:chapterId/complete`
-  `GET /api/v1/courses/:courseId/progress`
-  `GET /api/v1/users/me/learning`
-  `GET /api/v1/chapters/:chapterId/quiz`
-  `POST /api/v1/chapters/:chapterId/quiz/submit`
-  `GET /api/v1/chapters/:chapterId/quiz/attempts`
-  `GET /api/v1/quiz-attempts/:attemptId`
-  `GET /api/v1/users/me/wrong-questions`
-  `GET /api/v1/users/me/wrong-questions/statistics`
-  `GET /api/v1/users/me/wrong-questions/:questionId`
-- 已有小程序：
-  `pages/home/index`
-  `pages/course/list`
-  `pages/course/detail`
-  `pages/chapter/detail`
-  `pages/auth/login`
-  `pages/profile/index`
-  `pages/learning/index`
-  `pages/learning/course-progress`
+当前体验版发布阻塞项：
+- 小程序 API 基地址仍硬编码为本地地址：
+  `miniapp/utils/config.ts` 当前为 `http://127.0.0.1:3000/api/v1`
+  这不满足体验版或真机环境访问要求。
+- 当前仓库尚未提供明确的 Battle 测试环境 API 切换方案。
+- 登录页正式微信登录仍依赖后端微信正式配置；当前可确认开发环境 Mock 登录可用，但体验版发布不能依赖 `develop` 环境专用 Mock 入口。
+- 工作区当前存在未提交改动，尚未按功能拆分形成可发布提交。
+
+当前非阻塞已知限制：
+- 统一错题中心已接入 `LEARNING` 与 `BATTLE` 两种来源，但前端仍未开放课程/章节筛选，原因是缺少完整筛选元数据接口。
+- Battle 与 wrong-question 页面已完成静态与后端自动化验证，但体验版前仍建议再执行一轮微信开发者工具真机网络联调。
+- 学习主链路整体仍未闭环，项目整体仍不是完整 V1 发布状态；本次检查仅针对 Battle V1 子模块。
+
+本地开发与测试环境配置现状：
+- 本地开发默认小程序 API：
+  `miniapp/utils/config.ts` → `http://127.0.0.1:3000/api/v1`
+- 后端本地启动命令：
+  `cd server && npm run start:dev`
+- 当前仓库中未看到面向体验版发布的 Battle 小程序测试环境 API 基址配置落点。
+
+已知页面注册状态：
+- `miniapp/app.json` 已注册以下 Battle 页面：
+  `pages/battle/index`
+  `pages/battle/leaderboard`
+  `pages/battle/matchmaking`
+  `pages/battle/friend-room`
+  `pages/battle/room`
+  `pages/battle/play`
+  `pages/battle/history`
+  `pages/battle/history-detail`
+  `pages/battle/result`
+- 错题中心页面注册完整：
   `pages/wrong-question/index`
   `pages/wrong-question/detail`
-- 当前缺口：
-  小程序没有接入章节 `start` / `complete`；
-  没有 `pages/quiz/index` / `pages/quiz/result`；
-  错题中心依赖后端已有错题数据，前端自身不能创造错题来源；
-  首页“我的学习”区仍是占位展示，未接入正式学习中心聚合。
 
-课程内容与演示数据真实状态：
-- 当前数据库共 2 门课程、2 个章节、7 个内容块、2 套 quiz、6 道 quiz 题、16 个选项。
-- 仅 1 门已发布课程：`python-basic`。
-- 仅 1 门草稿课程：`python-draft`。
-- 已发布课程共 2 个已发布章节：
-  `认识Python`
-  `变量与数据类型`
-- 第一章有 7 个内容块和 1 套 quiz；第二章有 1 套 quiz，但当前没有正文内容块。
-- 当前 live 数据中实际使用的内容块类型只有：`TEXT`、`HEADING`、`CODE`、`TIP`、`EXAMPLE`。
-- schema 和阅读页支持的内容块类型包括：`TEXT`、`HEADING`、`IMAGE`、`CODE`、`TIP`、`WARNING`、`EXAMPLE`、`QUESTION`。
-- 当前不支持视频内容块，也没有富文本编辑器或后台内容管理。
-- 题库 seed 仅覆盖 `python-basic` 课程的 2 个章节小测；课程、章节和正文内容不由 repo 内 seed 自动创建。
-- 当前课程内容仍明显依赖数据库现存数据和 quiz seed，缺少正式内容录入能力。
-
-对战、互助、内容管理真实状态：
-- 对战：正式契约已冻结，后端已完成公开 Battle 接口、随机匹配、好友邀请、ready、COUNTDOWN、题目快照、题目下发、单题提交、主动交卷、认输、惰性超时结算、结果接口、最终胜负判定和 rating/profile/rating log 更新，但当前仍只有 `pages/battle/index` 占位页；无小程序 Battle 房间页、无排行榜查询、无战绩页。
-- 互助：只有 `pages/community/index` 占位页；无 Post / Comment / Report / Favorite 模型、无接口、无详情、无发布、无审核。
-- 内容管理：仓库中没有 `admin-web` 目录；后端没有任何 `/api/v1/admin/*` 实现；也没有 `AdminUser` / `AdminOperationLog` 实际 schema。
-
-当前可演示能力：
-- 可演示公开链路：
-  首页推荐课程（实际复用课程列表）
-  → 课程列表
-  → 课程详情
-  → 章节正文阅读
-- 可演示登录后读取链路：
-  Mock 登录
-  → 个人中心
-  → 我的学习
-  → 单课程进度
-  → 错题中心
-  → 错题详情
-- 当前不能从新用户完整演示：
-  课程列表
-  → 课程详情
-  → 章节学习写入
-  → 小测作答
-  → 完成章节
-  → 进度更新
-  → 错题生成
-
-当前明确契约偏差：
-- 文档仍定义 `GET /api/v1/home`，但后端未实现，首页当前直接复用 `GET /api/v1/courses`。
-- 文档仍定义 `GET /api/v1/auth/me`、`POST /api/v1/auth/logout-all`、`GET /api/v1/users/me/overview`，但后端未实现。
-- 文档仍定义 `pages/quiz/index`、`pages/quiz/result`，但小程序未注册也未实现。
-- 文档仍把错题中心的课程/章节筛选写作当前页面内容，但前端已明确暂不开放筛选。
-- 首页页面文案仍保留“登录和学习进度模块尚未开发”的过时描述，与当前学习中心实际状态不一致。
-
-下一阶段建议：
-- Battle 已完成数据基础、匹配/好友邀请、ready、题目快照、单题提交、主动交卷、认输、惰性超时结算、结果查询、排行榜、战绩与统一错题中心 BATTLE 联动，下一阶段建议直接进入 `CP-011G`，补齐 Battle 小程序完整页面。
-- 学习主链路仍需补齐章节写入、小测页面和演示课程内容，避免 Battle 规划推进后学习主链路仍无法完整演示。
-- 互助、后台管理、正式微信登录与体验版发布仍需按 `docs/V1_REMAINING_ROADMAP.md` 的冻结路线继续评审与拆单执行。
+当前建议：
+- 先完成体验版 API 基址与环境切换方案。
+- 明确体验版环境的真实登录策略，不能依赖仅 `develop` 可见的 Mock 登录入口。
+- 将当前 Battle 小程序改动、Battle 后端改动、错题联动改动按功能拆分提交。
+- 完成上述三项后，再重新执行一轮 CP-011I3 发布检查。

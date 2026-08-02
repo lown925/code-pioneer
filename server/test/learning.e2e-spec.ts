@@ -62,6 +62,16 @@ type ChapterLearningRecord = {
   updatedAt: Date;
 };
 
+type QuizAttemptRecord = {
+  id: string;
+  userId: string;
+  quizId: string;
+  answers: Array<{
+    questionId: string;
+    isCorrect: boolean;
+  }>;
+};
+
 const CURRENT_USER = {
   id: '99999999-9999-4999-8999-999999999999',
   sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -75,6 +85,7 @@ function createMockPrisma() {
   const chapters = new Map<string, ChapterRecord>();
   const courseLearningRecords = new Map<string, CourseLearningRecord>();
   const chapterLearningRecords = new Map<string, ChapterLearningRecord>();
+  const quizAttempts = new Map<string, QuizAttemptRecord>();
 
   const courseKey = (userId: string, courseId: string) =>
     `${userId}:${courseId}`;
@@ -148,6 +159,7 @@ function createMockPrisma() {
           id: chapter.id,
           title: chapter.title,
           sortOrder: chapter.sortOrder,
+          quiz: null,
         }));
       }),
       count: jest.fn(async ({ where }: { where: any }) => {
@@ -367,6 +379,15 @@ function createMockPrisma() {
         return updated;
       }),
     },
+    quizAttempt: {
+      findMany: jest.fn(async ({ where }: { where: any }) => {
+        return [...quizAttempts.values()]
+          .filter((attempt) => attempt.userId === where.userId)
+          .map((attempt) => ({
+            answers: attempt.answers,
+          }));
+      }),
+    },
     $transaction: jest.fn(async (callback: (client: any) => Promise<any>) =>
       callback(prisma),
     ),
@@ -378,6 +399,7 @@ function createMockPrisma() {
     chapters,
     courseLearningRecords,
     chapterLearningRecords,
+    quizAttempts,
   };
 }
 
@@ -505,6 +527,8 @@ describe('Learning flow (e2e)', () => {
         expect(response.body.data.progressPercent).toBe(0);
         expect(response.body.data.completedChapterCount).toBe(0);
         expect(response.body.data.totalChapterCount).toBe(2);
+        expect(response.body.data.chapters[0].hasQuiz).toBe(false);
+        expect(response.body.data.chapters[0].quizCompleted).toBe(false);
       });
 
     expect(mockState.courseLearningRecords.size).toBe(0);
@@ -525,6 +549,25 @@ describe('Learning flow (e2e)', () => {
             totalPages: 0,
           },
         },
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/users/me/learning-summary')
+      .set('Authorization', `Bearer ${ACCESS_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual({
+          success: true,
+          data: {
+            inProgressCourseCount: 0,
+            completedCourseCount: 0,
+            completedChapterCount: 0,
+            totalQuizAnswerCount: 0,
+            quizAccuracyPercent: 0,
+            learningWrongQuestionCount: 0,
+            continueLearningCourse: null,
+          },
+        });
       });
 
     await request(app.getHttpServer())
@@ -687,6 +730,39 @@ describe('Learning flow (e2e)', () => {
         expect(response.body.data.items).toHaveLength(1);
         expect(response.body.data.items[0].courseId).toBe(courseOneId);
         expect(response.body.data.items[0].progressPercent).toBe(100);
+      });
+
+    mockState.quizAttempts.set('attempt-1', {
+      id: 'attempt-1',
+      userId: CURRENT_USER.id,
+      quizId: 'quiz-1',
+      answers: [
+        {
+          questionId: 'question-1',
+          isCorrect: true,
+        },
+        {
+          questionId: 'question-2',
+          isCorrect: false,
+        },
+      ],
+    });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/users/me/learning-summary')
+      .set('Authorization', `Bearer ${ACCESS_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.success).toBe(true);
+        expect(response.body.data.inProgressCourseCount).toBe(1);
+        expect(response.body.data.completedCourseCount).toBe(1);
+        expect(response.body.data.completedChapterCount).toBe(2);
+        expect(response.body.data.totalQuizAnswerCount).toBe(2);
+        expect(response.body.data.quizAccuracyPercent).toBe(50);
+        expect(response.body.data.learningWrongQuestionCount).toBe(1);
+        expect(response.body.data.continueLearningCourse.courseId).toBe(
+          courseTwoId,
+        );
       });
   });
 });
