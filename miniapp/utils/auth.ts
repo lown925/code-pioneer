@@ -10,12 +10,14 @@ import {
   LOGIN_PAGE_PATH,
   DEFAULT_TAB_PAGE_PATH,
   CURRENT_ENV_VERSION,
+  getEnvironmentStorageKey,
   isTabBarPage,
   getMiniProgramEnvVersion as getConfiguredEnvVersion,
   normalizePagePath,
 } from './config';
 
-const AUTH_STORAGE_KEY = 'code-pioneer.auth.session';
+const AUTH_STORAGE_KEY = getEnvironmentStorageKey('auth.session');
+const ACCESS_TOKEN_REFRESH_BUFFER_MS = 30_000;
 
 let cachedSession: AuthSession | null | undefined;
 let currentSummary: AppAuthStateSummary = {
@@ -181,6 +183,23 @@ export function hasRefreshToken() {
   return Boolean(getRefreshToken());
 }
 
+export function shouldRefreshAccessToken(currentTime = Date.now()) {
+  const session = getCachedSession();
+
+  if (!session?.accessToken) {
+    return false;
+  }
+
+  const expiresInMs = session.expiresIn * 1000;
+  const refreshBufferMs = Math.min(
+    ACCESS_TOKEN_REFRESH_BUFFER_MS,
+    Math.max(1_000, expiresInMs * 0.1),
+  );
+  const expiresAt = session.updatedAt + expiresInMs;
+
+  return expiresAt <= currentTime + refreshBufferMs;
+}
+
 export function saveLoginSession(payload: LoginResponseData) {
   persistSession({
     accessToken: payload.accessToken,
@@ -200,6 +219,19 @@ export function saveRefreshedSession(payload: RefreshResponseData) {
     user: existing?.user ?? null,
     expiresIn: payload.expiresIn,
     updatedAt: Date.now(),
+  });
+}
+
+export function updateStoredUserProfile(user: AuthUserProfile) {
+  const existing = getCachedSession();
+
+  if (!existing) {
+    return;
+  }
+
+  persistSession({
+    ...existing,
+    user,
   });
 }
 

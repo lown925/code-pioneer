@@ -2,7 +2,7 @@
   <view class="section-card hero-card">
     <text class="hero-title">互助社区</text>
     <text class="hero-copy">
-      浏览最新帖子、发起文字讨论，并在“我的”里查看自己的帖子、收藏和浏览历史。
+      浏览真实经验、代码方案与问题讨论，也可以用图文和代码块发布完整内容。
     </text>
     <view wx:if="{{!isAuthenticated}}" class="hero-action-row">
       <view class="ghost-button hero-action" bindtap="handleLogin">登录后可发帖和收藏</view>
@@ -24,6 +24,20 @@
           class="category-chip {{selectedCategoryKey === item.key ? 'category-chip-active' : ''}}"
           data-category-key="{{item.key}}"
           bindtap="handleCategoryTap"
+        >
+          {{item.label}}
+        </view>
+      </view>
+    </scroll-view>
+
+    <scroll-view class="sort-scroll" scroll-x enable-flex show-scrollbar="{{false}}">
+      <view class="sort-row">
+        <view
+          wx:for="{{sortFilters}}"
+          wx:key="key"
+          class="sort-chip {{selectedSort === item.key ? 'sort-chip-active' : ''}}"
+          data-sort-key="{{item.key}}"
+          bindtap="handleSortTap"
         >
           {{item.label}}
         </view>
@@ -90,6 +104,10 @@
         </view>
 
         <view class="feed-footer">
+          <view class="feed-stat">
+            <text class="feed-stat-label">点赞</text>
+            <text class="feed-stat-value">{{item.likeCountText}}</text>
+          </view>
           <view class="feed-stat">
             <text class="feed-stat-label">收藏</text>
             <text class="feed-stat-value">{{item.favoriteCountText}}</text>

@@ -28,6 +28,7 @@ type PublishedChapterSummary = {
 
 type LearningListRecord = {
   courseId: string;
+  isSelected: boolean;
   startedAt: Date;
   lastLearnedAt: Date | null;
   completedAt: Date | null;
@@ -66,6 +67,107 @@ export class LearningService {
     private readonly prisma: PrismaService,
     private readonly quizService: QuizService,
   ) {}
+
+  async selectCourse(currentUser: CurrentUserContext, courseId: string) {
+    await this.getAccessibleCourseOrThrow(courseId);
+    const publishedChapterCount = await this.countPublishedChapters(courseId);
+    const now = new Date();
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const existingRecord = await tx.courseLearningRecord.findUnique({
+        where: {
+          userId_courseId: {
+            userId: currentUser.id,
+            courseId,
+          },
+        },
+        select: {
+          id: true,
+          isSelected: true,
+        },
+      });
+
+      if (existingRecord) {
+        await tx.courseLearningRecord.update({
+          where: {
+            userId_courseId: {
+              userId: currentUser.id,
+              courseId,
+            },
+          },
+          data: {
+            isSelected: true,
+            selectedAt: existingRecord.isSelected ? undefined : now,
+            totalChapterCountSnapshot: publishedChapterCount,
+          },
+          select: { id: true },
+        });
+
+        return {
+          learningRecordId: existingRecord.id,
+          alreadySelected: existingRecord.isSelected,
+          progressPreserved: true,
+        };
+      }
+
+      const learningRecord = await tx.courseLearningRecord.create({
+        data: {
+          userId: currentUser.id,
+          courseId,
+          isSelected: true,
+          selectedAt: now,
+          status: LearningStatus.LEARNING,
+          completedChapterCount: 0,
+          totalChapterCountSnapshot: publishedChapterCount,
+          progressPercent: new Prisma.Decimal(0),
+          startedAt: now,
+          lastLearnedAt: null,
+        },
+        select: { id: true },
+      });
+
+      return {
+        learningRecordId: learningRecord.id,
+        alreadySelected: false,
+        progressPreserved: false,
+      };
+    });
+
+    return {
+      success: true as const,
+      data: {
+        courseId,
+        selected: true,
+        ...result,
+      },
+    };
+  }
+
+  async deselectCourse(currentUser: CurrentUserContext, courseId: string) {
+    await this.getAccessibleCourseOrThrow(courseId);
+
+    const result = await this.prisma.courseLearningRecord.updateMany({
+      where: {
+        userId: currentUser.id,
+        courseId,
+        isSelected: true,
+      },
+      data: {
+        isSelected: false,
+        selectedAt: null,
+      },
+    });
+
+    return {
+      success: true as const,
+      data: {
+        courseId,
+        selected: false,
+        alreadyDeselected: result.count === 0,
+        progressPreserved: true,
+      },
+    };
+  }
 
   async startCourse(currentUser: CurrentUserContext, courseId: string) {
     await this.getAccessibleCourseOrThrow(courseId);
@@ -110,6 +212,8 @@ export class LearningService {
                 },
               },
               data: {
+                isSelected: true,
+                selectedAt: now,
                 lastLearnedAt: now,
                 totalChapterCountSnapshot: publishedChapterCount,
               },
@@ -121,6 +225,8 @@ export class LearningService {
               data: {
                 userId: currentUser.id,
                 courseId,
+                isSelected: true,
+                selectedAt: now,
                 status: LearningStatus.LEARNING,
                 completedChapterCount: 0,
                 totalChapterCountSnapshot: publishedChapterCount,
@@ -196,6 +302,8 @@ export class LearningService {
               },
             },
             data: {
+              isSelected: true,
+              selectedAt: now,
               lastChapterId: chapter.id,
               lastLearnedAt: now,
               totalChapterCountSnapshot: publishedChapterCount,
@@ -208,6 +316,8 @@ export class LearningService {
             data: {
               userId: currentUser.id,
               courseId: chapter.courseId,
+              isSelected: true,
+              selectedAt: now,
               status: LearningStatus.LEARNING,
               completedChapterCount: 0,
               totalChapterCountSnapshot: publishedChapterCount,
@@ -563,6 +673,7 @@ export class LearningService {
     const allRecords = await this.prisma.courseLearningRecord.findMany({
       where: {
         userId: currentUser.id,
+        isSelected: true,
         course: {
           status: PUBLISHED_COURSE_STATUS,
           deletedAt: null,
@@ -571,6 +682,7 @@ export class LearningService {
       orderBy: [{ lastLearnedAt: 'desc' }, { updatedAt: 'desc' }],
       select: {
         courseId: true,
+        isSelected: true,
         startedAt: true,
         lastLearnedAt: true,
         completedAt: true,
@@ -630,6 +742,7 @@ export class LearningService {
       orderBy: [{ lastLearnedAt: 'desc' }, { updatedAt: 'desc' }],
       select: {
         courseId: true,
+        isSelected: true,
         startedAt: true,
         lastLearnedAt: true,
         completedAt: true,
@@ -655,7 +768,10 @@ export class LearningService {
         this.toLearningListItem(currentUser.id, record as LearningListRecord),
       ),
     );
-    const inProgressCourseCount = learningCourses.filter(
+    const selectedLearningCourses = learningCourses.filter(
+      (_item, index) => records[index]?.isSelected,
+    );
+    const inProgressCourseCount = selectedLearningCourses.filter(
       (item) => item.status === LearningStatus.LEARNING,
     ).length;
     const completedCourseCount = learningCourses.filter(
@@ -666,8 +782,10 @@ export class LearningService {
       0,
     );
     const continueLearningCourse =
-      learningCourses.find((item) => item.status === LearningStatus.LEARNING) ??
-      learningCourses[0] ??
+      selectedLearningCourses.find(
+        (item) => item.status === LearningStatus.LEARNING,
+      ) ??
+      selectedLearningCourses[0] ??
       null;
     const attempts = await this.prisma.quizAttempt.findMany({
       where: {

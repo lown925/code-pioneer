@@ -1,7 +1,7 @@
 <view class="page-shell detail-page">
   <view wx:if="{{state === 'loading' && !post}}" class="section-card state-box">
     <text class="state-title">帖子加载中</text>
-    <text class="state-text">正在获取帖子详情和评论，请稍候。</text>
+    <text class="state-text">正在获取正文和评论，请稍候。</text>
   </view>
 
   <view wx:elif="{{state === 'error'}}" class="section-card state-box">
@@ -12,62 +12,67 @@
 
   <block wx:elif="{{post}}">
     <view class="section-card detail-card">
-      <view class="detail-header detail-header-clickable" data-user-id="{{post.author.userId}}" bindtap="handleOpenAuthorProfile">
+      <view class="detail-header" data-user-id="{{post.author.userId}}" bindtap="handleOpenAuthorProfile">
         <view class="author-avatar">
-          <image
-            wx:if="{{post.author.avatarUrl}}"
-            class="author-avatar-image"
-            src="{{post.author.avatarUrl}}"
-            mode="aspectFill"
-          />
-          <text wx:else class="author-avatar-text">{{post.authorInitial}}</text>
+          <image wx:if="{{post.author.avatarUrl}}" class="avatar-image" src="{{post.author.avatarUrl}}" mode="aspectFill" />
+          <text wx:else class="avatar-text">{{post.authorInitial}}</text>
         </view>
-
         <view class="author-meta">
           <text class="author-name">{{post.authorName}}</text>
           <text class="author-time">{{post.createdAtText}}</text>
         </view>
-
         <view class="category-tag">{{post.category.name}}</view>
       </view>
 
       <text class="detail-title">{{post.title}}</text>
-      <text class="detail-content">{{post.content}}</text>
 
-      <view wx:if="{{post.images.length > 0}}" class="detail-image-list">
-        <image
-          wx:for="{{post.images}}"
-          wx:key="imageId"
-          class="detail-image"
-          src="{{item.url}}"
-          mode="widthFix"
-          data-url="{{item.url}}"
-          bindtap="handlePreviewImage"
-        />
-      </view>
-    </view>
+      <view class="content-block-list">
+        <block wx:for="{{post.contentBlocks}}" wx:key="blockKey">
+          <text wx:if="{{item.type === 'TEXT'}}" class="content-text">{{item.text}}</text>
 
-    <view class="section-card info-card">
-      <view class="info-row">
-        <text class="info-label">收藏</text>
-        <text class="info-value">{{post.favoriteCountText}}</text>
+          <view wx:elif="{{item.type === 'CODE'}}" class="content-code-card">
+            <view class="code-head">
+              <text class="code-language">{{item.language}}</text>
+              <view class="code-copy" data-block-index="{{index}}" bindtap="handleCopyCode">复制代码</view>
+            </view>
+            <scroll-view class="code-scroll" scroll-x enhanced show-scrollbar="false">
+              <text class="code-content" user-select="true">{{item.code}}</text>
+            </scroll-view>
+          </view>
+
+          <view wx:else class="content-image-shell">
+            <image
+              wx:if="{{!item.imageLoadFailed}}"
+              class="content-image"
+              src="{{item.url}}"
+              mode="widthFix"
+              data-url="{{item.url}}"
+              data-block-index="{{index}}"
+              bindtap="handlePreviewImage"
+              binderror="handleContentImageError"
+            />
+            <view wx:else class="image-fallback">
+              <text class="image-fallback-title">图片加载失败</text>
+              <text class="image-fallback-copy">请检查网络后重新进入帖子。</text>
+            </view>
+          </view>
+        </block>
       </view>
-      <view class="info-row">
-        <text class="info-label">评论</text>
-        <text class="info-value">{{post.commentCountText}}</text>
-      </view>
-      <view class="info-row">
-        <text class="info-label">浏览</text>
-        <text class="info-value">{{post.viewCountText}}</text>
+
+      <view wx:if="{{post.isAuthor}}" class="author-tools">
+        <view class="delete-link {{isDeleting ? 'action-disabled' : ''}}" bindtap="handleDelete">
+          {{isDeleting ? '删除中...' : '删除帖子'}}
+        </view>
       </view>
     </view>
 
     <view class="section-card comment-card">
       <view class="comment-head">
-        <view>
-          <text class="section-title">评论 {{commentCountText}}</text>
-          <text class="section-subtitle">仅支持纯文本评论，按发布时间正序显示。</text>
+        <view class="comment-heading-row">
+          <text class="comment-title">评论 {{commentCountText}}</text>
+          <text class="comment-order">按发布时间排序</text>
         </view>
+        <text class="comment-subtitle">分享你的补充、建议或解决方案。</text>
       </view>
 
       <view wx:if="{{isCommentsLoading && comments.length === 0}}" class="state-box compact-state">
@@ -85,16 +90,10 @@
 
       <view wx:else class="comment-list">
         <view wx:for="{{comments}}" wx:key="commentId" class="comment-item">
-          <view class="comment-avatar">
-            <image
-              wx:if="{{item.author.avatarUrl}}"
-              class="comment-avatar-image"
-              src="{{item.author.avatarUrl}}"
-              mode="aspectFill"
-            />
+          <view class="comment-avatar" data-user-id="{{item.author.userId}}" bindtap="handleOpenAuthorProfile">
+            <image wx:if="{{item.author.avatarUrl}}" class="avatar-image" src="{{item.author.avatarUrl}}" mode="aspectFill" />
             <text wx:else class="comment-avatar-text">{{item.authorInitial}}</text>
           </view>
-
           <view class="comment-body">
             <view class="comment-meta">
               <text class="comment-author">{{item.authorName}}</text>
@@ -109,40 +108,40 @@
   </block>
 
   <view wx:if="{{post}}" class="action-bar">
-    <view class="comment-input-shell">
+    <view class="composer-row">
       <textarea
         class="comment-input"
         maxlength="1000"
-        placeholder="写下你的评论，本轮仅支持纯文本。"
+        placeholder="来说点什么吧"
         value="{{commentDraft}}"
         bindinput="handleCommentInput"
         auto-height
-        cursor-spacing="24"
+        cursor-spacing="18"
       />
-      <view class="comment-submit-row">
-        <text class="comment-draft-count">{{commentDraft.length}} / 1000</text>
-        <view
-          class="primary-button comment-submit-button {{isCommentSubmitting ? 'action-button-disabled' : ''}}"
-          bindtap="handleCommentSubmit"
-        >
-          {{isCommentSubmitting ? '发布中...' : '发布评论'}}
-        </view>
+      <view
+        class="comment-send {{!commentDraft || isCommentSubmitting ? 'action-disabled' : ''}}"
+        bindtap="handleCommentSubmit"
+      >
+        {{isCommentSubmitting ? '发送中' : '发送'}}
       </view>
     </view>
 
-    <view class="action-row">
-      <view
-        class="ghost-button action-button {{isFavoriteSubmitting ? 'action-button-disabled' : ''}}"
-        bindtap="handleFavoriteToggle"
-      >
-        {{post.viewerHasFavorited ? '取消收藏' : '收藏帖子'}}
+    <view class="engagement-row">
+      <view class="engagement-item {{post.viewerHasLiked ? 'engagement-active' : ''}} {{isLikeSubmitting ? 'action-disabled' : ''}}" bindtap="handleLikeToggle">
+        <text class="engagement-label">{{post.viewerHasLiked ? '已赞' : '点赞'}}</text>
+        <text class="engagement-count">{{post.likeCountText}}</text>
       </view>
-      <view
-        wx:if="{{post.isAuthor}}"
-        class="danger-button action-button {{isDeleting ? 'action-button-disabled' : ''}}"
-        bindtap="handleDelete"
-      >
-        {{isDeleting ? '删除中...' : '删除帖子'}}
+      <view class="engagement-item {{post.viewerHasFavorited ? 'engagement-active' : ''}} {{isFavoriteSubmitting ? 'action-disabled' : ''}}" bindtap="handleFavoriteToggle">
+        <text class="engagement-label">{{post.viewerHasFavorited ? '已收藏' : '收藏'}}</text>
+        <text class="engagement-count">{{post.favoriteCountText}}</text>
+      </view>
+      <view class="engagement-item">
+        <text class="engagement-label">评论</text>
+        <text class="engagement-count">{{post.commentCountText}}</text>
+      </view>
+      <view class="engagement-item engagement-muted">
+        <text class="engagement-label">浏览</text>
+        <text class="engagement-count">{{post.viewCountText}}</text>
       </view>
     </view>
   </view>

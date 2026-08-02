@@ -34,7 +34,9 @@ type CommunityPostRecord = {
   categoryId: string;
   title: string;
   content: string;
+  contentBlocks: unknown;
   status: 'PUBLISHED' | 'HIDDEN' | 'DELETED';
+  recommendationScore: number;
   likeCount: number;
   commentCount: number;
   favoriteCount: number;
@@ -56,6 +58,13 @@ type CommunityCommentRecord = {
 };
 
 type CommunityFavoriteRecord = {
+  id: string;
+  postId: string;
+  userId: string;
+  createdAt: Date;
+};
+
+type CommunityLikeRecord = {
   id: string;
   postId: string;
   userId: string;
@@ -96,12 +105,14 @@ function createCommunityPrismaMock() {
   const posts = new Map<string, CommunityPostRecord>();
   const comments = new Map<string, CommunityCommentRecord>();
   const favorites = new Map<string, CommunityFavoriteRecord>();
+  const likes = new Map<string, CommunityLikeRecord>();
   const histories = new Map<string, CommunityHistoryRecord>();
 
   let categorySequence = 0;
   let postSequence = 0;
   let commentSequence = 0;
   let favoriteSequence = 0;
+  let likeSequence = 0;
   let historySequence = 0;
   let timestampSequence = 0;
 
@@ -207,6 +218,41 @@ function createCommunityPrismaMock() {
         return right.id.localeCompare(left.id);
       });
 
+  const getOrderedVisiblePosts = (
+    where?: Record<string, any>,
+    orderBy?: Array<Record<string, 'asc' | 'desc'>>,
+  ) => {
+    const records = getVisiblePosts(where);
+
+    if (!orderBy?.length) {
+      return records;
+    }
+
+    return records.sort((left, right) => {
+      for (const order of orderBy) {
+        const [field, direction] = Object.entries(order)[0] ?? [];
+
+        if (!field || !direction) {
+          continue;
+        }
+
+        const leftValue = left[field as keyof CommunityPostRecord];
+        const rightValue = right[field as keyof CommunityPostRecord];
+        const leftComparable = leftValue instanceof Date ? leftValue.getTime() : leftValue;
+        const rightComparable = rightValue instanceof Date ? rightValue.getTime() : rightValue;
+
+        if (leftComparable === rightComparable) {
+          continue;
+        }
+
+        const comparison = leftComparable! < rightComparable! ? -1 : 1;
+        return direction === 'asc' ? comparison : -comparison;
+      }
+
+      return 0;
+    });
+  };
+
   const applyCursor = <T extends { id: string }>(
     records: T[],
     cursorId?: string,
@@ -226,6 +272,7 @@ function createCommunityPrismaMock() {
   };
 
   const favoriteKey = (userId: string, postId: string) => `${userId}:${postId}`;
+  const likeKey = (userId: string, postId: string) => `${userId}:${postId}`;
   const historyKey = (userId: string, postId: string) => `${userId}:${postId}`;
 
   const prisma: any = {
@@ -306,14 +353,16 @@ function createCommunityPrismaMock() {
           take,
           cursor,
           skip,
+          orderBy,
         }: {
           where?: any;
           take?: number;
           cursor?: { id: string };
           skip?: number;
+          orderBy?: Array<Record<string, 'asc' | 'desc'>>;
         }) => {
           const visiblePosts = applyCursor(
-            getVisiblePosts(where),
+            getOrderedVisiblePosts(where, orderBy),
             cursor?.id,
             skip ?? 0,
           );
@@ -336,7 +385,9 @@ function createCommunityPrismaMock() {
           categoryId: data.categoryId,
           title: data.title,
           content: data.content,
+          contentBlocks: data.contentBlocks ?? null,
           status: data.status,
+          recommendationScore: data.recommendationScore ?? 0,
           likeCount: data.likeCount ?? 0,
           commentCount: data.commentCount ?? 0,
           favoriteCount: data.favoriteCount ?? 0,
@@ -369,12 +420,26 @@ function createCommunityPrismaMock() {
               : data.favoriteCount?.decrement !== undefined
                 ? Math.max(0, existing.favoriteCount - data.favoriteCount.decrement)
                 : existing.favoriteCount,
+          likeCount:
+            data.likeCount?.increment !== undefined
+              ? existing.likeCount + data.likeCount.increment
+              : data.likeCount?.decrement !== undefined
+                ? Math.max(0, existing.likeCount - data.likeCount.decrement)
+                : existing.likeCount,
           commentCount:
             data.commentCount?.increment !== undefined
               ? existing.commentCount + data.commentCount.increment
               : data.commentCount?.decrement !== undefined
                 ? Math.max(0, existing.commentCount - data.commentCount.decrement)
                 : existing.commentCount,
+          recommendationScore:
+            data.recommendationScore?.increment !== undefined
+              ? existing.recommendationScore +
+                data.recommendationScore.increment
+              : data.recommendationScore?.decrement !== undefined
+                ? existing.recommendationScore -
+                  data.recommendationScore.decrement
+                : existing.recommendationScore,
           viewCount:
             data.viewCount?.increment !== undefined
               ? existing.viewCount + data.viewCount.increment
@@ -392,6 +457,12 @@ function createCommunityPrismaMock() {
         if (data.select?.favoriteCount === true) {
           return {
             favoriteCount: updated.favoriteCount,
+          };
+        }
+
+        if (data.select?.likeCount === true) {
+          return {
+            likeCount: updated.likeCount,
           };
         }
 
@@ -589,6 +660,63 @@ function createCommunityPrismaMock() {
         }).length;
       }),
     },
+    communityPostLike: {
+      findMany: jest.fn(async ({ where }: { where?: any }) => {
+        return [...likes.values()]
+          .filter((like) => {
+            if (where?.userId !== undefined && like.userId !== where.userId) {
+              return false;
+            }
+
+            if (where?.postId?.in) {
+              return where.postId.in.includes(like.postId);
+            }
+
+            return true;
+          })
+          .map((like) => ({ postId: like.postId }));
+      }),
+      createMany: jest.fn(
+        async ({ data }: { data: Array<{ postId: string; userId: string }> }) => {
+          let count = 0;
+
+          data.forEach((item) => {
+            const key = likeKey(item.userId, item.postId);
+
+            if (likes.has(key)) {
+              return;
+            }
+
+            likeSequence += 1;
+            likes.set(key, {
+              id: toUuid(25_000 + likeSequence),
+              postId: item.postId,
+              userId: item.userId,
+              createdAt: nextDate(),
+            });
+            count += 1;
+          });
+
+          return { count };
+        },
+      ),
+      deleteMany: jest.fn(async ({ where }: { where?: any }) => {
+        const toDelete = [...likes.entries()].filter(([, like]) => {
+          if (where?.userId !== undefined && like.userId !== where.userId) {
+            return false;
+          }
+
+          if (where?.postId !== undefined && like.postId !== where.postId) {
+            return false;
+          }
+
+          return true;
+        });
+
+        toDelete.forEach(([key]) => likes.delete(key));
+        return { count: toDelete.length };
+      }),
+    },
     communityPostViewHistory: {
       findUnique: jest.fn(async ({ where }: { where: any }) => {
         return (
@@ -751,6 +879,7 @@ function createCommunityPrismaMock() {
     posts,
     comments,
     favorites,
+    likes,
     histories,
   };
 }
@@ -873,12 +1002,43 @@ describe('Community routes (e2e)', () => {
       .send({
         categoryKey: 'BATTLE',
         title: 'Battle notes',
-        content: 'Study tactics before joining ranked matches.',
+        contentBlocks: [
+          {
+            type: 'TEXT',
+            text: 'Study tactics before joining ranked matches.',
+          },
+          {
+            type: 'CODE',
+            language: 'JavaScript',
+            code: 'const ready = true;\nconsole.info(ready);',
+          },
+          ...Array.from({ length: 7 }, (_, index) => ({
+            type: 'IMAGE',
+            objectKey: `${USER_A.id}/battle-${index + 1}.png`,
+            url: `/uploads/community/${USER_A.id}/battle-${index + 1}.png`,
+          })),
+        ],
       })
       .expect(200);
 
     const learningPostId = learningPost.body.data.postId as string;
     const battlePostId = battlePost.body.data.postId as string;
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/community/posts/${battlePostId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.contentBlocks).toHaveLength(9);
+        expect(response.body.data.contentBlocks[1]).toMatchObject({
+          type: 'CODE',
+          language: 'JavaScript',
+        });
+        expect(
+          response.body.data.contentBlocks.filter(
+            (block: { type: string }) => block.type === 'IMAGE',
+          ),
+        ).toHaveLength(7);
+      });
 
     const firstPage = await request(app.getHttpServer())
       .get('/api/v1/community/posts?limit=1')
@@ -983,6 +1143,39 @@ describe('Community routes (e2e)', () => {
         expect(response.body.data.viewCount).toBe(1);
         expect(response.body.data.viewerHasFavorited).toBe(false);
         expect(response.body.data.commentCount).toBe(1);
+      });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/community/posts/${learningPostId}/like`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.viewerHasLiked).toBe(true);
+        expect(response.body.data.likeCount).toBe(1);
+      });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/community/posts/${learningPostId}/like`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.likeCount).toBe(1);
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/community/posts?sort=mostLiked')
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.items[0].postId).toBe(learningPostId);
+      });
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/community/posts/${learningPostId}/like`)
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.viewerHasLiked).toBe(false);
+        expect(response.body.data.likeCount).toBe(0);
       });
 
     await request(app.getHttpServer())

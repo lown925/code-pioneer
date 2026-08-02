@@ -1,3 +1,11 @@
+import type { AuthUserProfile } from './auth';
+
+export type UserAvatarUploadResponse = {
+  avatarUrl: string;
+};
+
+export type UpdateCurrentUserResponse = AuthUserProfile;
+
 export type UserProfilePostSummary = {
   postId: string;
   title: string;

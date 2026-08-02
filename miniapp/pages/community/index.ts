@@ -3,6 +3,7 @@ import type {
   CommunityCategory,
   CommunityCategoryKey,
   CommunityPostListItem,
+  CommunityPostSort,
   CommunityPostsQuery,
   CommunityPostsResponse,
 } from '../../types/community';
@@ -23,11 +24,17 @@ type CategoryFilter = {
   label: string;
 };
 
+type SortFilter = {
+  key: CommunityPostSort;
+  label: string;
+};
+
 type CommunityFeedCard = CommunityPostListItem & {
   authorName: string;
   authorInitial: string;
   createdAtText: string;
   favoriteCountText: string;
+  likeCountText: string;
   commentCountText: string;
   viewCountText: string;
   hasImages: boolean;
@@ -39,6 +46,8 @@ type CommunityPageData = {
   errorMessage: string;
   categories: CategoryFilter[];
   selectedCategoryKey: CommunityCategoryKey | '';
+  sortFilters: SortFilter[];
+  selectedSort: CommunityPostSort;
   items: CommunityFeedCard[];
   nextCursor: string;
   hasMore: boolean;
@@ -59,6 +68,9 @@ type CommunityPageMethods = {
   handleCreatePost(): void;
   handleCategoryTap(
     event: WechatMiniprogram.BaseEvent<{ categoryKey?: string }>,
+  ): void;
+  handleSortTap(
+    event: WechatMiniprogram.BaseEvent<{ sortKey?: CommunityPostSort }>,
   ): void;
   handleOpenDetail(
     event: WechatMiniprogram.BaseEvent<{ postId?: string }>,
@@ -83,12 +95,20 @@ Page<CommunityPageData, CommunityPageMethods>({
     errorMessage: '',
     categories: [{ key: '', label: '全部' }],
     selectedCategoryKey: '',
+    sortFilters: [
+      { key: 'recommended', label: '推荐' },
+      { key: 'latest', label: '最新' },
+      { key: 'mostLiked', label: '点赞最多' },
+      { key: 'mostFavorited', label: '收藏最多' },
+      { key: 'mostCommented', label: '评论最多' },
+    ],
+    selectedSort: 'recommended',
     items: [],
     nextCursor: '',
     hasMore: false,
     isLoadingMore: false,
     isRefreshing: false,
-    categoryDescription: '浏览社区里最新发布的真实帖子。',
+    categoryDescription: '综合发布时间与互动质量，为你推荐值得参与的讨论。',
   },
 
   onLoad() {
@@ -216,10 +236,11 @@ Page<CommunityPageData, CommunityPageMethods>({
         hasMore: response.hasMore,
         isLoadingMore: false,
         isRefreshing: false,
-        categoryDescription:
-          selectedCategory?.key === ''
-            ? '浏览社区里最新发布的真实帖子。'
-            : `${selectedCategory?.label ?? '当前分区'}下暂只展示最新发布的帖子。`,
+        categoryDescription: `${selectedCategory?.label ?? '全部分区'} · ${
+          this.data.sortFilters.find(
+            (filter) => filter.key === this.data.selectedSort,
+          )?.label ?? '推荐'
+        }`,
       });
 
       lastSeenContentVersion = getCommunityVersionSnapshot().contentVersion;
@@ -304,6 +325,23 @@ Page<CommunityPageData, CommunityPageMethods>({
     void this.loadPosts({ replace: true });
   },
 
+  handleSortTap(
+    event: WechatMiniprogram.BaseEvent<{ sortKey?: CommunityPostSort }>,
+  ) {
+    const sortKey = event.currentTarget.dataset.sortKey;
+
+    if (
+      !sortKey ||
+      !this.data.sortFilters.some((filter) => filter.key === sortKey) ||
+      sortKey === this.data.selectedSort
+    ) {
+      return;
+    }
+
+    this.setData({ selectedSort: sortKey });
+    void this.loadPosts({ replace: true });
+  },
+
   handleOpenDetail(
     event: WechatMiniprogram.BaseEvent<{ postId?: string }>,
   ) {
@@ -325,7 +363,7 @@ Page<CommunityPageData, CommunityPageMethods>({
   buildQuery() {
     const query: CommunityPostsQuery = {
       limit: PAGE_LIMIT,
-      sort: 'latest',
+      sort: this.data.selectedSort,
     };
 
     if (this.data.selectedCategoryKey) {
@@ -358,6 +396,7 @@ Page<CommunityPageData, CommunityPageMethods>({
       authorInitial,
       createdAtText: formatCommunityTimestamp(item.createdAt),
       favoriteCountText: String(Math.max(0, item.favoriteCount)),
+      likeCountText: String(Math.max(0, item.likeCount)),
       commentCountText: String(Math.max(0, item.commentCount)),
       viewCountText: String(Math.max(0, item.viewCount)),
       hasImages: item.imagePreview.length > 0,

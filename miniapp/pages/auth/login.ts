@@ -108,6 +108,27 @@ function wxLogin() {
   );
 }
 
+function needsProfileCompletion(data: LoginResponseData) {
+  return Boolean(
+    data.isNewUser ||
+      !data.user.nickname?.trim() ||
+      !data.user.avatarUrl?.trim(),
+  );
+}
+
+function openProfileOnboarding(redirectPath: string) {
+  const redirectQuery = redirectPath
+    ? `&redirect=${encodeURIComponent(redirectPath)}`
+    : '';
+
+  wx.redirectTo({
+    url: `/pages/profile/edit?onboarding=1${redirectQuery}`,
+    fail: () => {
+      finishLoginNavigation(redirectPath);
+    },
+  });
+}
+
 Page<LoginPageData>({
   data: {
     isWechatSubmitting: false,
@@ -131,7 +152,18 @@ Page<LoginPageData>({
   },
 
   onShow() {
-    if (getAuthStateSummary().isAuthenticated) {
+    const authState = getAuthStateSummary();
+
+    if (
+      authState.isAuthenticated &&
+      authState.user &&
+      (!authState.user.nickname?.trim() || !authState.user.avatarUrl?.trim())
+    ) {
+      openProfileOnboarding(this.data.redirectPath);
+      return;
+    }
+
+    if (authState.isAuthenticated) {
       finishLoginNavigation(this.data.redirectPath);
     }
   },
@@ -172,7 +204,11 @@ Page<LoginPageData>({
         title: data.isNewUser ? '登录成功，欢迎使用' : '登录成功',
         icon: 'none',
       });
-      finishLoginNavigation(this.data.redirectPath);
+      if (needsProfileCompletion(data)) {
+        openProfileOnboarding(this.data.redirectPath);
+      } else {
+        finishLoginNavigation(this.data.redirectPath);
+      }
     } catch (error) {
       this.setData({
         errorMessage: getReadableLoginError(error, false),

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  Delete,
   DefaultValuePipe,
   Get,
   HttpCode,
@@ -29,6 +30,24 @@ export class LearningController {
     @Param('courseId', ParseUUIDPipe) courseId: string,
   ) {
     return this.learningService.startCourse(currentUser, courseId);
+  }
+
+  @HttpCode(200)
+  @Post('courses/:courseId/selection')
+  selectCourse(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+  ) {
+    return this.learningService.selectCourse(currentUser, courseId);
+  }
+
+  @HttpCode(200)
+  @Delete('courses/:courseId/selection')
+  deselectCourse(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+  ) {
+    return this.learningService.deselectCourse(currentUser, courseId);
   }
 
   @Get('courses/:courseId/progress')

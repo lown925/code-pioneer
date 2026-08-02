@@ -7,11 +7,13 @@ import type {
   CommunityDeleteHistoryResponse,
   CommunityDeletePostResponse,
   CommunityFavoriteMutationResponse,
+  CommunityLikeMutationResponse,
   CommunityFavoritesResponse,
   CommunityHistoryResponse,
   CommunityMyPostsQuery,
   CommunityMyPostsResponse,
   CommunityPostImage,
+  CommunityPostContentBlock,
   CommunityPostListItem,
   CommunityPostDetail,
   CommunityPostStatus,
@@ -22,12 +24,17 @@ import type {
   CommunityCategoryKey,
 } from '../types/community';
 import { RequestError, getApiBaseUrl, request, uploadFile } from './request';
+import { getEnvironmentStorageKey } from './config';
 import { formatLearningTimestamp } from './time';
 
-const COMMUNITY_CONTENT_VERSION_KEY = 'code-pioneer.community.version.content';
+const COMMUNITY_CONTENT_VERSION_KEY = getEnvironmentStorageKey(
+  'community.version.content',
+);
 const COMMUNITY_COLLECTION_VERSION_KEY =
-  'code-pioneer.community.version.collection';
-const COMMUNITY_HISTORY_VERSION_KEY = 'code-pioneer.community.version.history';
+  getEnvironmentStorageKey('community.version.collection');
+const COMMUNITY_HISTORY_VERSION_KEY = getEnvironmentStorageKey(
+  'community.version.history',
+);
 
 function readVersion(key: string) {
   try {
@@ -92,7 +99,8 @@ export function fetchCommunityPosts(query: CommunityPostsQuery) {
 export function createCommunityPost(data: {
   categoryKey: CommunityCategoryKey;
   title: string;
-  content: string;
+  content?: string;
+  contentBlocks?: CommunityPostContentBlock[];
   images?: Array<{
     objectKey: string;
     url: string;
@@ -161,6 +169,22 @@ export function favoriteCommunityPost(postId: string) {
 export function unfavoriteCommunityPost(postId: string) {
   return request<CommunityFavoriteMutationResponse>({
     url: `/community/posts/${postId}/favorite`,
+    method: 'DELETE',
+    authMode: 'required',
+  });
+}
+
+export function likeCommunityPost(postId: string) {
+  return request<CommunityLikeMutationResponse>({
+    url: `/community/posts/${postId}/like`,
+    method: 'POST',
+    authMode: 'required',
+  });
+}
+
+export function unlikeCommunityPost(postId: string) {
+  return request<CommunityLikeMutationResponse>({
+    url: `/community/posts/${postId}/like`,
     method: 'DELETE',
     authMode: 'required',
   });
@@ -298,7 +322,11 @@ export function getCommunityErrorMessage(
     }
 
     if (error.code === 'COMMUNITY_POST_CONTENT_INVALID') {
-      return '正文需要 1 到 4000 个字';
+      return '正文与代码需要有效内容，合计不能超过 20000 字符';
+    }
+
+    if (error.code === 'COMMUNITY_POST_CONTENT_BLOCK_INVALID') {
+      return '帖子中存在空白或无效内容块，请检查后再发布';
     }
 
     if (error.code === 'COMMUNITY_COMMENT_CONTENT_INVALID') {
@@ -317,10 +345,7 @@ export function getCommunityErrorMessage(
       return '单张图片不能超过 5 MB';
     }
 
-    if (
-      error.code === 'COMMUNITY_POST_IMAGE_LIMIT_EXCEEDED' ||
-      error.code === 'COMMUNITY_POST_IMAGE_INVALID'
-    ) {
+    if (error.code === 'COMMUNITY_POST_IMAGE_INVALID') {
       return '帖子图片数据无效，请重新选择后再试';
     }
 
@@ -381,5 +406,23 @@ function normalizeCommunityPostDetail(item: CommunityPostDetail) {
     ...item,
     imagePreview: normalizedListItem.imagePreview,
     images: normalizeCommunityPostImages(item.images),
+    contentBlocks: (item.contentBlocks ?? [
+      {
+        type: 'TEXT' as const,
+        text: item.content,
+      },
+      ...item.images.map((image) => ({
+        type: 'IMAGE' as const,
+        objectKey: image.objectKey,
+        url: image.url,
+      })),
+    ]).map((block) =>
+      block.type === 'IMAGE'
+        ? {
+            ...block,
+            url: normalizeCommunityAssetUrl(block.url),
+          }
+        : block,
+    ),
   };
 }

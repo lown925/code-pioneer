@@ -25,6 +25,8 @@ type LearningAggregateRow = {
   lastWrongAt: Date;
 };
 
+type PracticeAggregateRow = LearningAggregateRow;
+
 type LearningQuestionRecord = {
   id: string;
   type: QuestionType;
@@ -256,13 +258,19 @@ export class WrongQuestionService {
   ) {
     const items: UnifiedWrongQuestionItem[] = [];
 
-    if (source !== 'BATTLE') {
+    if (!source || source === 'LEARNING') {
       items.push(
         ...(await this.loadLearningWrongQuestions(currentUserId, filters)),
       );
     }
 
-    if (source !== 'LEARNING' && this.hasBattleReadModels()) {
+    if (!source || source === 'PRACTICE') {
+      items.push(
+        ...(await this.loadPracticeWrongQuestions(currentUserId, filters)),
+      );
+    }
+
+    if ((!source || source === 'BATTLE') && this.hasBattleReadModels()) {
       items.push(
         ...(await this.loadBattleWrongQuestions(currentUserId, filters)),
       );
@@ -280,6 +288,115 @@ export class WrongQuestionService {
       }
 
       return left.questionId.localeCompare(right.questionId);
+    });
+  }
+
+  private async loadPracticeWrongQuestions(
+    currentUserId: string,
+    filters: { courseId?: string; chapterId?: string },
+  ) {
+    const clauses = [
+      Prisma.sql`answer.user_id = ${currentUserId}::uuid`,
+      Prisma.sql`answer.is_correct = false`,
+    ];
+
+    if (filters.courseId) {
+      clauses.push(Prisma.sql`chapter.course_id = ${filters.courseId}::uuid`);
+    }
+
+    if (filters.chapterId) {
+      clauses.push(Prisma.sql`quiz.chapter_id = ${filters.chapterId}::uuid`);
+    }
+
+    const aggregateRows = await this.prisma.$queryRaw<PracticeAggregateRow[]>(
+      Prisma.sql`
+        SELECT
+          answer.question_id AS "questionId",
+          COUNT(*)::int AS "wrongCount",
+          MAX(answer.answered_at) AS "lastWrongAt"
+        FROM practice_answers answer
+        INNER JOIN quiz_questions question ON question.id = answer.question_id
+        INNER JOIN quizzes quiz ON quiz.id = question.quiz_id
+        INNER JOIN course_chapters chapter ON chapter.id = quiz.chapter_id
+        WHERE ${Prisma.join(clauses, ' AND ')}
+        GROUP BY answer.question_id
+        ORDER BY MAX(answer.answered_at) DESC, answer.question_id ASC
+      `,
+    );
+
+    if (aggregateRows.length === 0) {
+      return [];
+    }
+
+    const questions = (await this.prisma.quizQuestion.findMany({
+      where: { id: { in: aggregateRows.map((row) => row.questionId) } },
+      select: {
+        id: true,
+        type: true,
+        content: true,
+        explanation: true,
+        options: {
+          orderBy: { sortOrder: 'asc' },
+          select: { id: true, content: true, isCorrect: true, sortOrder: true },
+        },
+        quiz: {
+          select: {
+            chapterId: true,
+            chapter: {
+              select: {
+                title: true,
+                courseId: true,
+                course: { select: { title: true } },
+              },
+            },
+          },
+        },
+      },
+    })) as LearningQuestionRecord[];
+    const questionMap = new Map(questions.map((question) => [question.id, question]));
+
+    return aggregateRows.map((row) => {
+      const question = questionMap.get(row.questionId);
+      const correctOptions =
+        question?.options.filter((option) => option.isCorrect) ?? [];
+
+      if (!question || correctOptions.length !== 1) {
+        throw new BadRequestException('QUIZ_NOT_READY');
+      }
+
+      const correctOption = correctOptions[0]!;
+
+      return {
+        source: 'PRACTICE' as const,
+        questionId: question.id,
+        battleQuestionSnapshotId: null,
+        questionType: question.type,
+        questionContent: question.content,
+        content: question.content,
+        courseId: question.quiz.chapter.courseId,
+        courseTitle: question.quiz.chapter.course.title,
+        chapterId: question.quiz.chapterId,
+        chapterTitle: question.quiz.chapter.title,
+        wrongCount: this.toNumber(row.wrongCount),
+        lastWrongAt: row.lastWrongAt,
+        latestWrongAt: row.lastWrongAt,
+        presentation: null,
+        difficulty: null,
+        programmingLanguage: null,
+        stem: null,
+        options: question.options.map((option) => ({
+          optionId: option.id,
+          content: option.content,
+          order: option.sortOrder,
+        })),
+        optionSnapshots: null,
+        correctOptionId: correctOption.id,
+        correctAnswer: { type: question.type, optionId: correctOption.id },
+        explanation: question.explanation,
+        latestWrongAnswer: null,
+        sourceQuizQuestionId: question.id,
+        battle: null,
+      } satisfies UnifiedWrongQuestionItem;
     });
   }
 

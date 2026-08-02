@@ -1,10 +1,32 @@
 import type {
   PublicUserProfileResponse,
+  UpdateCurrentUserResponse,
+  UserAvatarUploadResponse,
   UserFollowListMode,
   UserFollowListResponse,
   UserFollowMutationResponse,
 } from '../types/user';
-import { RequestError, request } from './request';
+import { RequestError, request, uploadFile } from './request';
+
+export function uploadCurrentUserAvatar(filePath: string) {
+  return uploadFile<UserAvatarUploadResponse>({
+    url: '/users/me/avatar',
+    filePath,
+    authMode: 'required',
+  });
+}
+
+export function updateCurrentUser(data: {
+  nickname: string;
+  avatarUrl: string;
+}) {
+  return request<UpdateCurrentUserResponse>({
+    url: '/users/me',
+    method: 'PATCH',
+    authMode: 'required',
+    data,
+  });
+}
 
 export function fetchUserProfile(userId: string) {
   return request<PublicUserProfileResponse>({

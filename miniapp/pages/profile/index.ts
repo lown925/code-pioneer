@@ -96,6 +96,7 @@ type ProfilePageMethods = {
     event: WechatMiniprogram.BaseEvent<{ postId?: string }>,
   ): void;
   handleLearningEntry(): void;
+  handleEditProfile(): void;
   handleLogout(): Promise<void>;
   mapBattleSummary(data: BattleProfileResponse): ProfileBattleSummary;
   mapCommunitySummary(data: CommunitySummaryResponse): ProfileCommunitySummary;
@@ -480,6 +481,17 @@ Page<ProfilePageData, ProfilePageMethods>({
 
     wx.switchTab({
       url: '/pages/learning/index',
+    });
+  },
+
+  handleEditProfile() {
+    if (!this.data.isAuthenticated) {
+      redirectToLogin('/pages/profile/index');
+      return;
+    }
+
+    wx.navigateTo({
+      url: '/pages/profile/edit',
     });
   },
 

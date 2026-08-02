@@ -30,6 +30,22 @@ export type CommunityPostImagePayload = {
   sortOrder: number;
 };
 
+export type CommunityPostContentBlockPayload =
+  | {
+      type: 'TEXT';
+      text: string;
+    }
+  | {
+      type: 'CODE';
+      code: string;
+      language: string | null;
+    }
+  | {
+      type: 'IMAGE';
+      objectKey: string | null;
+      url: string;
+    };
+
 export type CommunityUploadedImagePayload = {
   objectKey: string;
   url: string;
@@ -60,6 +76,7 @@ export type CommunityPostListItemPayload = {
 
 export type CommunityPostDetailPayload = CommunityPostListItemPayload & {
   content: string;
+  contentBlocks: CommunityPostContentBlockPayload[];
   images: CommunityPostImagePayload[];
   status: CommunityPostStatusValue;
   deletedAt: Date | null;
@@ -95,6 +112,12 @@ export type CommunityCursorPage<T> = {
 export type CommunityCreatePostResponse = {
   postId: string;
   createdAt: Date;
+};
+
+export type CommunityLikeMutationResponse = {
+  postId: string;
+  viewerHasLiked: boolean;
+  likeCount: number;
 };
 
 export type CommunityUploadImageResponse = {

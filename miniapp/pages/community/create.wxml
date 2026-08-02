@@ -7,8 +7,8 @@
 
   <view class="page-shell create-shell">
     <view wx:if="{{isLoadingCategories}}" class="section-card state-box">
-      <text class="state-title">分区加载中</text>
-      <text class="state-text">正在准备可用分区，请稍候。</text>
+      <text class="state-title">正在准备编辑器</text>
+      <text class="state-text">加载社区分区，请稍候。</text>
     </view>
 
     <view wx:elif="{{loadErrorMessage}}" class="section-card state-box">
@@ -18,10 +18,7 @@
     </view>
 
     <block wx:else>
-      <view class="section-card form-card">
-        <text class="section-title">选择分区</text>
-        <text class="section-subtitle">请选择本条帖子最匹配的讨论分区。</text>
-
+      <view class="section-card form-card compact-card">
         <view class="category-row">
           <view
             wx:for="{{categories}}"
@@ -37,80 +34,111 @@
 
       <view class="section-card form-card">
         <view class="field-head">
-          <text class="section-title">标题</text>
+          <text class="field-label">帖子标题</text>
           <text class="field-count">{{titleCountText}}</text>
         </view>
         <input
-          class="text-input"
+          class="title-input"
           maxlength="80"
-          placeholder="用一句清楚的话概括你要讨论的问题或经验"
+          placeholder="清楚概括你要讨论的问题或经验"
           value="{{title}}"
           bindinput="handleTitleInput"
         />
       </view>
 
-      <view class="section-card form-card">
-        <view class="field-head">
-          <text class="section-title">正文</text>
-          <text class="field-count">{{contentCountText}}</text>
+      <view class="editor-head">
+        <view>
+          <text class="editor-title">内容编辑器</text>
+          <text class="editor-subtitle">文字、图片和代码可自由排序</text>
         </view>
-        <textarea
-          class="textarea-input"
-          maxlength="4000"
-          placeholder="补充上下文、问题现象、你的思路或想法。本轮仅支持纯文本。"
-          value="{{content}}"
-          bindinput="handleContentInput"
-        />
+        <view class="editor-summary">
+          <text>{{contentCountText}}</text>
+          <text>{{imageCountText}}</text>
+        </view>
       </view>
 
-      <view class="section-card form-card">
-        <view class="field-head">
-          <text class="section-title">配图</text>
-          <text class="field-count">{{imageCountText}}</text>
-        </view>
-        <text class="section-subtitle">支持 JPG、PNG、WebP、GIF，最多 6 张，单张不超过 5 MB。</text>
-
-        <view class="image-toolbar">
-          <view
-            class="ghost-button image-picker-button {{isUploadingImages ? 'image-picker-button-disabled' : ''}}"
-            bindtap="handleChooseImages"
-          >
-            {{isUploadingImages ? '上传中...' : '选择图片'}}
-          </view>
-        </view>
-
-        <view wx:if="{{images.length > 0}}" class="image-grid">
-          <view wx:for="{{images}}" wx:key="objectKey" class="image-card">
-            <image
-              class="image-card-preview"
-              src="{{item.localPath || item.url}}"
-              mode="aspectFill"
-              data-index="{{index}}"
-              bindtap="handlePreviewImage"
-            />
-            <view class="image-card-footer">
-              <text class="image-card-label">第 {{index + 1}} 张</text>
-              <view class="image-card-remove" data-index="{{index}}" bindtap="handleRemoveImage">
-                删除
-              </view>
+      <view wx:for="{{editorBlocks}}" wx:key="id" class="editor-block-wrap">
+        <view class="section-card editor-block {{item.type === 'CODE' ? 'editor-block-code' : ''}}">
+          <view class="block-head">
+            <text class="block-type">{{item.type === 'TEXT' ? '文字' : item.type === 'CODE' ? '代码' : '图片'}}</text>
+            <view class="block-actions">
+              <view class="block-action {{index === 0 ? 'block-action-disabled' : ''}}" data-block-id="{{item.id}}" bindtap="handleMoveBlockUp">上移</view>
+              <view class="block-action {{index === editorBlocks.length - 1 ? 'block-action-disabled' : ''}}" data-block-id="{{item.id}}" bindtap="handleMoveBlockDown">下移</view>
+              <view class="block-action block-delete" data-block-id="{{item.id}}" bindtap="handleRemoveBlock">删除</view>
             </view>
           </view>
+
+          <textarea
+            wx:if="{{item.type === 'TEXT'}}"
+            class="block-textarea"
+            maxlength="20000"
+            auto-height
+            placeholder="输入正文内容，可粘贴多行文字"
+            value="{{item.text}}"
+            data-block-id="{{item.id}}"
+            bindinput="handleBlockTextInput"
+          />
+
+          <view wx:elif="{{item.type === 'CODE'}}" class="code-editor">
+            <input
+              class="language-input"
+              maxlength="40"
+              placeholder="语言，可选，例如 JavaScript"
+              value="{{item.language}}"
+              data-block-id="{{item.id}}"
+              bindinput="handleBlockLanguageInput"
+            />
+            <textarea
+              class="code-textarea"
+              maxlength="20000"
+              placeholder="在这里输入或粘贴代码，换行和缩进会被保留"
+              value="{{item.code}}"
+              data-block-id="{{item.id}}"
+              bindinput="handleBlockCodeInput"
+            />
+          </view>
+
+          <view wx:else class="image-editor">
+            <image class="image-preview" src="{{item.localPath}}" mode="widthFix" data-block-id="{{item.id}}" bindtap="handlePreviewImage" />
+            <view wx:if="{{item.isUploading}}" class="image-status image-status-loading">正在上传图片...</view>
+            <view wx:elif="{{item.uploadError}}" class="image-status image-status-error" data-block-id="{{item.id}}" bindtap="handleRetryImageUpload">
+              {{item.uploadError}}
+            </view>
+            <view wx:else class="image-status image-status-success">已上传，可继续调整位置</view>
+          </view>
+        </view>
+
+        <view class="insert-toolbar">
+          <view class="insert-line"></view>
+          <view class="insert-actions">
+            <view class="insert-button" data-block-id="{{item.id}}" bindtap="handleAddTextBlock">+ 文字</view>
+            <view class="insert-button" data-block-id="{{item.id}}" bindtap="handleAddImageBlock">+ 图片</view>
+            <view class="insert-button" data-block-id="{{item.id}}" bindtap="handleAddCodeBlock">+ 代码</view>
+          </view>
+          <view class="insert-line"></view>
         </view>
       </view>
 
-      <view class="section-card note-card">
-        <text class="section-title">当前限制</text>
-        <text class="section-subtitle">
-          当前支持正文加图片发帖。评论仅支持纯文本，暂不支持评论图片和帖子编辑。
-        </text>
+      <view wx:if="{{editorBlocks.length === 0}}" class="section-card empty-editor">
+        <text class="empty-editor-title">从一个内容块开始</text>
+        <text class="empty-editor-copy">按你希望读者看到的顺序添加内容。</text>
+        <view class="insert-actions empty-insert-actions">
+          <view class="insert-button" bindtap="handleAddTextBlock">+ 文字</view>
+          <view class="insert-button" bindtap="handleAddImageBlock">+ 图片</view>
+          <view class="insert-button" bindtap="handleAddCodeBlock">+ 代码</view>
+        </view>
+      </view>
+
+      <view class="editor-tip">
+        <text>图片可分多次添加，不限制帖子图片总数；单张仍需小于 5 MB。</text>
       </view>
 
       <view class="submit-bar">
         <view
-          class="primary-button submit-button {{isSubmitting ? 'submit-button-disabled' : ''}}"
+          class="primary-button submit-button {{isSubmitting || isUploadingImages ? 'submit-button-disabled' : ''}}"
           bindtap="handleSubmit"
         >
-          {{isSubmitting ? '正在发布...' : isUploadingImages ? '图片上传中...' : '立即发布'}}
+          {{isSubmitting ? '正在发布...' : isUploadingImages ? '图片上传中...' : '发布帖子'}}
         </view>
       </view>
     </block>

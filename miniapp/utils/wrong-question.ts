@@ -8,11 +8,13 @@ const QUESTION_TYPE_LABELS: Record<WrongQuestionType, string> = {
 
 const SOURCE_LABELS: Record<WrongQuestionSource, string> = {
   LEARNING: '学习错题',
+  PRACTICE: '练习错题',
   BATTLE: '对战错题',
 };
 
 const SOURCE_CLASS_NAMES: Record<WrongQuestionSource, string> = {
   LEARNING: 'source-learning',
+  PRACTICE: 'source-practice',
   BATTLE: 'source-battle',
 };
 
@@ -37,7 +39,7 @@ export function formatWrongQuestionType(value: string | null | undefined) {
 }
 
 export function isWrongQuestionSource(value: unknown): value is WrongQuestionSource {
-  return value === 'LEARNING' || value === 'BATTLE';
+  return value === 'LEARNING' || value === 'PRACTICE' || value === 'BATTLE';
 }
 
 export function normalizeWrongQuestionSource(value: unknown) {
@@ -45,7 +47,7 @@ export function normalizeWrongQuestionSource(value: unknown) {
 }
 
 export function formatWrongQuestionSource(value?: string | null) {
-  if (value === 'LEARNING' || value === 'BATTLE') {
+  if (value === 'LEARNING' || value === 'PRACTICE' || value === 'BATTLE') {
     return SOURCE_LABELS[value];
   }
 
@@ -53,7 +55,7 @@ export function formatWrongQuestionSource(value?: string | null) {
 }
 
 export function getWrongQuestionSourceClassName(value?: string | null) {
-  if (value === 'LEARNING' || value === 'BATTLE') {
+  if (value === 'LEARNING' || value === 'PRACTICE' || value === 'BATTLE') {
     return SOURCE_CLASS_NAMES[value];
   }
 

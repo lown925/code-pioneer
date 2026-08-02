@@ -7,7 +7,7 @@ import type {
   BattleSubmittedAnswerResponse,
 } from './battle';
 
-export type WrongQuestionSource = 'LEARNING' | 'BATTLE';
+export type WrongQuestionSource = 'LEARNING' | 'PRACTICE' | 'BATTLE';
 
 export type WrongQuestionType = BattleQuestionType | 'TRUE_FALSE';
 

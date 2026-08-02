@@ -133,6 +133,26 @@ export class CommunityController {
   }
 
   @UseGuards(JwtUserAuthGuard)
+  @HttpCode(200)
+  @Post('community/posts/:postId/like')
+  likePost(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Param('postId', ParseUUIDPipe) postId: string,
+  ) {
+    return this.communityService.likePost(currentUser, postId);
+  }
+
+  @UseGuards(JwtUserAuthGuard)
+  @HttpCode(200)
+  @Delete('community/posts/:postId/like')
+  unlikePost(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Param('postId', ParseUUIDPipe) postId: string,
+  ) {
+    return this.communityService.unlikePost(currentUser, postId);
+  }
+
+  @UseGuards(JwtUserAuthGuard)
   @Get('users/me/community/favorites')
   getMyFavorites(
     @CurrentUser() currentUser: CurrentUserContext,

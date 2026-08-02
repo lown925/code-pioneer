@@ -17,6 +17,8 @@ export const JAVASCRIPT_STARTER_COURSE: SeedCourse = {
     '用一门可演示、可重复导入的示例课程串起章节阅读、学习进度、章节测验和 Battle 题库。',
   description:
     '这门示例课聚焦 JavaScript 初学者最常见的入门主题：如何运行第一段脚本、变量和字符串、条件判断、函数与数组。内容采用“课程 -> 章节 -> 导入源课时”组织，其中课时是导入模板层的业务抽象，当前数据库会将其编译为章节正文内容块和章节测验题。',
+  category: 'FRONTEND',
+  language: 'JavaScript',
   difficulty: 'BEGINNER',
   estimatedMinutes: 120,
   targetAudience:

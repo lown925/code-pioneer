@@ -6,9 +6,11 @@ import {
   hasRefreshToken,
   redirectToLogin,
   saveRefreshedSession,
+  shouldRefreshAccessToken,
 } from './auth';
 import {
   API_BASE_URL,
+  CURRENT_ENV_VERSION,
   getApiConfigurationErrorMessage,
   hasApiConfigurationError,
 } from './config';
@@ -32,6 +34,7 @@ type UploadFileOptions = {
   name?: string;
   formData?: WechatMiniprogram.IAnyObject;
   authMode?: AuthMode;
+  retryOnAuthFailure?: boolean;
   disableAuthRedirect?: boolean;
   headers?: Record<string, string>;
 };
@@ -66,7 +69,21 @@ type InternalRequestOptions = RequestOptions & {
   disableAuthRedirect: boolean;
 };
 
+type InternalUploadFileOptions = UploadFileOptions & {
+  authMode: AuthMode;
+  retryOnAuthFailure: boolean;
+  disableAuthRedirect: boolean;
+};
+
+type AuthFailureOptions = {
+  authMode: AuthMode;
+  disableAuthRedirect: boolean;
+};
+
 const DEFAULT_TIMEOUT_MS = 10000;
+const CLIENT_ENVIRONMENT_HEADER = {
+  'X-Client-Environment': CURRENT_ENV_VERSION,
+};
 
 let refreshPromise: Promise<string> | null = null;
 
@@ -122,7 +139,7 @@ function shouldHandleForbiddenAsAuthError(code: string) {
   return code === 'USER_DELETED' || code === 'USER_DISABLED';
 }
 
-function shouldRedirectAfterAuthFailure(options: InternalRequestOptions) {
+function shouldRedirectAfterAuthFailure(options: AuthFailureOptions) {
   return options.authMode === 'required' && !options.disableAuthRedirect;
 }
 
@@ -201,6 +218,7 @@ function buildHeaders(options: InternalRequestOptions) {
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     ...options.headers,
+    ...CLIENT_ENVIRONMENT_HEADER,
   };
 
   if (options.authMode !== 'none') {
@@ -232,7 +250,7 @@ function sanitizeRequestData(
   return Object.fromEntries(sanitizedEntries) as WechatMiniprogram.IAnyObject;
 }
 
-function handleTerminalAuthFailure(options: InternalRequestOptions) {
+function handleTerminalAuthFailure(options: AuthFailureOptions) {
   clearAuthSession();
 
   if (shouldRedirectAfterAuthFailure(options)) {
@@ -326,6 +344,7 @@ async function refreshAccessToken(redirectOnFailure: boolean) {
         },
         {
           'content-type': 'application/json',
+          ...CLIENT_ENVIRONMENT_HEADER,
         },
       );
 
@@ -352,14 +371,14 @@ async function requestInternal<T>(
   options: InternalRequestOptions,
   retryCount: number,
 ): Promise<T> {
-  if (options.authMode === 'required' && !getAccessToken()) {
-    if (
-      hasRefreshToken() &&
-      options.retryOnAuthFailure &&
-      !isRefreshRequest(options.url)
-    ) {
-      await refreshAccessToken(shouldRedirectAfterAuthFailure(options));
-    }
+  if (
+    options.authMode === 'required' &&
+    options.retryOnAuthFailure &&
+    hasRefreshToken() &&
+    !isRefreshRequest(options.url) &&
+    (!getAccessToken() || shouldRefreshAccessToken())
+  ) {
+    await refreshAccessToken(shouldRedirectAfterAuthFailure(options));
   }
 
   if (options.authMode === 'required' && !getAccessToken()) {
@@ -423,7 +442,7 @@ export function getApiBaseUrl() {
   return getAppApiBaseUrl();
 }
 
-export function uploadFile<T>(options: UploadFileOptions) {
+function sendUploadFile<T>(options: InternalUploadFileOptions) {
   return new Promise<T>((resolve, reject) => {
     if (hasApiConfigurationError()) {
       reject(
@@ -435,28 +454,12 @@ export function uploadFile<T>(options: UploadFileOptions) {
       return;
     }
 
-    const authMode = options.authMode ?? 'required';
-
-    if (authMode === 'required' && !getAccessToken()) {
-      if (!options.disableAuthRedirect) {
-        redirectToLogin();
-      }
-
-      reject(
-        new RequestError({
-          statusCode: 401,
-          code: 'UNAUTHORIZED',
-          message: 'Authentication is missing or expired. Please log in again.',
-        }),
-      );
-      return;
-    }
-
     const headers: Record<string, string> = {
       ...(options.headers ?? {}),
+      ...CLIENT_ENVIRONMENT_HEADER,
     };
 
-    if (authMode !== 'none') {
+    if (options.authMode !== 'none') {
       const accessToken = getAccessToken();
 
       if (accessToken) {
@@ -510,4 +513,70 @@ export function uploadFile<T>(options: UploadFileOptions) {
       },
     });
   });
+}
+
+async function uploadFileInternal<T>(
+  options: InternalUploadFileOptions,
+  retryCount: number,
+): Promise<T> {
+  if (
+    options.authMode === 'required' &&
+    options.retryOnAuthFailure &&
+    hasRefreshToken() &&
+    (!getAccessToken() || shouldRefreshAccessToken())
+  ) {
+    await refreshAccessToken(shouldRedirectAfterAuthFailure(options));
+  }
+
+  if (options.authMode === 'required' && !getAccessToken()) {
+    handleTerminalAuthFailure(options);
+    throw new RequestError({
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+      message: 'Authentication is missing or expired. Please log in again.',
+    });
+  }
+
+  try {
+    return await sendUploadFile<T>(options);
+  } catch (error) {
+    if (!(error instanceof RequestError)) {
+      throw error;
+    }
+
+    if (
+      error.statusCode === 401 &&
+      options.retryOnAuthFailure &&
+      retryCount === 0 &&
+      hasRefreshToken()
+    ) {
+      await refreshAccessToken(shouldRedirectAfterAuthFailure(options));
+
+      return uploadFileInternal<T>(
+        {
+          ...options,
+          retryOnAuthFailure: false,
+        },
+        retryCount + 1,
+      );
+    }
+
+    if (shouldHandleForbiddenAsAuthError(error.code)) {
+      handleTerminalAuthFailure(options);
+    }
+
+    throw error;
+  }
+}
+
+export function uploadFile<T>(options: UploadFileOptions) {
+  return uploadFileInternal<T>(
+    {
+      authMode: options.authMode ?? 'required',
+      retryOnAuthFailure: options.retryOnAuthFailure ?? true,
+      disableAuthRedirect: options.disableAuthRedirect ?? false,
+      ...options,
+    },
+    0,
+  );
 }

@@ -84,6 +84,11 @@ enum QuestionType {
   CODE_FILL
 }
 
+enum PracticeAttemptStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
 enum BattleMode {
   RANKED
   FRIEND
@@ -195,6 +200,8 @@ model User {
   courseLearningRecords  CourseLearningRecord[]
   chapterLearningRecords ChapterLearningRecord[]
   quizAttempts           QuizAttempt[]
+  practiceAttempts       PracticeAttempt[]
+  practiceAnswers        PracticeAnswer[]
   battleProfile          BattleProfile?
   createdBattleRooms     BattleRoom[]               @relation("BattleRoomCreatedBy")
   wonBattleRooms         BattleRoom[]               @relation("BattleRoomWinner")
@@ -258,6 +265,8 @@ model Course {
   summary            String
   description        String?
   coverUrl           String?                 @map("cover_url")
+  category           String                  @default("GENERAL")
+  language           String?
   difficulty         CourseDifficulty        @default(BEGINNER)
   estimatedMinutes   Int                     @default(0) @map("estimated_minutes")
   targetAudience     String?                 @map("target_audience")
@@ -274,6 +283,7 @@ model Course {
   chapters           CourseChapter[]
   learningRecords    CourseLearningRecord[]
   chapterLearners    ChapterLearningRecord[]
+  practiceAttempts   PracticeAttempt[]
 
   @@index([status, sortOrder])
   @@index([createdAt])
@@ -326,6 +336,8 @@ model CourseLearningRecord {
   id                        String         @id @default(uuid()) @db.Uuid
   userId                    String         @map("user_id") @db.Uuid
   courseId                  String         @map("course_id") @db.Uuid
+  isSelected                Boolean        @default(true) @map("is_selected")
+  selectedAt                DateTime?      @map("selected_at")
   status                    LearningStatus @default(LEARNING)
   completedChapterCount     Int            @default(0) @map("completed_chapter_count")
   totalChapterCountSnapshot Int            @default(0) @map("total_chapter_count_snapshot")
@@ -341,6 +353,7 @@ model CourseLearningRecord {
   lastChapter               CourseChapter? @relation("CourseLearningRecordLastChapter", fields: [lastChapterId], references: [id])
 
   @@unique([userId, courseId])
+  @@index([userId, isSelected, lastLearnedAt])
   @@map("course_learning_records")
 }
 
@@ -406,6 +419,7 @@ model QuizQuestion {
   options               QuizOption[]
   answers               QuizAnswer[]
   battleQuestionSources BattleQuestionSnapshot[]    @relation("BattleQuestionSnapshotSource")
+  practiceAnswers       PracticeAnswer[]
 
   @@unique([quizId, sortOrder])
   @@index([quizId])
@@ -424,6 +438,7 @@ model QuizOption {
   updatedAt         DateTime     @updatedAt @map("updated_at")
   question          QuizQuestion @relation(fields: [questionId], references: [id])
   selectedInAnswers QuizAnswer[]
+  selectedInPracticeAnswers PracticeAnswer[]
 
   @@unique([questionId, sortOrder])
   @@index([questionId])
@@ -464,6 +479,43 @@ model QuizAnswer {
   @@unique([attemptId, questionId])
   @@index([questionId])
   @@map("quiz_answers")
+}
+
+model PracticeAttempt {
+  id                     String                @id @default(uuid()) @db.Uuid
+  userId                 String                @map("user_id") @db.Uuid
+  courseId               String                @map("course_id") @db.Uuid
+  requestedQuestionCount Int                   @map("requested_question_count")
+  status                 PracticeAttemptStatus @default(IN_PROGRESS)
+  completedAt            DateTime?             @map("completed_at")
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
+  user                   User                  @relation(fields: [userId], references: [id])
+  course                 Course                @relation(fields: [courseId], references: [id])
+  answers                PracticeAnswer[]
+
+  @@index([userId, createdAt])
+  @@index([courseId])
+  @@map("practice_attempts")
+}
+
+model PracticeAnswer {
+  id               String          @id @default(uuid()) @db.Uuid
+  attemptId        String          @map("attempt_id") @db.Uuid
+  userId           String          @map("user_id") @db.Uuid
+  questionId       String          @map("question_id") @db.Uuid
+  selectedOptionId String          @map("selected_option_id") @db.Uuid
+  isCorrect        Boolean         @default(false) @map("is_correct")
+  answeredAt       DateTime        @default(now()) @map("answered_at")
+  attempt          PracticeAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  user             User            @relation(fields: [userId], references: [id])
+  question         QuizQuestion    @relation(fields: [questionId], references: [id])
+  selectedOption   QuizOption      @relation(fields: [selectedOptionId], references: [id])
+
+  @@unique([attemptId, questionId])
+  @@index([userId, isCorrect, answeredAt])
+  @@index([questionId])
+  @@map("practice_answers")
 }
 
 model BattleProfile {
@@ -695,7 +747,9 @@ model CommunityPost {
   categoryId    String                     @map("category_id") @db.Uuid
   title         String
   content       String
+  contentBlocks Json?                      @map("content_blocks")
   status        CommunityPostStatus        @default(PUBLISHED)
+  recommendationScore Int                  @default(0) @map("recommendation_score")
   likeCount     Int                        @default(0) @map("like_count")
   commentCount  Int                        @default(0) @map("comment_count")
   favoriteCount Int                        @default(0) @map("favorite_count")
@@ -714,6 +768,10 @@ model CommunityPost {
   @@index([categoryId, status, createdAt])
   @@index([authorId, createdAt])
   @@index([status, createdAt])
+  @@index([status, recommendationScore, createdAt])
+  @@index([status, likeCount, createdAt])
+  @@index([status, favoriteCount, createdAt])
+  @@index([status, commentCount, createdAt])
   @@index([deletedAt])
   @@map("community_posts")
 }

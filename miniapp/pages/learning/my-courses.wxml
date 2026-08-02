@@ -1,0 +1,26 @@
+<view class="page-shell my-courses-page">
+  <view class="section-card page-heading"><text class="section-title">我的课程</text><text class="section-subtitle">这里展示当前账号已经选择和开始学习的全部课程。</text></view>
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box"><text class="state-title">正在加载我的课程</text></view>
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box"><text class="state-title">加载失败</text><text class="state-text">{{errorMessage}}</text><view class="primary-button" bindtap="handleRetry">重试</view></view>
+  <view wx:elif="{{state === 'empty'}}" class="section-card state-box"><text class="state-title">还没有选择课程</text><text class="state-text">先选择一门感兴趣的课程开始学习。</text><view class="primary-button" bindtap="handleChoose">选择课程</view></view>
+  <view wx:else class="course-list">
+    <view wx:for="{{courses}}" wx:key="courseId" class="section-card course-card" data-course-id="{{item.courseId}}" bindtap="handleCourseTap">
+      <view class="course-cover">
+        <image
+          wx:if="{{item.coverUrl && !item.coverFailed}}"
+          src="{{item.coverUrl}}"
+          mode="aspectFill"
+          data-course-id="{{item.courseId}}"
+          binderror="handleCoverError"
+        />
+        <text wx:else>{{item.coverText}}</text>
+      </view>
+      <view class="course-copy"><text class="course-name">{{item.courseName}}</text><text class="course-meta">{{item.chapterText}}</text><view class="progress-track"><view class="progress-fill" style="width:{{item.progressText}}"></view></view><text class="course-progress">{{item.progressText}} · {{item.statusText}}</text></view>
+    </view>
+    <view wx:if="{{isLoadingMore}}" class="section-card paging-state">正在加载更多课程...</view>
+    <view wx:elif="{{loadMoreErrorMessage}}" class="section-card paging-state">
+      <text>{{loadMoreErrorMessage}}</text>
+      <view class="ghost-button paging-button" bindtap="handleLoadMoreRetry">重试</view>
+    </view>
+  </view>
+</view>

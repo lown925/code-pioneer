@@ -12,7 +12,7 @@ const CURRENT_USER = {
 
 function createMockPrisma() {
   return {
-    $queryRaw: jest.fn(),
+    $queryRaw: jest.fn().mockResolvedValue([]),
     course: {
       findFirst: jest.fn(),
     },
@@ -142,8 +142,122 @@ describe('WrongQuestionService', () => {
     expect(result.data.items[0]).not.toHaveProperty('correctOptionId');
     expect(result.data.items[0]).not.toHaveProperty('explanation');
     expect(result.data.items[0]).not.toHaveProperty('selectedOptionId');
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     expect(prisma.quizQuestion.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns practice wrong questions from the practice answer source', async () => {
+    const prisma = createMockPrisma();
+    const lastWrongAt = new Date('2026-07-21T11:00:00.000Z');
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        questionId: 'q-practice-1',
+        wrongCount: 3,
+        lastWrongAt,
+      },
+    ]);
+    prisma.quizQuestion.findMany.mockResolvedValueOnce([
+      {
+        id: 'q-practice-1',
+        type: QuestionType.SINGLE_CHOICE,
+        content: 'Which keyword declares a block-scoped variable?',
+        explanation: 'let declares a block-scoped variable.',
+        options: [
+          { id: 'opt-let', content: 'let', isCorrect: true, sortOrder: 1 },
+          { id: 'opt-var', content: 'var', isCorrect: false, sortOrder: 2 },
+        ],
+        quiz: {
+          chapterId: 'chapter-js-1',
+          chapter: {
+            title: 'Variables',
+            courseId: 'course-js',
+            course: { title: 'JavaScript Starter' },
+          },
+        },
+      },
+    ]);
+    const service = new WrongQuestionService(prisma as never);
+
+    const result = await service.getList(CURRENT_USER, { source: 'PRACTICE' });
+
+    expect(result.data.items).toEqual([
+      expect.objectContaining({
+        source: 'PRACTICE',
+        questionId: 'q-practice-1',
+        wrongCount: 3,
+        latestWrongAt: lastWrongAt,
+      }),
+    ]);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw.mock.calls[0][0].text).toContain(
+      'FROM practice_answers answer',
+    );
+  });
+
+  it('returns the correct answer and explanation for a practice wrong question', async () => {
+    const prisma = createMockPrisma();
+    const lastWrongAt = new Date('2026-07-21T11:30:00.000Z');
+    prisma.$queryRaw.mockResolvedValueOnce([
+      {
+        questionId: 'q-practice-1',
+        wrongCount: 1,
+        lastWrongAt,
+      },
+    ]);
+    prisma.quizQuestion.findMany.mockResolvedValueOnce([
+      {
+        id: 'q-practice-1',
+        type: QuestionType.TRUE_FALSE,
+        content: 'const bindings can always be reassigned.',
+        explanation: 'A const binding cannot be reassigned.',
+        options: [
+          { id: 'opt-false', content: 'FALSE', isCorrect: true, sortOrder: 1 },
+          { id: 'opt-true', content: 'TRUE', isCorrect: false, sortOrder: 2 },
+        ],
+        quiz: {
+          chapterId: 'chapter-js-1',
+          chapter: {
+            title: 'Variables',
+            courseId: 'course-js',
+            course: { title: 'JavaScript Starter' },
+          },
+        },
+      },
+    ]);
+    const service = new WrongQuestionService(prisma as never);
+
+    const result = await service.getDetail(
+      CURRENT_USER,
+      'q-practice-1',
+      'PRACTICE',
+    );
+
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        source: 'PRACTICE',
+        correctOptionId: 'opt-false',
+        correctAnswer: {
+          type: QuestionType.TRUE_FALSE,
+          optionId: 'opt-false',
+        },
+        explanation: 'A const binding cannot be reassigned.',
+      }),
+    );
+  });
+
+  it('does not query practice answers when the learning source is explicit', async () => {
+    const prisma = createMockPrisma();
+    const service = new WrongQuestionService(prisma as never);
+
+    await service.getList(CURRENT_USER, { source: 'LEARNING' });
+
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw.mock.calls[0][0].text).toContain(
+      'FROM quiz_answers qa',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].text).not.toContain(
+      'practice_answers',
+    );
   });
 
   it('uses a stable secondary sort in the aggregate query', async () => {

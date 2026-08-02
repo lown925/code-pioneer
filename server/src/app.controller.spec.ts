@@ -1,6 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import {
+  getAppVersion,
+  getDataNamespace,
+  resolveAppEnvironment,
+} from './environment/environment.config';
 
 describe('AppController', () => {
   let appController: AppController;
@@ -20,6 +25,9 @@ describe('AppController', () => {
         success: true,
         data: {
           status: 'ok',
+          environment: resolveAppEnvironment(),
+          dataNamespace: getDataNamespace(),
+          appVersion: getAppVersion(),
         },
       });
     });

@@ -7,6 +7,7 @@ import { CommunityModule } from './community/community.module';
 import { CourseModule } from './course/course.module';
 import { LearningModule } from './learning/learning.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { PracticeModule } from './practice/practice.module';
 import { QuizModule } from './quiz/quiz.module';
 import { UserModule } from './user/user.module';
 import { WrongQuestionModule } from './wrong-question/wrong-question.module';
@@ -20,6 +21,7 @@ import { WrongQuestionModule } from './wrong-question/wrong-question.module';
     CourseModule,
     LearningModule,
     QuizModule,
+    PracticeModule,
     WrongQuestionModule,
     AuthModule,
   ],

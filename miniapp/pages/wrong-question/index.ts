@@ -111,6 +111,7 @@ const PAGE_SIZE = 10;
 const SOURCE_FILTERS: SourceFilterOption[] = [
   { value: '', label: '全部' },
   { value: 'LEARNING', label: '学习' },
+  { value: 'PRACTICE', label: '练习室' },
   { value: 'BATTLE', label: 'Battle' },
 ];
 
@@ -145,7 +146,7 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
     isRefreshing: false,
     selectedSource: '',
     sourceFilters: SOURCE_FILTERS,
-    listSubtitleText: '当前列表支持按学习和 Battle 两种正式来源筛选，统计卡片仍展示全来源聚合结果。',
+    listSubtitleText: '当前列表支持按章节学习、练习室和 Battle 来源筛选。',
   },
 
   onLoad(query) {
@@ -495,10 +496,18 @@ Page<WrongQuestionPageData, WrongQuestionPageMethods>({
       };
     }
 
+    if (source === 'PRACTICE') {
+      return {
+        title: '还没有练习室错题记录',
+        message: '在练习室答错的题目会自动出现在这里。',
+        subtitle: '当前列表已切换为练习室来源，统计卡片仍展示全来源聚合结果。',
+      };
+    }
+
     return {
       title: '还没有错题记录',
-      message: '完成课程测验或 Battle 对战后，答错的题目会出现在这里。',
-      subtitle: '当前列表支持按学习和 Battle 两种正式来源筛选，统计卡片仍展示全来源聚合结果。',
+      message: '完成章节测验、练习室或 Battle 后，答错的题目会出现在这里。',
+      subtitle: '当前列表支持按章节学习、练习室和 Battle 来源筛选。',
     };
   },
 

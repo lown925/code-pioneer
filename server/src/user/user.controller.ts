@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,8 +10,13 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { type CurrentUserContext } from '../auth/auth.types';
 import {
@@ -21,6 +27,32 @@ import { DeleteAccountDto } from './dto/delete-account.dto';
 import { UserFollowListQueryDto } from './dto/user-follow-list-query.dto';
 import { UpdateCurrentUserDto } from './dto/update-current-user.dto';
 import { UserService } from './user.service';
+
+type UploadedUserAvatarFile = {
+  buffer: Buffer;
+  size: number;
+  mimetype: string;
+  originalname: string;
+};
+
+function resolvePublicBaseUrl(request: Request) {
+  const configuredBaseUrl = process.env.PUBLIC_BASE_URL?.trim();
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/+$/, '');
+  }
+
+  const forwardedProtocol = request.headers['x-forwarded-proto'];
+  const protocolValue = Array.isArray(forwardedProtocol)
+    ? forwardedProtocol[0]
+    : forwardedProtocol?.split(',')[0];
+  const protocol =
+    protocolValue === 'https' || protocolValue === 'http'
+      ? protocolValue
+      : request.protocol;
+
+  return `${protocol}://${request.get('host')}`;
+}
 
 @Controller('users')
 export class UserController {
@@ -33,6 +65,26 @@ export class UserController {
     @Body() dto: UpdateCurrentUserDto,
   ) {
     return this.userService.updateCurrentUser(currentUser, dto);
+  }
+
+  @HttpCode(200)
+  @UseGuards(JwtUserAuthGuard)
+  @Post('me/avatar')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadCurrentUserAvatar(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @UploadedFile() file: UploadedUserAvatarFile | undefined,
+    @Req() request: Request,
+  ) {
+    if (!file) {
+      throw new BadRequestException('USER_AVATAR_FILE_REQUIRED');
+    }
+
+    return this.userService.uploadCurrentUserAvatar(
+      currentUser,
+      file,
+      resolvePublicBaseUrl(request),
+    );
   }
 
   @HttpCode(200)

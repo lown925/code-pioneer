@@ -29,6 +29,8 @@ export class CourseController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('pageSize', new DefaultValuePipe(20), ParseIntPipe) pageSize: number,
     @Query('difficulty') difficulty?: string,
+    @Query('category') category?: string,
+    @Query('language') language?: string,
   ) {
     if (page < 1) {
       throw new BadRequestException('page must be greater than 0');
@@ -50,6 +52,8 @@ export class CourseController {
       pageSize,
       difficulty as CourseDifficultyValue | undefined,
       currentUser,
+      category?.trim() || undefined,
+      language?.trim() || undefined,
     );
   }
 

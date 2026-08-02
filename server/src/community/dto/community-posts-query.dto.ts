@@ -5,7 +5,13 @@ import {
   COMMUNITY_POST_LIMIT_MAX,
 } from '../community.constants';
 
-const COMMUNITY_POST_SORT_VALUES = ['latest'] as const;
+export const COMMUNITY_POST_SORT_VALUES = [
+  'recommended',
+  'latest',
+  'mostLiked',
+  'mostFavorited',
+  'mostCommented',
+] as const;
 
 export class CommunityPostsQueryDto {
   @IsOptional()

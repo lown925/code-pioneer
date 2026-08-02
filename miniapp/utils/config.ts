@@ -20,7 +20,8 @@ const DEFAULT_ENVIRONMENT_CONFIG: ApiEnvironmentConfig = {
   releaseApiBaseUrl: PUBLIC_API_ENVIRONMENT_CONFIG.releaseApiBaseUrl,
 };
 
-const RUNTIME_CONFIG_STORAGE_KEY = 'code-pioneer.runtime.api-config';
+const RUNTIME_CONFIG_STORAGE_KEY =
+  'code-pioneer.develop.runtime.api-config';
 
 export const LOGIN_PAGE_PATH = '/pages/auth/login';
 export const DEFAULT_TAB_PAGE_PATH = '/pages/battle/index';
@@ -166,6 +167,10 @@ const resolvedApiConfig = resolveApiConfig();
 export const CURRENT_ENV_VERSION = resolvedApiConfig.envVersion;
 export const API_BASE_URL = resolvedApiConfig.apiBaseUrl;
 export const API_CONFIG_ERROR_MESSAGE = resolvedApiConfig.configErrorMessage;
+
+export function getEnvironmentStorageKey(key: string) {
+  return `code-pioneer.${CURRENT_ENV_VERSION}.${key}`;
+}
 
 export function hasApiConfigurationError() {
   return API_CONFIG_ERROR_MESSAGE.length > 0;

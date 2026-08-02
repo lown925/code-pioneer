@@ -40,6 +40,29 @@ export type CommunityPostImage = {
   sortOrder: number;
 };
 
+export type CommunityPostContentBlock =
+  | {
+      type: 'TEXT';
+      text: string;
+    }
+  | {
+      type: 'CODE';
+      code: string;
+      language: string | null;
+    }
+  | {
+      type: 'IMAGE';
+      objectKey: string | null;
+      url: string;
+    };
+
+export type CommunityPostSort =
+  | 'recommended'
+  | 'latest'
+  | 'mostLiked'
+  | 'mostFavorited'
+  | 'mostCommented';
+
 export type CommunityPostListItem = {
   postId: string;
   title: string;
@@ -58,6 +81,7 @@ export type CommunityPostListItem = {
 
 export type CommunityPostDetail = CommunityPostListItem & {
   content: string;
+  contentBlocks: CommunityPostContentBlock[];
   images: CommunityPostImage[];
   status: CommunityPostStatus;
   deletedAt: string | null;
@@ -109,6 +133,12 @@ export type CommunityFavoriteMutationResponse = {
   favoriteCount: number;
 };
 
+export type CommunityLikeMutationResponse = {
+  postId: string;
+  viewerHasLiked: boolean;
+  likeCount: number;
+};
+
 export type CommunityDeletePostResponse = {
   postId: string;
   deletedAt: string;
@@ -158,7 +188,7 @@ export type CommunityPostsQuery = {
   categoryKey?: CommunityCategoryKey;
   cursor?: string;
   limit?: number;
-  sort?: 'latest';
+  sort?: CommunityPostSort;
 };
 
 export type CommunityCursorQuery = {

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { promises as fs } from 'fs';
 import { CommunityPostStatus, UserStatus } from '../../generated/prisma/enums';
 import { UserService } from './user.service';
 
@@ -430,6 +431,151 @@ function createService() {
 }
 
 describe('UserService', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('stores a valid avatar and returns a stable public URL', async () => {
+    const { service, prisma } = createService();
+    const currentUser = await prisma.user.create({
+      data: {
+        openId: 'mock-openid-avatar-upload',
+      },
+    });
+    const mkdirSpy = jest.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
+    const writeFileSpy = jest
+      .spyOn(fs, 'writeFile')
+      .mockResolvedValue(undefined);
+
+    const result = await service.uploadCurrentUserAvatar(
+      {
+        id: currentUser.id,
+        sessionId: 'session-id',
+        tokenType: 'USER',
+        role: 'NORMAL',
+      },
+      {
+        buffer: Buffer.from('avatar-content'),
+        size: 14,
+        mimetype: 'image/png',
+      },
+      'https://api.example.com',
+    );
+
+    expect(result.data.avatarUrl).toMatch(
+      new RegExp(
+        `^https://api\\.example\\.com/uploads/avatars/${currentUser.id}/.+\\.png$`,
+      ),
+    );
+    expect(mkdirSpy).toHaveBeenCalledWith(
+      expect.stringContaining(currentUser.id),
+      { recursive: true },
+    );
+    expect(writeFileSpy).toHaveBeenCalledWith(
+      expect.stringContaining('.png'),
+      Buffer.from('avatar-content'),
+    );
+  });
+
+  it.each([
+    {
+      file: {
+        buffer: Buffer.from('avatar'),
+        size: 6,
+        mimetype: 'image/gif',
+      },
+      code: 'USER_AVATAR_TYPE_INVALID',
+    },
+    {
+      file: {
+        buffer: Buffer.alloc(0),
+        size: 0,
+        mimetype: 'image/png',
+      },
+      code: 'USER_AVATAR_FILE_REQUIRED',
+    },
+    {
+      file: {
+        buffer: Buffer.alloc(1),
+        size: 2 * 1024 * 1024 + 1,
+        mimetype: 'image/jpeg',
+      },
+      code: 'USER_AVATAR_TOO_LARGE',
+    },
+  ])('rejects invalid avatar uploads with $code', async ({ file, code }) => {
+    const { service, prisma } = createService();
+    const currentUser = await prisma.user.create({
+      data: {
+        openId: `mock-openid-${code}`,
+      },
+    });
+
+    await expect(
+      service.uploadCurrentUserAvatar(
+        {
+          id: currentUser.id,
+          sessionId: 'session-id',
+          tokenType: 'USER',
+          role: 'NORMAL',
+        },
+        file,
+        'https://api.example.com',
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: code,
+      },
+    });
+  });
+
+  it('rejects avatar uploads when the current user is missing', async () => {
+    const { service } = createService();
+
+    await expect(
+      service.uploadCurrentUserAvatar(
+        {
+          id: 'missing-user',
+          sessionId: 'session-id',
+          tokenType: 'USER',
+          role: 'NORMAL',
+        },
+        {
+          buffer: Buffer.from('avatar'),
+          size: 6,
+          mimetype: 'image/webp',
+        },
+        'https://api.example.com',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejects avatar uploads for disabled users', async () => {
+    const { service, prisma } = createService();
+    const currentUser = await prisma.user.create({
+      data: {
+        openId: 'mock-openid-disabled-avatar',
+        status: UserStatus.DISABLED,
+      },
+    });
+
+    await expect(
+      service.uploadCurrentUserAvatar(
+        {
+          id: currentUser.id,
+          sessionId: 'session-id',
+          tokenType: 'USER',
+          role: 'NORMAL',
+        },
+        {
+          buffer: Buffer.from('avatar'),
+          size: 6,
+          mimetype: 'image/jpeg',
+        },
+        'https://api.example.com',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('updates only the current user public fields', async () => {
     const { service, prisma, users } = createService();
     const currentUser = await prisma.user.create({

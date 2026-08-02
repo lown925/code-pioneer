@@ -10,11 +10,14 @@ export type CourseListItem = {
   slug: string;
   summary: string;
   coverUrl: string | null;
+  category: string;
+  language: string | null;
   difficulty: CourseDifficulty;
   estimatedMinutes: number;
   chapterCount: number;
   learnerCount: number;
   progressPercent: number;
+  isSelected: boolean;
 };
 
 export type CourseListData = {
@@ -60,13 +63,24 @@ export type CourseDetailData = {
   summary: string;
   description: string | null;
   coverUrl: string | null;
+  category: string;
+  language: string | null;
   difficulty: CourseDifficulty;
   estimatedMinutes: number;
   targetAudience: string | null;
   learningObjectives: unknown;
   learnerCount: number;
   progressPercent: number;
+  isSelected: boolean;
   chapters: CourseChapter[];
+};
+
+export type CourseSelectionResponse = {
+  courseId: string;
+  selected: boolean;
+  alreadySelected?: boolean;
+  alreadyDeselected?: boolean;
+  progressPreserved: boolean;
 };
 
 export type ChapterDetailData = {

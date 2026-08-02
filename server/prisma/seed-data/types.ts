@@ -183,6 +183,8 @@ export type SeedCourse = {
   title: string;
   summary: string;
   description: string;
+  category: string;
+  language: string;
   difficulty: CourseDifficulty;
   estimatedMinutes: number;
   targetAudience: string;

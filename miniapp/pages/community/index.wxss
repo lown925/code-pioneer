@@ -55,6 +55,36 @@
   margin-top: 20rpx;
 }
 
+.sort-scroll {
+  width: 100%;
+  margin-top: 14rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid rgba(23, 50, 77, 0.08);
+}
+
+.sort-row {
+  display: inline-flex;
+  gap: 12rpx;
+  padding-right: 20rpx;
+}
+
+.sort-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 54rpx;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  color: #6e84a3;
+  font-size: 21rpx;
+  white-space: nowrap;
+}
+
+.sort-chip-active {
+  background: #17324d;
+  color: #ffffff;
+  font-weight: 700;
+}
+
 .category-row {
   display: inline-flex;
   gap: 16rpx;

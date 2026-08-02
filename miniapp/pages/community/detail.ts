@@ -1,5 +1,6 @@
 import type {
   CommunityComment,
+  CommunityPostContentBlock,
   CommunityPostDetail,
 } from '../../types/community';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
@@ -15,19 +16,34 @@ import {
   formatCommunityTimestamp,
   getCommunityErrorMessage,
   isUuid,
+  likeCommunityPost,
+  unlikeCommunityPost,
   unfavoriteCommunityPost,
 } from '../../utils/community';
 import { RequestError } from '../../utils/request';
 
 type DetailState = 'loading' | 'success' | 'error';
 
-type CommunityDetailCard = CommunityPostDetail & {
+type CommunityDetailBlock = {
+  blockKey: string;
+  type: CommunityPostContentBlock['type'];
+  text: string;
+  code: string;
+  language: string;
+  objectKey: string;
+  url: string;
+  imageLoadFailed: boolean;
+};
+
+type CommunityDetailCard = Omit<CommunityPostDetail, 'contentBlocks'> & {
+  contentBlocks: CommunityDetailBlock[];
   authorName: string;
   authorInitial: string;
   createdAtText: string;
   favoriteCountText: string;
   commentCountText: string;
   viewCountText: string;
+  likeCountText: string;
 };
 
 type CommunityCommentCard = CommunityComment & {
@@ -48,6 +64,7 @@ type CommunityDetailPageData = {
   commentCountText: string;
   isCommentSubmitting: boolean;
   isFavoriteSubmitting: boolean;
+  isLikeSubmitting: boolean;
   isDeleting: boolean;
 };
 
@@ -59,6 +76,7 @@ type CommunityDetailPageMethods = {
     event: WechatMiniprogram.BaseEvent<{ userId?: string }>,
   ): void;
   handleFavoriteToggle(): Promise<void>;
+  handleLikeToggle(): Promise<void>;
   handleDelete(): void;
   confirmDelete(): Promise<void>;
   handleCommentInput(
@@ -68,6 +86,16 @@ type CommunityDetailPageMethods = {
   handlePreviewImage(
     event: WechatMiniprogram.BaseEvent<{ url?: string }>,
   ): void;
+  handleCopyCode(
+    event: WechatMiniprogram.BaseEvent<{ blockIndex?: number }>,
+  ): void;
+  handleContentImageError(
+    event: WechatMiniprogram.BaseEvent<{ blockIndex?: number }>,
+  ): void;
+  mapContentBlock(
+    item: CommunityPostContentBlock,
+    index: number,
+  ): CommunityDetailBlock;
   mapCommentCard(item: CommunityComment): CommunityCommentCard;
 };
 
@@ -89,6 +117,7 @@ Page<CommunityDetailPageData, CommunityDetailPageMethods>({
     commentCountText: '0',
     isCommentSubmitting: false,
     isFavoriteSubmitting: false,
+    isLikeSubmitting: false,
     isDeleting: false,
   },
 
@@ -157,8 +186,12 @@ Page<CommunityDetailPageData, CommunityDetailPageMethods>({
           authorInitial: authorName.slice(0, 1) || '社',
           createdAtText: formatCommunityTimestamp(response.createdAt),
           favoriteCountText: String(Math.max(0, response.favoriteCount)),
+          likeCountText: String(Math.max(0, response.likeCount)),
           commentCountText: String(Math.max(0, response.commentCount)),
           viewCountText: String(Math.max(0, response.viewCount)),
+          contentBlocks: response.contentBlocks.map((block, index) =>
+            this.mapContentBlock(block, index),
+          ),
         },
         commentCountText: String(Math.max(0, response.commentCount)),
       });
@@ -308,6 +341,56 @@ Page<CommunityDetailPageData, CommunityDetailPageMethods>({
       this.setData({
         isFavoriteSubmitting: false,
       });
+    }
+  },
+
+  async handleLikeToggle() {
+    const post = this.data.post;
+
+    if (!post || this.data.isLikeSubmitting) {
+      return;
+    }
+
+    if (!getAuthStateSummary().isAuthenticated) {
+      redirectToLogin(
+        `/pages/community/detail?postId=${encodeURIComponent(post.postId)}`,
+      );
+      return;
+    }
+
+    this.setData({ isLikeSubmitting: true });
+
+    try {
+      const response = post.viewerHasLiked
+        ? await unlikeCommunityPost(post.postId)
+        : await likeCommunityPost(post.postId);
+
+      if (!isPageActive) {
+        return;
+      }
+
+      bumpCommunityContentVersion();
+      this.setData({
+        post: this.data.post
+          ? {
+              ...this.data.post,
+              viewerHasLiked: response.viewerHasLiked,
+              likeCount: response.likeCount,
+              likeCountText: String(Math.max(0, response.likeCount)),
+            }
+          : null,
+        isLikeSubmitting: false,
+      });
+    } catch (error) {
+      if (!isPageActive) {
+        return;
+      }
+
+      wx.showToast({
+        title: getCommunityErrorMessage(error, '点赞操作失败，请稍后重试'),
+        icon: 'none',
+      });
+      this.setData({ isLikeSubmitting: false });
     }
   },
 
@@ -481,8 +564,64 @@ Page<CommunityDetailPageData, CommunityDetailPageMethods>({
 
     wx.previewImage({
       current: url,
-      urls: post.images.map((image) => image.url),
+      urls: post.contentBlocks
+        .filter((block) => block.type === 'IMAGE' && block.url)
+        .map((block) => block.url),
     });
+  },
+
+  handleCopyCode(
+    event: WechatMiniprogram.BaseEvent<{ blockIndex?: number }>,
+  ) {
+    const index = Number(event.currentTarget.dataset.blockIndex);
+    const block = this.data.post?.contentBlocks[index];
+
+    if (!block || block.type !== 'CODE' || !block.code) {
+      wx.showToast({ title: '代码内容不可用', icon: 'none' });
+      return;
+    }
+
+    wx.setClipboardData({
+      data: block.code,
+      success: () => {
+        wx.showToast({ title: '代码已复制', icon: 'success' });
+      },
+    });
+  },
+
+  handleContentImageError(
+    event: WechatMiniprogram.BaseEvent<{ blockIndex?: number }>,
+  ) {
+    const index = Number(event.currentTarget.dataset.blockIndex);
+    const post = this.data.post;
+
+    if (!post || !Number.isInteger(index) || !post.contentBlocks[index]) {
+      return;
+    }
+
+    this.setData({
+      post: {
+        ...post,
+        contentBlocks: post.contentBlocks.map((block, blockIndex) =>
+          blockIndex === index ? { ...block, imageLoadFailed: true } : block,
+        ),
+      },
+    });
+  },
+
+  mapContentBlock(item: CommunityPostContentBlock, index: number) {
+    return {
+      blockKey: `content-${index}-${item.type}`,
+      type: item.type,
+      text: item.type === 'TEXT' ? item.text : '',
+      code: item.type === 'CODE' ? item.code : '',
+      language:
+        item.type === 'CODE' ? item.language?.trim() || '代码' : '',
+      objectKey:
+        item.type === 'IMAGE' ? item.objectKey?.trim() || '' : '',
+      url: item.type === 'IMAGE' ? item.url : '',
+      imageLoadFailed: false,
+    };
   },
 
   mapCommentCard(item: CommunityComment) {

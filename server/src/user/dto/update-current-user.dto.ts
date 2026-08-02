@@ -22,7 +22,16 @@ export class IsHttpsUrlConstraint implements ValidatorConstraintInterface {
 
     try {
       const url = new URL(value);
-      return url.protocol === 'https:';
+
+      if (url.protocol === 'https:') {
+        return true;
+      }
+
+      return (
+        process.env.NODE_ENV !== 'production' &&
+        url.protocol === 'http:' &&
+        (url.hostname === '127.0.0.1' || url.hostname === 'localhost')
+      );
     } catch {
       return false;
     }

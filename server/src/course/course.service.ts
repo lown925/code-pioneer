@@ -29,6 +29,8 @@ type CourseWhere = {
   status: 'PUBLISHED';
   deletedAt: null;
   difficulty?: CourseDifficultyValue;
+  category?: string;
+  language?: string;
 };
 
 type CourseListRecord = {
@@ -37,6 +39,8 @@ type CourseListRecord = {
   title: string;
   summary: string;
   coverUrl: string | null;
+  category: string;
+  language: string | null;
   difficulty: CourseDifficultyValue;
   estimatedMinutes: number;
   learnerCount: number;
@@ -58,6 +62,8 @@ type CourseDetailRecord = {
   summary: string;
   description: string | null;
   coverUrl: string | null;
+  category: string;
+  language: string | null;
   difficulty: CourseDifficultyValue;
   estimatedMinutes: number;
   targetAudience: string | null;
@@ -134,8 +140,10 @@ export class CourseService {
     pageSize: number,
     difficulty?: CourseDifficultyValue,
     currentUser?: CurrentUserContext | null,
+    category?: string,
+    language?: string,
   ) {
-    const where = this.buildPublicCourseWhere(difficulty);
+    const where = this.buildPublicCourseWhere(difficulty, category, language);
     const skip = (page - 1) * pageSize;
 
     const [courses, total] = await Promise.all([
@@ -150,6 +158,8 @@ export class CourseService {
           title: true,
           summary: true,
           coverUrl: true,
+          category: true,
+          language: true,
           difficulty: true,
           estimatedMinutes: true,
           learnerCount: true,
@@ -166,12 +176,13 @@ export class CourseService {
       }),
       this.courseModel.count({ where }),
     ]);
-    const progressByCourseId = currentUser
-      ? await this.getProgressByCourseIds(
-          currentUser.id,
-          courses.map((course) => course.id),
-        )
-      : new Map<string, number>();
+    const courseIds = courses.map((course) => course.id);
+    const [progressByCourseId, selectionByCourseId] = currentUser
+      ? await Promise.all([
+          this.getProgressByCourseIds(currentUser.id, courseIds),
+          this.getSelectionByCourseIds(currentUser.id, courseIds),
+        ])
+      : [new Map<string, number>(), new Map<string, boolean>()];
 
     const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
 
@@ -184,11 +195,14 @@ export class CourseService {
           title: course.title,
           summary: course.summary,
           coverUrl: course.coverUrl,
+          category: course.category,
+          language: course.language,
           difficulty: course.difficulty,
           estimatedMinutes: course.estimatedMinutes,
           chapterCount: course.chapters.length,
           learnerCount: course.learnerCount,
           progressPercent: progressByCourseId.get(course.id) ?? 0,
+          isSelected: selectionByCourseId.get(course.id) ?? false,
         })),
         pagination: {
           page,
@@ -218,6 +232,8 @@ export class CourseService {
         summary: true,
         description: true,
         coverUrl: true,
+        category: true,
+        language: true,
         difficulty: true,
         estimatedMinutes: true,
         targetAudience: true,
@@ -244,9 +260,12 @@ export class CourseService {
       throw new NotFoundException('COURSE_NOT_FOUND');
     }
 
-    const progressPercent = currentUser
-      ? await this.getCourseProgressPercent(currentUser.id, course.id)
-      : 0;
+    const [progressPercent, isSelected] = currentUser
+      ? await Promise.all([
+          this.getCourseProgressPercent(currentUser.id, course.id),
+          this.getCourseSelection(currentUser.id, course.id),
+        ])
+      : [0, false];
 
     return {
       success: true,
@@ -257,12 +276,15 @@ export class CourseService {
         summary: course.summary,
         description: course.description,
         coverUrl: course.coverUrl,
+        category: course.category,
+        language: course.language,
         difficulty: course.difficulty,
         estimatedMinutes: course.estimatedMinutes,
         targetAudience: course.targetAudience,
         learningObjectives: course.learningObjectives,
         learnerCount: course.learnerCount,
         progressPercent,
+        isSelected,
         chapters: course.chapters,
       },
     };
@@ -526,11 +548,15 @@ export class CourseService {
 
   private buildPublicCourseWhere(
     difficulty?: CourseDifficultyValue,
+    category?: string,
+    language?: string,
   ): CourseWhere {
     return {
       status: PUBLISHED_COURSE_STATUS,
       deletedAt: null,
       ...(difficulty ? { difficulty } : {}),
+      ...(category ? { category } : {}),
+      ...(language ? { language } : {}),
     };
   }
 
@@ -573,6 +599,35 @@ export class CourseService {
     );
 
     return new Map(snapshots);
+  }
+
+  private async getSelectionByCourseIds(
+    userId: string,
+    courseIds: string[],
+  ) {
+    if (courseIds.length === 0) {
+      return new Map<string, boolean>();
+    }
+
+    const records = await this.prisma.courseLearningRecord.findMany({
+      where: {
+        userId,
+        courseId: { in: courseIds },
+      },
+      select: {
+        courseId: true,
+        isSelected: true,
+      },
+    });
+
+    return new Map(
+      records.map((record) => [record.courseId, record.isSelected] as const),
+    );
+  }
+
+  private async getCourseSelection(userId: string, courseId: string) {
+    const selections = await this.getSelectionByCourseIds(userId, [courseId]);
+    return selections.get(courseId) ?? false;
   }
 
   private async getCourseProgressPercent(userId: string, courseId: string) {

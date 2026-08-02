@@ -4,12 +4,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { promises as fs } from 'fs';
+import { join } from 'path';
 import {
   CommunityPostStatus,
   UserStatus,
 } from '../../generated/prisma/enums';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { previewCommunityText } from '../community/community.utils';
+import { getUploadStorageRoot } from '../environment/environment.config';
 import { PrismaService } from '../prisma/prisma.service';
 import { DeleteAccountDto } from './dto/delete-account.dto';
 import { UserFollowListQueryDto } from './dto/user-follow-list-query.dto';
@@ -23,10 +27,70 @@ import {
 const FOLLOW_LIST_DEFAULT_PAGE = 1;
 const FOLLOW_LIST_DEFAULT_PAGE_SIZE = 20;
 const USER_PROFILE_RECENT_POST_LIMIT = 3;
+const USER_AVATAR_UPLOAD_DIR = join(getUploadStorageRoot(), 'avatars');
+const USER_AVATAR_MAX_SIZE_BYTES = 2 * 1024 * 1024;
+const USER_AVATAR_EXTENSIONS = new Map<string, string>([
+  ['image/jpeg', '.jpg'],
+  ['image/png', '.png'],
+  ['image/webp', '.webp'],
+]);
+
+type UploadedUserAvatarFile = {
+  buffer: Buffer;
+  size: number;
+  mimetype: string;
+};
 
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async uploadCurrentUserAvatar(
+    currentUser: CurrentUserContext,
+    file: UploadedUserAvatarFile,
+    publicBaseUrl: string,
+  ) {
+    const extension = USER_AVATAR_EXTENSIONS.get(file.mimetype);
+
+    if (!extension) {
+      throw new BadRequestException('USER_AVATAR_TYPE_INVALID');
+    }
+
+    if (!file.buffer || file.size <= 0) {
+      throw new BadRequestException('USER_AVATAR_FILE_REQUIRED');
+    }
+
+    if (file.size > USER_AVATAR_MAX_SIZE_BYTES) {
+      throw new BadRequestException('USER_AVATAR_TOO_LARGE');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: currentUser.id,
+        deletedAt: null,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('USER_NOT_FOUND');
+    }
+
+    this.assertUserIsEditable(user.status, user.deletedAt);
+
+    const userDirectory = join(USER_AVATAR_UPLOAD_DIR, currentUser.id);
+    const filename = `${Date.now()}-${randomUUID()}${extension}`;
+    const absolutePath = join(userDirectory, filename);
+
+    await fs.mkdir(userDirectory, { recursive: true });
+    await fs.writeFile(absolutePath, file.buffer);
+
+    return {
+      success: true as const,
+      data: {
+        avatarUrl: `${publicBaseUrl}/uploads/avatars/${currentUser.id}/${filename}`,
+      },
+    };
+  }
 
   async updateCurrentUser(
     currentUser: CurrentUserContext,

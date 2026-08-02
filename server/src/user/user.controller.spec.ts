@@ -1,4 +1,5 @@
 import { Test, type TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { JwtUserAuthGuard } from '../auth/jwt-user-auth.guard';
 import { UserController } from './user.controller';
@@ -8,6 +9,7 @@ describe('UserController', () => {
   let userController: UserController;
   const userService = {
     updateCurrentUser: jest.fn(),
+    uploadCurrentUserAvatar: jest.fn(),
     deleteCurrentUser: jest.fn(),
   };
 
@@ -99,5 +101,69 @@ describe('UserController', () => {
       currentUser,
       dto,
     );
+  });
+
+  it('delegates avatar uploads with the resolved public base URL', async () => {
+    const currentUser = {
+      id: 'user-id',
+      sessionId: 'session-id',
+      tokenType: 'USER' as const,
+      role: 'NORMAL' as const,
+    };
+    const file = {
+      buffer: Buffer.from('avatar'),
+      size: 6,
+      mimetype: 'image/png',
+      originalname: 'avatar.png',
+    };
+    const request = {
+      headers: {
+        'x-forwarded-proto': 'https',
+      },
+      protocol: 'http',
+      get: jest.fn(() => 'api.example.com'),
+    };
+    const expected = {
+      success: true,
+      data: {
+        avatarUrl: 'https://api.example.com/uploads/avatars/user-id/avatar.png',
+      },
+    };
+
+    userService.uploadCurrentUserAvatar.mockResolvedValue(expected);
+
+    await expect(
+      userController.uploadCurrentUserAvatar(
+        currentUser,
+        file,
+        request as never,
+      ),
+    ).resolves.toEqual(expected);
+    expect(userService.uploadCurrentUserAvatar).toHaveBeenCalledWith(
+      currentUser,
+      file,
+      'https://api.example.com',
+    );
+  });
+
+  it('rejects avatar uploads without a file', () => {
+    const currentUser = {
+      id: 'user-id',
+      sessionId: 'session-id',
+      tokenType: 'USER' as const,
+      role: 'NORMAL' as const,
+    };
+
+    expect(() =>
+      userController.uploadCurrentUserAvatar(
+        currentUser,
+        undefined,
+        {
+          headers: {},
+          protocol: 'http',
+          get: () => '127.0.0.1:3000',
+        } as never,
+      ),
+    ).toThrow(BadRequestException);
   });
 });

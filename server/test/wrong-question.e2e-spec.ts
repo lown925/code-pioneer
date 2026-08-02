@@ -879,6 +879,10 @@ function createMockPrisma() {
         }));
       }
 
+      if (text.includes('FROM practice_answers answer')) {
+        return [];
+      }
+
       if (text.includes('qa.question_id = ${questionId}')) {
         // This branch is not used because Prisma compiles to placeholders.
         return [];

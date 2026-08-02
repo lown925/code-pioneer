@@ -1,0 +1,64 @@
+<view class="page-shell practice-page">
+  <view class="practice-hero">
+    <text class="hero-eyebrow">PRACTICE ROOM</text>
+    <text class="hero-title">练习室</text>
+    <text class="hero-copy">选择课程和题量，每次作答后立即查看结果与解析。</text>
+  </view>
+
+  <view wx:if="{{state === 'LOADING'}}" class="section-card state-box"><text class="state-title">正在准备练习室</text></view>
+  <view wx:elif="{{state === 'ERROR'}}" class="section-card state-box">
+    <text class="state-title">练习室加载失败</text><text class="state-text">{{errorMessage}}</text>
+    <view class="primary-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <view wx:elif="{{state === 'SETUP' || state === 'STARTING'}}" class="setup-stack">
+    <view class="section-card setup-card">
+      <text class="section-title">1. 选择练习课程</text>
+      <text class="section-subtitle">题目只会来自所选课程的已发布题库</text>
+      <view wx:if="{{targets.length > 0}}" class="target-list">
+        <view wx:for="{{targets}}" wx:key="courseId" class="target-option {{selectedCourseId === item.courseId ? 'target-option-active' : ''}}" data-course-id="{{item.courseId}}" bindtap="handleCourseSelect">
+          <view><text class="target-title">{{item.language || item.courseTitle}}</text><text class="target-meta">{{item.courseTitle}} · {{item.availableQuestionCount}} 题</text></view>
+          <text class="target-check">{{selectedCourseId === item.courseId ? '✓' : ''}}</text>
+        </view>
+      </view>
+      <view wx:else class="empty-note">当前没有可用于练习的已发布题目。</view>
+    </view>
+
+    <view class="section-card setup-card">
+      <text class="section-title">2. 选择练习题量</text>
+      <view class="count-row">
+        <view wx:for="{{questionCounts}}" wx:key="*this" class="count-option {{selectedQuestionCount === item ? 'count-option-active' : ''}}" data-count="{{item}}" bindtap="handleCountSelect">{{item}} 题</view>
+      </view>
+    </view>
+    <text wx:if="{{errorMessage}}" class="inline-error">{{errorMessage}}</text>
+    <view class="primary-button start-button {{state === 'STARTING' || !selectedQuestionCount ? 'button-disabled' : ''}}" bindtap="handleStart">{{state === 'STARTING' ? '正在生成题目...' : '开始练习'}}</view>
+  </view>
+
+  <view wx:elif="{{state === 'PLAYING' || state === 'SUBMITTING'}}" class="question-stack">
+    <view class="question-header"><text class="question-course">{{courseTitle}}</text><text class="question-progress">{{progressText}}</text></view>
+    <view class="section-card question-card">
+      <text class="question-type">{{currentQuestion.type === 'TRUE_FALSE' ? '判断题' : '单选题'}}</text>
+      <text class="question-content">{{currentQuestion.content}}</text>
+      <view class="option-list">
+        <view wx:for="{{currentOptions}}" wx:key="optionId" class="option-card {{item.statusClassName}} {{selectedOptionId === item.optionId ? 'option-selected' : ''}}" data-option-id="{{item.optionId}}" bindtap="handleOptionTap">
+          <text class="option-label">{{item.label}}</text><text class="option-content">{{item.content}}</text>
+        </view>
+      </view>
+      <text wx:if="{{state === 'SUBMITTING'}}" class="saving-text">正在判断...</text>
+      <text wx:if="{{errorMessage}}" class="inline-error">{{errorMessage}}</text>
+    </view>
+    <view wx:if="{{answerResult}}" class="section-card result-card {{answerResult.isCorrect ? 'result-correct' : 'result-wrong'}}">
+      <text class="result-title">{{answerResult.isCorrect ? '回答正确' : '回答错误'}}</text>
+      <text class="result-answer">正确答案：{{correctAnswerText}}</text>
+      <text class="result-explanation">{{answerResult.explanation || '暂无解析'}}</text>
+      <view class="primary-button next-button" bindtap="handleNext">{{currentIndex + 1 >= questions.length ? '查看练习结果' : '下一题'}}</view>
+    </view>
+  </view>
+
+  <view wx:elif="{{state === 'COMPLETED'}}" class="section-card completed-card">
+    <text class="completed-kicker">本轮练习完成</text><text class="completed-title">{{courseTitle}}</text>
+    <view class="score-grid"><view><text class="score-value correct-value">{{correctCount}}</text><text class="score-label">答对</text></view><view><text class="score-value wrong-value">{{wrongCount}}</text><text class="score-label">答错</text></view></view>
+    <view class="completed-actions"><view class="primary-button" bindtap="handleBackSetup">再练一组</view><view class="ghost-button" bindtap="handleWrongQuestions">查看错题</view></view>
+    <view class="text-link" bindtap="handleBackLearning">返回学习首页</view>
+  </view>
+</view>

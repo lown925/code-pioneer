@@ -4,8 +4,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { PrismaClient as GeneratedPrismaClient } from '../../generated/prisma/client';
-
-const PRISMA_SCHEMA = 'code_pioneer';
+import { getDataNamespace } from '../environment/environment.config';
 
 @Injectable()
 export class PrismaService
@@ -13,8 +12,9 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor() {
+    const dataNamespace = getDataNamespace();
     const url = new URL(process.env.DATABASE_URL ?? '');
-    ['sslmode', 'sslcert', 'sslkey', 'sslrootcert'].forEach((key) => {
+    ['schema', 'sslmode', 'sslcert', 'sslkey', 'sslrootcert'].forEach((key) => {
       url.searchParams.delete(key);
     });
 
@@ -23,12 +23,12 @@ export class PrismaService
       ssl: {
         rejectUnauthorized: false,
       },
-      options: `-c search_path=${PRISMA_SCHEMA}`,
+      options: `-c search_path=${dataNamespace}`,
     });
 
     super({
       adapter: new PrismaPg(pool, {
-        schema: PRISMA_SCHEMA,
+        schema: dataNamespace,
         disposeExternalPool: true,
       }),
     });

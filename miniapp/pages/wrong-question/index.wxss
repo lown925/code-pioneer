@@ -155,6 +155,11 @@
   color: #c24343;
 }
 
+.source-practice {
+  background: #eaf8f3;
+  color: #178366;
+}
+
 .question-type {
   font-size: 22rpx;
   font-weight: 700;

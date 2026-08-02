@@ -31,6 +31,8 @@ type CourseLearningRecord = {
   id: string;
   userId: string;
   courseId: string;
+  isSelected: boolean;
+  selectedAt: Date | null;
   status: LearningStatus;
   completedChapterCount: number;
   totalChapterCountSnapshot: number;
@@ -162,6 +164,8 @@ function createMockPrisma() {
 
             return (
               record.userId === where.userId &&
+              (where.isSelected === undefined ||
+                record.isSelected === where.isSelected) &&
               course?.status === where.course.status &&
               course?.deletedAt === where.course.deletedAt
             );
@@ -205,6 +209,8 @@ function createMockPrisma() {
           id: data.id ?? randomUUID(),
           userId: data.userId,
           courseId: data.courseId,
+          isSelected: data.isSelected ?? true,
+          selectedAt: data.selectedAt ?? null,
           status: data.status,
           completedChapterCount: data.completedChapterCount,
           totalChapterCountSnapshot: data.totalChapterCountSnapshot,
@@ -251,6 +257,22 @@ function createMockPrisma() {
 
         courseLearningRecords.set(key, updated);
         return updated;
+      }),
+      updateMany: jest.fn(async ({ where, data }: { where: any; data: any }) => {
+        const key = courseKey(where.userId, where.courseId);
+        const existing = courseLearningRecords.get(key);
+
+        if (!existing || existing.isSelected !== where.isSelected) {
+          return { count: 0 };
+        }
+
+        courseLearningRecords.set(key, {
+          ...existing,
+          ...data,
+          updatedAt: new Date(),
+        });
+
+        return { count: 1 };
       }),
     },
     chapterLearningRecord: {
@@ -480,6 +502,72 @@ describe('LearningService', () => {
     expect(firstResult.data.chapterStatus).toBe(LearningStatus.LEARNING);
     expect(secondResult.data.chapterStatus).toBe(LearningStatus.LEARNING);
     expect(mock.courseLearningRecords.size).toBe(1);
+    expect(mock.chapterLearningRecords.size).toBe(1);
+  });
+
+  it('toggles course selection without deleting progress and restores it on reselect', async () => {
+    const mock = createMockPrisma();
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
+    const { courseId, chapterOneId } = seedPublishedCourse(mock);
+
+    await service.startChapter(currentUser, chapterOneId);
+    const recordKey = `${currentUser.id}:${courseId}`;
+    const originalRecord = mock.courseLearningRecords.get(recordKey)!;
+
+    const deselected = await service.deselectCourse(currentUser, courseId);
+    const hiddenList = await service.listMyLearning(currentUser, 1, 10);
+    const hiddenSummary = await service.getLearningSummary(currentUser);
+
+    expect(deselected.data).toEqual({
+      courseId,
+      selected: false,
+      alreadyDeselected: false,
+      progressPreserved: true,
+    });
+    expect(hiddenList.data.items).toEqual([]);
+    expect(hiddenSummary.data.inProgressCourseCount).toBe(0);
+    expect(hiddenSummary.data.continueLearningCourse).toBeNull();
+    expect(mock.courseLearningRecords.get(recordKey)).toEqual(
+      expect.objectContaining({
+        id: originalRecord.id,
+        isSelected: false,
+        lastChapterId: chapterOneId,
+      }),
+    );
+    expect(mock.chapterLearningRecords.size).toBe(1);
+
+    const selected = await service.selectCourse(currentUser, courseId);
+    const restoredList = await service.listMyLearning(currentUser, 1, 10);
+
+    expect(selected.data).toEqual(
+      expect.objectContaining({
+        courseId,
+        selected: true,
+        alreadySelected: false,
+        progressPreserved: true,
+      }),
+    );
+    expect(restoredList.data.items).toHaveLength(1);
+    expect(mock.courseLearningRecords.get(recordKey)).toEqual(
+      expect.objectContaining({
+        id: originalRecord.id,
+        isSelected: true,
+        lastChapterId: chapterOneId,
+      }),
+    );
+  });
+
+  it('automatically reselects a course when learning resumes', async () => {
+    const mock = createMockPrisma();
+    const service = new LearningService(mock.prisma, quizServiceMock as never);
+    const { courseId, chapterOneId } = seedPublishedCourse(mock);
+    const recordKey = `${currentUser.id}:${courseId}`;
+
+    await service.selectCourse(currentUser, courseId);
+    await service.deselectCourse(currentUser, courseId);
+    await service.startChapter(currentUser, chapterOneId);
+
+    expect(mock.courseLearningRecords.get(recordKey)?.isSelected).toBe(true);
     expect(mock.chapterLearningRecords.size).toBe(1);
   });
 

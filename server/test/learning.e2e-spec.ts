@@ -36,6 +36,8 @@ type CourseLearningRecord = {
   id: string;
   userId: string;
   courseId: string;
+  isSelected: boolean;
+  selectedAt: Date | null;
   status: LearningStatus;
   completedChapterCount: number;
   totalChapterCountSnapshot: number;
@@ -193,6 +195,8 @@ function createMockPrisma() {
 
               return (
                 record.userId === where.userId &&
+                (where.isSelected === undefined ||
+                  record.isSelected === where.isSelected) &&
                 (where.status === undefined ||
                   record.status === where.status) &&
                 course?.status === where.course.status &&
@@ -252,6 +256,8 @@ function createMockPrisma() {
           id: data.id ?? randomUUID(),
           userId: data.userId,
           courseId: data.courseId,
+          isSelected: data.isSelected ?? true,
+          selectedAt: data.selectedAt ?? null,
           status: data.status,
           completedChapterCount: data.completedChapterCount,
           totalChapterCountSnapshot: data.totalChapterCountSnapshot,
@@ -298,6 +304,22 @@ function createMockPrisma() {
 
         courseLearningRecords.set(key, updated);
         return updated;
+      }),
+      updateMany: jest.fn(async ({ where, data }: { where: any; data: any }) => {
+        const key = courseKey(where.userId, where.courseId);
+        const existing = courseLearningRecords.get(key);
+
+        if (!existing || existing.isSelected !== where.isSelected) {
+          return { count: 0 };
+        }
+
+        courseLearningRecords.set(key, {
+          ...existing,
+          ...data,
+          updatedAt: new Date(),
+        });
+
+        return { count: 1 };
       }),
     },
     chapterLearningRecord: {
@@ -731,6 +753,47 @@ describe('Learning flow (e2e)', () => {
         expect(response.body.data.items[0].courseId).toBe(courseOneId);
         expect(response.body.data.items[0].progressPercent).toBe(100);
       });
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/courses/${courseTwoId}/selection`)
+      .set('Authorization', `Bearer ${ACCESS_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toEqual({
+          courseId: courseTwoId,
+          selected: false,
+          alreadyDeselected: false,
+          progressPreserved: true,
+        });
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/users/me/learning')
+      .set('Authorization', `Bearer ${ACCESS_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.items).toHaveLength(1);
+        expect(response.body.data.items[0].courseId).toBe(courseOneId);
+      });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/courses/${courseTwoId}/selection`)
+      .set('Authorization', `Bearer ${ACCESS_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toEqual(
+          expect.objectContaining({
+            courseId: courseTwoId,
+            selected: true,
+            alreadySelected: false,
+            progressPreserved: true,
+          }),
+        );
+      });
+
+    expect(
+      mockState.courseLearningRecords.get(secondCourseKey)?.lastChapterId,
+    ).toBe(chapterThreeId);
 
     mockState.quizAttempts.set('attempt-1', {
       id: 'attempt-1',

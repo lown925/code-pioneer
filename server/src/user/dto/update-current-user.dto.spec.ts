@@ -50,6 +50,36 @@ describe('UpdateCurrentUserDto', () => {
     expect(errors).toHaveLength(0);
   });
 
+  it('accepts localhost http avatar URLs outside production', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+
+    try {
+      const dto = plainToInstance(UpdateCurrentUserDto, {
+        avatarUrl: 'http://127.0.0.1:3000/uploads/avatars/user/avatar.png',
+      });
+
+      await expect(validate(dto)).resolves.toHaveLength(0);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
+  it('rejects localhost http avatar URLs in production', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      const dto = plainToInstance(UpdateCurrentUserDto, {
+        avatarUrl: 'http://localhost:3000/uploads/avatars/user/avatar.png',
+      });
+
+      expect(await validate(dto)).not.toHaveLength(0);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
   it.each([
     'http://example.com/avatar.png',
     'data:text/plain,hello',
