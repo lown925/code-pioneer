@@ -37,9 +37,41 @@
   <view wx:elif="{{state === 'PLAYING' || state === 'SUBMITTING'}}" class="question-stack">
     <view class="question-header"><text class="question-course">{{courseTitle}}</text><text class="question-progress">{{progressText}}</text></view>
     <view class="section-card question-card">
-      <text class="question-type">{{currentQuestion.type === 'TRUE_FALSE' ? '判断题' : '单选题'}}</text>
+      <text class="question-type">{{currentQuestion.type === 'TRUE_FALSE' ? '判断题' : currentQuestion.type === 'FILL_BLANK' ? '填空题' : currentQuestion.type === 'CODE_FILL' ? '代码填空题' : '单选题'}}</text>
       <text class="question-content">{{currentQuestion.content}}</text>
-      <view class="option-list">
+      <view wx:if="{{currentStemBlocks.length > 0}}" class="content-block-list">
+        <block wx:for="{{currentStemBlocks}}" wx:key="blockKey" wx:for-item="stemBlock">
+          <text wx:if="{{stemBlock.type === 'TEXT'}}" class="stem-text">{{stemBlock.text}}</text>
+          <text wx:elif="{{stemBlock.type === 'CODE'}}" class="content-code">{{stemBlock.code}}</text>
+          <view wx:elif="{{stemBlock.type === 'IMAGE'}}" class="content-image-box">
+            <image
+              wx:if="{{!stemBlock.imageFailed}}"
+              class="content-image"
+              src="{{stemBlock.url}}"
+              mode="widthFix"
+              data-block-key="{{stemBlock.blockKey}}"
+              binderror="handleStemImageError"
+            />
+            <view wx:else class="image-fallback">{{stemBlock.altText}}</view>
+          </view>
+        </block>
+      </view>
+      <view wx:if="{{isTextQuestion}}" class="text-answer-box">
+        <textarea
+          class="text-answer-input {{isCodeFill ? 'code-answer-input' : ''}}"
+          value="{{answerText}}"
+          maxlength="{{answerMaxLength}}"
+          placeholder="{{isCodeFill ? '请输入需要填入的代码' : '请输入答案'}}"
+          disabled="{{state === 'SUBMITTING' || answerResult}}"
+          bindinput="handleTextInput"
+          auto-height
+        />
+        <view
+          class="primary-button text-submit-button {{state === 'SUBMITTING' || !answerText || answerResult ? 'button-disabled' : ''}}"
+          bindtap="handleTextSubmit"
+        >提交答案</view>
+      </view>
+      <view wx:else class="option-list">
         <view wx:for="{{currentOptions}}" wx:key="optionId" class="option-card {{item.statusClassName}} {{selectedOptionId === item.optionId ? 'option-selected' : ''}}" data-option-id="{{item.optionId}}" bindtap="handleOptionTap">
           <text class="option-label">{{item.label}}</text><text class="option-content">{{item.content}}</text>
         </view>

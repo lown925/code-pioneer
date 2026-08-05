@@ -38,7 +38,7 @@
 - 章节与课时顺序
 - Markdown、纯文本或结构化正文
 - 代码示例、图片公开地址和说明文字
-- 单选题、判断题、选项、标准答案、解析、难度和知识点
+- 单选题、判断题、普通填空题、代码填空题、选项、标准答案、解析、难度和知识点
 
 导入前应人工复核内容准确性、答案唯一性、图片可访问性以及是否允许进入 Battle 题池。
 
@@ -70,5 +70,39 @@ npm run seed:content
 
 ## 当前已知约束
 
-- `QuestionType.CODE_FILL` 已存在于 schema 和 Battle 取题链路中，但当前章节测验提交 API 仍按 `selectedOptionId` 读取答案，尚不支持正式导入 `CODE_FILL` 题进入章节测验。
-- 因此，当前示例课程使用 `SINGLE_CHOICE` 题型构建章节测验与 Battle 题池。
+- 章节测验和练习室支持 `SINGLE_CHOICE`、`TRUE_FALSE`、`FILL_BLANK`、`CODE_FILL`。文本题使用 `acceptedAnswers` 定义一个或多个标准答案，并可通过 `answerNormalization` 控制空白、换行和大小写规则。
+- `FILL_BLANK` 默认去除首尾空白、统一换行、合并连续空白且忽略大小写，适合术语、关键字和简短结果。
+- `CODE_FILL` 默认去除首尾空白并统一换行，但保留大小写和内部空白，适合代码片段；单题输入最长 4000 字符。
+- `FILL_BLANK` 当前仅用于学习测验和练习室，不进入 Battle。Battle 题池支持 `SINGLE_CHOICE` 和 `CODE_FILL`。
+
+普通填空题示例：
+
+```ts
+{
+  key: 'javascript-short-name',
+  type: 'FILL_BLANK',
+  title: 'JavaScript 的常用简称是什么？',
+  explanation: 'JavaScript 常简称为 JS。',
+  difficulty: 'EASY',
+  score: 10,
+  isBattleEnabled: false,
+  acceptedAnswers: ['JavaScript', 'JS'],
+}
+```
+
+代码填空题示例：
+
+```ts
+{
+  key: 'print-value',
+  type: 'CODE_FILL',
+  title: '补全代码，使控制台输出 value。',
+  explanation: 'console.log 用于向控制台输出内容。',
+  difficulty: 'EASY',
+  score: 10,
+  isBattleEnabled: true,
+  battlePresentation: 'INPUT_CODE_FILL',
+  programmingLanguage: 'javascript',
+  acceptedAnswers: ['console.log(value)'],
+}
+```

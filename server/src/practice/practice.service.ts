@@ -3,10 +3,20 @@ import { randomInt } from 'crypto';
 import { PracticeAttemptStatus, QuestionType } from '../../generated/prisma/enums';
 import type { CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  evaluateTextAnswer,
+  isTextQuestionType,
+  parseAcceptedAnswers,
+} from '../question/question-answer';
 import type { CreatePracticeAttemptDto } from './dto/create-practice-attempt.dto';
 import type { SubmitPracticeAnswerDto } from './dto/submit-practice-answer.dto';
 
-const SUPPORTED_TYPES = [QuestionType.SINGLE_CHOICE, QuestionType.TRUE_FALSE];
+const SUPPORTED_TYPES = [
+  QuestionType.SINGLE_CHOICE,
+  QuestionType.TRUE_FALSE,
+  QuestionType.FILL_BLANK,
+  QuestionType.CODE_FILL,
+];
 
 @Injectable()
 export class PracticeService {
@@ -165,14 +175,14 @@ export class PracticeService {
 
     const existing = await this.prisma.practiceAnswer.findUnique({
       where: { attemptId_questionId: { attemptId, questionId: dto.questionId } },
-      select: { selectedOptionId: true },
+      select: { selectedOptionId: true, answerText: true },
     });
 
     if (existing) {
       return this.buildAnswerResponse(
         attempt,
         dto.questionId,
-        existing.selectedOptionId,
+        existing,
       );
     }
 
@@ -181,16 +191,7 @@ export class PracticeService {
     }
 
     const question = await this.loadQuestion(attempt.courseId, dto.questionId);
-    const selectedOption = question.options.find(
-      (option) => option.id === dto.selectedOptionId,
-    );
-    const correctOptions = question.options.filter((option) => option.isCorrect);
-
-    if (!selectedOption || correctOptions.length !== 1) {
-      throw new BadRequestException('PRACTICE_INVALID_OPTION');
-    }
-
-    const correctOption = correctOptions[0]!;
+    const evaluated = this.evaluateSubmittedAnswer(question, dto);
 
     try {
       await this.prisma.practiceAnswer.create({
@@ -198,8 +199,13 @@ export class PracticeService {
           attemptId,
           userId: currentUser.id,
           questionId: question.id,
-          selectedOptionId: selectedOption.id,
-          isCorrect: selectedOption.isCorrect,
+          ...(evaluated.selectedOptionId
+            ? { selectedOptionId: evaluated.selectedOptionId }
+            : {
+                answerText: evaluated.answerText,
+                normalizedAnswer: evaluated.normalizedAnswer,
+              }),
+          isCorrect: evaluated.isCorrect,
         },
       });
     } catch (error) {
@@ -211,7 +217,7 @@ export class PracticeService {
         where: {
           attemptId_questionId: { attemptId, questionId: dto.questionId },
         },
-        select: { selectedOptionId: true },
+        select: { selectedOptionId: true, answerText: true },
       });
 
       if (!concurrentAnswer) {
@@ -221,7 +227,7 @@ export class PracticeService {
       return this.buildAnswerResponse(
         attempt,
         dto.questionId,
-        concurrentAnswer.selectedOptionId,
+        concurrentAnswer,
       );
     }
 
@@ -244,9 +250,11 @@ export class PracticeService {
       success: true as const,
       data: {
         questionId: question.id,
-        selectedOptionId: selectedOption.id,
-        correctOptionId: correctOption.id,
-        isCorrect: selectedOption.isCorrect,
+        selectedOptionId: evaluated.selectedOptionId,
+        answerText: evaluated.answerText,
+        correctOptionId: evaluated.correctOptionId,
+        acceptedAnswers: evaluated.acceptedAnswers,
+        isCorrect: evaluated.isCorrect,
         explanation: question.explanation,
         explanationBlocks: this.resolveBlocks(question.explanationBlocks, question.explanation ?? ''),
         answeredCount,
@@ -259,30 +267,28 @@ export class PracticeService {
   private async buildAnswerResponse(
     attempt: { id: string; courseId: string; requestedQuestionCount: number },
     questionId: string,
-    selectedOptionId: string,
+    storedAnswer: { selectedOptionId: string | null; answerText: string | null },
   ) {
     const question = await this.loadQuestion(attempt.courseId, questionId);
-    const selectedOption = question.options.find(
-      (option) => option.id === selectedOptionId,
-    );
-    const correctOptions = question.options.filter((option) => option.isCorrect);
+    const evaluated = this.evaluateSubmittedAnswer(question, {
+      questionId,
+      ...(storedAnswer.selectedOptionId
+        ? { selectedOptionId: storedAnswer.selectedOptionId }
+        : { answerText: storedAnswer.answerText ?? '' }),
+    });
     const answeredCount = await this.prisma.practiceAnswer.count({
       where: { attemptId: attempt.id },
     });
-
-    if (!selectedOption || correctOptions.length !== 1) {
-      throw new BadRequestException('PRACTICE_INVALID_OPTION');
-    }
-
-    const correctOption = correctOptions[0]!;
 
     return {
       success: true as const,
       data: {
         questionId,
-        selectedOptionId,
-        correctOptionId: correctOption.id,
-        isCorrect: selectedOption.isCorrect,
+        selectedOptionId: evaluated.selectedOptionId,
+        answerText: evaluated.answerText,
+        correctOptionId: evaluated.correctOptionId,
+        acceptedAnswers: evaluated.acceptedAnswers,
+        isCorrect: evaluated.isCorrect,
         explanation: question.explanation,
         explanationBlocks: this.resolveBlocks(question.explanationBlocks, question.explanation ?? ''),
         answeredCount,
@@ -308,8 +314,11 @@ export class PracticeService {
       },
       select: {
         id: true,
+        type: true,
         explanation: true,
         explanationBlocks: true,
+        acceptedAnswers: true,
+        answerNormalization: true,
         options: {
           orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
           select: { id: true, isCorrect: true },
@@ -322,6 +331,60 @@ export class PracticeService {
     }
 
     return question;
+  }
+
+  private evaluateSubmittedAnswer(
+    question: Awaited<ReturnType<PracticeService['loadQuestion']>>,
+    dto: SubmitPracticeAnswerDto,
+  ) {
+    const hasOption = typeof dto.selectedOptionId === 'string';
+    const hasText = typeof dto.answerText === 'string';
+    if (hasOption === hasText) {
+      throw new BadRequestException('PRACTICE_ANSWER_INVALID');
+    }
+
+    if (isTextQuestionType(question.type)) {
+      if (!hasText || hasOption) {
+        throw new BadRequestException('PRACTICE_ANSWER_INVALID');
+      }
+
+      const evaluation = evaluateTextAnswer({
+        type: question.type,
+        value: dto.answerText!,
+        acceptedAnswers: question.acceptedAnswers,
+        answerNormalization: question.answerNormalization,
+      });
+
+      return {
+        selectedOptionId: null,
+        answerText: evaluation.answerText,
+        normalizedAnswer: evaluation.normalizedAnswer,
+        correctOptionId: null,
+        acceptedAnswers: evaluation.acceptedAnswers,
+        isCorrect: evaluation.isCorrect,
+      };
+    }
+
+    if (!hasOption || hasText) {
+      throw new BadRequestException('PRACTICE_ANSWER_INVALID');
+    }
+
+    const selectedOption = question.options.find(
+      (option) => option.id === dto.selectedOptionId,
+    );
+    const correctOptions = question.options.filter((option) => option.isCorrect);
+    if (!selectedOption || correctOptions.length !== 1) {
+      throw new BadRequestException('PRACTICE_INVALID_OPTION');
+    }
+
+    return {
+      selectedOptionId: selectedOption.id,
+      answerText: null,
+      normalizedAnswer: null,
+      correctOptionId: correctOptions[0]!.id,
+      acceptedAnswers: null,
+      isCorrect: selectedOption.isCorrect,
+    };
   }
 
   private resolveBlocks(value: unknown, fallback: string) {

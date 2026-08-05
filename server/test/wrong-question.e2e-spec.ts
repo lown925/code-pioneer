@@ -1143,9 +1143,15 @@ describe('Wrong question flow (e2e)', () => {
         expect(response.body.data.questions[0]).not.toHaveProperty(
           'correctOptionId',
         );
-        expect(response.body.data.questions[0]).not.toHaveProperty(
-          'explanation',
+        expect(response.body.data.questions[0].explanation).toBe(
+          'print() writes text to standard output.',
         );
+        expect(response.body.data.questions[0].explanationBlocks).toEqual([
+          {
+            type: 'TEXT',
+            text: 'print() writes text to standard output.',
+          },
+        ]);
       });
 
     await request(app.getHttpServer())

@@ -56,12 +56,27 @@ function createAttemptRecord(
 function createQuestionRecord() {
   return {
     id: QUESTION_ID,
+    type: QuestionType.SINGLE_CHOICE,
     explanation: 'let 声明的变量具有块级作用域。',
     explanationBlocks: null,
+    acceptedAnswers: null,
+    answerNormalization: null,
     options: [
       { id: CORRECT_OPTION_ID, isCorrect: true },
       { id: WRONG_OPTION_ID, isCorrect: false },
     ],
+  };
+}
+
+function createFillBlankQuestionRecord() {
+  return {
+    id: QUESTION_ID,
+    type: QuestionType.FILL_BLANK,
+    explanation: 'JavaScript 常简称为 JS。',
+    explanationBlocks: null,
+    acceptedAnswers: ['JavaScript', 'JS'],
+    answerNormalization: null,
+    options: [],
   };
 }
 
@@ -242,6 +257,64 @@ describe('PracticeService', () => {
         completedAt: expect.any(Date),
       },
     });
+  });
+
+  it('judges and persists a fill-blank answer on the server', async () => {
+    const prisma = createMockPrisma();
+    prisma.practiceAttempt.findFirst.mockResolvedValueOnce(createAttemptRecord());
+    prisma.practiceAnswer.findUnique.mockResolvedValueOnce(null);
+    prisma.quizQuestion.findFirst.mockResolvedValueOnce(
+      createFillBlankQuestionRecord(),
+    );
+    prisma.practiceAnswer.create.mockResolvedValueOnce({ id: 'answer-text' });
+    prisma.practiceAnswer.count.mockResolvedValueOnce(1);
+    const service = new PracticeService(prisma as never);
+
+    const result = await service.submitAnswer(CURRENT_USER, ATTEMPT_ID, {
+      questionId: QUESTION_ID,
+      answerText: ' js ',
+    });
+
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        selectedOptionId: null,
+        answerText: ' js ',
+        acceptedAnswers: ['JavaScript', 'JS'],
+        isCorrect: true,
+      }),
+    );
+    expect(prisma.practiceAnswer.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        attemptId: ATTEMPT_ID,
+        questionId: QUESTION_ID,
+        answerText: ' js ',
+        normalizedAnswer: 'js',
+        isCorrect: true,
+      }),
+    });
+  });
+
+  it('replays an existing text answer without creating another row', async () => {
+    const prisma = createMockPrisma();
+    prisma.practiceAttempt.findFirst.mockResolvedValueOnce(createAttemptRecord());
+    prisma.practiceAnswer.findUnique.mockResolvedValueOnce({
+      selectedOptionId: null,
+      answerText: 'JavaScript',
+    });
+    prisma.quizQuestion.findFirst.mockResolvedValueOnce(
+      createFillBlankQuestionRecord(),
+    );
+    prisma.practiceAnswer.count.mockResolvedValueOnce(1);
+    const service = new PracticeService(prisma as never);
+
+    const result = await service.submitAnswer(CURRENT_USER, ATTEMPT_ID, {
+      questionId: QUESTION_ID,
+      answerText: 'different retry body',
+    });
+
+    expect(result.data.answerText).toBe('JavaScript');
+    expect(result.data.isCorrect).toBe(true);
+    expect(prisma.practiceAnswer.create).not.toHaveBeenCalled();
   });
 
   it('replays an existing answer without creating a duplicate row', async () => {

@@ -59,6 +59,9 @@ type WrongQuestionDetailCard = WrongQuestionDetail & {
   wrongCountText: string;
   lastWrongAtText: string;
   correctAnswerText: string;
+  learningMyAnswerText: string;
+  isLearningTextQuestion: boolean;
+  isLearningCodeFill: boolean;
   options: WrongQuestionOptionCard[];
   hasCourseEntry: boolean;
   hasChapterEntry: boolean;
@@ -436,7 +439,7 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
           ),
           `${data.questionId}-my-answer`,
         );
-      } else {
+      } else if (data.latestWrongAnswer.type === 'CODE_FILL') {
         battleMyAnswerLabel = '我的错误作答';
         battleMyAnswerText = '已提交错误代码填空答案';
         battleMyAnswerBlocks = this.mapBlocks(
@@ -480,6 +483,22 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
       isBattleSource && Array.isArray(data.explanation)
         ? this.mapBlocks(data.explanation, `${data.questionId}-explanation`)
         : [];
+    const isLearningTextQuestion =
+      !isBattleSource &&
+      (data.questionType === 'FILL_BLANK' || data.questionType === 'CODE_FILL');
+    const textCorrectAnswer =
+      data.correctAnswer &&
+      (data.correctAnswer.type === 'FILL_BLANK' ||
+        data.correctAnswer.type === 'CODE_FILL')
+        ? data.correctAnswer.acceptedAnswers.join(' / ')
+        : '';
+    const learningMyAnswerText =
+      !isBattleSource &&
+      data.latestWrongAnswer &&
+      (data.latestWrongAnswer.type === 'FILL_BLANK' ||
+        data.latestWrongAnswer.type === 'CODE_FILL')
+        ? data.latestWrongAnswer.value || '未记录到文本作答'
+        : '当前接口暂未提供该题的原始作答记录';
 
     return {
       ...data,
@@ -493,11 +512,16 @@ Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
           : '暂无解析',
       wrongCountText: formatWrongQuestionCount(data.wrongCount),
       lastWrongAtText: formatLearningTimestamp(data.lastWrongAt),
-      correctAnswerText: this.formatCorrectAnswer(learningOptions, data.correctOptionId),
+      correctAnswerText:
+        textCorrectAnswer ||
+        this.formatCorrectAnswer(learningOptions, data.correctOptionId),
+      learningMyAnswerText,
+      isLearningTextQuestion,
+      isLearningCodeFill: !isBattleSource && data.questionType === 'CODE_FILL',
       options: learningOptions,
       hasCourseEntry: isNonEmptyString(data.courseId),
       hasChapterEntry: isNonEmptyString(data.chapterId),
-      answerUnavailableText: '当前接口暂未提供该题的原始作答记录',
+      answerUnavailableText: learningMyAnswerText,
       isBattleSource,
       battleCompletedAtText: data.battle?.completedAt
         ? formatLearningTimestamp(data.battle.completedAt)

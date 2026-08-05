@@ -1,6 +1,10 @@
 import type { BattleContentBlock } from './battle';
 
-export type ChapterQuizQuestionType = 'SINGLE_CHOICE' | 'TRUE_FALSE' | string;
+export type ChapterQuizQuestionType =
+  | 'SINGLE_CHOICE'
+  | 'TRUE_FALSE'
+  | 'FILL_BLANK'
+  | 'CODE_FILL';
 
 export type ChapterQuizOption = {
   optionId: string;
@@ -13,9 +17,12 @@ export type ChapterQuizQuestion = {
   questionId: string;
   type: ChapterQuizQuestionType;
   content: string;
+  explanation: string | null;
+  explanationBlocks: BattleContentBlock[];
   stemBlocks: BattleContentBlock[];
   score: number;
   order: number;
+  programmingLanguage: string | null;
   options: ChapterQuizOption[];
 };
 
@@ -34,13 +41,16 @@ export type ChapterQuizData = {
 
 export type SubmitChapterQuizAnswer = {
   questionId: string;
-  selectedOptionId: string;
+  selectedOptionId?: string;
+  answerText?: string;
 };
 
 export type SubmitChapterQuizResult = {
   questionId: string;
-  selectedOptionId: string;
-  correctOptionId: string;
+  selectedOptionId: string | null;
+  answerText: string | null;
+  correctOptionId: string | null;
+  acceptedAnswers: string[] | null;
   isCorrect: boolean;
   scoreAwarded: number;
   scorePossible: number;

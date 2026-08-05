@@ -784,9 +784,15 @@ describe('Quiz flow (e2e)', () => {
         expect(response.body.data.questions[0]).not.toHaveProperty(
           'correctOptionId',
         );
-        expect(response.body.data.questions[0]).not.toHaveProperty(
-          'explanation',
+        expect(response.body.data.questions[0].explanation).toBe(
+          'print() writes text to standard output.',
         );
+        expect(response.body.data.questions[0].explanationBlocks).toEqual([
+          {
+            type: 'TEXT',
+            text: 'print() is the standard output function in Python.',
+          },
+        ]);
         expect(response.body.data.questions[0].stemBlocks).toEqual([
           {
             type: 'CODE',
@@ -852,6 +858,12 @@ describe('Quiz flow (e2e)', () => {
 
     expect(correctAttempt.body.data.passed).toBe(true);
     expect(correctAttempt.body.data.score).toBe(40);
+    expect(correctAttempt.body.data.results[1].explanationBlocks).toEqual([
+      {
+        type: 'TEXT',
+        text: 'Python treats Name and name as different identifiers.',
+      },
+    ]);
 
     await request(app.getHttpServer())
       .post(`/api/v1/chapters/${quizChapterId}/complete`)

@@ -62,7 +62,7 @@
         <view class="question-content">{{detail.contentText}}</view>
       </view>
 
-      <view class="section-card content-card">
+      <view wx:if="{{!detail.isLearningTextQuestion}}" class="section-card content-card">
         <text class="section-title">选项</text>
         <view wx:if="{{detail.options.length > 0}}" class="option-list">
           <view
@@ -85,7 +85,7 @@
 
       <view class="section-card content-card">
         <text class="section-title">正确答案</text>
-        <text class="answer-text">{{detail.correctAnswerText}}</text>
+        <text class="answer-text {{detail.isLearningCodeFill ? 'content-code' : ''}}">{{detail.correctAnswerText}}</text>
       </view>
 
       <view class="section-card content-card">
@@ -94,8 +94,8 @@
       </view>
 
       <view class="section-card content-card">
-        <text class="section-title">用户答案</text>
-        <text class="answer-text">{{detail.answerUnavailableText}}</text>
+        <text class="section-title">我的作答</text>
+        <text class="answer-text {{detail.isLearningCodeFill ? 'content-code' : ''}}">{{detail.learningMyAnswerText}}</text>
       </view>
     </block>
 

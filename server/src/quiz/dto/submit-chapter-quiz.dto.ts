@@ -1,12 +1,26 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsUUID, ValidateNested } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 
 export class SubmitChapterQuizAnswerDto {
   @IsUUID()
   questionId!: string;
 
+  @IsOptional()
   @IsUUID()
-  selectedOptionId!: string;
+  selectedOptionId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  answerText?: string;
 }
 
 export class SubmitChapterQuizDto {

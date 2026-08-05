@@ -8,6 +8,7 @@ import {
 } from '../../generated/prisma/enums';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { isTextQuestionType, parseAcceptedAnswers } from '../question/question-answer';
 import { GetWrongQuestionsQueryDto } from './dto/get-wrong-questions-query.dto';
 import { type WrongQuestionSource } from './wrong-question.types';
 import type {
@@ -23,15 +24,29 @@ type LearningAggregateRow = {
   questionId: string;
   wrongCount: number | bigint;
   lastWrongAt: Date;
+  selectedOptionId?: string | null;
+  answerText?: string | null;
 };
 
 type PracticeAggregateRow = LearningAggregateRow;
+
+type LearningAnswerPayload =
+  | {
+      type: 'SINGLE_CHOICE' | 'TRUE_FALSE';
+      optionId: string;
+    }
+  | {
+      type: 'FILL_BLANK' | 'CODE_FILL';
+      value: string;
+    };
 
 type LearningQuestionRecord = {
   id: string;
   type: QuestionType;
   content: string;
   explanation: string | null;
+  acceptedAnswers: unknown;
+  programmingLanguage: string | null;
   options: Array<{
     id: string;
     content: string;
@@ -135,7 +150,7 @@ type UnifiedWrongQuestionItem = {
   correctOptionId: string | null;
   correctAnswer: unknown;
   explanation: string | ContentBlock[] | null;
-  latestWrongAnswer: BattleAnswerPayload | null;
+  latestWrongAnswer: BattleAnswerPayload | LearningAnswerPayload | null;
   sourceQuizQuestionId: string | null;
   battle: {
     battleId: string;
@@ -313,7 +328,9 @@ export class WrongQuestionService {
         SELECT
           answer.question_id AS "questionId",
           COUNT(*)::int AS "wrongCount",
-          MAX(answer.answered_at) AS "lastWrongAt"
+          MAX(answer.answered_at) AS "lastWrongAt",
+          (ARRAY_AGG(answer.selected_option_id ORDER BY answer.answered_at DESC))[1] AS "selectedOptionId",
+          (ARRAY_AGG(answer.answer_text ORDER BY answer.answered_at DESC))[1] AS "answerText"
         FROM practice_answers answer
         INNER JOIN quiz_questions question ON question.id = answer.question_id
         INNER JOIN quizzes quiz ON quiz.id = question.quiz_id
@@ -335,6 +352,8 @@ export class WrongQuestionService {
         type: true,
         content: true,
         explanation: true,
+        acceptedAnswers: true,
+        programmingLanguage: true,
         options: {
           orderBy: { sortOrder: 'asc' },
           select: { id: true, content: true, isCorrect: true, sortOrder: true },
@@ -357,14 +376,20 @@ export class WrongQuestionService {
 
     return aggregateRows.map((row) => {
       const question = questionMap.get(row.questionId);
-      const correctOptions =
-        question?.options.filter((option) => option.isCorrect) ?? [];
+      const textQuestion = question ? isTextQuestionType(question.type) : false;
+      const correctOptions = question?.options.filter((option) => option.isCorrect) ?? [];
+      const acceptedAnswers = question
+        ? parseAcceptedAnswers(question.acceptedAnswers)
+        : [];
 
-      if (!question || correctOptions.length !== 1) {
+      if (
+        !question ||
+        (textQuestion ? acceptedAnswers.length === 0 : correctOptions.length !== 1)
+      ) {
         throw new BadRequestException('QUIZ_NOT_READY');
       }
 
-      const correctOption = correctOptions[0]!;
+      const correctOption = textQuestion ? null : correctOptions[0]!;
 
       return {
         source: 'PRACTICE' as const,
@@ -382,7 +407,7 @@ export class WrongQuestionService {
         latestWrongAt: row.lastWrongAt,
         presentation: null,
         difficulty: null,
-        programmingLanguage: null,
+        programmingLanguage: question.programmingLanguage ?? null,
         stem: null,
         options: question.options.map((option) => ({
           optionId: option.id,
@@ -390,10 +415,22 @@ export class WrongQuestionService {
           order: option.sortOrder,
         })),
         optionSnapshots: null,
-        correctOptionId: correctOption.id,
-        correctAnswer: { type: question.type, optionId: correctOption.id },
+        correctOptionId: correctOption?.id ?? null,
+        correctAnswer: textQuestion
+          ? { type: question.type, acceptedAnswers }
+          : { type: question.type, optionId: correctOption!.id },
         explanation: question.explanation,
-        latestWrongAnswer: null,
+        latestWrongAnswer: textQuestion
+          ? {
+              type: question.type as 'FILL_BLANK' | 'CODE_FILL',
+              value: row.answerText ?? '',
+            }
+          : row.selectedOptionId
+            ? {
+                type: question.type as 'SINGLE_CHOICE' | 'TRUE_FALSE',
+                optionId: row.selectedOptionId,
+              }
+            : null,
         sourceQuizQuestionId: question.id,
         battle: null,
       } satisfies UnifiedWrongQuestionItem;
@@ -409,7 +446,9 @@ export class WrongQuestionService {
         SELECT
           qa.question_id AS "questionId",
           COUNT(*)::int AS "wrongCount",
-          MAX(attempt.submitted_at) AS "lastWrongAt"
+          MAX(attempt.submitted_at) AS "lastWrongAt",
+          (ARRAY_AGG(qa.selected_option_id ORDER BY attempt.submitted_at DESC))[1] AS "selectedOptionId",
+          (ARRAY_AGG(qa.answer_text ORDER BY attempt.submitted_at DESC))[1] AS "answerText"
         FROM quiz_answers qa
         INNER JOIN quiz_attempts attempt ON attempt.id = qa.attempt_id
         INNER JOIN quiz_questions question ON question.id = qa.question_id
@@ -437,6 +476,8 @@ export class WrongQuestionService {
         type: true,
         content: true,
         explanation: true,
+        acceptedAnswers: true,
+        programmingLanguage: true,
         options: {
           orderBy: {
             sortOrder: 'asc',
@@ -466,7 +507,6 @@ export class WrongQuestionService {
         },
       },
     })) as LearningQuestionRecord[];
-
     const questionMap = new Map(questions.map((question) => [question.id, question]));
 
     return aggregateRows.map((row) => {
@@ -476,15 +516,15 @@ export class WrongQuestionService {
         throw new BadRequestException('QUIZ_NOT_READY');
       }
 
-      const correctOptions = question.options.filter(
-        (option) => option.isCorrect,
-      );
+      const textQuestion = isTextQuestionType(question.type);
+      const correctOptions = question.options.filter((option) => option.isCorrect);
+      const acceptedAnswers = parseAcceptedAnswers(question.acceptedAnswers);
 
-      if (correctOptions.length !== 1) {
+      if (textQuestion ? acceptedAnswers.length === 0 : correctOptions.length !== 1) {
         throw new BadRequestException('QUIZ_NOT_READY');
       }
 
-      const correctOption = correctOptions[0]!;
+      const correctOption = textQuestion ? null : correctOptions[0]!;
 
       return {
         source: 'LEARNING' as const,
@@ -502,7 +542,7 @@ export class WrongQuestionService {
         latestWrongAt: row.lastWrongAt,
         presentation: null,
         difficulty: null,
-        programmingLanguage: null,
+        programmingLanguage: question.programmingLanguage ?? null,
         stem: null,
         options: question.options.map((option) => ({
           optionId: option.id,
@@ -510,13 +550,22 @@ export class WrongQuestionService {
           order: option.sortOrder,
         })),
         optionSnapshots: null,
-        correctOptionId: correctOption.id,
-        correctAnswer: {
-          type: question.type,
-          optionId: correctOption.id,
-        },
+        correctOptionId: correctOption?.id ?? null,
+        correctAnswer: textQuestion
+          ? { type: question.type, acceptedAnswers }
+          : { type: question.type, optionId: correctOption!.id },
         explanation: question.explanation,
-        latestWrongAnswer: null,
+        latestWrongAnswer: textQuestion
+          ? {
+              type: question.type as 'FILL_BLANK' | 'CODE_FILL',
+              value: row.answerText ?? '',
+            }
+          : row.selectedOptionId
+            ? {
+                type: question.type as 'SINGLE_CHOICE' | 'TRUE_FALSE',
+                optionId: row.selectedOptionId,
+              }
+            : null,
         sourceQuizQuestionId: null,
         battle: null,
       } satisfies UnifiedWrongQuestionItem;

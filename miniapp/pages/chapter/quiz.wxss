@@ -76,6 +76,7 @@
 }
 
 .question-content {
+  margin-top: 18rpx;
   color: #17324d;
   font-weight: 600;
 }
@@ -119,6 +120,29 @@
   flex-direction: column;
   gap: 16rpx;
   margin-top: 22rpx;
+}
+
+.text-answer-box {
+  margin-top: 22rpx;
+}
+
+.text-answer-input {
+  width: 100%;
+  min-height: 88rpx;
+  box-sizing: border-box;
+  padding: 22rpx;
+  border: 2rpx solid #d9e7ff;
+  border-radius: 16rpx;
+  background: #f6f9fd;
+  color: #17324d;
+  font-size: 27rpx;
+  line-height: 1.6;
+}
+
+.code-answer-input {
+  min-height: 112rpx;
+  white-space: pre-wrap;
+  font-family: "Courier New", monospace;
 }
 
 .option-card {

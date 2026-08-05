@@ -7,6 +7,11 @@ import { QuestionType, QuizStatus } from '../../generated/prisma/enums';
 import { type CurrentUserContext } from '../auth/auth.types';
 import type { ContentBlock } from '../battle/battle.types';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  evaluateTextAnswer,
+  isTextQuestionType,
+  parseAcceptedAnswers,
+} from '../question/question-answer';
 import { SubmitChapterQuizDto } from './dto/submit-chapter-quiz.dto';
 
 const PUBLISHED_COURSE_STATUS = 'PUBLISHED';
@@ -28,6 +33,9 @@ type LoadedQuizQuestion = {
   explanation: string | null;
   stemBlocks: unknown;
   explanationBlocks: unknown;
+  acceptedAnswers: unknown;
+  answerNormalization: unknown;
+  programmingLanguage: string | null;
   score: number;
   sortOrder: number;
   options: LoadedQuizOption[];
@@ -94,12 +102,18 @@ export class QuizService {
           questionId: question.id,
           type: question.type,
           content: question.content,
+          explanation: question.explanation,
+          explanationBlocks: this.resolveContentBlocks(
+            question.explanationBlocks,
+            question.explanation,
+          ),
           stemBlocks: this.resolveContentBlocks(
             question.stemBlocks,
             question.content,
           ),
           score: question.score,
           order: question.sortOrder,
+          programmingLanguage: question.programmingLanguage,
           options: question.options.map((option) => ({
             optionId: option.id,
             content: option.content,
@@ -171,6 +185,8 @@ export class QuizService {
           attemptId: createdAttempt.id,
           questionId: answer.questionId,
           selectedOptionId: answer.selectedOptionId,
+          answerText: answer.answerText,
+          normalizedAnswer: answer.normalizedAnswer,
           isCorrect: answer.isCorrect,
           scoreAwarded: answer.scoreAwarded,
           createdAt: submittedAt,
@@ -219,7 +235,9 @@ export class QuizService {
         results: validatedAnswers.map((answer) => ({
           questionId: answer.questionId,
           selectedOptionId: answer.selectedOptionId,
+          answerText: answer.answerText,
           correctOptionId: answer.correctOptionId,
+          acceptedAnswers: answer.acceptedAnswers,
           isCorrect: answer.isCorrect,
           scoreAwarded: answer.scoreAwarded,
           scorePossible: answer.scorePossible,
@@ -227,7 +245,6 @@ export class QuizService {
           explanationBlocks: this.resolveContentBlocks(
             answer.explanationBlocks,
             answer.explanation,
-            false,
           ),
         })),
       },
@@ -320,6 +337,7 @@ export class QuizService {
           select: {
             questionId: true,
             selectedOptionId: true,
+            answerText: true,
             isCorrect: true,
             scoreAwarded: true,
             question: {
@@ -328,6 +346,7 @@ export class QuizService {
                 content: true,
                 explanation: true,
                 explanationBlocks: true,
+                acceptedAnswers: true,
                 score: true,
                 sortOrder: true,
                 options: {
@@ -351,18 +370,24 @@ export class QuizService {
     const results = [...attempt.answers]
       .sort((left, right) => left.question.sortOrder - right.question.sortOrder)
       .map((answer) => {
-        const correctOption = answer.question.options.find(
-          (option) => option.isCorrect,
-        );
+        const textQuestion = isTextQuestionType(answer.question.type);
+        const correctOption = textQuestion
+          ? null
+          : answer.question.options.find((option) => option.isCorrect) ?? null;
+        const acceptedAnswers = textQuestion
+          ? parseAcceptedAnswers(answer.question.acceptedAnswers)
+          : null;
 
-        if (!correctOption) {
+        if ((!textQuestion && !correctOption) || (textQuestion && !acceptedAnswers?.length)) {
           throw new BadRequestException('QUIZ_NOT_READY');
         }
 
         return {
           questionId: answer.questionId,
           selectedOptionId: answer.selectedOptionId,
-          correctOptionId: correctOption.id,
+          answerText: answer.answerText,
+          correctOptionId: correctOption?.id ?? null,
+          acceptedAnswers,
           type: answer.question.type,
           content: answer.question.content,
           isCorrect: answer.isCorrect,
@@ -395,7 +420,9 @@ export class QuizService {
         results: results.map((result) => ({
           questionId: result.questionId,
           selectedOptionId: result.selectedOptionId,
+          answerText: result.answerText,
           correctOptionId: result.correctOptionId,
+          acceptedAnswers: result.acceptedAnswers,
           isCorrect: result.isCorrect,
           scoreAwarded: result.scoreAwarded,
           scorePossible: result.scorePossible,
@@ -423,6 +450,9 @@ export class QuizService {
             explanation: true,
             stemBlocks: true,
             explanationBlocks: true,
+            acceptedAnswers: true,
+            answerNormalization: true,
+            programmingLanguage: true,
             score: true,
             sortOrder: true,
             options: {
@@ -506,6 +536,9 @@ export class QuizService {
             explanation: true,
             stemBlocks: true,
             explanationBlocks: true,
+            acceptedAnswers: true,
+            answerNormalization: true,
+            programmingLanguage: true,
             score: true,
             sortOrder: true,
             options: {
@@ -548,9 +581,14 @@ export class QuizService {
         return false;
       }
 
-      const correctOptions = question.options.filter(
-        (option) => option.isCorrect,
-      );
+      if (isTextQuestionType(question.type)) {
+        return (
+          question.options.length === 0 &&
+          parseAcceptedAnswers(question.acceptedAnswers).length > 0
+        );
+      }
+
+      const correctOptions = question.options.filter((option) => option.isCorrect);
 
       if (correctOptions.length !== 1) {
         return false;
@@ -568,7 +606,10 @@ export class QuizService {
     quiz: LoadedQuiz,
     dto: SubmitChapterQuizDto,
   ) {
-    const answersByQuestionId = new Map<string, string>();
+    const answersByQuestionId = new Map<
+      string,
+      { selectedOptionId?: string; answerText?: string }
+    >();
     const questionsById = new Map(
       quiz.questions.map((question) => [question.id, question]),
     );
@@ -582,7 +623,16 @@ export class QuizService {
         throw new BadRequestException('QUIZ_QUESTION_INVALID');
       }
 
-      answersByQuestionId.set(answer.questionId, answer.selectedOptionId);
+      const hasOption = typeof answer.selectedOptionId === 'string';
+      const hasText = typeof answer.answerText === 'string';
+      if (hasOption === hasText) {
+        throw new BadRequestException('QUIZ_ANSWER_INVALID');
+      }
+
+      answersByQuestionId.set(answer.questionId, {
+        selectedOptionId: answer.selectedOptionId,
+        answerText: answer.answerText,
+      });
     }
 
     if (answersByQuestionId.size !== quiz.questions.length) {
@@ -590,14 +640,51 @@ export class QuizService {
     }
 
     return quiz.questions.map((question) => {
-      const selectedOptionId = answersByQuestionId.get(question.id);
+      const submittedAnswer = answersByQuestionId.get(question.id);
 
-      if (!selectedOptionId) {
+      if (!submittedAnswer) {
         throw new BadRequestException('QUIZ_ANSWER_INCOMPLETE');
       }
 
+      if (isTextQuestionType(question.type)) {
+        if (
+          submittedAnswer.selectedOptionId !== undefined ||
+          submittedAnswer.answerText === undefined
+        ) {
+          throw new BadRequestException('QUIZ_ANSWER_INVALID');
+        }
+
+        const evaluation = evaluateTextAnswer({
+          type: question.type,
+          value: submittedAnswer.answerText,
+          acceptedAnswers: question.acceptedAnswers,
+          answerNormalization: question.answerNormalization,
+        });
+
+        return {
+          questionId: question.id,
+          selectedOptionId: null,
+          answerText: evaluation.answerText,
+          normalizedAnswer: evaluation.normalizedAnswer,
+          correctOptionId: null,
+          acceptedAnswers: evaluation.acceptedAnswers,
+          isCorrect: evaluation.isCorrect,
+          scoreAwarded: evaluation.isCorrect ? question.score : 0,
+          scorePossible: question.score,
+          explanation: question.explanation,
+          explanationBlocks: question.explanationBlocks,
+        };
+      }
+
+      if (
+        submittedAnswer.answerText !== undefined ||
+        submittedAnswer.selectedOptionId === undefined
+      ) {
+        throw new BadRequestException('QUIZ_ANSWER_INVALID');
+      }
+
       const selectedOption = question.options.find(
-        (option) => option.id === selectedOptionId,
+        (option) => option.id === submittedAnswer.selectedOptionId,
       );
 
       if (!selectedOption) {
@@ -615,7 +702,10 @@ export class QuizService {
       return {
         questionId: question.id,
         selectedOptionId: selectedOption.id,
+        answerText: null,
+        normalizedAnswer: null,
         correctOptionId: correctOption.id,
+        acceptedAnswers: null,
         isCorrect,
         scoreAwarded: isCorrect ? question.score : 0,
         scorePossible: question.score,

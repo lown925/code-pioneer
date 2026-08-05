@@ -81,6 +81,7 @@ enum QuizStatus {
 enum QuestionType {
   SINGLE_CHOICE
   TRUE_FALSE
+  FILL_BLANK
   CODE_FILL
 }
 
@@ -468,13 +469,15 @@ model QuizAnswer {
   id               String       @id @default(uuid()) @db.Uuid
   attemptId        String       @map("attempt_id") @db.Uuid
   questionId       String       @map("question_id") @db.Uuid
-  selectedOptionId String       @map("selected_option_id") @db.Uuid
+  selectedOptionId String?      @map("selected_option_id") @db.Uuid
+  answerText       String?      @map("answer_text")
+  normalizedAnswer String?      @map("normalized_answer")
   isCorrect        Boolean      @default(false) @map("is_correct")
   scoreAwarded     Int          @default(0) @map("score_awarded")
   createdAt        DateTime     @default(now()) @map("created_at")
   attempt          QuizAttempt  @relation(fields: [attemptId], references: [id])
   question         QuizQuestion @relation(fields: [questionId], references: [id])
-  selectedOption   QuizOption   @relation(fields: [selectedOptionId], references: [id])
+  selectedOption   QuizOption?  @relation(fields: [selectedOptionId], references: [id])
 
   @@unique([attemptId, questionId])
   @@index([questionId])
@@ -504,13 +507,15 @@ model PracticeAnswer {
   attemptId        String          @map("attempt_id") @db.Uuid
   userId           String          @map("user_id") @db.Uuid
   questionId       String          @map("question_id") @db.Uuid
-  selectedOptionId String          @map("selected_option_id") @db.Uuid
+  selectedOptionId String?         @map("selected_option_id") @db.Uuid
+  answerText       String?         @map("answer_text")
+  normalizedAnswer String?         @map("normalized_answer")
   isCorrect        Boolean         @default(false) @map("is_correct")
   answeredAt       DateTime        @default(now()) @map("answered_at")
   attempt          PracticeAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   user             User            @relation(fields: [userId], references: [id])
   question         QuizQuestion    @relation(fields: [questionId], references: [id])
-  selectedOption   QuizOption      @relation(fields: [selectedOptionId], references: [id])
+  selectedOption   QuizOption?     @relation(fields: [selectedOptionId], references: [id])
 
   @@unique([attemptId, questionId])
   @@index([userId, isCorrect, answeredAt])

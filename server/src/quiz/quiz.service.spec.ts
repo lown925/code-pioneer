@@ -38,6 +38,9 @@ type QuizQuestionRecord = {
   explanation: string | null;
   stemBlocks?: unknown;
   explanationBlocks?: unknown;
+  acceptedAnswers?: unknown;
+  answerNormalization?: unknown;
+  programmingLanguage?: string | null;
   score: number;
   sortOrder: number;
 };
@@ -85,7 +88,9 @@ type QuizAnswerRecord = {
   id: string;
   attemptId: string;
   questionId: string;
-  selectedOptionId: string;
+  selectedOptionId: string | null;
+  answerText: string | null;
+  normalizedAnswer: string | null;
   isCorrect: boolean;
   scoreAwarded: number;
   createdAt: Date;
@@ -162,6 +167,7 @@ function createMockPrisma() {
             explanation: question.explanation,
             stemBlocks: question.stemBlocks ?? null,
             explanationBlocks: question.explanationBlocks ?? null,
+            acceptedAnswers: question.acceptedAnswers ?? null,
             score: question.score,
             sortOrder: question.sortOrder,
             options: [...options.values()]
@@ -277,7 +283,9 @@ function createMockPrisma() {
             id: answerId,
             attemptId: item.attemptId as string,
             questionId: item.questionId as string,
-            selectedOptionId: item.selectedOptionId as string,
+            selectedOptionId: (item.selectedOptionId as string | null) ?? null,
+            answerText: (item.answerText as string | null) ?? null,
+            normalizedAnswer: (item.normalizedAnswer as string | null) ?? null,
             isCorrect: item.isCorrect as boolean,
             scoreAwarded: item.scoreAwarded as number,
             createdAt: item.createdAt as Date,
@@ -476,7 +484,7 @@ describe('QuizService', () => {
     role: 'NORMAL' as const,
   };
 
-  it('returns quiz questions without leaking correct answers or explanations', async () => {
+  it('returns quiz questions with explanations without leaking correct answers', async () => {
     const mock = createMockPrisma();
     const service = new QuizService(mock.prisma as never);
     const { chapterId, quizId } = seedQuizState(mock);
@@ -497,7 +505,15 @@ describe('QuizService', () => {
     expect(result.data.hasPassed).toBe(true);
     expect(result.data.attemptCount).toBe(1);
     expect(result.data.questions[0]).not.toHaveProperty('correctOptionId');
-    expect(result.data.questions[0]).not.toHaveProperty('explanation');
+    expect(result.data.questions[0]?.explanation).toBe(
+      'print() writes text to standard output.',
+    );
+    expect(result.data.questions[0]?.explanationBlocks).toEqual([
+      {
+        type: 'TEXT',
+        text: 'print() is the standard output function in Python.',
+      },
+    ]);
     expect(result.data.questions[0]?.options[0]).not.toHaveProperty(
       'isCorrect',
     );
@@ -635,6 +651,12 @@ describe('QuizService', () => {
         text: 'print() is the standard output function in Python.',
       },
     ]);
+    expect(result.data.results[1]?.explanationBlocks).toEqual([
+      {
+        type: 'TEXT',
+        text: 'Python treats Name and name as different identifiers.',
+      },
+    ]);
     expect(mock.attempts.size).toBe(1);
     expect(mock.answers.size).toBe(2);
     expect(
@@ -649,6 +671,71 @@ describe('QuizService', () => {
       mock.courseLearningRecords.get(`${currentUser.id}:other-course`)
         ?.lastChapterId,
     ).toBe('other-chapter');
+  });
+
+  it('loads, judges, and persists a fill-blank chapter quiz answer', async () => {
+    const mock = createMockPrisma();
+    const service = new QuizService(mock.prisma as never);
+    const {
+      courseId,
+      chapterId,
+      questionOneId,
+      questionTwoId,
+      optionOneId,
+      optionThreeId,
+      optionFourId,
+    } = seedQuizState(mock);
+    mock.options.delete(optionThreeId);
+    mock.options.delete(optionFourId);
+    mock.questions.set(questionTwoId, {
+      ...mock.questions.get(questionTwoId)!,
+      type: QuestionType.FILL_BLANK,
+      content: 'JavaScript 的常用简称是什么？',
+      acceptedAnswers: ['JavaScript', 'JS'],
+      answerNormalization: null,
+    });
+    mock.chapterLearningRecords.set(`${currentUser.id}:${chapterId}`, {
+      id: 'record-text',
+      userId: currentUser.id,
+      courseId,
+      chapterId,
+      status: LearningStatus.LEARNING,
+      completedAt: null,
+      lastLearnedAt: new Date(),
+      quizCompleted: false,
+    });
+
+    const loaded = await service.getChapterQuiz(currentUser, chapterId);
+    const textQuestion = loaded.data.questions.find(
+      (question) => question.questionId === questionTwoId,
+    );
+    expect(textQuestion?.options).toEqual([]);
+    expect(textQuestion).not.toHaveProperty('acceptedAnswers');
+
+    const result = await service.submitChapterQuiz(currentUser, chapterId, {
+      answers: [
+        { questionId: questionOneId, selectedOptionId: optionOneId },
+        { questionId: questionTwoId, answerText: ' js ' },
+      ],
+    });
+
+    expect(result.data.score).toBe(40);
+    expect(result.data.results[1]).toEqual(
+      expect.objectContaining({
+        selectedOptionId: null,
+        answerText: ' js ',
+        correctOptionId: null,
+        acceptedAnswers: ['JavaScript', 'JS'],
+        isCorrect: true,
+      }),
+    );
+    expect([...mock.answers.values()][1]).toEqual(
+      expect.objectContaining({
+        selectedOptionId: null,
+        answerText: ' js ',
+        normalizedAnswer: 'js',
+      }),
+    );
   });
 
   it('rejects reading a quiz when quiz data is incomplete', async () => {

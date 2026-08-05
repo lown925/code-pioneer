@@ -385,6 +385,55 @@ export const JAVASCRIPT_STARTER_COURSE: SeedCourse = {
               ],
               tags: ['topic:const', 'topic:assignment'],
             },
+            {
+              key: 'console-method-fill',
+              type: 'FILL_BLANK',
+              title: '填写 `console.___()` 中缺少的方法名，使它能够在控制台输出内容。',
+              explanation:
+                '`console.log()` 是 JavaScript 中最常用的控制台输出方法，因此空格中应填写 `log`。',
+              difficulty: 'EASY',
+              score: 10,
+              isBattleEnabled: false,
+              acceptedAnswers: ['log'],
+              stemBlocks: [
+                {
+                  type: 'CODE',
+                  language: 'javascript',
+                  code: "console.___('Hello, Code Pioneer')",
+                },
+              ],
+              tags: ['topic:console', 'question-type:fill-blank'],
+            },
+            {
+              key: 'declare-language-code-fill',
+              type: 'CODE_FILL',
+              title: '补全一行变量声明，把字符串 `JavaScript` 保存到常量 `language` 中。',
+              explanation:
+                '使用 `const` 声明不会被重新赋值的变量，并通过等号把字符串赋给 `language`。',
+              difficulty: 'EASY',
+              score: 10,
+              isBattleEnabled: true,
+              battlePresentation: 'INPUT_CODE_FILL',
+              programmingLanguage: 'javascript',
+              acceptedAnswers: [
+                "const language = 'JavaScript'",
+                "const language = 'JavaScript';",
+                'const language = "JavaScript"',
+                'const language = "JavaScript";',
+              ],
+              stemBlocks: [
+                {
+                  type: 'TEXT',
+                  text: '请填写完整的一行 JavaScript 代码。',
+                },
+                {
+                  type: 'CODE',
+                  language: 'javascript',
+                  code: '// 在这里声明常量 language',
+                },
+              ],
+              tags: ['topic:const', 'topic:string', 'question-type:code-fill'],
+            },
           ],
         },
       ],
@@ -743,6 +792,53 @@ export const JAVASCRIPT_STARTER_COURSE: SeedCourse = {
                 option('rename-variable', '把 total 改名为 return', false),
               ],
               tags: ['topic:return', 'topic:function'],
+            },
+            {
+              key: 'strict-equality-operator-fill',
+              type: 'FILL_BLANK',
+              title: 'JavaScript 中用于严格相等比较的运算符是什么？',
+              explanation:
+                '严格相等运算符是 `===`，它比较值和类型，不会先进行隐式类型转换。',
+              difficulty: 'EASY',
+              score: 10,
+              isBattleEnabled: false,
+              acceptedAnswers: ['==='],
+              stemBlocks: [
+                {
+                  type: 'CODE',
+                  language: 'javascript',
+                  code: 'const same = value ___ 10',
+                },
+              ],
+              tags: ['topic:strict-equality', 'question-type:fill-blank'],
+            },
+            {
+              key: 'function-return-code-fill',
+              type: 'CODE_FILL',
+              title: '补全函数体中的代码，使 `sum(2, 3)` 返回数字 `5`。',
+              explanation:
+                '函数需要使用 `return` 把 `a + b` 的计算结果返回给调用者。',
+              difficulty: 'MEDIUM',
+              score: 10,
+              isBattleEnabled: true,
+              battlePresentation: 'INPUT_CODE_FILL',
+              programmingLanguage: 'javascript',
+              acceptedAnswers: ['return a + b', 'return a + b;', 'return a+b', 'return a+b;'],
+              stemBlocks: [
+                {
+                  type: 'CODE',
+                  language: 'javascript',
+                  code: 'function sum(a, b) {\n  // 在这里填写一行代码\n}',
+                },
+              ],
+              explanationBlocks: [
+                {
+                  type: 'CODE',
+                  language: 'javascript',
+                  code: 'function sum(a, b) {\n  return a + b\n}',
+                },
+              ],
+              tags: ['topic:return', 'topic:function', 'question-type:code-fill'],
             },
           ],
         },

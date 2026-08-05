@@ -9,7 +9,7 @@ import type {
 
 export type WrongQuestionSource = 'LEARNING' | 'PRACTICE' | 'BATTLE';
 
-export type WrongQuestionType = BattleQuestionType | 'TRUE_FALSE';
+export type WrongQuestionType = BattleQuestionType | 'TRUE_FALSE' | 'FILL_BLANK';
 
 export type WrongQuestionListQuery = {
   source?: WrongQuestionSource;
@@ -81,8 +81,14 @@ export type WrongQuestionCorrectAnswer =
       optionId: string;
     }
   | {
-      type: 'CODE_FILL';
+      type: 'FILL_BLANK' | 'CODE_FILL';
+      acceptedAnswers: string[];
     };
+
+export type WrongQuestionSubmittedAnswer =
+  | BattleSubmittedAnswerResponse
+  | { type: 'TRUE_FALSE'; optionId: string }
+  | { type: 'FILL_BLANK'; value: string };
 
 export type WrongQuestionDetail = {
   source: WrongQuestionSource;
@@ -107,7 +113,7 @@ export type WrongQuestionDetail = {
   programmingLanguage: string | null;
   stem: BattleContentBlock[] | null;
   optionSnapshots: BattleQuestionOptionSnapshotResponse[] | null;
-  latestWrongAnswer: BattleSubmittedAnswerResponse | null;
+  latestWrongAnswer: WrongQuestionSubmittedAnswer | null;
   sourceQuizQuestionId: string | null;
   battle: WrongQuestionBattleReference;
 };

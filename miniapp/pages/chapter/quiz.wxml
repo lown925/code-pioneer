@@ -31,7 +31,9 @@
         <text class="question-score">{{question.scoreText}}</text>
       </view>
 
-      <view class="content-block-list">
+      <text class="question-content">{{question.content}}</text>
+
+      <view wx:if="{{question.stemBlocks.length > 0}}" class="content-block-list">
         <block wx:for="{{question.stemBlocks}}" wx:key="blockKey" wx:for-item="stemBlock">
           <text wx:if="{{stemBlock.type === 'TEXT'}}" class="question-content">{{stemBlock.text}}</text>
           <text wx:elif="{{stemBlock.type === 'CODE'}}" class="content-code">{{stemBlock.code}}</text>
@@ -51,7 +53,31 @@
         </block>
       </view>
 
-      <view class="option-list">
+      <view wx:if="{{question.isTextQuestion}}" class="text-answer-box">
+        <textarea
+          wx:if="{{question.isCodeFill}}"
+          class="text-answer-input code-answer-input"
+          value="{{question.answerText}}"
+          maxlength="{{question.answerMaxLength}}"
+          placeholder="{{question.inputPlaceholder}}"
+          disabled="{{state !== 'ready'}}"
+          data-question-id="{{question.questionId}}"
+          bindinput="handleTextAnswerInput"
+          auto-height
+        />
+        <input
+          wx:else
+          class="text-answer-input"
+          value="{{question.answerText}}"
+          maxlength="{{question.answerMaxLength}}"
+          placeholder="{{question.inputPlaceholder}}"
+          disabled="{{state !== 'ready'}}"
+          data-question-id="{{question.questionId}}"
+          bindinput="handleTextAnswerInput"
+        />
+      </view>
+
+      <view wx:else class="option-list">
         <view
           wx:for="{{question.options}}"
           wx:key="optionId"

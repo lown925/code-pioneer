@@ -3,6 +3,7 @@ import type { WrongQuestionSource, WrongQuestionType } from '../types/wrong-ques
 const QUESTION_TYPE_LABELS: Record<WrongQuestionType, string> = {
   SINGLE_CHOICE: '单选题',
   TRUE_FALSE: '判断题',
+  FILL_BLANK: '填空题',
   CODE_FILL: '代码填空题',
 };
 
@@ -30,6 +31,7 @@ export function formatWrongQuestionType(value: string | null | undefined) {
   if (
     value === 'SINGLE_CHOICE' ||
     value === 'TRUE_FALSE' ||
+    value === 'FILL_BLANK' ||
     value === 'CODE_FILL'
   ) {
     return QUESTION_TYPE_LABELS[value];

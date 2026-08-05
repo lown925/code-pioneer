@@ -7,6 +7,7 @@ import type {
   SeedChapter,
   SeedCodeFillQuestion,
   SeedCourse,
+  SeedFillBlankQuestion,
   SeedLesson,
   SeedLessonBlock,
   SeedQuestion,
@@ -49,7 +50,7 @@ const SEED_NAMESPACE = 'code-pioneer.seed-content';
 const CONTENT_SEED_VERSION_NAME = 'content-seed.version';
 const SEED_TRANSACTION_OPTIONS = {
   maxWait: 10_000,
-  timeout: 60_000,
+  timeout: 120_000,
 } as const;
 
 function stableUuid(input: string) {
@@ -149,7 +150,11 @@ function normalizeLessonBlock(block: SeedLessonBlock) {
   }
 }
 
-function buildLessonTags(course: SeedCourse, chapter: SeedChapter, lesson: SeedLesson) {
+function buildLessonTags(
+  course: SeedCourse,
+  chapter: SeedChapter,
+  lesson: SeedLesson,
+) {
   return [
     `course:${course.slug}`,
     `chapter:${chapter.key}`,
@@ -204,7 +209,9 @@ function validateQuestion(
       );
     }
 
-    const correctCount = question.options.filter((option) => option.isCorrect).length;
+    const correctCount = question.options.filter(
+      (option) => option.isCorrect,
+    ).length;
     if (correctCount !== 1) {
       throw new Error(
         `Question ${lesson.key}/${question.key} must contain exactly one correct option`,
@@ -220,7 +227,9 @@ function validateQuestion(
   }
 
   if (question.type === QuestionType.TRUE_FALSE) {
-    const correctCount = question.options.filter((option) => option.isCorrect).length;
+    const correctCount = question.options.filter(
+      (option) => option.isCorrect,
+    ).length;
     if (question.options.length !== 2 || correctCount !== 1) {
       throw new Error(
         `TRUE_FALSE question ${lesson.key}/${question.key} must contain exactly two options and one correct option`,
@@ -235,21 +244,34 @@ function validateQuestion(
     return;
   }
 
-  if (question.type === QuestionType.CODE_FILL) {
-    if (question.acceptedAnswers.length === 0) {
+  if (
+    question.type === QuestionType.FILL_BLANK ||
+    question.type === QuestionType.CODE_FILL
+  ) {
+    if (
+      question.acceptedAnswers.length === 0 ||
+      question.acceptedAnswers.some((answer) => !answer.trim())
+    ) {
       throw new Error(
-        `CODE_FILL question ${lesson.key}/${question.key} must declare acceptedAnswers`,
+        `${question.type} question ${lesson.key}/${question.key} must declare non-empty acceptedAnswers`,
       );
     }
 
-    throw new Error(
-      `Current chapter quiz API does not support CODE_FILL submissions yet. Question ${lesson.key}/${question.key} cannot be imported into a chapter quiz.`,
-    );
+    if (question.type === QuestionType.FILL_BLANK && question.isBattleEnabled) {
+      throw new Error(
+        `FILL_BLANK question ${questionRef} cannot be battle-enabled`,
+      );
+    }
   }
 }
 
-function isCodeFillQuestion(question: SeedQuestion) {
-  return question.type === QuestionType.CODE_FILL;
+function isTextAnswerQuestion(
+  question: SeedQuestion,
+): question is SeedFillBlankQuestion | SeedCodeFillQuestion {
+  return (
+    question.type === QuestionType.FILL_BLANK ||
+    question.type === QuestionType.CODE_FILL
+  );
 }
 
 function isSingleChoiceQuestion(question: SeedQuestion) {
@@ -258,9 +280,11 @@ function isSingleChoiceQuestion(question: SeedQuestion) {
 
 function hasQuestionBlocks(
   question: SeedQuestion,
-): question is SeedSingleChoiceQuestion | SeedCodeFillQuestion {
+): question is
+  SeedSingleChoiceQuestion | SeedFillBlankQuestion | SeedCodeFillQuestion {
   return (
     question.type === QuestionType.SINGLE_CHOICE ||
+    question.type === QuestionType.FILL_BLANK ||
     question.type === QuestionType.CODE_FILL
   );
 }
@@ -292,12 +316,12 @@ function getExplanationBlocks(question: SeedQuestion) {
 
 function getProgrammingLanguage(question: SeedQuestion) {
   return hasProgrammingLanguage(question)
-    ? question.programmingLanguage ?? null
+    ? (question.programmingLanguage ?? null)
     : null;
 }
 
 function getAcceptedAnswers(question: SeedQuestion) {
-  if (!isCodeFillQuestion(question)) {
+  if (!isTextAnswerQuestion(question)) {
     return Prisma.JsonNull;
   }
 
@@ -305,49 +329,64 @@ function getAcceptedAnswers(question: SeedQuestion) {
 }
 
 function getAnswerNormalization(question: SeedQuestion) {
-  if (!isCodeFillQuestion(question)) {
+  if (!isTextAnswerQuestion(question)) {
     return Prisma.JsonNull;
   }
 
-  return question.answerNormalization ?? {
-    trim: true,
-    normalizeLineEndings: true,
-    caseSensitive: true,
+  return {
+    trim: question.answerNormalization?.trim ?? true,
+    normalizeLineEndings:
+      question.answerNormalization?.normalizeLineEndings ?? true,
+    caseSensitive:
+      question.answerNormalization?.caseSensitive ??
+      question.type === QuestionType.CODE_FILL,
+    collapseWhitespace:
+      question.answerNormalization?.collapseWhitespace ??
+      question.type === QuestionType.FILL_BLANK,
   };
 }
 
 function getCaseSensitive(question: SeedQuestion) {
-  if (!isCodeFillQuestion(question)) {
+  if (!isTextAnswerQuestion(question)) {
     return true;
   }
 
-  return question.answerNormalization?.caseSensitive ?? true;
+  return (
+    question.answerNormalization?.caseSensitive ??
+    question.type === QuestionType.CODE_FILL
+  );
 }
 
 function validateCourseSeed(course: SeedCourse) {
-  if (course.chapters.length !== 2) {
-    throw new Error(`${course.slug} must contain exactly 2 chapters for this seed`);
+  if (course.chapters.length === 0) {
+    throw new Error(`${course.slug} must contain at least one chapter`);
   }
 
   ensureUniqueKeys(course.chapters, `course ${course.slug} chapters`);
 
   for (const chapter of course.chapters) {
-    if (chapter.lessons.length !== 2) {
+    if (chapter.lessons.length === 0) {
       throw new Error(
-        `Chapter ${course.slug}/${chapter.key} must contain exactly 2 lessons for this seed`,
+        `Chapter ${course.slug}/${chapter.key} must contain at least one lesson`,
       );
     }
 
-    ensureUniqueKeys(chapter.lessons, `chapter ${course.slug}/${chapter.key} lessons`);
+    ensureUniqueKeys(
+      chapter.lessons,
+      `chapter ${course.slug}/${chapter.key} lessons`,
+    );
 
     for (const lesson of chapter.lessons) {
-      if (lesson.questions.length < 3 || lesson.questions.length > 5) {
+      if (lesson.questions.length === 0 || lesson.questions.length > 50) {
         throw new Error(
-          `Lesson ${course.slug}/${chapter.key}/${lesson.key} must contain 3 to 5 questions`,
+          `Lesson ${course.slug}/${chapter.key}/${lesson.key} must contain 1 to 50 questions`,
         );
       }
 
-      ensureUniqueKeys(lesson.blocks, `lesson ${course.slug}/${chapter.key}/${lesson.key} blocks`);
+      ensureUniqueKeys(
+        lesson.blocks,
+        `lesson ${course.slug}/${chapter.key}/${lesson.key} blocks`,
+      );
       ensureUniqueKeys(
         lesson.questions,
         `lesson ${course.slug}/${chapter.key}/${lesson.key} questions`,
@@ -361,280 +400,322 @@ function validateCourseSeed(course: SeedCourse) {
 }
 
 async function upsertCourseSeed(prisma: PrismaService, course: SeedCourse) {
-  return prisma.$transaction(
-    async (tx) => {
-      const courseRecord = await tx.course.upsert({
+  return prisma.$transaction(async (tx) => {
+    const courseRecord = await tx.course.upsert({
+      where: {
+        slug: course.slug,
+      },
+      create: {
+        id: makeId('course', course.slug),
+        slug: course.slug,
+        title: course.title,
+        summary: course.summary,
+        description: course.description,
+        category: course.category,
+        language: course.language,
+        difficulty: course.difficulty,
+        estimatedMinutes: course.estimatedMinutes,
+        targetAudience: course.targetAudience,
+        learningObjectives: course.learningObjectives,
+        status: CourseStatus.PUBLISHED,
+        sortOrder: course.sortOrder,
+      },
+      update: {
+        title: course.title,
+        summary: course.summary,
+        description: course.description,
+        category: course.category,
+        language: course.language,
+        difficulty: course.difficulty,
+        estimatedMinutes: course.estimatedMinutes,
+        targetAudience: course.targetAudience,
+        learningObjectives: course.learningObjectives,
+        status: CourseStatus.PUBLISHED,
+        sortOrder: course.sortOrder,
+        deletedAt: null,
+        publishedAt: new Date(),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    let questionCount = 0;
+    let battleEnabledCount = 0;
+
+    if (course.retiredChapterIds?.length) {
+      const retiredAt = new Date();
+
+      await tx.quiz.updateMany({
         where: {
-          slug: course.slug,
+          chapterId: { in: course.retiredChapterIds },
+          chapter: { courseId: courseRecord.id },
+          status: { not: QuizStatus.DISABLED },
+        },
+        data: { status: QuizStatus.DISABLED },
+      });
+
+      await tx.courseChapter.updateMany({
+        where: {
+          id: { in: course.retiredChapterIds },
+          courseId: courseRecord.id,
+          OR: [{ status: { not: ChapterStatus.OFFLINE } }, { deletedAt: null }],
+        },
+        data: {
+          status: ChapterStatus.OFFLINE,
+          deletedAt: retiredAt,
+        },
+      });
+    }
+
+    for (const chapter of course.chapters) {
+      const chapterId = makeId('chapter', `${course.slug}:${chapter.key}`);
+
+      await tx.courseChapter.upsert({
+        where: {
+          id: chapterId,
         },
         create: {
-          id: makeId('course', course.slug),
-          slug: course.slug,
-          title: course.title,
-          summary: course.summary,
-          description: course.description,
-          category: course.category,
-          language: course.language,
-          difficulty: course.difficulty,
-          estimatedMinutes: course.estimatedMinutes,
-          targetAudience: course.targetAudience,
-          learningObjectives: course.learningObjectives,
-          status: CourseStatus.PUBLISHED,
-          sortOrder: course.sortOrder,
+          id: chapterId,
+          courseId: courseRecord.id,
+          title: chapter.title,
+          summary: chapter.summary,
+          estimatedMinutes: chapter.estimatedMinutes,
+          sortOrder: chapter.sortOrder,
+          status: ChapterStatus.PUBLISHED,
+          publishedAt: new Date(),
         },
         update: {
-          title: course.title,
-          summary: course.summary,
-          description: course.description,
-          category: course.category,
-          language: course.language,
-          difficulty: course.difficulty,
-          estimatedMinutes: course.estimatedMinutes,
-          targetAudience: course.targetAudience,
-          learningObjectives: course.learningObjectives,
-          status: CourseStatus.PUBLISHED,
-          sortOrder: course.sortOrder,
+          courseId: courseRecord.id,
+          title: chapter.title,
+          summary: chapter.summary,
+          estimatedMinutes: chapter.estimatedMinutes,
+          sortOrder: chapter.sortOrder,
+          status: ChapterStatus.PUBLISHED,
           deletedAt: null,
           publishedAt: new Date(),
+        },
+      });
+
+      const normalizedBlocks = chapter.lessons.flatMap((lesson) => [
+        lessonHeadingBlock(lesson),
+        lessonSummaryBlock(lesson),
+        ...lesson.blocks.map((block) => normalizeLessonBlock(block)),
+      ]);
+
+      for (
+        let blockIndex = 0;
+        blockIndex < normalizedBlocks.length;
+        blockIndex += 1
+      ) {
+        const block = normalizedBlocks[blockIndex]!;
+        const blockId = makeId(
+          'content-block',
+          `${course.slug}:${chapter.key}:${block.key}`,
+        );
+
+        await tx.chapterContentBlock.upsert({
+          where: {
+            id: blockId,
+          },
+          create: {
+            id: blockId,
+            chapterId,
+            type: block.type,
+            sortOrder: blockIndex + 1,
+            content: block.content,
+            isVisible: true,
+          },
+          update: {
+            chapterId,
+            type: block.type,
+            sortOrder: blockIndex + 1,
+            content: block.content,
+            isVisible: true,
+            deletedAt: null,
+          },
+        });
+      }
+
+      const quiz = await tx.quiz.upsert({
+        where: {
+          chapterId,
+        },
+        create: {
+          id: makeId('quiz', `${course.slug}:${chapter.key}`),
+          chapterId,
+          title: chapter.quizTitle,
+          description: chapter.quizDescription,
+          passScorePercent: chapter.passScorePercent,
+          status: QuizStatus.PUBLISHED,
+        },
+        update: {
+          title: chapter.quizTitle,
+          description: chapter.quizDescription,
+          passScorePercent: chapter.passScorePercent,
+          status: QuizStatus.PUBLISHED,
         },
         select: {
           id: true,
         },
       });
 
-      let questionCount = 0;
-      let battleEnabledCount = 0;
+      let sortOrder = 1;
+      for (const lesson of chapter.lessons) {
+        const lessonTags = buildLessonTags(course, chapter, lesson);
 
-      for (const chapter of course.chapters) {
-        const chapterId = makeId('chapter', `${course.slug}:${chapter.key}`);
-
-        await tx.courseChapter.upsert({
-          where: {
-            id: chapterId,
-          },
-          create: {
-            id: chapterId,
-            courseId: courseRecord.id,
-            title: chapter.title,
-            summary: chapter.summary,
-            estimatedMinutes: chapter.estimatedMinutes,
-            sortOrder: chapter.sortOrder,
-            status: ChapterStatus.PUBLISHED,
-            publishedAt: new Date(),
-          },
-          update: {
-            courseId: courseRecord.id,
-            title: chapter.title,
-            summary: chapter.summary,
-            estimatedMinutes: chapter.estimatedMinutes,
-            sortOrder: chapter.sortOrder,
-            status: ChapterStatus.PUBLISHED,
-            deletedAt: null,
-            publishedAt: new Date(),
-          },
-        });
-
-        const normalizedBlocks = chapter.lessons.flatMap((lesson) => [
-          lessonHeadingBlock(lesson),
-          lessonSummaryBlock(lesson),
-          ...lesson.blocks.map((block) => normalizeLessonBlock(block)),
-        ]);
-
-        for (
-          let blockIndex = 0;
-          blockIndex < normalizedBlocks.length;
-          blockIndex += 1
-        ) {
-          const block = normalizedBlocks[blockIndex]!;
-          const blockId = makeId(
-            'content-block',
-            `${course.slug}:${chapter.key}:${block.key}`,
+        for (const question of lesson.questions) {
+          const questionId = makeId(
+            'question',
+            `${course.slug}:${chapter.key}:${lesson.key}:${question.key}`,
           );
 
-          await tx.chapterContentBlock.upsert({
+          const knowledgeTags = [
+            ...lessonTags,
+            ...(question.tags ?? []),
+            `difficulty:${question.difficulty.toLowerCase()}`,
+          ];
+
+          await tx.quizQuestion.upsert({
             where: {
-              id: blockId,
+              id: questionId,
             },
             create: {
-              id: blockId,
-              chapterId,
-              type: block.type,
-              sortOrder: blockIndex + 1,
-              content: block.content,
-              isVisible: true,
+              id: questionId,
+              quizId: quiz.id,
+              type: question.type,
+              content: question.title,
+              explanation: question.explanation,
+              score: question.score,
+              sortOrder,
+              battlePresentation:
+                (isSingleChoiceQuestion(question) ||
+                  question.type === QuestionType.CODE_FILL) &&
+                question.isBattleEnabled
+                  ? question.battlePresentation
+                  : null,
+              battleDifficulty: question.difficulty,
+              isBattleEnabled: question.isBattleEnabled,
+              stemBlocks: getStemBlocks(question),
+              explanationBlocks: getExplanationBlocks(question),
+              acceptedAnswers: getAcceptedAnswers(question),
+              answerNormalization: getAnswerNormalization(question),
+              caseSensitive: getCaseSensitive(question),
+              knowledgeTags,
+              programmingLanguage: getProgrammingLanguage(question),
             },
             update: {
-              chapterId,
-              type: block.type,
-              sortOrder: blockIndex + 1,
-              content: block.content,
-              isVisible: true,
-              deletedAt: null,
+              quizId: quiz.id,
+              type: question.type,
+              content: question.title,
+              explanation: question.explanation,
+              score: question.score,
+              sortOrder,
+              battlePresentation:
+                (isSingleChoiceQuestion(question) ||
+                  question.type === QuestionType.CODE_FILL) &&
+                question.isBattleEnabled
+                  ? question.battlePresentation
+                  : null,
+              battleDifficulty: question.difficulty,
+              isBattleEnabled: question.isBattleEnabled,
+              stemBlocks: getStemBlocks(question),
+              explanationBlocks: getExplanationBlocks(question),
+              acceptedAnswers: getAcceptedAnswers(question),
+              answerNormalization: getAnswerNormalization(question),
+              caseSensitive: getCaseSensitive(question),
+              knowledgeTags,
+              programmingLanguage: getProgrammingLanguage(question),
             },
           });
-        }
 
-        const quiz = await tx.quiz.upsert({
-          where: {
-            chapterId,
-          },
-          create: {
-            id: makeId('quiz', `${course.slug}:${chapter.key}`),
-            chapterId,
-            title: chapter.quizTitle,
-            description: chapter.quizDescription,
-            passScorePercent: chapter.passScorePercent,
-            status: QuizStatus.PUBLISHED,
-          },
-          update: {
-            title: chapter.quizTitle,
-            description: chapter.quizDescription,
-            passScorePercent: chapter.passScorePercent,
-            status: QuizStatus.PUBLISHED,
-          },
-          select: {
-            id: true,
-          },
-        });
+          if ('options' in question) {
+            for (
+              let optionIndex = 0;
+              optionIndex < question.options.length;
+              optionIndex += 1
+            ) {
+              const item = question.options[optionIndex]!;
+              const optionId = makeId(
+                'option',
+                `${course.slug}:${chapter.key}:${lesson.key}:${question.key}:${item.key}`,
+              );
 
-        let sortOrder = 1;
-        for (const lesson of chapter.lessons) {
-          const lessonTags = buildLessonTags(course, chapter, lesson);
-
-          for (const question of lesson.questions) {
-            const questionId = makeId(
-              'question',
-              `${course.slug}:${chapter.key}:${lesson.key}:${question.key}`,
-            );
-
-            const knowledgeTags = [
-              ...lessonTags,
-              ...(question.tags ?? []),
-              `difficulty:${question.difficulty.toLowerCase()}`,
-            ];
-
-            await tx.quizQuestion.upsert({
+              await tx.quizOption.upsert({
+                where: {
+                  id: optionId,
+                },
+                create: {
+                  id: optionId,
+                  questionId,
+                  content: item.content,
+                  isCorrect: item.isCorrect,
+                  sortOrder: optionIndex + 1,
+                },
+                update: {
+                  questionId,
+                  content: item.content,
+                  isCorrect: item.isCorrect,
+                  sortOrder: optionIndex + 1,
+                },
+              });
+            }
+          } else {
+            await tx.quizAnswer.updateMany({
               where: {
-                id: questionId,
+                questionId,
+                selectedOptionId: { not: null },
               },
-              create: {
-                id: questionId,
-                quizId: quiz.id,
-                type: question.type,
-                content: question.title,
-                explanation: question.explanation,
-                score: question.score,
-                sortOrder,
-                battlePresentation:
-                  isSingleChoiceQuestion(question) && question.isBattleEnabled
-                    ? question.battlePresentation
-                    : null,
-                battleDifficulty: question.difficulty,
-                isBattleEnabled: question.isBattleEnabled,
-                stemBlocks: getStemBlocks(question),
-                explanationBlocks: getExplanationBlocks(question),
-                acceptedAnswers: getAcceptedAnswers(question),
-                answerNormalization: getAnswerNormalization(question),
-                caseSensitive: getCaseSensitive(question),
-                knowledgeTags,
-                programmingLanguage: getProgrammingLanguage(question),
-              },
-              update: {
-                quizId: quiz.id,
-                type: question.type,
-                content: question.title,
-                explanation: question.explanation,
-                score: question.score,
-                sortOrder,
-                battlePresentation:
-                  isSingleChoiceQuestion(question) && question.isBattleEnabled
-                    ? question.battlePresentation
-                    : null,
-                battleDifficulty: question.difficulty,
-                isBattleEnabled: question.isBattleEnabled,
-                stemBlocks: getStemBlocks(question),
-                explanationBlocks: getExplanationBlocks(question),
-                acceptedAnswers: getAcceptedAnswers(question),
-                answerNormalization: getAnswerNormalization(question),
-                caseSensitive: getCaseSensitive(question),
-                knowledgeTags,
-                programmingLanguage: getProgrammingLanguage(question),
-              },
+              data: { selectedOptionId: null },
             });
-
-            if ('options' in question) {
-              for (
-                let optionIndex = 0;
-                optionIndex < question.options.length;
-                optionIndex += 1
-              ) {
-                const item = question.options[optionIndex]!;
-                const optionId = makeId(
-                  'option',
-                  `${course.slug}:${chapter.key}:${lesson.key}:${question.key}:${item.key}`,
-                );
-
-                await tx.quizOption.upsert({
-                  where: {
-                    id: optionId,
-                  },
-                  create: {
-                    id: optionId,
-                    questionId,
-                    content: item.content,
-                    isCorrect: item.isCorrect,
-                    sortOrder: optionIndex + 1,
-                  },
-                  update: {
-                    questionId,
-                    content: item.content,
-                    isCorrect: item.isCorrect,
-                    sortOrder: optionIndex + 1,
-                  },
-                });
-              }
-            }
-
-            questionCount += 1;
-            if (question.isBattleEnabled) {
-              battleEnabledCount += 1;
-            }
-            sortOrder += 1;
+            await tx.practiceAnswer.updateMany({
+              where: {
+                questionId,
+                selectedOptionId: { not: null },
+              },
+              data: { selectedOptionId: null },
+            });
+            await tx.quizOption.deleteMany({ where: { questionId } });
           }
+
+          questionCount += 1;
+          if (question.isBattleEnabled) {
+            battleEnabledCount += 1;
+          }
+          sortOrder += 1;
         }
       }
+    }
 
-      await tx.systemHealth.upsert({
-        where: {
-          name: `content-seed.course.${course.slug}`,
-        },
-        create: {
-          name: `content-seed.course.${course.slug}`,
-          value: JSON.stringify({
-            version: course.version,
-            chapterCount: course.chapters.length,
-            questionCount,
-            battleEnabledCount,
-          }),
-        },
-        update: {
-          value: JSON.stringify({
-            version: course.version,
-            chapterCount: course.chapters.length,
-            questionCount,
-            battleEnabledCount,
-          }),
-        },
-      });
+    await tx.systemHealth.upsert({
+      where: {
+        name: `content-seed.course.${course.slug}`,
+      },
+      create: {
+        name: `content-seed.course.${course.slug}`,
+        value: JSON.stringify({
+          version: course.version,
+          chapterCount: course.chapters.length,
+          questionCount,
+          battleEnabledCount,
+        }),
+      },
+      update: {
+        value: JSON.stringify({
+          version: course.version,
+          chapterCount: course.chapters.length,
+          questionCount,
+          battleEnabledCount,
+        }),
+      },
+    });
 
-      return {
-        courseId: courseRecord.id,
-        questionCount,
-        battleEnabledCount,
-      } satisfies ManagedQuestionSummary & { courseId: string };
-    },
-    SEED_TRANSACTION_OPTIONS,
-  );
+    return {
+      courseId: courseRecord.id,
+      questionCount,
+      battleEnabledCount,
+    } satisfies ManagedQuestionSummary & { courseId: string };
+  }, SEED_TRANSACTION_OPTIONS);
 }
 
 async function countBattleEligibleQuestions(prisma: PrismaService) {
@@ -675,7 +756,9 @@ async function countBattleEligibleQuestions(prisma: PrismaService) {
     }
 
     if (record.type === QuestionType.SINGLE_CHOICE) {
-      const correctCount = record.options.filter((option) => option.isCorrect).length;
+      const correctCount = record.options.filter(
+        (option) => option.isCorrect,
+      ).length;
       return record.options.length >= 2 && correctCount === 1;
     }
 

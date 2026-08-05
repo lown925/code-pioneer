@@ -150,9 +150,36 @@ export type SeedCodeFillQuestion = {
   tags?: string[];
 };
 
+export type SeedFillBlankQuestion = {
+  key: string;
+  type: 'FILL_BLANK';
+  title: string;
+  explanation: string;
+  difficulty: SeedQuestionDifficulty;
+  score: number;
+  isBattleEnabled: false;
+  acceptedAnswers: string[];
+  answerNormalization?: {
+    trim?: boolean;
+    normalizeLineEndings?: boolean;
+    caseSensitive?: boolean;
+    collapseWhitespace?: boolean;
+  };
+  stemBlocks?: Array<
+    | { type: 'TEXT'; text: string }
+    | { type: 'CODE'; code: string; language?: string }
+  >;
+  explanationBlocks?: Array<
+    | { type: 'TEXT'; text: string }
+    | { type: 'CODE'; code: string; language?: string }
+  >;
+  tags?: string[];
+};
+
 export type SeedQuestion =
   | SeedSingleChoiceQuestion
   | SeedTrueFalseQuestion
+  | SeedFillBlankQuestion
   | SeedCodeFillQuestion;
 
 export type SeedLesson = {
@@ -191,6 +218,7 @@ export type SeedCourse = {
   learningObjectives: string[];
   status: 'PUBLISHED';
   sortOrder: number;
+  retiredChapterIds?: string[];
   chapters: SeedChapter[];
 };
 
@@ -206,5 +234,6 @@ export const SUPPORTED_LESSON_BLOCK_TYPES = new Set<ContentBlockType>([
 export const SUPPORTED_QUESTION_TYPES = new Set<QuestionType>([
   'SINGLE_CHOICE',
   'TRUE_FALSE',
+  'FILL_BLANK',
   'CODE_FILL',
 ]);

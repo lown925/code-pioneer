@@ -1,3 +1,5 @@
+import type { BattleContentBlock } from './battle';
+
 export type PracticeTarget = {
   courseId: string;
   courseTitle: string;
@@ -11,16 +13,16 @@ export type PracticeTargetsResponse = { items: PracticeTarget[] };
 export type PracticeQuestionOption = {
   optionId: string;
   content: string;
-  contentBlocks: unknown[];
+  contentBlocks: BattleContentBlock[];
   order: number;
 };
 
 export type PracticeQuestion = {
   questionId: string;
   order: number;
-  type: 'SINGLE_CHOICE' | 'TRUE_FALSE';
+  type: "SINGLE_CHOICE" | "TRUE_FALSE" | "FILL_BLANK" | "CODE_FILL";
   content: string;
-  stemBlocks: unknown[];
+  stemBlocks: BattleContentBlock[];
   programmingLanguage: string | null;
   options: PracticeQuestionOption[];
 };
@@ -40,11 +42,13 @@ export type PracticeAttemptResponse = {
 
 export type PracticeAnswerResponse = {
   questionId: string;
-  selectedOptionId: string;
-  correctOptionId: string;
+  selectedOptionId: string | null;
+  answerText: string | null;
+  correctOptionId: string | null;
+  acceptedAnswers: string[] | null;
   isCorrect: boolean;
   explanation: string | null;
-  explanationBlocks: unknown[];
+  explanationBlocks: BattleContentBlock[];
   answeredCount: number;
   totalQuestionCount: number;
   completed: boolean;
