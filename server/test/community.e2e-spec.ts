@@ -98,6 +98,8 @@ const USER_B = {
 
 const USER_A_TOKEN = 'community-user-a-token';
 const USER_B_TOKEN = 'community-user-b-token';
+const TEST_PUBLIC_BASE_URL = 'https://aryqvdjgwpnp.sealoshzh.site';
+const originalPublicBaseUrl = process.env.PUBLIC_BASE_URL;
 
 function createCommunityPrismaMock() {
   const users = new Map<string, UserRecord>();
@@ -889,6 +891,7 @@ describe('Community routes (e2e)', () => {
   let mockState: ReturnType<typeof createCommunityPrismaMock>;
 
   beforeEach(async () => {
+    process.env.PUBLIC_BASE_URL = TEST_PUBLIC_BASE_URL;
     mockState = createCommunityPrismaMock();
     mockState.users.set(USER_A.id, {
       id: USER_A.id,
@@ -950,6 +953,12 @@ describe('Community routes (e2e)', () => {
 
   afterEach(async () => {
     await app.close();
+
+    if (originalPublicBaseUrl === undefined) {
+      delete process.env.PUBLIC_BASE_URL;
+    } else {
+      process.env.PUBLIC_BASE_URL = originalPublicBaseUrl;
+    }
   });
 
   it('covers categories, post publishing, pagination, comments, favorites, history, summary, and soft delete', async () => {
@@ -1015,7 +1024,7 @@ describe('Community routes (e2e)', () => {
           ...Array.from({ length: 7 }, (_, index) => ({
             type: 'IMAGE',
             objectKey: `${USER_A.id}/battle-${index + 1}.png`,
-            url: `/uploads/community/${USER_A.id}/battle-${index + 1}.png`,
+            url: `${TEST_PUBLIC_BASE_URL}/uploads/community/${USER_A.id}/battle-${index + 1}.png`,
           })),
         ],
       })
@@ -1038,6 +1047,9 @@ describe('Community routes (e2e)', () => {
             (block: { type: string }) => block.type === 'IMAGE',
           ),
         ).toHaveLength(7);
+        expect(response.body.data.contentBlocks[2].url).toBe(
+          `${TEST_PUBLIC_BASE_URL}/uploads/community/${USER_A.id}/battle-1.png`,
+        );
       });
 
     const firstPage = await request(app.getHttpServer())

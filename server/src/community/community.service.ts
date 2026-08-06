@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  InternalServerErrorException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -1548,7 +1549,33 @@ export class CommunityService {
   }
 
   private buildUploadedImageUrl(objectKey: string) {
-    return `/uploads/community/${objectKey}`.replace(/\\/g, '/');
+    const uploadPath = `/uploads/community/${objectKey}`.replace(/\\/g, '/');
+    const publicBaseUrl = process.env.PUBLIC_BASE_URL?.trim().replace(
+      /\/+$/,
+      '',
+    );
+
+    if (!publicBaseUrl) {
+      throw new InternalServerErrorException('PUBLIC_BASE_URL_NOT_CONFIGURED');
+    }
+
+    let parsedUrl: URL;
+
+    try {
+      parsedUrl = new URL(publicBaseUrl);
+    } catch {
+      throw new InternalServerErrorException('PUBLIC_BASE_URL_INVALID');
+    }
+
+    if (
+      parsedUrl.protocol !== 'https:' ||
+      parsedUrl.hostname === 'localhost' ||
+      parsedUrl.hostname === '127.0.0.1'
+    ) {
+      throw new InternalServerErrorException('PUBLIC_BASE_URL_INVALID');
+    }
+
+    return `${publicBaseUrl}${uploadPath}`;
   }
 
   private toCategoryPayload(

@@ -5,18 +5,17 @@ import {
   Delete,
   Get,
   HttpCode,
+  InternalServerErrorException,
   Param,
   Patch,
   ParseUUIDPipe,
   Post,
   Query,
-  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { type CurrentUserContext } from '../auth/auth.types';
 import {
@@ -35,23 +34,30 @@ type UploadedUserAvatarFile = {
   originalname: string;
 };
 
-function resolvePublicBaseUrl(request: Request) {
+function resolvePublicBaseUrl() {
   const configuredBaseUrl = process.env.PUBLIC_BASE_URL?.trim();
 
-  if (configuredBaseUrl) {
-    return configuredBaseUrl.replace(/\/+$/, '');
+  if (!configuredBaseUrl) {
+    throw new InternalServerErrorException('PUBLIC_BASE_URL_NOT_CONFIGURED');
   }
 
-  const forwardedProtocol = request.headers['x-forwarded-proto'];
-  const protocolValue = Array.isArray(forwardedProtocol)
-    ? forwardedProtocol[0]
-    : forwardedProtocol?.split(',')[0];
-  const protocol =
-    protocolValue === 'https' || protocolValue === 'http'
-      ? protocolValue
-      : request.protocol;
+  let parsedUrl: URL;
 
-  return `${protocol}://${request.get('host')}`;
+  try {
+    parsedUrl = new URL(configuredBaseUrl);
+  } catch {
+    throw new InternalServerErrorException('PUBLIC_BASE_URL_INVALID');
+  }
+
+  if (
+    parsedUrl.protocol !== 'https:' ||
+    parsedUrl.hostname === 'localhost' ||
+    parsedUrl.hostname === '127.0.0.1'
+  ) {
+    throw new InternalServerErrorException('PUBLIC_BASE_URL_INVALID');
+  }
+
+  return configuredBaseUrl.replace(/\/+$/, '');
 }
 
 @Controller('users')
@@ -74,7 +80,6 @@ export class UserController {
   uploadCurrentUserAvatar(
     @CurrentUser() currentUser: CurrentUserContext,
     @UploadedFile() file: UploadedUserAvatarFile | undefined,
-    @Req() request: Request,
   ) {
     if (!file) {
       throw new BadRequestException('USER_AVATAR_FILE_REQUIRED');
@@ -83,7 +88,7 @@ export class UserController {
     return this.userService.uploadCurrentUserAvatar(
       currentUser,
       file,
-      resolvePublicBaseUrl(request),
+      resolvePublicBaseUrl(),
     );
   }
 

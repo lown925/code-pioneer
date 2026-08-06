@@ -1,5 +1,8 @@
 import { Test, type TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { JwtUserAuthGuard } from '../auth/jwt-user-auth.guard';
 import { UserController } from './user.controller';
@@ -12,8 +15,10 @@ describe('UserController', () => {
     uploadCurrentUserAvatar: jest.fn(),
     deleteCurrentUser: jest.fn(),
   };
+  const originalPublicBaseUrl = process.env.PUBLIC_BASE_URL;
 
   beforeEach(async () => {
+    process.env.PUBLIC_BASE_URL = 'https://aryqvdjgwpnp.sealoshzh.site';
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
       providers: [
@@ -38,6 +43,15 @@ describe('UserController', () => {
 
     userController = module.get(UserController);
     Object.values(userService).forEach((mockFn) => mockFn.mockReset());
+  });
+
+  afterAll(() => {
+    if (originalPublicBaseUrl === undefined) {
+      delete process.env.PUBLIC_BASE_URL;
+      return;
+    }
+
+    process.env.PUBLIC_BASE_URL = originalPublicBaseUrl;
   });
 
   it('delegates profile updates to UserService', async () => {
@@ -116,33 +130,23 @@ describe('UserController', () => {
       mimetype: 'image/png',
       originalname: 'avatar.png',
     };
-    const request = {
-      headers: {
-        'x-forwarded-proto': 'https',
-      },
-      protocol: 'http',
-      get: jest.fn(() => 'api.example.com'),
-    };
     const expected = {
       success: true,
       data: {
-        avatarUrl: 'https://api.example.com/uploads/avatars/user-id/avatar.png',
+        avatarUrl:
+          'https://aryqvdjgwpnp.sealoshzh.site/uploads/avatars/user-id/avatar.png',
       },
     };
 
     userService.uploadCurrentUserAvatar.mockResolvedValue(expected);
 
     await expect(
-      userController.uploadCurrentUserAvatar(
-        currentUser,
-        file,
-        request as never,
-      ),
+      userController.uploadCurrentUserAvatar(currentUser, file),
     ).resolves.toEqual(expected);
     expect(userService.uploadCurrentUserAvatar).toHaveBeenCalledWith(
       currentUser,
       file,
-      'https://api.example.com',
+      'https://aryqvdjgwpnp.sealoshzh.site',
     );
   });
 
@@ -155,15 +159,35 @@ describe('UserController', () => {
     };
 
     expect(() =>
-      userController.uploadCurrentUserAvatar(
-        currentUser,
-        undefined,
-        {
-          headers: {},
-          protocol: 'http',
-          get: () => '127.0.0.1:3000',
-        } as never,
-      ),
+      userController.uploadCurrentUserAvatar(currentUser, undefined),
     ).toThrow(BadRequestException);
   });
+
+  it.each([undefined, 'http://127.0.0.1:3000'])(
+    'rejects unsafe PUBLIC_BASE_URL values (%s)',
+    async (publicBaseUrl) => {
+      if (publicBaseUrl === undefined) {
+        delete process.env.PUBLIC_BASE_URL;
+      } else {
+        process.env.PUBLIC_BASE_URL = publicBaseUrl;
+      }
+
+      expect(() =>
+        userController.uploadCurrentUserAvatar(
+          {
+            id: 'user-id',
+            sessionId: 'session-id',
+            tokenType: 'USER',
+            role: 'NORMAL',
+          },
+          {
+            buffer: Buffer.from('avatar'),
+            size: 6,
+            mimetype: 'image/png',
+            originalname: 'avatar.png',
+          },
+        ),
+      ).toThrow(InternalServerErrorException);
+    },
+  );
 });
