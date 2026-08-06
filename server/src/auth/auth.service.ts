@@ -35,6 +35,8 @@ type WechatSessionResponse = {
   errmsg?: string;
 };
 
+const WECHAT_INVALID_CODE_ERROR_CODES = new Set([40029, 40163, 40226]);
+
 type RefreshSessionRecord = {
   id: string;
   userId: string;
@@ -372,14 +374,13 @@ export class AuthService {
   }
 
   private resolveMockIdentity(mockOpenId: string): WechatIdentity {
-    if (process.env.NODE_ENV === 'production') {
-      throw new BadRequestException(
-        'Mock login is not available in production',
-      );
-    }
-
-    if (!this.isMockLoginEnabled()) {
-      throw new BadRequestException('Mock login is disabled');
+    if (
+      process.env.NODE_ENV === 'production' ||
+      process.env.APP_ENV === 'production' ||
+      process.env.APP_ENV === 'trial' ||
+      !this.isMockLoginEnabled()
+    ) {
+      throw new BadRequestException('MOCK_LOGIN_DISABLED');
     }
 
     return {
@@ -389,12 +390,12 @@ export class AuthService {
   }
 
   private async resolveWechatCode(code: string): Promise<WechatIdentity> {
-    const appId = process.env.WECHAT_APP_ID;
-    const appSecret = process.env.WECHAT_APP_SECRET;
+    const appId = process.env.WECHAT_APP_ID?.trim();
+    const appSecret = process.env.WECHAT_APP_SECRET?.trim();
 
     if (!appId || !appSecret) {
       throw new InternalServerErrorException(
-        'WECHAT_APP_ID or WECHAT_APP_SECRET is not configured',
+        'WECHAT_LOGIN_CONFIGURATION_INVALID',
       );
     }
 
@@ -405,24 +406,33 @@ export class AuthService {
       grant_type: 'authorization_code',
     });
 
-    const response = await fetch(
-      `https://api.weixin.qq.com/sns/jscode2session?${params.toString()}`,
-    );
+    let response: Response;
+    let payload: WechatSessionResponse;
 
-    if (!response.ok) {
-      throw new UnauthorizedException('WeChat login request failed');
+    try {
+      response = await fetch(
+        `https://api.weixin.qq.com/sns/jscode2session?${params.toString()}`,
+      );
+
+      if (!response.ok) {
+        throw new Error('WECHAT_HTTP_FAILURE');
+      }
+
+      payload = (await response.json()) as WechatSessionResponse;
+    } catch {
+      throw new InternalServerErrorException('WECHAT_LOGIN_UPSTREAM_FAILED');
     }
 
-    const payload = (await response.json()) as WechatSessionResponse;
-
     if (payload.errcode) {
-      throw new UnauthorizedException(
-        payload.errmsg ?? 'WeChat login was rejected',
-      );
+      if (WECHAT_INVALID_CODE_ERROR_CODES.has(payload.errcode)) {
+        throw new UnauthorizedException('WECHAT_LOGIN_CODE_INVALID');
+      }
+
+      throw new InternalServerErrorException('WECHAT_LOGIN_UPSTREAM_FAILED');
     }
 
     if (!payload.openid) {
-      throw new UnauthorizedException('WeChat login did not return openid');
+      throw new InternalServerErrorException('WECHAT_LOGIN_UPSTREAM_FAILED');
     }
 
     return {

@@ -9,12 +9,21 @@ import { createEnvironmentMiddleware } from './environment/environment.middlewar
 async function bootstrap() {
   const environmentConfig = validateEnvironmentConfiguration();
   const app = await NestFactory.create(AppModule);
+  const configuredPort = process.env.PORT?.trim() || '3000';
+  const port = Number(configuredPort);
+
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('PORT must be an integer between 1 and 65535.');
+  }
 
   if (!existsSync(environmentConfig.uploadStorageRoot)) {
     mkdirSync(environmentConfig.uploadStorageRoot, { recursive: true });
   }
 
-  app.enableCors();
+  app.enableCors({
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Client-Environment'],
+  });
   app.setGlobalPrefix('api/v1');
   app.use(createEnvironmentMiddleware(environmentConfig));
   app.use('/uploads', express.static(environmentConfig.uploadStorageRoot));
@@ -25,6 +34,6 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(port, '0.0.0.0');
 }
 void bootstrap();

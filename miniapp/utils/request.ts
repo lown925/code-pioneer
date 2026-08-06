@@ -1,4 +1,4 @@
-import type { RefreshResponseData } from '../types/auth';
+import type { RefreshResponseData } from "../types/auth";
 import {
   clearAuthSession,
   getAccessToken,
@@ -7,16 +7,16 @@ import {
   redirectToLogin,
   saveRefreshedSession,
   shouldRefreshAccessToken,
-} from './auth';
+} from "./auth";
 import {
   API_BASE_URL,
   CURRENT_ENV_VERSION,
   getApiConfigurationErrorMessage,
   hasApiConfigurationError,
-} from './config';
+} from "./config";
 
-type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-type AuthMode = 'auto' | 'required' | 'none';
+type RequestMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+type AuthMode = "auto" | "required" | "none";
 
 type RequestOptions = {
   url: string;
@@ -82,7 +82,7 @@ type AuthFailureOptions = {
 
 const DEFAULT_TIMEOUT_MS = 10000;
 const CLIENT_ENVIRONMENT_HEADER = {
-  'X-Client-Environment': CURRENT_ENV_VERSION,
+  "X-Client-Environment": CURRENT_ENV_VERSION,
 };
 
 let refreshPromise: Promise<string> | null = null;
@@ -96,51 +96,66 @@ function getAppApiBaseUrl() {
 }
 
 function toAbsoluteUrl(url: string) {
-  if (/^https?:\/\//.test(url)) {
-    return url;
+  const normalizedUrl = url.trim();
+
+  if (/^https?:\/\//i.test(normalizedUrl)) {
+    return normalizedUrl;
   }
 
-  return `${getAppApiBaseUrl()}${url}`;
+  const baseUrl = getAppApiBaseUrl().replace(/\/+$/, "");
+  let path = `/${normalizedUrl.replace(/^\/+/, "")}`;
+
+  // The configured base already owns /api/v1; tolerate callers that include it.
+  if (path === "/api/v1") {
+    path = "";
+  } else if (path.startsWith("/api/v1/")) {
+    path = path.slice("/api/v1".length);
+  }
+
+  return `${baseUrl}${path}`;
 }
 
 function normalizeApiPath(url: string) {
-  if (/^https?:\/\//.test(url)) {
-    return url.replace(getAppApiBaseUrl(), '');
+  const absoluteUrl = toAbsoluteUrl(url);
+  const baseUrl = getAppApiBaseUrl().replace(/\/+$/, "");
+
+  if (absoluteUrl.startsWith(baseUrl)) {
+    return absoluteUrl.slice(baseUrl.length) || "/";
   }
 
-  return url;
+  return url.startsWith("/") ? url : `/${url}`;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === "object" && value !== null;
 }
 
 function pickMessage(value: unknown) {
   if (Array.isArray(value)) {
-    return typeof value[0] === 'string' ? value[0] : '';
+    return typeof value[0] === "string" ? value[0] : "";
   }
 
-  return typeof value === 'string' ? value : '';
+  return typeof value === "string" ? value : "";
 }
 
 function isLoginRequest(url: string) {
-  return normalizeApiPath(url) === '/auth/wechat-login';
+  return normalizeApiPath(url) === "/auth/wechat-login";
 }
 
 function isRefreshRequest(url: string) {
-  return normalizeApiPath(url) === '/auth/refresh';
+  return normalizeApiPath(url) === "/auth/refresh";
 }
 
 function isLogoutRequest(url: string) {
-  return normalizeApiPath(url) === '/auth/logout';
+  return normalizeApiPath(url) === "/auth/logout";
 }
 
 function shouldHandleForbiddenAsAuthError(code: string) {
-  return code === 'USER_DELETED' || code === 'USER_DISABLED';
+  return code === "USER_DELETED" || code === "USER_DISABLED";
 }
 
 function shouldRedirectAfterAuthFailure(options: AuthFailureOptions) {
-  return options.authMode === 'required' && !options.disableAuthRedirect;
+  return options.authMode === "required" && !options.disableAuthRedirect;
 }
 
 export class RequestError extends Error {
@@ -157,18 +172,62 @@ export class RequestError extends Error {
     details?: unknown;
   }) {
     super(options.message);
-    this.name = 'RequestError';
+    this.name = "RequestError";
     this.statusCode = options.statusCode ?? 0;
-    this.code = options.code ?? '';
-    this.requestId = options.requestId ?? '';
+    this.code = options.code ?? "";
+    this.requestId = options.requestId ?? "";
     this.details = options.details;
   }
+}
+
+function toNetworkRequestError(error: { errMsg?: string }) {
+  const detail = typeof error.errMsg === "string" ? error.errMsg : "";
+  const normalized = detail.toLowerCase();
+  let code = "NETWORK_UNREACHABLE";
+  let message = "无法连接服务器，请检查网络后重试。";
+
+  if (
+    normalized.includes("not in domain list") ||
+    normalized.includes("domain is not configured") ||
+    normalized.includes("url not in domain")
+  ) {
+    code = "WECHAT_DOMAIN_NOT_ALLOWED";
+    message = "当前 API 域名未加入微信小程序 request 合法域名。";
+  } else if (
+    normalized.includes("dns") ||
+    normalized.includes("resolve host") ||
+    normalized.includes("name not resolved")
+  ) {
+    code = "NETWORK_DNS_ERROR";
+    message = "无法解析服务器域名，请稍后重试。";
+  } else if (
+    normalized.includes("timeout") ||
+    normalized.includes("timed out")
+  ) {
+    code = "NETWORK_TIMEOUT";
+    message = "连接服务器超时，请检查网络后重试。";
+  } else if (
+    normalized.includes("connection reset") ||
+    normalized.includes("econnreset") ||
+    normalized.includes("socket hang up")
+  ) {
+    code = "NETWORK_CONNECTION_RESET";
+    message = "服务器连接被中断，请稍后重试。";
+  }
+
+  return new RequestError({
+    code,
+    message,
+    // Keep only the platform failure category; never include request data or tokens.
+    details: detail,
+  });
 }
 
 function toRequestError(statusCode: number, payload: unknown) {
   if (isObject(payload) && payload.success === false) {
     const envelope = payload as ApiFailureEnvelope;
-    const code = envelope.error?.code || envelope.error?.message || envelope.message || '';
+    const code =
+      envelope.error?.code || envelope.error?.message || envelope.message || "";
     const message =
       envelope.error?.message ||
       envelope.message ||
@@ -183,7 +242,7 @@ function toRequestError(statusCode: number, payload: unknown) {
     });
   }
 
-  if (isObject(payload) && typeof payload.statusCode === 'number') {
+  if (isObject(payload) && typeof payload.statusCode === "number") {
     const nestPayload = payload as NestExceptionPayload;
     const message =
       pickMessage(nestPayload.message) ||
@@ -198,7 +257,7 @@ function toRequestError(statusCode: number, payload: unknown) {
     });
   }
 
-  if (typeof payload === 'string') {
+  if (typeof payload === "string") {
     return new RequestError({
       statusCode,
       code: payload,
@@ -216,12 +275,12 @@ function toRequestError(statusCode: number, payload: unknown) {
 
 function buildHeaders(options: InternalRequestOptions) {
   const headers: Record<string, string> = {
-    'content-type': 'application/json',
+    "content-type": "application/json",
     ...options.headers,
     ...CLIENT_ENVIRONMENT_HEADER,
   };
 
-  if (options.authMode !== 'none') {
+  if (options.authMode !== "none") {
     const accessToken = getAccessToken();
 
     if (accessToken) {
@@ -232,9 +291,7 @@ function buildHeaders(options: InternalRequestOptions) {
   return headers;
 }
 
-function sanitizeRequestData(
-  data: WechatMiniprogram.IAnyObject | undefined,
-) {
+function sanitizeRequestData(data: WechatMiniprogram.IAnyObject | undefined) {
   if (!data) {
     return undefined;
   }
@@ -266,7 +323,7 @@ function sendRequest<T>(
     if (hasApiConfigurationError()) {
       reject(
         new RequestError({
-          code: 'API_CONFIG_INVALID',
+          code: "API_CONFIG_INVALID",
           message: getApiConfigurationErrorMessage(),
         }),
       );
@@ -286,7 +343,7 @@ function sendRequest<T>(
           response.statusCode >= 200 &&
           response.statusCode < 300 &&
           isObject(payload) &&
-          'success' in payload &&
+          "success" in payload &&
           payload.success === true
         ) {
           resolve((payload as ApiSuccess<T>).data);
@@ -295,14 +352,9 @@ function sendRequest<T>(
 
         reject(toRequestError(response.statusCode, payload));
       },
-      fail: () => {
-        reject(
-          new RequestError({
-            code: 'NETWORK_ERROR',
-            message:
-              'Network request failed. Please confirm the backend is reachable from WeChat devtools.',
-          }),
-        );
+      fail: (...args: unknown[]) => {
+        const error = isObject(args[0]) ? args[0] : {};
+        reject(toNetworkRequestError(error));
       },
     });
   });
@@ -324,8 +376,8 @@ async function refreshAccessToken(redirectOnFailure: boolean) {
 
     throw new RequestError({
       statusCode: 401,
-      code: 'UNAUTHORIZED',
-      message: 'Authentication is missing or expired. Please log in again.',
+      code: "UNAUTHORIZED",
+      message: "Authentication is missing or expired. Please log in again.",
     });
   }
 
@@ -333,17 +385,17 @@ async function refreshAccessToken(redirectOnFailure: boolean) {
     try {
       const data = await sendRequest<RefreshResponseData>(
         {
-          url: '/auth/refresh',
-          method: 'POST',
+          url: "/auth/refresh",
+          method: "POST",
           data: {
             refreshToken,
           },
-          authMode: 'none',
+          authMode: "none",
           retryOnAuthFailure: false,
           disableAuthRedirect: true,
         },
         {
-          'content-type': 'application/json',
+          "content-type": "application/json",
           ...CLIENT_ENVIRONMENT_HEADER,
         },
       );
@@ -372,7 +424,7 @@ async function requestInternal<T>(
   retryCount: number,
 ): Promise<T> {
   if (
-    options.authMode === 'required' &&
+    options.authMode === "required" &&
     options.retryOnAuthFailure &&
     hasRefreshToken() &&
     !isRefreshRequest(options.url) &&
@@ -381,12 +433,12 @@ async function requestInternal<T>(
     await refreshAccessToken(shouldRedirectAfterAuthFailure(options));
   }
 
-  if (options.authMode === 'required' && !getAccessToken()) {
+  if (options.authMode === "required" && !getAccessToken()) {
     handleTerminalAuthFailure(options);
     throw new RequestError({
       statusCode: 401,
-      code: 'UNAUTHORIZED',
-      message: 'Authentication is missing or expired. Please log in again.',
+      code: "UNAUTHORIZED",
+      message: "Authentication is missing or expired. Please log in again.",
     });
   }
 
@@ -428,8 +480,8 @@ async function requestInternal<T>(
 export function request<T>(options: RequestOptions) {
   return requestInternal<T>(
     {
-      method: options.method ?? 'GET',
-      authMode: options.authMode ?? 'auto',
+      method: options.method ?? "GET",
+      authMode: options.authMode ?? "auto",
       retryOnAuthFailure: options.retryOnAuthFailure ?? true,
       disableAuthRedirect: options.disableAuthRedirect ?? false,
       ...options,
@@ -447,7 +499,7 @@ function sendUploadFile<T>(options: InternalUploadFileOptions) {
     if (hasApiConfigurationError()) {
       reject(
         new RequestError({
-          code: 'API_CONFIG_INVALID',
+          code: "API_CONFIG_INVALID",
           message: getApiConfigurationErrorMessage(),
         }),
       );
@@ -459,7 +511,7 @@ function sendUploadFile<T>(options: InternalUploadFileOptions) {
       ...CLIENT_ENVIRONMENT_HEADER,
     };
 
-    if (options.authMode !== 'none') {
+    if (options.authMode !== "none") {
       const accessToken = getAccessToken();
 
       if (accessToken) {
@@ -470,19 +522,16 @@ function sendUploadFile<T>(options: InternalUploadFileOptions) {
     wx.uploadFile({
       url: toAbsoluteUrl(options.url),
       filePath: options.filePath,
-      name: options.name ?? 'file',
+      name: options.name ?? "file",
       formData: sanitizeRequestData(options.formData),
       header: headers,
       success: (response) => {
         let payload:
-          | ApiSuccess<T>
-          | ApiFailureEnvelope
-          | NestExceptionPayload
-          | string;
+          ApiSuccess<T> | ApiFailureEnvelope | NestExceptionPayload | string;
 
         try {
           payload =
-            typeof response.data === 'string'
+            typeof response.data === "string"
               ? JSON.parse(response.data)
               : response.data;
         } catch {
@@ -493,7 +542,7 @@ function sendUploadFile<T>(options: InternalUploadFileOptions) {
           response.statusCode >= 200 &&
           response.statusCode < 300 &&
           isObject(payload) &&
-          'success' in payload &&
+          "success" in payload &&
           payload.success === true
         ) {
           resolve((payload as ApiSuccess<T>).data);
@@ -502,14 +551,9 @@ function sendUploadFile<T>(options: InternalUploadFileOptions) {
 
         reject(toRequestError(response.statusCode, payload));
       },
-      fail: () => {
-        reject(
-          new RequestError({
-            code: 'NETWORK_ERROR',
-            message:
-              'Network request failed. Please confirm the backend is reachable from WeChat devtools.',
-          }),
-        );
+      fail: (...args: unknown[]) => {
+        const error = isObject(args[0]) ? args[0] : {};
+        reject(toNetworkRequestError(error));
       },
     });
   });
@@ -520,7 +564,7 @@ async function uploadFileInternal<T>(
   retryCount: number,
 ): Promise<T> {
   if (
-    options.authMode === 'required' &&
+    options.authMode === "required" &&
     options.retryOnAuthFailure &&
     hasRefreshToken() &&
     (!getAccessToken() || shouldRefreshAccessToken())
@@ -528,12 +572,12 @@ async function uploadFileInternal<T>(
     await refreshAccessToken(shouldRedirectAfterAuthFailure(options));
   }
 
-  if (options.authMode === 'required' && !getAccessToken()) {
+  if (options.authMode === "required" && !getAccessToken()) {
     handleTerminalAuthFailure(options);
     throw new RequestError({
       statusCode: 401,
-      code: 'UNAUTHORIZED',
-      message: 'Authentication is missing or expired. Please log in again.',
+      code: "UNAUTHORIZED",
+      message: "Authentication is missing or expired. Please log in again.",
     });
   }
 
@@ -572,7 +616,7 @@ async function uploadFileInternal<T>(
 export function uploadFile<T>(options: UploadFileOptions) {
   return uploadFileInternal<T>(
     {
-      authMode: options.authMode ?? 'required',
+      authMode: options.authMode ?? "required",
       retryOnAuthFailure: options.retryOnAuthFailure ?? true,
       disableAuthRedirect: options.disableAuthRedirect ?? false,
       ...options,

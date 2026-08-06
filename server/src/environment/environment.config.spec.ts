@@ -1,6 +1,7 @@
 import { resolve } from 'path';
 import {
   getExpectedClientEnvironment,
+  getAllowedClientEnvironments,
   isClientEnvironmentCompatible,
   resolveAppEnvironment,
   validateEnvironmentConfiguration,
@@ -12,7 +13,13 @@ const TRIAL_ENVIRONMENT = {
   DATA_NAMESPACE: 'code_pioneer',
   DATABASE_URL:
     'postgresql://user:password@trial-db.example.com:5432/code_pioneer_trial?schema=code_pioneer',
-  UPLOAD_STORAGE_ROOT: 'C:\\data\\code-pioneer\\trial\\uploads',
+  UPLOAD_STORAGE_ROOT: resolve(
+    process.cwd(),
+    'test-data',
+    'code-pioneer',
+    'trial',
+    'uploads',
+  ),
   PUBLIC_BASE_URL: 'https://trial-api.example.com',
   AUTH_MOCK_ENABLED: 'false',
 };
@@ -26,6 +33,7 @@ describe('environment configuration', () => {
     expect(config).toEqual({
       appEnvironment: 'development',
       expectedClientEnvironment: 'develop',
+      allowedClientEnvironments: ['develop'],
       dataNamespace: 'code_pioneer',
       uploadStorageRoot: resolve(process.cwd(), 'public', 'uploads'),
       appVersion: 'development',
@@ -40,6 +48,7 @@ describe('environment configuration', () => {
     expect(validateEnvironmentConfiguration(TRIAL_ENVIRONMENT)).toEqual({
       appEnvironment: 'trial',
       expectedClientEnvironment: 'trial',
+      allowedClientEnvironments: ['trial'],
       dataNamespace: 'code_pioneer',
       uploadStorageRoot: resolve(TRIAL_ENVIRONMENT.UPLOAD_STORAGE_ROOT),
       appVersion: '1.0.0-rc.1',
@@ -60,6 +69,13 @@ describe('environment configuration', () => {
         UPLOAD_STORAGE_ROOT: '',
       }),
     ).toThrow('UPLOAD_STORAGE_ROOT is required');
+
+    expect(() =>
+      validateEnvironmentConfiguration({
+        ...TRIAL_ENVIRONMENT,
+        UPLOAD_STORAGE_ROOT: 'relative/uploads',
+      }),
+    ).toThrow('UPLOAD_STORAGE_ROOT must be an absolute path');
   });
 
   it('rejects a database schema mismatch', () => {
@@ -97,5 +113,33 @@ describe('environment configuration', () => {
     expect(isClientEnvironmentCompatible('trial', 'release')).toBe(false);
     expect(isClientEnvironmentCompatible('production', 'trial')).toBe(false);
     expect(isClientEnvironmentCompatible('production', undefined)).toBe(true);
+  });
+
+  it('keeps strict client matching by default and permits an explicit allowlist', () => {
+    expect(getAllowedClientEnvironments(TRIAL_ENVIRONMENT)).toEqual(['trial']);
+
+    const configured = {
+      ...TRIAL_ENVIRONMENT,
+      ALLOWED_CLIENT_ENVIRONMENTS: 'develop, trial, release, trial',
+    };
+
+    expect(getAllowedClientEnvironments(configured)).toEqual([
+      'develop',
+      'trial',
+      'release',
+    ]);
+    expect(
+      isClientEnvironmentCompatible('production', 'develop', [
+        'develop',
+        'trial',
+        'release',
+      ]),
+    ).toBe(true);
+    expect(() =>
+      getAllowedClientEnvironments({
+        ...TRIAL_ENVIRONMENT,
+        ALLOWED_CLIENT_ENVIRONMENTS: 'develop,preview',
+      }),
+    ).toThrow('ALLOWED_CLIENT_ENVIRONMENTS must contain only');
   });
 });

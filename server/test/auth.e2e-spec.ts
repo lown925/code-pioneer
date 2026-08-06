@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await */
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
 import request from 'supertest';
@@ -38,6 +38,7 @@ type SessionRecord = {
 
 const originalEnv = {
   NODE_ENV: process.env.NODE_ENV,
+  APP_ENV: process.env.APP_ENV,
   AUTH_MOCK_ENABLED: process.env.AUTH_MOCK_ENABLED,
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
@@ -201,6 +202,7 @@ describe('Auth flow (e2e)', () => {
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'development';
+    process.env.APP_ENV = 'development';
     process.env.AUTH_MOCK_ENABLED = 'true';
     process.env.JWT_ACCESS_SECRET = 'e2e-access-secret';
     process.env.JWT_REFRESH_SECRET = 'e2e-refresh-secret';
@@ -220,12 +222,20 @@ describe('Auth flow (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.enableCors();
     app.setGlobalPrefix('api/v1');
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     await app.init();
   });
 
   afterAll(async () => {
     await app.close();
     restoreEnv('NODE_ENV');
+    restoreEnv('APP_ENV');
     restoreEnv('AUTH_MOCK_ENABLED');
     restoreEnv('JWT_ACCESS_SECRET');
     restoreEnv('JWT_REFRESH_SECRET');
@@ -297,6 +307,17 @@ describe('Auth flow (e2e)', () => {
         refreshToken,
       })
       .expect(401);
+  });
+
+  it('rejects WeChat login requests without a code at the DTO boundary', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/wechat-login')
+      .send({})
+      .expect(400);
+
+    expect(response.body.message).toEqual(
+      expect.arrayContaining([expect.stringContaining('code')]),
+    );
   });
 
   it('rejects refresh tokens and invalid access tokens when calling logout', async () => {

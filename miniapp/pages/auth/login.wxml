@@ -50,4 +50,14 @@
     <text class="error-title">登录失败</text>
     <text class="error-text">{{errorMessage}}</text>
   </view>
+
+  <view wx:if="{{showMockLogin}}" class="diagnostic-panel">
+    <text class="diagnostic-title">开发诊断</text>
+    <text class="diagnostic-row">环境：{{envVersion}}</text>
+    <text class="diagnostic-row">API：{{diagnosticApiHost}}</text>
+    <text class="diagnostic-row">配置：{{diagnosticConfigStatus}}</text>
+    <text wx:if="{{diagnosticErrorCode}}" class="diagnostic-row">
+      最近错误：{{diagnosticErrorCode}}
+    </text>
+  </view>
 </view>

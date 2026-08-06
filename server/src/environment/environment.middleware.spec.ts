@@ -17,6 +17,7 @@ describe('environment middleware', () => {
   const environmentConfig = {
     appEnvironment: 'trial' as const,
     expectedClientEnvironment: 'trial' as const,
+    allowedClientEnvironments: ['trial' as const],
     dataNamespace: 'code_pioneer',
     uploadStorageRoot: 'C:\\data\\trial\\uploads',
     appVersion: '1.0.0-rc.1',
@@ -68,6 +69,25 @@ describe('environment middleware', () => {
   it('allows internal and legacy requests without an environment header', () => {
     const middleware = createEnvironmentMiddleware(environmentConfig);
     const request = { headers: {} } as Request;
+    const response = makeResponse();
+    const next = jest.fn() as NextFunction;
+
+    middleware(request, response as unknown as Response, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(response.status).not.toHaveBeenCalled();
+  });
+
+  it('accepts explicitly allowed miniapp environments on a shared backend', () => {
+    const middleware = createEnvironmentMiddleware({
+      ...environmentConfig,
+      allowedClientEnvironments: ['develop', 'trial', 'release'],
+    });
+    const request = {
+      headers: {
+        'x-client-environment': 'develop',
+      },
+    } as Request;
     const response = makeResponse();
     const next = jest.fn() as NextFunction;
 

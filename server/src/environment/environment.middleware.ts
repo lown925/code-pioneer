@@ -21,6 +21,7 @@ export function createEnvironmentMiddleware(
       isClientEnvironmentCompatible(
         environmentConfig.appEnvironment,
         clientEnvironment,
+        environmentConfig.allowedClientEnvironments,
       )
     ) {
       next();

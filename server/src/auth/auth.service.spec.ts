@@ -35,12 +35,16 @@ type SessionRecord = {
 
 const originalEnv = {
   NODE_ENV: process.env.NODE_ENV,
+  APP_ENV: process.env.APP_ENV,
   AUTH_MOCK_ENABLED: process.env.AUTH_MOCK_ENABLED,
+  WECHAT_APP_ID: process.env.WECHAT_APP_ID,
+  WECHAT_APP_SECRET: process.env.WECHAT_APP_SECRET,
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
   JWT_ACCESS_EXPIRES: process.env.JWT_ACCESS_EXPIRES,
   JWT_REFRESH_EXPIRES: process.env.JWT_REFRESH_EXPIRES,
 };
+const originalFetch = global.fetch;
 
 function restoreEnv(key: keyof typeof originalEnv) {
   const value = originalEnv[key];
@@ -203,7 +207,10 @@ function createService() {
 describe('AuthService', () => {
   beforeAll(() => {
     process.env.NODE_ENV = 'development';
+    process.env.APP_ENV = 'development';
     process.env.AUTH_MOCK_ENABLED = 'true';
+    process.env.WECHAT_APP_ID = 'test-wechat-app-id';
+    process.env.WECHAT_APP_SECRET = 'test-wechat-app-secret';
     process.env.JWT_ACCESS_SECRET = 'test-access-secret';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret';
     process.env.JWT_ACCESS_EXPIRES = '15m';
@@ -212,11 +219,115 @@ describe('AuthService', () => {
 
   afterAll(() => {
     restoreEnv('NODE_ENV');
+    restoreEnv('APP_ENV');
     restoreEnv('AUTH_MOCK_ENABLED');
+    restoreEnv('WECHAT_APP_ID');
+    restoreEnv('WECHAT_APP_SECRET');
     restoreEnv('JWT_ACCESS_SECRET');
     restoreEnv('JWT_REFRESH_SECRET');
     restoreEnv('JWT_ACCESS_EXPIRES');
     restoreEnv('JWT_REFRESH_EXPIRES');
+    global.fetch = originalFetch;
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = 'development';
+    process.env.APP_ENV = 'development';
+    process.env.AUTH_MOCK_ENABLED = 'true';
+    process.env.WECHAT_APP_ID = 'test-wechat-app-id';
+    process.env.WECHAT_APP_SECRET = 'test-wechat-app-secret';
+    global.fetch = originalFetch;
+  });
+
+  it('logs in with a valid WeChat jscode2session response', async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        openid: 'wechat-openid-001',
+        unionid: 'wechat-unionid-001',
+      }),
+    })) as unknown as typeof fetch;
+    const { service, users, sessions } = createService();
+
+    const result = await service.wechatLogin({ code: 'one-time-code' });
+
+    expect(result.success).toBe(true);
+    expect(result.data.isNewUser).toBe(true);
+    expect(users.size).toBe(1);
+    expect(sessions.size).toBe(1);
+    expect([...users.values()][0]).toMatchObject({
+      openId: 'wechat-openid-001',
+      unionId: 'wechat-unionid-001',
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a stable configuration error without exposing credentials', async () => {
+    delete process.env.WECHAT_APP_ID;
+    delete process.env.WECHAT_APP_SECRET;
+    const { service } = createService();
+
+    const error = await service
+      .wechatLogin({ code: 'one-time-code' })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      response: { message: 'WECHAT_LOGIN_CONFIGURATION_INVALID' },
+    });
+    expect(JSON.stringify(error)).not.toContain('test-wechat-app-secret');
+  });
+
+  it('maps invalid or reused WeChat codes without exposing upstream text', async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        errcode: 40029,
+        errmsg: 'invalid code contains upstream diagnostic details',
+      }),
+    })) as unknown as typeof fetch;
+    const { service } = createService();
+
+    const error = await service
+      .wechatLogin({ code: 'invalid-code' })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      response: { message: 'WECHAT_LOGIN_CODE_INVALID' },
+    });
+    expect(JSON.stringify(error)).not.toContain('upstream diagnostic details');
+  });
+
+  it.each([
+    ['non-2xx response', { ok: false, json: async () => ({}) }],
+    [
+      'malformed response',
+      { ok: true, json: async () => Promise.reject(new Error('invalid json')) },
+    ],
+    ['missing openid', { ok: true, json: async () => ({}) }],
+  ])('maps %s to a stable upstream failure', async (_name, response) => {
+    global.fetch = jest.fn(async () => response) as unknown as typeof fetch;
+    const { service } = createService();
+
+    await expect(
+      service.wechatLogin({ code: 'one-time-code' }),
+    ).rejects.toMatchObject({
+      response: { message: 'WECHAT_LOGIN_UPSTREAM_FAILED' },
+    });
+  });
+
+  it('rejects mock login in trial and production environments', async () => {
+    process.env.APP_ENV = 'trial';
+    process.env.AUTH_MOCK_ENABLED = 'true';
+    const { service } = createService();
+
+    await expect(
+      service.wechatLogin({
+        code: 'ignored',
+        mockOpenId: 'forbidden-mock-user',
+      }),
+    ).rejects.toMatchObject({
+      response: { message: 'MOCK_LOGIN_DISABLED' },
+    });
   });
 
   it('reuses users and creates sessions on mock login', async () => {
