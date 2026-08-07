@@ -7,7 +7,7 @@ export type PublicApiEnvironmentConfig = {
 // API 域名是公开配置。此文件不得包含 AppSecret、数据库密码或服务端凭据。
 // 当前联调阶段三个小程序版本共用 Sealos 后端，后续可在这里分别绑定环境域名。
 export const PUBLIC_API_ENVIRONMENT_CONFIG: PublicApiEnvironmentConfig = {
-  developApiBaseUrl: "https://aryqvdjgwpnp.sealoshzh.site/api/v1",
-  trialApiBaseUrl: "https://aryqvdjgwpnp.sealoshzh.site/api/v1",
-  releaseApiBaseUrl: "https://aryqvdjgwpnp.sealoshzh.site/api/v1",
+  developApiBaseUrl: "https://ffgdvydkrqaz.sealoshzh.site/api/v1",
+  trialApiBaseUrl: "https://ffgdvydkrqaz.sealoshzh.site/api/v1",
+  releaseApiBaseUrl: "https://ffgdvydkrqaz.sealoshzh.site/api/v1",
 };

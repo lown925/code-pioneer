@@ -18,7 +18,7 @@ describe('UserController', () => {
   const originalPublicBaseUrl = process.env.PUBLIC_BASE_URL;
 
   beforeEach(async () => {
-    process.env.PUBLIC_BASE_URL = 'https://aryqvdjgwpnp.sealoshzh.site';
+    process.env.PUBLIC_BASE_URL = 'https://ffgdvydkrqaz.sealoshzh.site';
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
       providers: [
@@ -134,7 +134,7 @@ describe('UserController', () => {
       success: true,
       data: {
         avatarUrl:
-          'https://aryqvdjgwpnp.sealoshzh.site/uploads/avatars/user-id/avatar.png',
+          'https://ffgdvydkrqaz.sealoshzh.site/uploads/avatars/user-id/avatar.png',
       },
     };
 
@@ -146,7 +146,7 @@ describe('UserController', () => {
     expect(userService.uploadCurrentUserAvatar).toHaveBeenCalledWith(
       currentUser,
       file,
-      'https://aryqvdjgwpnp.sealoshzh.site',
+      'https://ffgdvydkrqaz.sealoshzh.site',
     );
   });
 
