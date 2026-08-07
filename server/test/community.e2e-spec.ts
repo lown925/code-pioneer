@@ -98,7 +98,7 @@ const USER_B = {
 
 const USER_A_TOKEN = 'community-user-a-token';
 const USER_B_TOKEN = 'community-user-b-token';
-const TEST_PUBLIC_BASE_URL = 'https://ffgdvydkrqaz.sealoshzh.site';
+const TEST_PUBLIC_BASE_URL = 'https://dfiovlydzsvq.sealoshzh.site';
 const originalPublicBaseUrl = process.env.PUBLIC_BASE_URL;
 
 function createCommunityPrismaMock() {
