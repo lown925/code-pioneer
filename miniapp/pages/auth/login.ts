@@ -2,27 +2,14 @@ import type { LoginResponseData } from "../../types/auth";
 import {
   finishLoginNavigation,
   getAuthStateSummary,
-  isDevelopmentEnvironment,
   saveLoginSession,
 } from "../../utils/auth";
-import {
-  API_CONFIG_ERROR_MESSAGE,
-  CURRENT_ENV_VERSION,
-  getApiHost,
-} from "../../utils/config";
 import { RequestError, request } from "../../utils/request";
 
 type LoginPageData = {
   isWechatSubmitting: boolean;
-  isMockSubmitting: boolean;
   errorMessage: string;
-  mockOpenId: string;
   redirectPath: string;
-  showMockLogin: boolean;
-  diagnosticApiHost: string;
-  diagnosticConfigStatus: string;
-  diagnosticErrorCode: string;
-  envVersion: string;
 };
 
 function decodeQueryValue(value: string) {
@@ -33,7 +20,7 @@ function decodeQueryValue(value: string) {
   }
 }
 
-function getReadableLoginError(error: unknown, isMockLogin: boolean) {
+function getReadableLoginError(error: unknown) {
   if (error instanceof RequestError) {
     const messages: Record<string, string> = {
       API_CONFIG_INVALID: "当前小程序环境的 API 地址未正确配置。",
@@ -47,7 +34,6 @@ function getReadableLoginError(error: unknown, isMockLogin: boolean) {
         "服务端微信登录配置不完整，请联系管理员检查 AppID 与 AppSecret。",
       WECHAT_LOGIN_CODE_INVALID: "微信临时登录凭证无效，请重新点击登录。",
       WECHAT_LOGIN_UPSTREAM_FAILED: "微信登录服务暂时不可用，请稍后重试。",
-      MOCK_LOGIN_DISABLED: "当前环境未开启模拟登录。",
       ENVIRONMENT_MISMATCH:
         "小程序版本与当前后端环境不匹配，请检查部署环境配置。",
     };
@@ -64,14 +50,14 @@ function getReadableLoginError(error: unknown, isMockLogin: boolean) {
       return "服务端内部错误，请稍后重试。";
     }
 
-    return isMockLogin ? "模拟登录失败，请稍后重试" : "登录失败，请稍后重试";
+    return "登录失败，请稍后重试";
   }
 
   if (error instanceof Error) {
     return error.message || "登录失败，请稍后重试";
   }
 
-  return isMockLogin ? "模拟登录失败，请稍后重试" : "登录失败，请稍后重试";
+  return "登录失败，请稍后重试";
 }
 
 function wxLogin() {
@@ -118,15 +104,8 @@ function openProfileOnboarding(redirectPath: string) {
 Page<LoginPageData>({
   data: {
     isWechatSubmitting: false,
-    isMockSubmitting: false,
     errorMessage: "",
-    mockOpenId: "test-openid-dev-user-001",
     redirectPath: "",
-    showMockLogin: false,
-    diagnosticApiHost: "",
-    diagnosticConfigStatus: "",
-    diagnosticErrorCode: "",
-    envVersion: "",
   },
 
   onLoad(query) {
@@ -137,10 +116,6 @@ Page<LoginPageData>({
 
     this.setData({
       redirectPath,
-      showMockLogin: isDevelopmentEnvironment(),
-      diagnosticApiHost: getApiHost(),
-      diagnosticConfigStatus: API_CONFIG_ERROR_MESSAGE ? "异常" : "正常",
-      envVersion: CURRENT_ENV_VERSION,
     });
   },
 
@@ -161,16 +136,8 @@ Page<LoginPageData>({
     }
   },
 
-  handleMockOpenIdInput(
-    event: WechatMiniprogram.CustomEvent<{ value?: string }>,
-  ) {
-    this.setData({
-      mockOpenId: event.detail.value ?? "",
-    });
-  },
-
   async handleWechatLogin() {
-    if (this.data.isWechatSubmitting || this.data.isMockSubmitting) {
+    if (this.data.isWechatSubmitting) {
       return;
     }
 
@@ -204,72 +171,11 @@ Page<LoginPageData>({
       }
     } catch (error) {
       this.setData({
-        errorMessage: getReadableLoginError(error, false),
-        diagnosticErrorCode:
-          error instanceof RequestError
-            ? error.code || "HTTP_ERROR"
-            : "WX_LOGIN_ERROR",
+        errorMessage: getReadableLoginError(error),
       });
     } finally {
       this.setData({
         isWechatSubmitting: false,
-      });
-    }
-  },
-
-  async handleMockLogin() {
-    if (
-      !this.data.showMockLogin ||
-      this.data.isWechatSubmitting ||
-      this.data.isMockSubmitting
-    ) {
-      return;
-    }
-
-    const mockOpenId = this.data.mockOpenId.trim();
-
-    if (!mockOpenId) {
-      this.setData({
-        errorMessage: "请输入开发环境模拟用户标识",
-      });
-      return;
-    }
-
-    this.setData({
-      isMockSubmitting: true,
-      errorMessage: "",
-    });
-
-    try {
-      const data = await request<LoginResponseData>({
-        url: "/auth/wechat-login",
-        method: "POST",
-        data: {
-          code: "mock-login-placeholder",
-          mockOpenId,
-        },
-        authMode: "none",
-        retryOnAuthFailure: false,
-        disableAuthRedirect: true,
-      });
-
-      saveLoginSession(data);
-      wx.showToast({
-        title: "模拟登录成功",
-        icon: "none",
-      });
-      finishLoginNavigation(this.data.redirectPath);
-    } catch (error) {
-      this.setData({
-        errorMessage: getReadableLoginError(error, true),
-        diagnosticErrorCode:
-          error instanceof RequestError
-            ? error.code || "HTTP_ERROR"
-            : "MOCK_LOGIN_ERROR",
-      });
-    } finally {
-      this.setData({
-        isMockSubmitting: false,
       });
     }
   },

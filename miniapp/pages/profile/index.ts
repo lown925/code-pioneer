@@ -8,7 +8,6 @@ import type { WrongQuestionStatisticsResponse } from '../../types/wrong-question
 import {
   clearAuthSession,
   getAuthStateSummary,
-  isDevelopmentEnvironment,
   redirectToLogin,
 } from '../../utils/auth';
 import {
@@ -63,7 +62,6 @@ type ProfilePageData = {
   displayName: string;
   profileInitial: string;
   isLoggingOut: boolean;
-  showMockHint: boolean;
   followingCountText: string;
   followerCountText: string;
   battleSummary: ProfileBattleSummary | null;
@@ -143,7 +141,6 @@ Page<ProfilePageData, ProfilePageMethods>({
     displayName: '游客用户',
     profileInitial: '我',
     isLoggingOut: false,
-    showMockHint: false,
     followingCountText: '0',
     followerCountText: '0',
     battleSummary: null,
@@ -208,7 +205,6 @@ Page<ProfilePageData, ProfilePageMethods>({
       user,
       displayName: getDisplayName(user),
       profileInitial: getProfileInitial(user),
-      showMockHint: isDevelopmentEnvironment(),
     });
 
     return authState.isAuthenticated;

@@ -43,32 +43,6 @@
   color: rgba(255, 255, 255, 0.86);
 }
 
-.mock-card {
-  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
-}
-
-.field-group {
-  margin-top: 24rpx;
-}
-
-.field-label {
-  display: block;
-  font-size: 24rpx;
-  font-weight: 600;
-  color: #17324d;
-}
-
-.field-input {
-  margin-top: 14rpx;
-  height: 84rpx;
-  padding: 0 24rpx;
-  border-radius: 20rpx;
-  background: #f6f9fd;
-  color: #17324d;
-  font-size: 28rpx;
-  box-sizing: border-box;
-}
-
 .action-button {
   margin-top: 28rpx;
   border-radius: 999rpx;
@@ -84,11 +58,6 @@
 .action-button-primary {
   background: linear-gradient(135deg, #2f6bff 0%, #4aa4ff 100%);
   color: #ffffff;
-}
-
-.action-button-secondary {
-  background: #eef4ff;
-  color: #2f6bff;
 }
 
 .error-card {
@@ -108,26 +77,4 @@
   font-size: 25rpx;
   line-height: 1.7;
   color: #7f1d1d;
-}
-
-.diagnostic-panel {
-  padding: 20rpx 24rpx;
-  border: 2rpx solid #d8e3f0;
-  border-radius: 16rpx;
-  background: #f7f9fc;
-}
-
-.diagnostic-title,
-.diagnostic-row {
-  display: block;
-  color: #506176;
-  font-size: 22rpx;
-  line-height: 1.7;
-  overflow-wrap: anywhere;
-}
-
-.diagnostic-title {
-  margin-bottom: 4rpx;
-  color: #17324d;
-  font-weight: 700;
 }

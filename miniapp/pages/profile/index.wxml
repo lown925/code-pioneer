@@ -5,7 +5,6 @@
       登录后可查看 Battle 战绩、统一错题、社区收藏与历史，以及你发布过的帖子。
     </text>
     <view class="primary-button guest-action" bindtap="handleLogin">去登录</view>
-    <view wx:if="{{showMockHint}}" class="guest-hint">仅开发环境可见测试登录入口</view>
   </view>
 
   <block wx:else>

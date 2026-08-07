@@ -11,38 +11,10 @@
     <button
       class="action-button action-button-primary"
       loading="{{isWechatSubmitting}}"
-      disabled="{{isWechatSubmitting || isMockSubmitting}}"
+      disabled="{{isWechatSubmitting}}"
       bindtap="handleWechatLogin"
     >
       微信授权登录
-    </button>
-  </view>
-
-  <view wx:if="{{showMockLogin}}" class="section-card auth-card mock-card">
-    <text class="section-title">开发环境模拟登录</text>
-    <text class="section-subtitle">
-      仅用于本地开发和联调，正式环境不会显示。
-    </text>
-
-    <view class="field-group">
-      <text class="field-label">模拟用户标识</text>
-      <input
-        class="field-input"
-        type="text"
-        maxlength="128"
-        value="{{mockOpenId}}"
-        placeholder="请输入开发测试用 openId"
-        bindinput="handleMockOpenIdInput"
-      />
-    </view>
-
-    <button
-      class="action-button action-button-secondary"
-      loading="{{isMockSubmitting}}"
-      disabled="{{isWechatSubmitting || isMockSubmitting}}"
-      bindtap="handleMockLogin"
-    >
-      模拟登录
     </button>
   </view>
 
@@ -51,13 +23,4 @@
     <text class="error-text">{{errorMessage}}</text>
   </view>
 
-  <view wx:if="{{showMockLogin}}" class="diagnostic-panel">
-    <text class="diagnostic-title">开发诊断</text>
-    <text class="diagnostic-row">环境：{{envVersion}}</text>
-    <text class="diagnostic-row">API：{{diagnosticApiHost}}</text>
-    <text class="diagnostic-row">配置：{{diagnosticConfigStatus}}</text>
-    <text wx:if="{{diagnosticErrorCode}}" class="diagnostic-row">
-      最近错误：{{diagnosticErrorCode}}
-    </text>
-  </view>
 </view>
