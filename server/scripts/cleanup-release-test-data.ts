@@ -7,8 +7,12 @@ import { getUploadStorageRoot } from '../src/environment/environment.config';
 
 const CONFIRM_FLAG = '--confirm';
 const DELETE_ALL_UPLOADS_FLAG = '--delete-all-uploads';
+const DELETE_ALL_USERS_FLAG = '--delete-all-users';
 const REQUIRED_PERMISSION_VALUE = 'true';
 const DEFAULT_BATTLE_RATING = 1000;
+const PYTHON_COURSE_SLUG = 'python-basic';
+const EXPECTED_PYTHON_CHAPTER_COUNT = 15;
+const MINIMUM_BATTLE_QUESTION_COUNT = 20;
 const MOCK_OPEN_ID_PREFIXES = ['mock-openid-', 'test-openid-'] as const;
 const TRANSACTION_OPTIONS = {
   maxWait: 10_000,
@@ -82,12 +86,26 @@ type UploadPlan = {
   allFiles: UploadCandidate[];
 };
 
+type ContentIntegritySummary = {
+  pythonCourseId: string;
+  pythonChapterCount: number;
+  pythonQuestionCount: number;
+  missingExplanations: number;
+  invalidSingleChoiceAnswers: number;
+  invalidTextAnswers: number;
+  battleEligibleCount: number;
+};
+
 function isEnabled(value: string | undefined) {
   return value?.trim().toLowerCase() === REQUIRED_PERMISSION_VALUE;
 }
 
 function parseArguments() {
-  const knownArguments = new Set([CONFIRM_FLAG, DELETE_ALL_UPLOADS_FLAG]);
+  const knownArguments = new Set([
+    CONFIRM_FLAG,
+    DELETE_ALL_UPLOADS_FLAG,
+    DELETE_ALL_USERS_FLAG,
+  ]);
   const unknownArguments = process.argv
     .slice(2)
     .filter((argument) => !knownArguments.has(argument));
@@ -98,12 +116,13 @@ function parseArguments() {
 
   const confirm = process.argv.includes(CONFIRM_FLAG);
   const deleteAllUploads = process.argv.includes(DELETE_ALL_UPLOADS_FLAG);
+  const deleteAllUsers = process.argv.includes(DELETE_ALL_USERS_FLAG);
 
   if (deleteAllUploads && !confirm) {
     throw new Error('--delete-all-uploads requires --confirm.');
   }
 
-  return { confirm, deleteAllUploads };
+  return { confirm, deleteAllUploads, deleteAllUsers };
 }
 
 function parsePreservedUserIds() {
@@ -382,6 +401,123 @@ function printCounts(title: string, counts: TableCounts) {
   );
 }
 
+async function loadContentIntegritySummary(
+  prisma: PrismaClient,
+): Promise<ContentIntegritySummary> {
+  const course = await prisma.course.findUnique({
+    where: { slug: PYTHON_COURSE_SLUG },
+    select: {
+      id: true,
+      chapters: {
+        where: { deletedAt: null },
+        select: {
+          quiz: {
+            select: {
+              questions: {
+                select: {
+                  type: true,
+                  explanation: true,
+                  acceptedAnswers: true,
+                  isBattleEnabled: true,
+                  battlePresentation: true,
+                  battleDifficulty: true,
+                  options: {
+                    select: { isCorrect: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!course) {
+    throw new Error(`Protected course not found: ${PYTHON_COURSE_SLUG}.`);
+  }
+
+  const questions = course.chapters.flatMap(
+    (chapter) => chapter.quiz?.questions ?? [],
+  );
+  const hasAcceptedAnswer = (value: unknown) =>
+    Array.isArray(value) &&
+    value.some((answer) => typeof answer === 'string' && answer.trim());
+  const singleChoiceQuestions = questions.filter(
+    (question) => question.type === 'SINGLE_CHOICE',
+  );
+  const textQuestions = questions.filter(
+    (question) =>
+      question.type === 'FILL_BLANK' || question.type === 'CODE_FILL',
+  );
+  const battleEligibleCount = questions.filter((question) => {
+    if (
+      !question.isBattleEnabled ||
+      !question.battlePresentation ||
+      !question.battleDifficulty
+    ) {
+      return false;
+    }
+
+    if (question.type === 'SINGLE_CHOICE') {
+      return (
+        question.options.length >= 2 &&
+        question.options.filter((option) => option.isCorrect).length === 1
+      );
+    }
+
+    return (
+      question.type === 'CODE_FILL' &&
+      hasAcceptedAnswer(question.acceptedAnswers)
+    );
+  }).length;
+
+  return {
+    pythonCourseId: course.id,
+    pythonChapterCount: course.chapters.length,
+    pythonQuestionCount: questions.length,
+    missingExplanations: questions.filter(
+      (question) => !question.explanation?.trim(),
+    ).length,
+    invalidSingleChoiceAnswers: singleChoiceQuestions.filter(
+      (question) =>
+        question.options.filter((option) => option.isCorrect).length !== 1,
+    ).length,
+    invalidTextAnswers: textQuestions.filter(
+      (question) => !hasAcceptedAnswer(question.acceptedAnswers),
+    ).length,
+    battleEligibleCount,
+  };
+}
+
+function assertContentIntegrity(summary: ContentIntegritySummary) {
+  if (summary.pythonChapterCount !== EXPECTED_PYTHON_CHAPTER_COUNT) {
+    throw new Error(
+      `Expected ${EXPECTED_PYTHON_CHAPTER_COUNT} Python chapters, found ${summary.pythonChapterCount}.`,
+    );
+  }
+
+  if (
+    summary.pythonQuestionCount === 0 ||
+    summary.missingExplanations > 0 ||
+    summary.invalidSingleChoiceAnswers > 0 ||
+    summary.invalidTextAnswers > 0 ||
+    summary.battleEligibleCount < MINIMUM_BATTLE_QUESTION_COUNT
+  ) {
+    throw new Error(
+      'Protected Python course content failed integrity validation.',
+    );
+  }
+}
+
+function printContentIntegrity(
+  title: string,
+  summary: ContentIntegritySummary,
+) {
+  console.log(`\n${title}`);
+  console.table(summary);
+}
+
 function assertProtectedCountsUnchanged(
   before: TableCounts,
   after: TableCounts,
@@ -397,6 +533,7 @@ function projectDryRunCounts(
   before: TableCounts,
   mockUserCount: number,
   mockBattleProfileCount: number,
+  deleteAllUsers: boolean,
 ) {
   const projected = { ...before };
 
@@ -410,11 +547,12 @@ function projectDryRunCounts(
     }
   }
 
-  projected.User = Math.max(0, before.User - mockUserCount);
-  projected.BattleProfile = Math.max(
-    0,
-    before.BattleProfile - mockBattleProfileCount,
-  );
+  projected.User = deleteAllUsers
+    ? 0
+    : Math.max(0, before.User - mockUserCount);
+  projected.BattleProfile = deleteAllUsers
+    ? 0
+    : Math.max(0, before.BattleProfile - mockBattleProfileCount);
 
   return projected;
 }
@@ -438,21 +576,17 @@ async function loadCleanupSummary(
   prisma: PrismaClient,
   preservedUserIds: string[],
 ) {
-  const [
-    counts,
-    mockUserCount,
-    mockBattleProfileCount,
-    preservedUserCount,
-  ] = await Promise.all([
-    countTables(prisma),
-    prisma.user.count({ where: mockUserWhere(preservedUserIds) }),
-    prisma.battleProfile.count({
-      where: { user: mockUserWhere(preservedUserIds) },
-    }),
-    preservedUserIds.length > 0
-      ? prisma.user.count({ where: { id: { in: preservedUserIds } } })
-      : Promise.resolve(0),
-  ]);
+  const [counts, mockUserCount, mockBattleProfileCount, preservedUserCount] =
+    await Promise.all([
+      countTables(prisma),
+      prisma.user.count({ where: mockUserWhere(preservedUserIds) }),
+      prisma.battleProfile.count({
+        where: { user: mockUserWhere(preservedUserIds) },
+      }),
+      preservedUserIds.length > 0
+        ? prisma.user.count({ where: { id: { in: preservedUserIds } } })
+        : Promise.resolve(0),
+    ]);
 
   return {
     counts,
@@ -465,6 +599,7 @@ async function loadCleanupSummary(
 async function deleteRuntimeData(
   prisma: PrismaService,
   preservedUserIds: string[],
+  deleteAllUsers: boolean,
 ) {
   return prisma.$transaction(async (tx) => {
     const before = await countTables(tx);
@@ -519,23 +654,32 @@ async function deleteRuntimeData(
     });
     await tx.course.updateMany({ data: { learnerCount: 0 } });
 
-    const mockUsers = await tx.user.findMany({
-      where: mockUserWhere(preservedUserIds),
-      select: { id: true },
-    });
-    const mockUserIds = mockUsers.map((user) => user.id);
+    let deletedUsers = 0;
 
-    if (mockUserIds.length > 0) {
-      await tx.battleProfile.deleteMany({
-        where: { userId: { in: mockUserIds } },
+    if (deleteAllUsers) {
+      await tx.battleProfile.deleteMany();
+      deletedUsers = (await tx.user.deleteMany()).count;
+    } else {
+      const mockUsers = await tx.user.findMany({
+        where: mockUserWhere(preservedUserIds),
+        select: { id: true },
       });
-      await tx.user.deleteMany({ where: { id: { in: mockUserIds } } });
+      const mockUserIds = mockUsers.map((user) => user.id);
+
+      if (mockUserIds.length > 0) {
+        await tx.battleProfile.deleteMany({
+          where: { userId: { in: mockUserIds } },
+        });
+        deletedUsers = (
+          await tx.user.deleteMany({ where: { id: { in: mockUserIds } } })
+        ).count;
+      }
     }
 
     const after = await countTables(tx);
     assertProtectedCountsUnchanged(before, after);
 
-    return { before, after, deletedMockUsers: mockUserIds.length };
+    return { before, after, deletedUsers };
   }, TRANSACTION_OPTIONS);
 }
 
@@ -563,8 +707,14 @@ async function deleteUploadFiles(
 
 async function main() {
   assertPermission();
-  const { confirm, deleteAllUploads } = parseArguments();
+  const { confirm, deleteAllUploads, deleteAllUsers } = parseArguments();
   const preservedUserIds = parsePreservedUserIds();
+
+  if (deleteAllUsers && preservedUserIds.length > 0) {
+    throw new Error(
+      '--delete-all-users cannot be combined with CLEANUP_PRESERVE_USER_IDS.',
+    );
+  }
   const uploadRoot = getUploadStorageRoot();
   assertUploadRoot(uploadRoot);
 
@@ -573,6 +723,8 @@ async function main() {
   try {
     await prisma.$connect();
     const summary = await loadCleanupSummary(prisma, preservedUserIds);
+    const contentBefore = await loadContentIntegritySummary(prisma);
+    assertContentIntegrity(contentBefore);
     const uploadCandidates = await collectUploadCandidates(uploadRoot);
     const uploadReferences = await loadUploadReferences(prisma);
     const uploadPlan = buildUploadPlan(
@@ -583,6 +735,9 @@ async function main() {
 
     console.log('Release test-data cleanup');
     console.log(`mode: ${confirm ? 'CONFIRMED DELETE' : 'DRY RUN'}`);
+    console.log(
+      `user cleanup: ${deleteAllUsers ? 'DELETE ALL USERS' : 'DELETE MOCK USERS'}`,
+    );
     console.log(`preserved user IDs configured: ${preservedUserIds.length}`);
     console.log(`preserved user IDs found: ${summary.preservedUserCount}`);
     console.log(`recognized mock users to delete: ${summary.mockUserCount}`);
@@ -590,12 +745,14 @@ async function main() {
       `mock OpenID rules: ${MOCK_OPEN_ID_PREFIXES.map((prefix) => `${prefix}*`).join(', ')}`,
     );
     printCounts('Before cleanup', summary.counts);
+    printContentIntegrity('Protected content validation', contentBefore);
     printCounts(
       'Projected after cleanup',
       projectDryRunCounts(
         summary.counts,
         summary.mockUserCount,
         summary.mockBattleProfileCount,
+        deleteAllUsers,
       ),
     );
 
@@ -633,9 +790,16 @@ async function main() {
       );
     }
 
-    const result = await deleteRuntimeData(prisma, preservedUserIds);
+    const result = await deleteRuntimeData(
+      prisma,
+      preservedUserIds,
+      deleteAllUsers,
+    );
     printCounts('After cleanup', result.after);
-    console.log(`deleted mock users: ${result.deletedMockUsers}`);
+    const contentAfter = await loadContentIntegritySummary(prisma);
+    assertContentIntegrity(contentAfter);
+    printContentIntegrity('Protected content after cleanup', contentAfter);
+    console.log(`deleted users: ${result.deletedUsers}`);
 
     const deletedUploadFiles = await deleteUploadFiles(
       uploadRoot,
