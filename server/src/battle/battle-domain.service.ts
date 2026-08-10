@@ -34,7 +34,7 @@ export class BattleDomainService {
     tx: BattleTransactionClient,
   ) {
     await tx.$queryRaw(
-      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`battle:user:${userId}`}, 0))`,
+      Prisma.sql`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${`battle:user:${userId}`}, 0))`,
     );
   }
 
@@ -43,7 +43,7 @@ export class BattleDomainService {
     tx: BattleTransactionClient,
   ) {
     await tx.$queryRaw(
-      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`battle:room:${battleRoomId}`}, 0))`,
+      Prisma.sql`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${`battle:room:${battleRoomId}`}, 0))`,
     );
   }
 
