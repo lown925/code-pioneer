@@ -35,7 +35,10 @@ describe('BattleFriendRoomService', () => {
   function createService() {
     const mock = createBattlePrismaMock();
     const domainService = new BattleDomainService(mock.prisma as never);
-    const roomService = new BattleRoomService(mock.prisma as never);
+    const roomService = new BattleRoomService(
+      mock.prisma as never,
+      domainService,
+    );
     const tokenService = new BattleTokenService();
     jest
       .spyOn(tokenService, 'generateInvitationToken')
@@ -95,6 +98,58 @@ describe('BattleFriendRoomService', () => {
     );
   });
 
+  it('returns the existing creator room instead of creating a second active room', async () => {
+    const { mock, service } = createService();
+
+    const first = await service.createFriendRoom(USER_A);
+    const second = await service.createFriendRoom(USER_A);
+
+    expect(second.data.battleId).toBe(first.data.battleId);
+    expect(second.data.invitationToken).toBe(first.data.invitationToken);
+    expect(second.data.inviteCode).toBe(first.data.inviteCode);
+    expect(mock.battleRooms.size).toBe(1);
+    expect(mock.battleInvitations.size).toBe(1);
+  });
+
+  it('normalizes an expired waiting room before creating a replacement', async () => {
+    const { mock, service } = createService();
+
+    const first = await service.createFriendRoom(USER_A);
+    const oldRoom = mock.battleRooms.get(first.data.battleId)!;
+    oldRoom.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(oldRoom.id, oldRoom);
+    const oldInvitation = [...mock.battleInvitations.values()][0];
+    oldInvitation.expiresAt = new Date(Date.now() - 1000);
+    mock.battleInvitations.set(oldInvitation.id, oldInvitation);
+
+    const replacement = await service.createFriendRoom(USER_A);
+
+    expect(replacement.data.battleId).not.toBe(first.data.battleId);
+    expect(mock.battleRooms.get(first.data.battleId)?.status).toBe(
+      BattleRoomStatus.EXPIRED,
+    );
+    expect(mock.battleInvitations.get(oldInvitation.id)?.status).toBe(
+      BattleInvitationStatus.EXPIRED,
+    );
+  });
+
+  it('normalizes an expired READY room before creating a replacement', async () => {
+    const { mock, service } = createService();
+
+    const first = await service.createFriendRoom(USER_A);
+    const oldRoom = mock.battleRooms.get(first.data.battleId)!;
+    oldRoom.status = BattleRoomStatus.READY;
+    oldRoom.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(oldRoom.id, oldRoom);
+
+    const replacement = await service.createFriendRoom(USER_A);
+
+    expect(replacement.data.battleId).not.toBe(first.data.battleId);
+    expect(mock.battleRooms.get(first.data.battleId)?.status).toBe(
+      BattleRoomStatus.EXPIRED,
+    );
+  });
+
   it('rejects friend room creation when the user is already matching', async () => {
     const { mock, service } = createService();
 
@@ -134,7 +189,10 @@ describe('BattleFriendRoomService', () => {
     const { service } = createService();
     const created = await service.createFriendRoom(USER_A);
 
-    const preview = await service.previewFriendRoomByInviteCode(USER_B, 'abc234');
+    const preview = await service.previewFriendRoomByInviteCode(
+      USER_B,
+      'abc234',
+    );
     expect(preview.data.canJoin).toBe(true);
     expect(preview.data.inviteCode).toBe('ABC234');
 
@@ -174,6 +232,60 @@ describe('BattleFriendRoomService', () => {
     );
     expect([...mock.battleInvitations.values()][0].inviteeUserId).toBe(
       USER_B.id,
+    );
+  });
+
+  it('expires an accepted waiting room when its room TTL elapses', async () => {
+    const { mock, service } = createService();
+    const created = await service.createFriendRoom(USER_A);
+    await service.joinFriendRoom(USER_B, created.data.invitationToken);
+
+    const room = mock.battleRooms.get(created.data.battleId)!;
+    room.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(room.id, room);
+
+    const preview = await service.previewFriendRoom(
+      USER_B,
+      created.data.invitationToken,
+    );
+
+    expect(preview.data.roomStatus).toBe(BattleRoomStatus.EXPIRED);
+    expect(preview.data.invitationStatus).toBe(BattleInvitationStatus.EXPIRED);
+  });
+
+  it('does not expire COUNTDOWN or IN_PROGRESS rooms', async () => {
+    const { mock, service } = createService();
+    const countdown = await service.createFriendRoom(USER_A);
+    const countdownRoom = mock.battleRooms.get(countdown.data.battleId)!;
+    countdownRoom.status = BattleRoomStatus.COUNTDOWN;
+    countdownRoom.startedAt = new Date(Date.now() + 2000);
+    countdownRoom.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(countdownRoom.id, countdownRoom);
+
+    const countdownPreview = await service.previewFriendRoom(
+      USER_B,
+      countdown.data.invitationToken,
+    );
+    expect(countdownPreview.data.roomStatus).toBe(
+      BattleRoomStatus.COUNTDOWN,
+    );
+    expect(countdownPreview.data.invitationStatus).toBe(
+      BattleInvitationStatus.ACTIVE,
+    );
+
+    countdownRoom.status = BattleRoomStatus.IN_PROGRESS;
+    countdownRoom.startedAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(countdownRoom.id, countdownRoom);
+
+    const inProgressPreview = await service.previewFriendRoom(
+      USER_B,
+      countdown.data.invitationToken,
+    );
+    expect(inProgressPreview.data.roomStatus).toBe(
+      BattleRoomStatus.IN_PROGRESS,
+    );
+    expect(inProgressPreview.data.invitationStatus).toBe(
+      BattleInvitationStatus.ACTIVE,
     );
   });
 
@@ -222,13 +334,16 @@ describe('BattleFriendRoomService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('expires stale invitations lazily and blocks joining them', async () => {
+  it('expires stale rooms and invitations lazily and blocks joining them', async () => {
     const { mock, service } = createService();
     const created = await service.createFriendRoom(USER_A);
     const invitation = [...mock.battleInvitations.values()][0];
+    const room = mock.battleRooms.get(created.data.battleId)!;
 
     invitation.expiresAt = new Date(Date.now() - 1000);
     mock.battleInvitations.set(invitation.id, invitation);
+    room.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(room.id, room);
 
     const preview = await service.previewFriendRoom(
       USER_B,
@@ -239,6 +354,27 @@ describe('BattleFriendRoomService', () => {
     await expect(
       service.joinFriendRoom(USER_B, created.data.invitationToken),
     ).rejects.toBeInstanceOf(GoneException);
+  });
+
+  it('commits stale room expiration before rejecting a direct join', async () => {
+    const { mock, service } = createService();
+    const created = await service.createFriendRoom(USER_A);
+    await service.joinFriendRoom(USER_B, created.data.invitationToken);
+
+    const room = mock.battleRooms.get(created.data.battleId)!;
+    room.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(room.id, room);
+
+    await expect(
+      service.joinFriendRoom(USER_C, created.data.invitationToken),
+    ).rejects.toBeInstanceOf(GoneException);
+
+    expect(mock.battleRooms.get(room.id)?.status).toBe(
+      BattleRoomStatus.EXPIRED,
+    );
+    expect([...mock.battleInvitations.values()][0].status).toBe(
+      BattleInvitationStatus.EXPIRED,
+    );
   });
 
   it('rejects guests who are already searching when previewing or joining', async () => {
@@ -325,5 +461,71 @@ describe('BattleFriendRoomService', () => {
     expect([...mock.battleInvitations.values()][0].status).toBe(
       BattleInvitationStatus.CANCELLED,
     );
+  });
+
+  it('cancels READY rooms but rejects ordinary cancellation after countdown starts', async () => {
+    const { mock, service } = createService();
+    const created = await service.createFriendRoom(USER_A);
+    const room = mock.battleRooms.get(created.data.battleId)!;
+
+    room.status = BattleRoomStatus.READY;
+    mock.battleRooms.set(room.id, room);
+    await expect(
+      service.cancelFriendRoom(USER_A, created.data.invitationToken),
+    ).resolves.toMatchObject({
+      data: { roomStatus: BattleRoomStatus.CANCELLED },
+    });
+
+    const second = await service.createFriendRoom(USER_A);
+    const countdownRoom = mock.battleRooms.get(second.data.battleId)!;
+    countdownRoom.status = BattleRoomStatus.COUNTDOWN;
+    countdownRoom.startedAt = new Date(Date.now() + 2000);
+    mock.battleRooms.set(countdownRoom.id, countdownRoom);
+
+    await expect(
+      service.cancelFriendRoom(USER_A, second.data.invitationToken),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(mock.battleRooms.get(second.data.battleId)?.status).toBe(
+      BattleRoomStatus.COUNTDOWN,
+    );
+  });
+
+  it('rejects IN_PROGRESS cancellation and keeps the battle running', async () => {
+    const { mock, service } = createService();
+    const created = await service.createFriendRoom(USER_A);
+    const room = mock.battleRooms.get(created.data.battleId)!;
+    room.status = BattleRoomStatus.IN_PROGRESS;
+    room.startedAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(room.id, room);
+
+    await expect(
+      service.cancelFriendRoom(USER_A, created.data.invitationToken),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(mock.battleRooms.get(room.id)?.status).toBe(
+      BattleRoomStatus.IN_PROGRESS,
+    );
+  });
+
+  it('keeps cancellation idempotent for CANCELLED and EXPIRED rooms', async () => {
+    const { mock, service } = createService();
+    const cancelled = await service.createFriendRoom(USER_A);
+
+    await service.cancelFriendRoom(USER_A, cancelled.data.invitationToken);
+    await expect(
+      service.cancelFriendRoom(USER_A, cancelled.data.invitationToken),
+    ).resolves.toMatchObject({
+      data: { roomStatus: BattleRoomStatus.CANCELLED },
+    });
+
+    const expired = await service.createFriendRoom(USER_A);
+    const expiredRoom = mock.battleRooms.get(expired.data.battleId)!;
+    expiredRoom.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(expiredRoom.id, expiredRoom);
+
+    await expect(
+      service.cancelFriendRoom(USER_A, expired.data.invitationToken),
+    ).resolves.toMatchObject({
+      data: { roomStatus: BattleRoomStatus.EXPIRED },
+    });
   });
 });

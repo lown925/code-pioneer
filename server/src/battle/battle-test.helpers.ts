@@ -321,6 +321,7 @@ export function createBattlePrismaMock() {
   const quizQuestions = new Map<string, QuizQuestionRecord>();
 
   const tx = {
+    $queryRaw: jest.fn(async () => [{ locked: true }]),
     user: {
       findUnique: jest.fn(async ({ where }: { where: { id: string } }) => {
         const user = users.get(where.id);
@@ -531,11 +532,7 @@ export function createBattlePrismaMock() {
         );
       }),
       findMany: jest.fn(
-        async ({
-          where,
-        }: {
-          where?: Record<string, unknown>;
-        }) => {
+        async ({ where }: { where?: Record<string, unknown> }) => {
           return [...battleRooms.values()]
             .filter((room) =>
               matchesRoomWhere(room, where ?? {}, battleParticipants),
@@ -610,9 +607,7 @@ export function createBattlePrismaMock() {
           const updated = {
             ...existing,
             ...data,
-            updatedAt:
-              (data.updatedAt as Date | undefined) ??
-              new Date(),
+            updatedAt: (data.updatedAt as Date | undefined) ?? new Date(),
           };
           battleRooms.set(where.id, updated);
           return updated;
@@ -636,9 +631,7 @@ export function createBattlePrismaMock() {
             battleRooms.set(id, {
               ...room,
               ...data,
-              updatedAt:
-                (data.updatedAt as Date | undefined) ??
-                new Date(),
+              updatedAt: (data.updatedAt as Date | undefined) ?? new Date(),
             });
             count += 1;
           }
@@ -860,35 +853,38 @@ export function createBattlePrismaMock() {
           where: {
             token?: string;
             inviteCode?: string;
+            battleRoomId?: string;
           };
         }) => {
-        const invitation = [...battleInvitations.values()].find(
-          (item) =>
-            (where.token !== undefined && item.token === where.token) ||
-            (where.inviteCode !== undefined &&
-              item.inviteCode === where.inviteCode),
-        );
+          const invitation = [...battleInvitations.values()].find(
+            (item) =>
+              (where.token !== undefined && item.token === where.token) ||
+              (where.inviteCode !== undefined &&
+                item.inviteCode === where.inviteCode) ||
+              (where.battleRoomId !== undefined &&
+                item.battleRoomId === where.battleRoomId),
+          );
 
-        if (!invitation) {
-          return null;
-        }
+          if (!invitation) {
+            return null;
+          }
 
-        return {
-          ...invitation,
-          inviterUser: {
-            id: invitation.inviterUserId,
-            nickname: users.get(invitation.inviterUserId)?.nickname ?? null,
-            avatarUrl: users.get(invitation.inviterUserId)?.avatarUrl ?? null,
-          },
-          battleRoom: toRoomView(
-            battleRooms,
-          battleParticipants,
-          users,
-          battleQuestionSnapshots,
-          battleAnswers,
-          invitation.battleRoomId,
-        ),
-        };
+          return {
+            ...invitation,
+            inviterUser: {
+              id: invitation.inviterUserId,
+              nickname: users.get(invitation.inviterUserId)?.nickname ?? null,
+              avatarUrl: users.get(invitation.inviterUserId)?.avatarUrl ?? null,
+            },
+            battleRoom: toRoomView(
+              battleRooms,
+              battleParticipants,
+              users,
+              battleQuestionSnapshots,
+              battleAnswers,
+              invitation.battleRoomId,
+            ),
+          };
         },
       ),
       update: jest.fn(
@@ -1172,6 +1168,9 @@ export function createBattlePrismaMock() {
 
   const prisma = {
     ...tx,
+    $queryRaw: jest.fn(async () => {
+      throw new Error('Battle lock query escaped its transaction client');
+    }),
     $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) => {
       const snapshot = {
         users: structuredClone([...users.entries()]),
@@ -1313,6 +1312,36 @@ function matchesRoomWhere(
     }
   }
 
+  if (where.mode !== undefined) {
+    if (typeof where.mode === 'string' && room.mode !== where.mode) {
+      return false;
+    }
+
+    if (
+      typeof where.mode === 'object' &&
+      where.mode !== null &&
+      'in' in where.mode
+    ) {
+      const values = (where.mode as { in?: string[] }).in ?? [];
+
+      if (!values.includes(room.mode)) {
+        return false;
+      }
+    }
+  }
+
+  if (where.expiresAt && typeof where.expiresAt === 'object') {
+    const expiresAt = where.expiresAt as { lte?: Date; gt?: Date };
+
+    if (expiresAt.lte && (!room.expiresAt || room.expiresAt > expiresAt.lte)) {
+      return false;
+    }
+
+    if (expiresAt.gt && (!room.expiresAt || room.expiresAt <= expiresAt.gt)) {
+      return false;
+    }
+  }
+
   if (where.participants && typeof where.participants === 'object') {
     const participantsWhere = where.participants as {
       some?: { userId?: string };
@@ -1410,6 +1439,8 @@ function matchesParticipantWhere(
     const roomWhere = where.battleRoom as {
       status?: BattleRoomStatus | { in?: BattleRoomStatus[] };
       mode?: string | { in?: string[] };
+      expiresAt?: { lte?: Date; gt?: Date };
+      startedAt?: null;
     };
     const room = battleRooms.get(participant.battleRoomId);
 
@@ -1430,7 +1461,8 @@ function matchesParticipantWhere(
         roomWhere.status !== null &&
         'in' in roomWhere.status
       ) {
-        const values = (roomWhere.status as { in?: BattleRoomStatus[] }).in ?? [];
+        const values =
+          (roomWhere.status as { in?: BattleRoomStatus[] }).in ?? [];
 
         if (!values.includes(room.status)) {
           return false;
@@ -1438,11 +1470,27 @@ function matchesParticipantWhere(
       }
     }
 
-    if (roomWhere.mode !== undefined) {
+    if (roomWhere.expiresAt !== undefined) {
+      const expiresAt = roomWhere.expiresAt as { lte?: Date; gt?: Date };
+
       if (
-        typeof roomWhere.mode === 'string' &&
-        room.mode !== roomWhere.mode
+        expiresAt.lte &&
+        (!room.expiresAt || room.expiresAt > expiresAt.lte)
       ) {
+        return false;
+      }
+
+      if (expiresAt.gt && (!room.expiresAt || room.expiresAt <= expiresAt.gt)) {
+        return false;
+      }
+    }
+
+    if (roomWhere.startedAt === null && room.startedAt !== null) {
+      return false;
+    }
+
+    if (roomWhere.mode !== undefined) {
+      if (typeof roomWhere.mode === 'string' && room.mode !== roomWhere.mode) {
         return false;
       }
 

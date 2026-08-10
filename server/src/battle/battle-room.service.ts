@@ -4,6 +4,7 @@ import {
   BattleRoomStatus,
 } from '../../generated/prisma/enums';
 import { BATTLE_ERROR_CODES } from './battle.errors';
+import { BattleDomainService } from './battle-domain.service';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { BattleSettlementService } from './battle-settlement.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -42,14 +43,25 @@ type RoomRecord = {
 export class BattleRoomService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly battleDomainService: BattleDomainService,
     private readonly battleSettlementService?: BattleSettlementService,
   ) {}
 
   async getBattleRoom(currentUser: CurrentUserContext, battleId: string) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      await this.battleDomainService.acquireBattleRoomLock(battleId, tx);
+      await this.battleDomainService.normalizeExpiredFriendRoom(
+        battleId,
+        now,
+        tx,
+      );
       await this.advanceRoomStateIfNeeded(battleId, now, tx);
-      await this.battleSettlementService?.normalizeBattleState(battleId, now, tx);
+      await this.battleSettlementService?.normalizeBattleState(
+        battleId,
+        now,
+        tx,
+      );
 
       const room = await this.getBattleRoomDetailByIdForUser(
         currentUser.id,

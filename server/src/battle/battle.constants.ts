@@ -41,7 +41,6 @@ export const ACTIVE_BATTLE_ROOM_STATUSES: readonly BattleRoomStatus[] = [
 export const CANCELLABLE_BATTLE_ROOM_STATUSES: readonly BattleRoomStatus[] = [
   BattleRoomStatus.WAITING,
   BattleRoomStatus.READY,
-  BattleRoomStatus.COUNTDOWN,
 ];
 
 export const MATCH_SEARCHING_STATUS = BattleMatchQueueStatus.SEARCHING;

@@ -10,6 +10,7 @@ import {
   BattleRoomStatus,
 } from '../../generated/prisma/enums';
 import { BattleAnswerService } from './battle-answer.service';
+import { BattleDomainService } from './battle-domain.service';
 import { BattleNormalizationService } from './battle-normalization.service';
 import { BattleRoomService } from './battle-room.service';
 import { createBattlePrismaMock } from './battle-test.helpers';
@@ -19,7 +20,11 @@ const USER_A_ID = '11111111-1111-4111-8111-111111111111';
 describe('BattleAnswerService', () => {
   function createService() {
     const mock = createBattlePrismaMock();
-    const roomService = new BattleRoomService(mock.prisma as never);
+    const domainService = new BattleDomainService(mock.prisma as never);
+    const roomService = new BattleRoomService(
+      mock.prisma as never,
+      domainService,
+    );
     const normalizationService = new BattleNormalizationService();
     const service = new BattleAnswerService(
       mock.prisma as never,

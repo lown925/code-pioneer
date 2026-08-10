@@ -744,6 +744,25 @@ Page<RoomPageData, RoomPageMethods>({
   },
 
   async handleNavBack() {
+    if (
+      this.data.isFriendRoomCreator &&
+      this.data.state === 'COUNTDOWN'
+    ) {
+      const result = await showBattleConfirmModal({
+        title: '对局即将开始',
+        content: '双方已准备完成，当前阶段不能取消。确定离开页面吗？',
+        confirmText: '确认离开',
+        cancelText: '继续对局',
+        confirmColor: '#2f6bff',
+      });
+
+      if (result.confirm) {
+        this.navigateHome();
+      }
+
+      return;
+    }
+
     if (!this.canCreatorCancelFriendRoom()) {
       if (
         this.data.isFriendMode &&
@@ -802,7 +821,6 @@ Page<RoomPageData, RoomPageMethods>({
       !!this.data.invitationToken &&
       (targetState === 'WAITING' ||
         targetState === 'READY' ||
-        targetState === 'COUNTDOWN' ||
         targetState === 'ERROR')
     );
   },

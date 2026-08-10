@@ -31,6 +31,7 @@ describe('BattleResultService', () => {
     );
     const roomService = new BattleRoomService(
       mock.prisma as never,
+      domainService,
       settlementService,
     );
     const service = new BattleResultService(

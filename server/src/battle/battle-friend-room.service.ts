@@ -52,6 +52,7 @@ type InvitationRecord = {
     id: string;
     mode: BattleMode;
     status: BattleRoomStatus;
+    startedAt: Date | null;
     expiresAt: Date | null;
     participants: Array<{
       userId: string;
@@ -72,11 +73,59 @@ export class BattleFriendRoomService {
   async createFriendRoom(currentUser: CurrentUserContext) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
       await this.battleDomainService.ensureBattleProfile(currentUser.id, tx);
-      await this.battleDomainService.assertUserHasNoActiveBattle(
+      await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
         currentUser.id,
+        now,
         tx,
       );
+
+      const activeBattle =
+        await this.battleDomainService.getActiveBattleForUser(
+          currentUser.id,
+          tx,
+        );
+
+      if (activeBattle) {
+        if (
+          activeBattle.mode === BattleMode.FRIEND &&
+          (activeBattle.roomStatus === BattleRoomStatus.WAITING ||
+            activeBattle.roomStatus === BattleRoomStatus.READY)
+        ) {
+          const existingInvitation = await tx.battleInvitation.findUnique({
+            where: { battleRoomId: activeBattle.battleRoomId },
+            select: {
+              token: true,
+              inviteCode: true,
+              status: true,
+              expiresAt: true,
+              inviterUserId: true,
+            },
+          });
+
+          if (
+            existingInvitation?.inviterUserId === currentUser.id &&
+            (existingInvitation.status === BattleInvitationStatus.ACTIVE ||
+              existingInvitation.status === BattleInvitationStatus.ACCEPTED) &&
+            existingInvitation.expiresAt > now
+          ) {
+            return {
+              battleId: activeBattle.battleRoomId,
+              mode: BattleMode.FRIEND,
+              status: activeBattle.roomStatus,
+              invitationToken: existingInvitation.token,
+              inviteCode: existingInvitation.inviteCode,
+              sharePath: `/pages/battle/friend-room?invitationToken=${existingInvitation.token}`,
+              expiresAt: existingInvitation.expiresAt,
+              serverTime: now,
+            };
+          }
+        }
+
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_ALREADY_ACTIVE);
+      }
+
       await this.battleDomainService.assertUserNotSearching(currentUser.id, tx);
 
       const expiresAt = new Date(
@@ -235,6 +284,24 @@ export class BattleFriendRoomService {
         );
       }
 
+      await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
+      await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
+        currentUser.id,
+        now,
+        tx,
+      );
+      await this.battleDomainService.acquireBattleRoomLock(
+        invitation.battleRoomId,
+        tx,
+      );
+      invitation = await this.getInvitationByToken(tx, invitationToken);
+
+      if (!invitation) {
+        throw new NotFoundException(
+          BATTLE_ERROR_CODES.BATTLE_INVITATION_INVALID,
+        );
+      }
+
       invitation = await this.expireInvitationIfNeeded(tx, invitation, now);
 
       if (invitation.inviterUserId !== currentUser.id) {
@@ -245,39 +312,104 @@ export class BattleFriendRoomService {
         return this.toPreviewPayload(currentUser.id, invitation, now, tx);
       }
 
-      if (
-        invitation.battleRoom.status === BattleRoomStatus.IN_PROGRESS ||
-        invitation.battleRoom.status === BattleRoomStatus.SETTLING ||
-        invitation.battleRoom.status === BattleRoomStatus.COMPLETED
-      ) {
-        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
-      }
+      if (invitation.battleRoom.status === BattleRoomStatus.EXPIRED) {
+        await tx.battleInvitation.updateMany({
+          where: {
+            id: invitation.id,
+            status: {
+              in: [
+                BattleInvitationStatus.ACTIVE,
+                BattleInvitationStatus.ACCEPTED,
+              ],
+            },
+          },
+          data: { status: BattleInvitationStatus.EXPIRED },
+        });
 
-      if (invitation.battleRoom.status === BattleRoomStatus.CANCELLED) {
         return this.toPreviewPayload(
           currentUser.id,
           {
             ...invitation,
-            status:
-              invitation.status === BattleInvitationStatus.ACTIVE
-                ? BattleInvitationStatus.CANCELLED
-                : invitation.status,
+            status: BattleInvitationStatus.EXPIRED,
           },
           now,
           tx,
         );
       }
 
-      const released =
-        await this.battleDomainService.cancelCancellableBattleRoomForUser(
+      if (invitation.battleRoom.status === BattleRoomStatus.CANCELLED) {
+        await tx.battleInvitation.updateMany({
+          where: {
+            id: invitation.id,
+            status: {
+              in: [
+                BattleInvitationStatus.ACTIVE,
+                BattleInvitationStatus.ACCEPTED,
+              ],
+            },
+          },
+          data: {
+            status: BattleInvitationStatus.CANCELLED,
+            cancelledAt: invitation.cancelledAt ?? now,
+          },
+        });
+
+        return this.toPreviewPayload(
           currentUser.id,
+          {
+            ...invitation,
+            status: BattleInvitationStatus.CANCELLED,
+            cancelledAt: invitation.cancelledAt ?? now,
+          },
           now,
           tx,
         );
+      }
 
-      if (!released || released.battleRoomId !== invitation.battleRoomId) {
+      if (
+        invitation.battleRoom.status !== BattleRoomStatus.WAITING &&
+        invitation.battleRoom.status !== BattleRoomStatus.READY
+      ) {
         throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
       }
+
+      const released = await tx.battleRoom.updateMany({
+        where: {
+          id: invitation.battleRoomId,
+          mode: BattleMode.FRIEND,
+          status: {
+            in: [BattleRoomStatus.WAITING, BattleRoomStatus.READY],
+          },
+          startedAt: null,
+        },
+        data: {
+          status: BattleRoomStatus.CANCELLED,
+          cancelledAt: now,
+          completedAt: null,
+          settledAt: null,
+          endReason: BattleEndReason.SYSTEM_CANCELLED,
+        },
+      });
+
+      if (released.count !== 1) {
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
+      }
+
+      await tx.battleInvitation.updateMany({
+        where: {
+          id: invitation.id,
+          status: {
+            in: [
+              BattleInvitationStatus.ACTIVE,
+              BattleInvitationStatus.ACCEPTED,
+            ],
+          },
+        },
+        data: {
+          status: BattleInvitationStatus.CANCELLED,
+          cancelledAt: now,
+        },
+      });
 
       invitation = await this.getInvitationByToken(tx, invitationToken);
 
@@ -326,6 +458,24 @@ export class BattleFriendRoomService {
         );
       }
 
+      await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
+      await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
+        currentUser.id,
+        now,
+        tx,
+      );
+      await this.battleDomainService.acquireBattleRoomLock(
+        invitation.battleRoomId,
+        tx,
+      );
+      invitation = await resolveInvitation(tx);
+
+      if (!invitation) {
+        throw new NotFoundException(
+          BATTLE_ERROR_CODES.BATTLE_INVITATION_INVALID,
+        );
+      }
+
       invitation = await this.expireInvitationIfNeeded(tx, invitation, now);
 
       const existingParticipant = invitation.battleRoom.participants.find(
@@ -346,7 +496,7 @@ export class BattleFriendRoomService {
       }
 
       if (invitation.status === BattleInvitationStatus.EXPIRED) {
-        throw new GoneException(BATTLE_ERROR_CODES.BATTLE_INVITATION_EXPIRED);
+        return null;
       }
 
       if (invitation.status === BattleInvitationStatus.ACCEPTED) {
@@ -456,6 +606,10 @@ export class BattleFriendRoomService {
       return room;
     });
 
+    if (!data) {
+      throw new GoneException(BATTLE_ERROR_CODES.BATTLE_INVITATION_EXPIRED);
+    }
+
     return {
       success: true as const,
       data,
@@ -504,41 +658,67 @@ export class BattleFriendRoomService {
     invitation: InvitationRecord,
     now: Date,
   ) {
+    await this.battleDomainService.acquireBattleRoomLock(
+      invitation.battleRoomId,
+      tx,
+    );
+    invitation =
+      (await this.getInvitationByToken(tx, invitation.token)) ?? invitation;
+
+    const roomCanExpire =
+      invitation.battleRoom.mode === BattleMode.FRIEND &&
+      (invitation.battleRoom.status === BattleRoomStatus.WAITING ||
+        invitation.battleRoom.status === BattleRoomStatus.READY) &&
+      invitation.battleRoom.startedAt === null &&
+      invitation.battleRoom.expiresAt !== null &&
+      invitation.battleRoom.expiresAt.getTime() <= now.getTime();
+
     if (
-      invitation.status !== BattleInvitationStatus.ACTIVE ||
-      invitation.expiresAt.getTime() > now.getTime()
+      invitation.battleRoom.status === BattleRoomStatus.EXPIRED &&
+      (invitation.status === BattleInvitationStatus.ACTIVE ||
+        invitation.status === BattleInvitationStatus.ACCEPTED)
     ) {
+      await tx.battleInvitation.updateMany({
+        where: {
+          id: invitation.id,
+          status: {
+            in: [
+              BattleInvitationStatus.ACTIVE,
+              BattleInvitationStatus.ACCEPTED,
+            ],
+          },
+        },
+        data: { status: BattleInvitationStatus.EXPIRED },
+      });
+
+      return (
+        (await this.getInvitationByToken(tx, invitation.token)) ?? {
+          ...invitation,
+          status: BattleInvitationStatus.EXPIRED,
+        }
+      );
+    }
+
+    if (!roomCanExpire) {
       return invitation;
     }
 
-    await tx.battleInvitation.update({
-      where: { id: invitation.id },
-      data: {
+    await this.battleDomainService.normalizeExpiredFriendRoom(
+      invitation.battleRoomId,
+      now,
+      tx,
+    );
+
+    return (
+      (await this.getInvitationByToken(tx, invitation.token)) ?? {
+        ...invitation,
         status: BattleInvitationStatus.EXPIRED,
-      },
-    });
-
-    if (invitation.battleRoom.status === BattleRoomStatus.WAITING) {
-      await tx.battleRoom.update({
-        where: { id: invitation.battleRoomId },
-        data: {
+        battleRoom: {
+          ...invitation.battleRoom,
           status: BattleRoomStatus.EXPIRED,
-          endReason: BattleEndReason.EXPIRED,
         },
-      });
-    }
-
-    return {
-      ...invitation,
-      status: BattleInvitationStatus.EXPIRED,
-      battleRoom: {
-        ...invitation.battleRoom,
-        status:
-          invitation.battleRoom.status === BattleRoomStatus.WAITING
-            ? BattleRoomStatus.EXPIRED
-            : invitation.battleRoom.status,
-      },
-    };
+      }
+    );
   }
 
   private toPreviewPayload(
@@ -639,6 +819,7 @@ export class BattleFriendRoomService {
             id: true,
             mode: true,
             status: true,
+            startedAt: true,
             expiresAt: true,
             participants: {
               select: {
@@ -683,6 +864,7 @@ export class BattleFriendRoomService {
             id: true,
             mode: true,
             status: true,
+            startedAt: true,
             expiresAt: true,
             participants: {
               select: {

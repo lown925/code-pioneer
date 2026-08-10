@@ -47,8 +47,15 @@ export class BattleMatchmakingService {
   async joinMatchmaking(currentUser: CurrentUserContext) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
       const profile = await this.battleDomainService.ensureBattleProfile(
         currentUser.id,
+        tx,
+      );
+
+      await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
+        currentUser.id,
+        now,
         tx,
       );
 
@@ -147,6 +154,12 @@ export class BattleMatchmakingService {
   async getMatchmakingStatus(currentUser: CurrentUserContext) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
+      await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
+        currentUser.id,
+        now,
+        tx,
+      );
       let queue = await this.findQueueByUserId(tx, currentUser.id);
 
       if (!queue) {
@@ -207,6 +220,12 @@ export class BattleMatchmakingService {
   async cancelMatchmaking(currentUser: CurrentUserContext) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
+      await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
+        currentUser.id,
+        now,
+        tx,
+      );
       let queue = await this.findQueueByUserId(tx, currentUser.id);
 
       if (!queue) {
@@ -220,10 +239,11 @@ export class BattleMatchmakingService {
       }
 
       if (queue.status === 'MATCHED' && queue.matchedBattleRoomId) {
-        const activeBattle = await this.battleDomainService.getActiveBattleForUser(
-          currentUser.id,
-          tx,
-        );
+        const activeBattle =
+          await this.battleDomainService.getActiveBattleForUser(
+            currentUser.id,
+            tx,
+          );
 
         if (activeBattle) {
           const released =
@@ -364,6 +384,21 @@ export class BattleMatchmakingService {
       });
 
     for (const candidate of sortedCandidates) {
+      const candidateLockAcquired =
+        await this.battleDomainService.tryAcquireUserBattleLock(
+          candidate.userId,
+          tx,
+        );
+
+      if (!candidateLockAcquired) {
+        continue;
+      }
+
+      await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
+        candidate.userId,
+        now,
+        tx,
+      );
       const candidateActiveBattle =
         await this.battleDomainService.getActiveBattleForUser(
           candidate.userId,

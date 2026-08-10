@@ -7,6 +7,7 @@ import {
   QuestionType,
 } from '../../generated/prisma/enums';
 import { BattleQuestionService } from './battle-question.service';
+import { BattleDomainService } from './battle-domain.service';
 import { BattleReadyService } from './battle-ready.service';
 import { BattleRoomService } from './battle-room.service';
 import { createBattlePrismaMock } from './battle-test.helpers';
@@ -28,7 +29,11 @@ const USER_B = {
 describe('BattleReadyService', () => {
   function createService() {
     const mock = createBattlePrismaMock();
-    const roomService = new BattleRoomService(mock.prisma as never);
+    const domainService = new BattleDomainService(mock.prisma as never);
+    const roomService = new BattleRoomService(
+      mock.prisma as never,
+      domainService,
+    );
     const questionService = new BattleQuestionService(
       mock.prisma as never,
       roomService,
@@ -43,6 +48,7 @@ describe('BattleReadyService', () => {
       mock.prisma as never,
       questionService,
       roomService,
+      domainService,
     );
 
     mock.users.set(USER_A.id, {
@@ -161,6 +167,41 @@ describe('BattleReadyService', () => {
         'room-1',
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('cannot ready a cancelled or expired room', async () => {
+    const { mock, service } = createService();
+
+    mock.battleRooms.get('room-1')!.status = BattleRoomStatus.CANCELLED;
+    await expect(service.readyBattle(USER_A, 'room-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(mock.battleRooms.get('room-1')?.status).toBe(
+      BattleRoomStatus.CANCELLED,
+    );
+
+    mock.battleRooms.get('room-1')!.status = BattleRoomStatus.EXPIRED;
+    await expect(service.readyBattle(USER_A, 'room-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(mock.battleRooms.get('room-1')?.status).toBe(
+      BattleRoomStatus.EXPIRED,
+    );
+  });
+
+  it('expires a stale FRIEND room before ready can advance it', async () => {
+    const { mock, service } = createService();
+    const room = mock.battleRooms.get('room-1')!;
+    room.mode = 'FRIEND';
+    room.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(room.id, room);
+
+    await expect(service.readyBattle(USER_A, 'room-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(mock.battleRooms.get('room-1')?.status).toBe(
+      BattleRoomStatus.EXPIRED,
+    );
   });
 });
 

@@ -9,6 +9,7 @@ import {
 } from '../../generated/prisma/enums';
 import { BattleQuestionService } from './battle-question.service';
 import { BattleRoomService } from './battle-room.service';
+import { BattleDomainService } from './battle-domain.service';
 import { BATTLE_ERROR_CODES } from './battle.errors';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,11 +20,18 @@ export class BattleReadyService {
     private readonly prisma: PrismaService,
     private readonly battleQuestionService: BattleQuestionService,
     private readonly battleRoomService: BattleRoomService,
+    private readonly battleDomainService: BattleDomainService,
   ) {}
 
   async readyBattle(currentUser: CurrentUserContext, battleId: string) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      await this.battleDomainService.acquireBattleRoomLock(battleId, tx);
+      await this.battleDomainService.normalizeExpiredFriendRoom(
+        battleId,
+        now,
+        tx,
+      );
       const room = await tx.battleRoom.findFirst({
         where: {
           id: battleId,
@@ -85,9 +93,12 @@ export class BattleReadyService {
         return startedRoom;
       }
 
+      if (room.status === BattleRoomStatus.EXPIRED) {
+        return null;
+      }
+
       if (
         room.status === BattleRoomStatus.CANCELLED ||
-        room.status === BattleRoomStatus.EXPIRED ||
         room.status === BattleRoomStatus.COMPLETED ||
         room.status === BattleRoomStatus.SETTLING
       ) {
@@ -116,15 +127,25 @@ export class BattleReadyService {
       }
 
       if (participant.status === BattleParticipantStatus.JOINED) {
-        await tx.battleParticipant.update({
+        const participantUpdate = await tx.battleParticipant.updateMany({
           where: {
             id: participant.id,
+            status: BattleParticipantStatus.JOINED,
+            battleRoom: {
+              status: {
+                in: [BattleRoomStatus.WAITING, BattleRoomStatus.READY],
+              },
+            },
           },
           data: {
             status: BattleParticipantStatus.READY,
             readyAt: now,
           },
         });
+
+        if (participantUpdate.count !== 1) {
+          throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
+        }
       }
 
       const refreshedParticipants = await tx.battleParticipant.findMany({
@@ -146,14 +167,21 @@ export class BattleReadyService {
 
       if (!allReady) {
         if (room.status === BattleRoomStatus.WAITING) {
-          await tx.battleRoom.update({
+          const promoted = await tx.battleRoom.updateMany({
             where: {
               id: battleId,
+              status: BattleRoomStatus.WAITING,
             },
             data: {
               status: BattleRoomStatus.READY,
             },
           });
+
+          if (promoted.count !== 1) {
+            throw new ConflictException(
+              BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS,
+            );
+          }
         }
       } else {
         const claimed = await tx.battleRoom.updateMany({
@@ -202,6 +230,10 @@ export class BattleReadyService {
 
       return result;
     });
+
+    if (!data) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
+    }
 
     return {
       success: true as const,

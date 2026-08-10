@@ -140,6 +140,42 @@ describe('BattleMatchmakingService', () => {
     );
   });
 
+  it('normalizes an expired friend room before allowing matchmaking', async () => {
+    const { mock, service } = createService();
+
+    mock.battleRooms.set('stale-friend-room', {
+      id: 'stale-friend-room',
+      mode: BattleMode.FRIEND,
+      status: BattleRoomStatus.WAITING,
+      questionCount: 20,
+      durationSeconds: 180,
+      correctScore: 2,
+      wrongScore: -1,
+      unansweredScore: 0,
+      createdByUserId: USER_A.id,
+      expiresAt: new Date(Date.now() - 1000),
+      endReason: 'EXPIRED',
+      startedAt: null,
+      createdAt: new Date(),
+    });
+    mock.battleParticipants.set('stale-participant', {
+      id: 'stale-participant',
+      battleRoomId: 'stale-friend-room',
+      userId: USER_A.id,
+      seat: 1,
+      status: BattleParticipantStatus.JOINED,
+      result: 'NONE',
+      joinedAt: new Date(),
+    });
+
+    const result = await service.joinMatchmaking(USER_A);
+
+    expect(result.data.status).toBe('SEARCHING');
+    expect(mock.battleRooms.get('stale-friend-room')?.status).toBe(
+      BattleRoomStatus.EXPIRED,
+    );
+  });
+
   it('does not match users outside the initial rating range', async () => {
     const { mock, service } = createService();
 

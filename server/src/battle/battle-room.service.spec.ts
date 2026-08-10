@@ -6,6 +6,7 @@ import {
   BattleRoomStatus,
 } from '../../generated/prisma/enums';
 import { createBattlePrismaMock } from './battle-test.helpers';
+import { BattleDomainService } from './battle-domain.service';
 import { BattleRoomService } from './battle-room.service';
 
 const USER_A = {
@@ -25,7 +26,11 @@ const USER_B = {
 describe('BattleRoomService', () => {
   function createService() {
     const mock = createBattlePrismaMock();
-    const service = new BattleRoomService(mock.prisma as never);
+    const domainService = new BattleDomainService(mock.prisma as never);
+    const service = new BattleRoomService(
+      mock.prisma as never,
+      domainService,
+    );
 
     mock.users.set(USER_A.id, {
       id: USER_A.id,
@@ -114,5 +119,25 @@ describe('BattleRoomService', () => {
         'room-1',
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('normalizes an expired friend room during room polling', async () => {
+    const { mock } = createService();
+    const domainService = new BattleDomainService(mock.prisma as never);
+    const service = new BattleRoomService(
+      mock.prisma as never,
+      domainService,
+    );
+
+    const room = mock.battleRooms.get('room-1')!;
+    room.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(room.id, room);
+
+    const result = await service.getBattleRoom(USER_A, 'room-1');
+
+    expect(result.data.status).toBe(BattleRoomStatus.EXPIRED);
+    expect(mock.battleRooms.get('room-1')?.status).toBe(
+      BattleRoomStatus.EXPIRED,
+    );
   });
 });
