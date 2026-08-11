@@ -1,0 +1,105 @@
+<view class="page-shell growth-profile-page">
+  <view class="profile-hero">
+    <text class="profile-hero-eyebrow">LEARNING PROFILE</text>
+    <text class="profile-hero-title">完善学习画像</text>
+    <text class="profile-hero-copy">这些信息由你主动维护，仅用于后续成长规划。</text>
+  </view>
+
+  <view wx:if="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">正在读取已保存画像</text>
+    <text class="state-text">请稍候。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
+    <text class="state-title">暂时无法编辑画像</text>
+    <text class="state-text">{{loadErrorMessage}}</text>
+    <view class="ghost-button" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <block wx:elif="{{state === 'ready'}}">
+    <view class="section-card field-card">
+      <view class="field-heading">
+        <view>
+          <text class="field-title">专业</text>
+          <text class="field-copy">选择预设专业，或填写其他专业。</text>
+        </view>
+        <text class="clear-action" data-field="major" bindtap="handleSingleClear">清空</text>
+      </view>
+      <view class="option-grid">
+        <view wx:for="{{majorOptions}}" wx:key="code" class="option-chip {{majorSelectedCode === item.code ? 'option-chip-selected' : ''}}" data-field="major" data-code="{{item.code}}" bindtap="handleSingleOptionTap">{{item.label}}</view>
+      </view>
+      <input class="custom-input" value="{{majorCustomValue}}" maxlength="90" disabled="{{isSaving}}" placeholder="其他 / 自定义专业" bindinput="handleMajorCustomInput" />
+    </view>
+
+    <view class="section-card field-card">
+      <view class="field-heading">
+        <view>
+          <text class="field-title">年级</text>
+          <text class="field-copy">选择当前学习阶段。</text>
+        </view>
+        <text class="clear-action" data-field="grade" bindtap="handleSingleClear">清空</text>
+      </view>
+      <view class="option-grid">
+        <view wx:for="{{gradeOptions}}" wx:key="code" class="option-chip {{gradeSelectedCode === item.code ? 'option-chip-selected' : ''}}" data-field="grade" data-code="{{item.code}}" bindtap="handleSingleOptionTap">{{item.label}}</view>
+      </view>
+      <input class="custom-input" value="{{gradeCustomValue}}" maxlength="90" disabled="{{isSaving}}" placeholder="其他 / 自定义学习阶段" bindinput="handleGradeCustomInput" />
+    </view>
+
+    <view class="section-card field-card">
+      <view class="field-heading">
+        <view>
+          <text class="field-title">学习方向</text>
+          <text class="field-copy">选择目前最主要的学习目标。</text>
+        </view>
+        <text class="clear-action" data-field="learningDirection" bindtap="handleSingleClear">清空</text>
+      </view>
+      <view class="option-grid">
+        <view wx:for="{{learningDirectionOptions}}" wx:key="code" class="option-chip {{learningDirectionSelectedCode === item.code ? 'option-chip-selected' : ''}}" data-field="learningDirection" data-code="{{item.code}}" bindtap="handleSingleOptionTap">{{item.label}}</view>
+      </view>
+      <input class="custom-input" value="{{learningDirectionCustomValue}}" maxlength="90" disabled="{{isSaving}}" placeholder="其他 / 自定义学习方向" bindinput="handleLearningDirectionCustomInput" />
+    </view>
+
+    <view class="section-card field-card">
+      <view class="field-heading">
+        <view>
+          <text class="field-title">技术兴趣</text>
+          <text class="field-copy">可多选，最多 12 项。</text>
+        </view>
+        <text class="clear-action" bindtap="handleClearTechnicalInterests">清空</text>
+      </view>
+      <view class="option-grid">
+        <view wx:for="{{technicalInterestOptions}}" wx:key="code" class="option-chip {{item.selected ? 'option-chip-selected' : ''}}" data-code="{{item.code}}" bindtap="handleTechnicalInterestTap">{{item.label}}</view>
+      </view>
+      <view wx:if="{{additionalInterestTags.length}}" class="selected-custom-list">
+        <view wx:for="{{additionalInterestTags}}" wx:key="value" class="selected-custom-tag" data-value="{{item.value}}" bindtap="handleRemoveAdditionalInterest">
+          <text>{{item.label}}</text>
+          <text class="selected-custom-remove">×</text>
+        </view>
+      </view>
+      <view class="custom-add-row">
+        <input class="custom-input custom-add-input" value="{{technicalInterestCustomInput}}" maxlength="70" disabled="{{isSaving}}" placeholder="添加自定义技术兴趣" bindinput="handleTechnicalInterestCustomInput" />
+        <view class="ghost-button custom-add-button" bindtap="handleAddCustomInterest">添加</view>
+      </view>
+    </view>
+
+    <view class="section-card field-card">
+      <view class="field-heading">
+        <view>
+          <text class="field-title">职业方向</text>
+          <text class="field-copy">选择目前最关注的职业目标。</text>
+        </view>
+        <text class="clear-action" data-field="careerDirection" bindtap="handleSingleClear">清空</text>
+      </view>
+      <view class="option-grid">
+        <view wx:for="{{careerDirectionOptions}}" wx:key="code" class="option-chip {{careerDirectionSelectedCode === item.code ? 'option-chip-selected' : ''}}" data-field="careerDirection" data-code="{{item.code}}" bindtap="handleSingleOptionTap">{{item.label}}</view>
+      </view>
+      <input class="custom-input" value="{{careerDirectionCustomValue}}" maxlength="90" disabled="{{isSaving}}" placeholder="其他 / 自定义职业方向" bindinput="handleCareerDirectionCustomInput" />
+    </view>
+
+    <view wx:if="{{submitErrorMessage}}" class="submit-error">
+      <text>{{submitErrorMessage}}</text>
+    </view>
+
+    <button class="save-button" loading="{{isSaving}}" disabled="{{isSaving}}" bindtap="handleSave">{{isSaving ? '正在保存' : '保存学习画像'}}</button>
+  </block>
+</view>

@@ -17,9 +17,10 @@ import { DeleteAccountDto } from './dto/delete-account.dto';
 import { UserFollowListQueryDto } from './dto/user-follow-list-query.dto';
 import { UpdateCurrentUserDto } from './dto/update-current-user.dto';
 import {
+  type CurrentUserProfile,
   type PublicUserProfile,
   type UserFollowListItem,
-  toPublicUser,
+  toCurrentUserProfile,
 } from './user.types';
 
 const FOLLOW_LIST_DEFAULT_PAGE = 1;
@@ -111,7 +112,15 @@ export class UserService {
     currentUser: CurrentUserContext,
     dto: UpdateCurrentUserDto,
   ) {
-    if (dto.nickname === undefined && dto.avatarUrl === undefined) {
+    if (
+      dto.nickname === undefined &&
+      dto.avatarUrl === undefined &&
+      dto.major === undefined &&
+      dto.grade === undefined &&
+      dto.learningDirection === undefined &&
+      dto.technicalInterests === undefined &&
+      dto.careerDirection === undefined
+    ) {
       throw new BadRequestException('INVALID_PARAMETER');
     }
 
@@ -135,12 +144,43 @@ export class UserService {
       data: {
         ...(dto.nickname !== undefined ? { nickname: dto.nickname } : {}),
         ...(dto.avatarUrl !== undefined ? { avatarUrl: dto.avatarUrl } : {}),
+        ...(dto.major !== undefined ? { major: dto.major } : {}),
+        ...(dto.grade !== undefined ? { grade: dto.grade } : {}),
+        ...(dto.learningDirection !== undefined
+          ? { learningDirection: dto.learningDirection }
+          : {}),
+        ...(dto.technicalInterests !== undefined
+          ? { technicalInterests: dto.technicalInterests }
+          : {}),
+        ...(dto.careerDirection !== undefined
+          ? { careerDirection: dto.careerDirection }
+          : {}),
       },
     });
 
     return {
       success: true as const,
-      data: toPublicUser(updatedUser),
+      data: toCurrentUserProfile(updatedUser),
+    };
+  }
+
+  async getCurrentUser(currentUser: CurrentUserContext) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: currentUser.id,
+        deletedAt: null,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('USER_NOT_FOUND');
+    }
+
+    this.assertUserIsEditable(user.status, user.deletedAt);
+
+    return {
+      success: true as const,
+      data: toCurrentUserProfile(user) satisfies CurrentUserProfile,
     };
   }
 

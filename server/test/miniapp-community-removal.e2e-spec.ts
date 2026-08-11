@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { sanitizeLoginRedirectPath } from '../../miniapp/utils/navigation';
 
@@ -18,8 +18,16 @@ function readMiniappFile(relativePath: string) {
   return readFileSync(resolve(miniappRoot, relativePath), 'utf8');
 }
 
+function readRegisteredPageSources(appConfig: MiniappAppConfig) {
+  return appConfig.pages
+    .flatMap((pagePath) => [`${pagePath}.ts`, `${pagePath}.wxml`])
+    .filter((relativePath) => existsSync(resolve(miniappRoot, relativePath)))
+    .map((relativePath) => readMiniappFile(relativePath))
+    .join('\n');
+}
+
 describe('miniapp Community removal', () => {
-  it('keeps only Battle, Learning, and Profile in the TabBar', () => {
+  it('keeps Battle, Learning, Growth, and Profile in the TabBar', () => {
     const appConfig = JSON.parse(
       readMiniappFile('app.json'),
     ) as MiniappAppConfig;
@@ -32,6 +40,10 @@ describe('miniapp Community removal', () => {
       expect.objectContaining({
         pagePath: 'pages/learning/index',
         text: '学习',
+      }),
+      expect.objectContaining({
+        pagePath: 'pages/growth/index',
+        text: '成长',
       }),
       expect.objectContaining({
         pagePath: 'pages/profile/index',
@@ -63,6 +75,7 @@ describe('miniapp Community removal', () => {
       '/pages/profile/community-posts',
       '/pages/profile/community-favorites?cursor=cursor-id',
       '/pages/profile/community-history',
+      '/pages/profile/follow-list?userId=user-id&mode=following',
     ];
 
     removedPaths.forEach((target) => {
@@ -90,6 +103,28 @@ describe('miniapp Community removal', () => {
     expect(userProfile).not.toMatch(/recentPosts|postCount|\/pages\/community/);
     expect(followList).toContain("from '../../utils/validation'");
     expect(followList).not.toContain("from '../../utils/community'");
+  });
+
+  it('removes Follow UI and operations from every registered page', () => {
+    const appConfig = JSON.parse(
+      readMiniappFile('app.json'),
+    ) as MiniappAppConfig;
+    const registeredPageSources = readRegisteredPageSources(appConfig);
+    const profilePages = [
+      readMiniappFile('pages/profile/index.ts'),
+      readMiniappFile('pages/profile/index.wxml'),
+      readMiniappFile('pages/profile/user-profile.ts'),
+      readMiniappFile('pages/profile/user-profile.wxml'),
+    ].join('\n');
+
+    expect(appConfig.pages).not.toContain('pages/profile/follow-list');
+    expect(registeredPageSources).not.toMatch(
+      /\b(?:followUser|unfollowUser|fetchUserFollowList)\b|\/pages\/profile\/follow-list/,
+    );
+    expect(profilePages).not.toMatch(
+      /followingCount|followerCount|viewerHasFollowed|handleFollow|handleFans|取消关注|已关注/,
+    );
+    expect(profilePages).not.toMatch(/>关注<|>粉丝</);
   });
 
   it('does not expose an explicit Community sitemap rule', () => {

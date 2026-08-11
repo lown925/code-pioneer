@@ -4,7 +4,27 @@ export type UserAvatarUploadResponse = {
   avatarUrl: string;
 };
 
-export type UpdateCurrentUserResponse = AuthUserProfile;
+export type GrowthProfileFields = {
+  major: string | null;
+  grade: string | null;
+  learningDirection: string | null;
+  technicalInterests: string[];
+  careerDirection: string | null;
+};
+
+export type CurrentUserProfile = AuthUserProfile & GrowthProfileFields;
+
+export type UpdateCurrentUserInput = {
+  nickname?: string;
+  avatarUrl?: string;
+  major?: string | null;
+  grade?: string | null;
+  learningDirection?: string | null;
+  technicalInterests?: string[];
+  careerDirection?: string | null;
+};
+
+export type UpdateCurrentUserResponse = CurrentUserProfile;
 
 export type UserProfilePostSummary = {
   postId: string;

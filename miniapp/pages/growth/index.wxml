@@ -1,0 +1,75 @@
+<view class="page-shell growth-page">
+  <view class="growth-hero">
+    <text class="growth-eyebrow">GROWTH</text>
+    <text class="growth-title">成长中心</text>
+    <text class="growth-copy">根据你的学习情况，帮助规划下一步</text>
+  </view>
+
+  <view wx:if="{{state === 'guest'}}" class="section-card state-box">
+    <text class="state-title">登录后建立学习画像</text>
+    <text class="state-text">登录后可以维护学习画像，并逐步获得更适合你的学习建议。</text>
+    <view class="primary-button state-action" bindtap="handleLogin">微信登录</view>
+  </view>
+
+  <view wx:elif="{{state === 'loading'}}" class="section-card state-box">
+    <text class="state-title">正在读取成长画像</text>
+    <text class="state-text">正在同步你保存的专业与学习方向。</text>
+  </view>
+
+  <view wx:elif="{{state === 'error'}}" class="section-card state-box">
+    <text class="state-title">暂时无法读取成长画像</text>
+    <text class="state-text">{{errorMessage}}</text>
+    <view class="ghost-button state-action" bindtap="handleRetry">重新加载</view>
+  </view>
+
+  <block wx:elif="{{state === 'success'}}">
+    <view class="section-card profile-panel">
+      <view class="panel-heading">
+        <view>
+          <text class="section-title">学习画像</text>
+          <text class="section-subtitle">这些信息仅用于你的成长规划</text>
+        </view>
+        <text class="profile-status">{{isCoreProfileComplete ? '核心信息已完善' : '核心信息待完善'}}</text>
+      </view>
+
+      <view class="profile-list">
+        <view class="profile-row">
+          <text class="profile-label">专业</text>
+          <text class="profile-value">{{majorText}}</text>
+        </view>
+        <view class="profile-row">
+          <text class="profile-label">年级</text>
+          <text class="profile-value">{{gradeText}}</text>
+        </view>
+        <view class="profile-row">
+          <text class="profile-label">学习方向</text>
+          <text class="profile-value">{{learningDirectionText}}</text>
+        </view>
+        <view class="profile-row profile-row-stack">
+          <text class="profile-label">技术兴趣</text>
+          <view wx:if="{{technicalInterestTexts.length}}" class="interest-tags">
+            <text wx:for="{{technicalInterestTexts}}" wx:key="*this" class="interest-tag">{{item}}</text>
+          </view>
+          <text wx:else class="profile-value">未设置</text>
+        </view>
+        <view class="profile-row">
+          <text class="profile-label">职业方向</text>
+          <text class="profile-value">{{careerDirectionText}}</text>
+        </view>
+      </view>
+
+      <view class="primary-button profile-action" bindtap="handleEditProfile">{{profileActionText}}</view>
+    </view>
+
+    <view class="section-card analysis-panel">
+      <text class="analysis-title">成长分析正在逐步建立</text>
+      <text class="analysis-copy">后续会结合真实的课程学习、Quiz、Practice 与 Battle 记录，为你提供更有依据的成长建议。</text>
+      <view class="source-tags">
+        <text class="source-tag">课程学习</text>
+        <text class="source-tag">Quiz</text>
+        <text class="source-tag">Practice</text>
+        <text class="source-tag">Battle</text>
+      </view>
+    </view>
+  </block>
+</view>

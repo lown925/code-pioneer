@@ -2,10 +2,11 @@
   "pages": [
     "pages/battle/index",
     "pages/learning/index",
+    "pages/growth/index",
+    "pages/growth/profile",
     "pages/profile/index",
     "pages/profile/edit",
     "pages/profile/user-profile",
-    "pages/profile/follow-list",
     "pages/course/list",
     "pages/course/detail",
     "pages/chapter/detail",
@@ -48,6 +49,12 @@
       {
         "pagePath": "pages/learning/index",
         "text": "学习",
+        "iconPath": "assets/tab-default.png",
+        "selectedIconPath": "assets/tab-selected.png"
+      },
+      {
+        "pagePath": "pages/growth/index",
+        "text": "成长",
         "iconPath": "assets/tab-default.png",
         "selectedIconPath": "assets/tab-selected.png"
       },

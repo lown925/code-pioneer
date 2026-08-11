@@ -2,6 +2,7 @@ const REMOVED_COMMUNITY_PAGE_PATHS = new Set([
   '/pages/profile/community-posts',
   '/pages/profile/community-favorites',
   '/pages/profile/community-history',
+  '/pages/profile/follow-list',
 ]);
 
 export function sanitizeLoginRedirectPath(

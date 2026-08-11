@@ -1,5 +1,7 @@
 import type {
+  CurrentUserProfile,
   PublicUserProfileResponse,
+  UpdateCurrentUserInput,
   UpdateCurrentUserResponse,
   UserAvatarUploadResponse,
   UserFollowListMode,
@@ -16,10 +18,15 @@ export function uploadCurrentUserAvatar(filePath: string) {
   });
 }
 
-export function updateCurrentUser(data: {
-  nickname: string;
-  avatarUrl: string;
-}) {
+export function fetchCurrentUserProfile() {
+  return request<CurrentUserProfile>({
+    url: '/users/me',
+    method: 'GET',
+    authMode: 'required',
+  });
+}
+
+export function updateCurrentUser(data: UpdateCurrentUserInput) {
   return request<UpdateCurrentUserResponse>({
     url: '/users/me',
     method: 'PATCH',

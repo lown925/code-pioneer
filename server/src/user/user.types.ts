@@ -1,9 +1,14 @@
 import { UserStatus } from '../../generated/prisma/enums';
 
-export type PublicUser = {
+export type CurrentUserProfile = {
   id: string;
   nickname: string | null;
   avatarUrl: string | null;
+  major: string | null;
+  grade: string | null;
+  learningDirection: string | null;
+  technicalInterests: string[];
+  careerDirection: string | null;
   status: UserStatus;
   experience: number;
   battleRating: number;
@@ -12,13 +17,20 @@ export type PublicUser = {
   createdAt: Date;
 };
 
-type PublicUserSource = PublicUser;
+type CurrentUserProfileSource = CurrentUserProfile;
 
-export function toPublicUser(user: PublicUserSource): PublicUser {
+export function toCurrentUserProfile(
+  user: CurrentUserProfileSource,
+): CurrentUserProfile {
   return {
     id: user.id,
     nickname: user.nickname,
     avatarUrl: user.avatarUrl,
+    major: user.major,
+    grade: user.grade,
+    learningDirection: user.learningDirection,
+    technicalInterests: user.technicalInterests,
+    careerDirection: user.careerDirection,
     status: user.status,
     experience: user.experience,
     battleRating: user.battleRating,

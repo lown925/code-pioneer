@@ -7,7 +7,6 @@ import {
   redirectToLogin,
 } from '../../utils/auth';
 import { request, RequestError } from '../../utils/request';
-import { fetchUserProfile } from '../../utils/user';
 
 type ProfileMetricKey = 'battleHistory' | 'wrongQuestion';
 
@@ -34,8 +33,6 @@ type ProfilePageData = {
   displayName: string;
   profileInitial: string;
   isLoggingOut: boolean;
-  followingCountText: string;
-  followerCountText: string;
   battleSummary: ProfileBattleSummary | null;
   wrongQuestionSummary: ProfileWrongQuestionSummary | null;
   metrics: ProfileMetricCard[];
@@ -50,8 +47,6 @@ type ProfilePageMethods = {
   updateMetrics(): void;
   handleLogin(): void;
   handleOverviewRetry(): void;
-  handleFollowEntry(): void;
-  handleFansEntry(): void;
   handleMetricTap(
     event: WechatMiniprogram.BaseEvent<{ metricKey?: ProfileMetricKey }>,
   ): void;
@@ -98,8 +93,6 @@ Page<ProfilePageData, ProfilePageMethods>({
     displayName: '游客用户',
     profileInitial: '我',
     isLoggingOut: false,
-    followingCountText: '0',
-    followerCountText: '0',
     battleSummary: null,
     wrongQuestionSummary: null,
     metrics: [
@@ -158,8 +151,6 @@ Page<ProfilePageData, ProfilePageMethods>({
         this.setData({
           battleSummary: null,
           wrongQuestionSummary: null,
-          followingCountText: '0',
-          followerCountText: '0',
           isOverviewLoading: false,
           overviewErrorMessage: '',
         });
@@ -173,7 +164,6 @@ Page<ProfilePageData, ProfilePageMethods>({
 
   async loadOverview() {
     const currentSerial = ++overviewRequestSerial;
-    const userId = this.data.user?.id;
 
     this.setData({
       isOverviewLoading: true,
@@ -181,20 +171,18 @@ Page<ProfilePageData, ProfilePageMethods>({
     });
 
     try {
-      const [battleSummary, wrongQuestionSummary, userProfile] =
-        await Promise.all([
-          request<BattleProfileResponse>({
-            url: '/battles/profile',
-            method: 'GET',
-            authMode: 'required',
-          }),
-          request<WrongQuestionStatisticsResponse>({
-            url: '/users/me/wrong-questions/statistics',
-            method: 'GET',
-            authMode: 'required',
-          }),
-          userId ? fetchUserProfile(userId) : Promise.resolve(null),
-        ]);
+      const [battleSummary, wrongQuestionSummary] = await Promise.all([
+        request<BattleProfileResponse>({
+          url: '/battles/profile',
+          method: 'GET',
+          authMode: 'required',
+        }),
+        request<WrongQuestionStatisticsResponse>({
+          url: '/users/me/wrong-questions/statistics',
+          method: 'GET',
+          authMode: 'required',
+        }),
+      ]);
 
       if (!isPageActive || currentSerial !== overviewRequestSerial) {
         return;
@@ -205,12 +193,6 @@ Page<ProfilePageData, ProfilePageMethods>({
         overviewErrorMessage: '',
         battleSummary: this.mapBattleSummary(battleSummary),
         wrongQuestionSummary: this.mapWrongQuestionSummary(wrongQuestionSummary),
-        followingCountText: userProfile
-          ? formatCount(userProfile.followingCount)
-          : '0',
-        followerCountText: userProfile
-          ? formatCount(userProfile.followerCount)
-          : '0',
       });
       this.updateMetrics();
     } catch (error) {
@@ -254,32 +236,6 @@ Page<ProfilePageData, ProfilePageMethods>({
 
   handleOverviewRetry() {
     void this.loadOverview();
-  },
-
-  handleFollowEntry() {
-    const userId = this.data.user?.id;
-
-    if (!this.data.isAuthenticated || !userId) {
-      redirectToLogin('/pages/profile/index');
-      return;
-    }
-
-    wx.navigateTo({
-      url: `/pages/profile/follow-list?userId=${encodeURIComponent(userId)}&mode=following`,
-    });
-  },
-
-  handleFansEntry() {
-    const userId = this.data.user?.id;
-
-    if (!this.data.isAuthenticated || !userId) {
-      redirectToLogin('/pages/profile/index');
-      return;
-    }
-
-    wx.navigateTo({
-      url: `/pages/profile/follow-list?userId=${encodeURIComponent(userId)}&mode=followers`,
-    });
   },
 
   handleMetricTap(
@@ -356,8 +312,6 @@ Page<ProfilePageData, ProfilePageMethods>({
         this.setData({
           battleSummary: null,
           wrongQuestionSummary: null,
-          followingCountText: '0',
-          followerCountText: '0',
           isLoggingOut: false,
           isOverviewLoading: false,
           overviewErrorMessage: '',

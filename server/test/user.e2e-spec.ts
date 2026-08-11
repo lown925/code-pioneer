@@ -14,6 +14,11 @@ type UserRecord = {
   unionId: string | null;
   nickname: string | null;
   avatarUrl: string | null;
+  major: string | null;
+  grade: string | null;
+  learningDirection: string | null;
+  technicalInterests: string[];
+  careerDirection: string | null;
   status: UserStatus;
   experience: number;
   battleRating: number;
@@ -96,6 +101,11 @@ function createMockPrisma() {
           unionId: data.unionId ?? null,
           nickname: data.nickname ?? null,
           avatarUrl: data.avatarUrl ?? null,
+          major: data.major ?? null,
+          grade: data.grade ?? null,
+          learningDirection: data.learningDirection ?? null,
+          technicalInterests: data.technicalInterests ?? [],
+          careerDirection: data.careerDirection ?? null,
           status: data.status ?? UserStatus.NORMAL,
           experience: data.experience ?? 0,
           battleRating: data.battleRating ?? 1000,
@@ -274,6 +284,144 @@ describe('User flow (e2e)', () => {
     restoreEnv('JWT_REFRESH_EXPIRES');
   });
 
+  it('persists isolated Growth profiles with validation and clearing semantics', async () => {
+    await request(app.getHttpServer()).get('/api/v1/users/me').expect(401);
+
+    const firstLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/wechat-login')
+      .send({
+        code: 'growth-user-one',
+        mockOpenId: 'mock-openid-growth-e2e-one',
+      })
+      .expect(201);
+    const secondLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/wechat-login')
+      .send({
+        code: 'growth-user-two',
+        mockOpenId: 'mock-openid-growth-e2e-two',
+      })
+      .expect(201);
+    const firstToken = firstLogin.body.data.accessToken as string;
+    const secondToken = secondLogin.body.data.accessToken as string;
+
+    expect(firstLogin.body.data.user.major).toBeUndefined();
+
+    await request(app.getHttpServer())
+      .get('/api/v1/users/me')
+      .set('Authorization', `Bearer ${firstToken}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          major: null,
+          grade: null,
+          learningDirection: null,
+          technicalInterests: [],
+          careerDirection: null,
+        });
+      });
+
+    await request(app.getHttpServer())
+      .patch('/api/v1/users/me')
+      .set('Authorization', `Bearer ${firstToken}`)
+      .send({
+        major: '  custom:金融工程  ',
+        grade: ' grade.freshman ',
+        learningDirection: ' direction.backend ',
+        technicalInterests: [' interest.python ', ' custom:Power BI '],
+        careerDirection: ' career.backend_engineer ',
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          major: 'custom:金融工程',
+          grade: 'grade.freshman',
+          learningDirection: 'direction.backend',
+          technicalInterests: ['interest.python', 'custom:Power BI'],
+          careerDirection: 'career.backend_engineer',
+        });
+      });
+
+    await request(app.getHttpServer())
+      .patch('/api/v1/users/me')
+      .set('Authorization', `Bearer ${firstToken}`)
+      .send({
+        major: 'major.computer_science',
+        technicalInterests: ['interest.sql'],
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/users/me')
+      .set('Authorization', `Bearer ${firstToken}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          major: 'major.computer_science',
+          grade: 'grade.freshman',
+          technicalInterests: ['interest.sql'],
+        });
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/users/me')
+      .set('Authorization', `Bearer ${secondToken}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          major: null,
+          grade: null,
+          learningDirection: null,
+          technicalInterests: [],
+          careerDirection: null,
+        });
+      });
+
+    const invalidPayloads = [
+      { major: '   ' },
+      { major: 'custom:' },
+      { major: 'direction.backend' },
+      { major: `custom:${'a'.repeat(94)}` },
+      { technicalInterests: 'interest.python' },
+      { technicalInterests: [1] },
+      { technicalInterests: ['interest.python', ' interest.python '] },
+      {
+        technicalInterests: Array.from(
+          { length: 13 },
+          (_, index) => `interest.topic_${index}`,
+        ),
+      },
+    ];
+
+    for (const payload of invalidPayloads) {
+      await request(app.getHttpServer())
+        .patch('/api/v1/users/me')
+        .set('Authorization', `Bearer ${firstToken}`)
+        .send(payload)
+        .expect(400);
+    }
+
+    await request(app.getHttpServer())
+      .patch('/api/v1/users/me')
+      .set('Authorization', `Bearer ${firstToken}`)
+      .send({
+        major: null,
+        grade: null,
+        learningDirection: null,
+        technicalInterests: [],
+        careerDirection: null,
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          major: null,
+          grade: null,
+          learningDirection: null,
+          technicalInterests: [],
+          careerDirection: null,
+        });
+      });
+  });
+
   it('updates profile, soft deletes the account, and blocks re-login for the same openId', async () => {
     const courseCountBefore = mockState.courses.length;
     const chapterCountBefore = mockState.chapters.length;
@@ -365,7 +513,11 @@ describe('User flow (e2e)', () => {
     const secondRefreshToken = secondLoginResponse.body.data
       .refreshToken as string;
 
-    expect(mockState.sessions.size).toBe(2);
+    expect(
+      [...mockState.sessions.values()].filter(
+        (session) => session.userId === userId,
+      ),
+    ).toHaveLength(2);
 
     await request(app.getHttpServer())
       .post('/api/v1/users/me/delete-account')

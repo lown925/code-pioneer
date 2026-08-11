@@ -26,18 +26,6 @@
             <view class="profile-edit-button" bindtap="handleEditProfile">编辑资料</view>
           </view>
           <text class="profile-meta">Battle Rating {{battleSummary ? battleSummary.ratingText : user.battleRating}}</text>
-
-            <view class="profile-social-row">
-              <view class="profile-social-item" bindtap="handleFollowEntry">
-                <text class="profile-social-label">关注</text>
-                <text class="profile-social-value">{{followingCountText}}</text>
-              </view>
-              <view class="profile-social-divider"></view>
-              <view class="profile-social-item" bindtap="handleFansEntry">
-                <text class="profile-social-label">粉丝</text>
-                <text class="profile-social-value">{{followerCountText}}</text>
-              </view>
-            </view>
         </view>
       </view>
 

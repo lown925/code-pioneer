@@ -1,12 +1,6 @@
 import type { PublicUserProfileResponse } from '../../types/user';
-import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import { isUuid } from '../../utils/validation';
-import {
-  fetchUserProfile,
-  followUser,
-  getUserErrorMessage,
-  unfollowUser,
-} from '../../utils/user';
+import { fetchUserProfile, getUserErrorMessage } from '../../utils/user';
 
 type PageState = 'loading' | 'success' | 'error';
 
@@ -17,16 +11,11 @@ type UserProfilePageData = {
   profile: PublicUserProfileResponse | null;
   displayName: string;
   profileInitial: string;
-  isFollowSubmitting: boolean;
 };
 
 type UserProfilePageMethods = {
   loadProfile(): Promise<void>;
   handleRetry(): void;
-  handleFollowToggle(): void;
-  confirmUnfollow(): Promise<void>;
-  handleOpenFollowing(): void;
-  handleOpenFollowers(): void;
 };
 
 let isPageActive = false;
@@ -48,7 +37,6 @@ Page<UserProfilePageData, UserProfilePageMethods>({
     profile: null,
     displayName: '微信用户',
     profileInitial: '人',
-    isFollowSubmitting: false,
   },
 
   onLoad(query) {
@@ -128,145 +116,5 @@ Page<UserProfilePageData, UserProfilePageMethods>({
 
   handleRetry() {
     void this.loadProfile();
-  },
-
-  handleFollowToggle() {
-    const profile = this.data.profile;
-
-    if (!profile || profile.viewerIsSelf || this.data.isFollowSubmitting) {
-      return;
-    }
-
-    if (!getAuthStateSummary().isAuthenticated) {
-      redirectToLogin(
-        `/pages/profile/user-profile?userId=${encodeURIComponent(profile.userId)}`,
-      );
-      return;
-    }
-
-    if (profile.viewerHasFollowed) {
-      wx.showModal({
-        title: '取消关注',
-        content: `确定不再关注“${this.data.displayName}”吗？`,
-        confirmText: '取消关注',
-        cancelText: '再想想',
-        success: (result) => {
-          if (result.confirm) {
-            void this.confirmUnfollow();
-          }
-        },
-      });
-      return;
-    }
-
-    this.setData({
-      isFollowSubmitting: true,
-    });
-
-    void followUser(profile.userId)
-      .then(() => {
-        if (!isPageActive) {
-          return;
-        }
-
-        this.setData({
-          isFollowSubmitting: false,
-          profile: this.data.profile
-            ? {
-                ...this.data.profile,
-                viewerHasFollowed: true,
-                followerCount: this.data.profile.followerCount + 1,
-              }
-            : null,
-        });
-        wx.showToast({
-          title: '已关注',
-          icon: 'none',
-        });
-      })
-      .catch((error) => {
-        if (!isPageActive) {
-          return;
-        }
-
-        this.setData({
-          isFollowSubmitting: false,
-        });
-        wx.showToast({
-          title: getUserErrorMessage(error, '关注失败，请稍后重试'),
-          icon: 'none',
-        });
-      });
-  },
-
-  async confirmUnfollow() {
-    const profile = this.data.profile;
-
-    if (!profile || this.data.isFollowSubmitting) {
-      return;
-    }
-
-    this.setData({
-      isFollowSubmitting: true,
-    });
-
-    try {
-      await unfollowUser(profile.userId);
-
-      if (!isPageActive) {
-        return;
-      }
-
-      this.setData({
-        isFollowSubmitting: false,
-        profile: this.data.profile
-          ? {
-              ...this.data.profile,
-              viewerHasFollowed: false,
-              followerCount: Math.max(0, this.data.profile.followerCount - 1),
-            }
-          : null,
-      });
-      wx.showToast({
-        title: '已取消关注',
-        icon: 'none',
-      });
-    } catch (error) {
-      if (!isPageActive) {
-        return;
-      }
-
-      this.setData({
-        isFollowSubmitting: false,
-      });
-      wx.showToast({
-        title: getUserErrorMessage(error, '取消关注失败，请稍后重试'),
-        icon: 'none',
-      });
-    }
-  },
-
-  handleOpenFollowing() {
-    const profile = this.data.profile;
-
-    if (!profile) {
-      return;
-    }
-
-    wx.navigateTo({
-      url: `/pages/profile/follow-list?userId=${encodeURIComponent(profile.userId)}&mode=following`,
-    });
-  },
-
-  handleOpenFollowers() {
-    const profile = this.data.profile;
-
-    if (!profile) {
-      return;
-    }
-
-    wx.navigateTo({
-      url: `/pages/profile/follow-list?userId=${encodeURIComponent(profile.userId)}&mode=followers`,
-    });
   },
 });

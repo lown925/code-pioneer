@@ -26,26 +26,6 @@
         <view class="profile-main">
           <text class="profile-name">{{displayName}}</text>
           <text class="profile-meta">Battle Rating {{profile.battleRating}}</text>
-
-          <view class="profile-social-row">
-            <view class="profile-social-item" bindtap="handleOpenFollowing">
-              <text class="profile-social-label">关注</text>
-              <text class="profile-social-value">{{profile.followingCount}}</text>
-            </view>
-            <view class="profile-social-divider"></view>
-            <view class="profile-social-item" bindtap="handleOpenFollowers">
-              <text class="profile-social-label">粉丝</text>
-              <text class="profile-social-value">{{profile.followerCount}}</text>
-            </view>
-          </view>
-        </view>
-
-        <view
-          wx:if="{{!profile.viewerIsSelf}}"
-          class="{{profile.viewerHasFollowed ? 'ghost-button' : 'primary-button'}} follow-button {{isFollowSubmitting ? 'follow-button-disabled' : ''}}"
-          bindtap="handleFollowToggle"
-        >
-          {{isFollowSubmitting ? '处理中...' : (profile.viewerHasFollowed ? '已关注' : '关注')}}
         </view>
       </view>
 

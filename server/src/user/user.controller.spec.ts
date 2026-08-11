@@ -11,6 +11,7 @@ import { UserService } from './user.service';
 describe('UserController', () => {
   let userController: UserController;
   const userService = {
+    getCurrentUser: jest.fn(),
     updateCurrentUser: jest.fn(),
     uploadCurrentUserAvatar: jest.fn(),
     deleteCurrentUser: jest.fn(),
@@ -89,6 +90,35 @@ describe('UserController', () => {
       currentUser,
       dto,
     );
+  });
+
+  it('delegates current user profile reads to UserService', async () => {
+    const currentUser = {
+      id: 'user-id',
+      sessionId: 'session-id',
+      tokenType: 'USER' as const,
+      role: 'NORMAL' as const,
+    };
+    const expected = {
+      success: true,
+      data: {
+        id: 'user-id',
+        nickname: '码站学员',
+        avatarUrl: null,
+        major: 'major.computer_science',
+        grade: 'grade.freshman',
+        learningDirection: 'direction.backend',
+        technicalInterests: ['interest.python'],
+        careerDirection: 'career.backend_engineer',
+      },
+    };
+
+    userService.getCurrentUser.mockResolvedValue(expected);
+
+    await expect(userController.getCurrentUser(currentUser)).resolves.toEqual(
+      expected,
+    );
+    expect(userService.getCurrentUser).toHaveBeenCalledWith(currentUser);
   });
 
   it('delegates account deletion to UserService', async () => {

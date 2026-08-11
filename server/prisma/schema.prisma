@@ -186,6 +186,11 @@ model User {
   unionId                String?                    @unique @map("union_id")
   nickname               String?
   avatarUrl              String?                    @map("avatar_url")
+  major                  String?
+  grade                  String?
+  learningDirection      String?                    @map("learning_direction")
+  technicalInterests     String[]                   @default([]) @map("technical_interests")
+  careerDirection        String?                    @map("career_direction")
   status                 UserStatus                 @default(NORMAL)
   experience             Int                        @default(0)
   battleRating           Int                        @default(1000) @map("battle_rating")

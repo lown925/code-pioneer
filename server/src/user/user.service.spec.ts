@@ -17,6 +17,11 @@ type UserRecord = {
   unionId: string | null;
   nickname: string | null;
   avatarUrl: string | null;
+  major: string | null;
+  grade: string | null;
+  learningDirection: string | null;
+  technicalInterests: string[];
+  careerDirection: string | null;
   status: UserStatus;
   experience: number;
   battleRating: number;
@@ -87,6 +92,11 @@ function createMockPrisma() {
           unionId: data.unionId ?? null,
           nickname: data.nickname ?? null,
           avatarUrl: data.avatarUrl ?? null,
+          major: data.major ?? null,
+          grade: data.grade ?? null,
+          learningDirection: data.learningDirection ?? null,
+          technicalInterests: data.technicalInterests ?? [],
+          careerDirection: data.careerDirection ?? null,
           status: data.status ?? UserStatus.NORMAL,
           experience: data.experience ?? 0,
           battleRating: data.battleRating ?? 1000,
@@ -638,6 +648,11 @@ describe('UserService', () => {
         id: currentUser.id,
         nickname: '新昵称',
         avatarUrl: 'https://cdn.example.com/avatar.png',
+        major: null,
+        grade: null,
+        learningDirection: null,
+        technicalInterests: [],
+        careerDirection: null,
         status: UserStatus.NORMAL,
         experience: 0,
         battleRating: 1000,
@@ -651,6 +666,115 @@ describe('UserService', () => {
       'https://cdn.example.com/avatar.png',
     );
     expect(users.get(otherUser.id)?.nickname).toBe('其他用户');
+  });
+
+  it('returns empty Growth fields for an existing user without a profile', async () => {
+    const { service, prisma } = createService();
+    const user = await prisma.user.create({
+      data: {
+        openId: 'mock-openid-empty-growth-profile',
+      },
+    });
+
+    const result = await service.getCurrentUser({
+      id: user.id,
+      sessionId: 'session-id',
+      tokenType: 'USER',
+      role: 'NORMAL',
+    });
+
+    expect(result.data).toMatchObject({
+      id: user.id,
+      major: null,
+      grade: null,
+      learningDirection: null,
+      technicalInterests: [],
+      careerDirection: null,
+    });
+  });
+
+  it('creates and overwrites only the current user Growth profile', async () => {
+    const { service, prisma, users } = createService();
+    const currentUser = await prisma.user.create({
+      data: {
+        openId: 'mock-openid-growth-owner',
+      },
+    });
+    const otherUser = await prisma.user.create({
+      data: {
+        openId: 'mock-openid-growth-other',
+        major: 'major.artificial_intelligence',
+        technicalInterests: ['interest.ai_ml'],
+      },
+    });
+    const currentUserContext = {
+      id: currentUser.id,
+      sessionId: 'session-id',
+      tokenType: 'USER' as const,
+      role: 'NORMAL' as const,
+    };
+
+    await service.updateCurrentUser(currentUserContext, {
+      major: 'major.computer_science',
+      grade: 'grade.freshman',
+      learningDirection: 'direction.backend',
+      technicalInterests: ['interest.python', 'custom:Power BI'],
+      careerDirection: 'career.backend_engineer',
+    });
+    const updated = await service.updateCurrentUser(currentUserContext, {
+      major: 'custom:金融工程',
+      technicalInterests: ['interest.sql'],
+    });
+
+    expect(updated.data).toMatchObject({
+      major: 'custom:金融工程',
+      grade: 'grade.freshman',
+      learningDirection: 'direction.backend',
+      technicalInterests: ['interest.sql'],
+      careerDirection: 'career.backend_engineer',
+    });
+    expect(users.get(otherUser.id)).toMatchObject({
+      major: 'major.artificial_intelligence',
+      technicalInterests: ['interest.ai_ml'],
+    });
+  });
+
+  it('clears Growth scalar fields with null and interests with an empty array', async () => {
+    const { service, prisma } = createService();
+    const user = await prisma.user.create({
+      data: {
+        openId: 'mock-openid-growth-clear',
+        major: 'major.software_engineering',
+        grade: 'grade.senior',
+        learningDirection: 'direction.frontend',
+        technicalInterests: ['interest.javascript'],
+        careerDirection: 'career.frontend_engineer',
+      },
+    });
+
+    const result = await service.updateCurrentUser(
+      {
+        id: user.id,
+        sessionId: 'session-id',
+        tokenType: 'USER',
+        role: 'NORMAL',
+      },
+      {
+        major: null,
+        grade: null,
+        learningDirection: null,
+        technicalInterests: [],
+        careerDirection: null,
+      },
+    );
+
+    expect(result.data).toMatchObject({
+      major: null,
+      grade: null,
+      learningDirection: null,
+      technicalInterests: [],
+      careerDirection: null,
+    });
   });
 
   it('rejects empty profile updates', async () => {
@@ -987,6 +1111,11 @@ describe('UserService', () => {
           nickname: '目标用户',
           avatarUrl: 'https://cdn.example.com/avatar.png',
           battleRating: 1210,
+          major: 'major.computer_science',
+          grade: 'grade.junior',
+          learningDirection: 'direction.backend',
+          technicalInterests: ['interest.python'],
+          careerDirection: 'career.backend_engineer',
         },
       });
 
@@ -1040,6 +1169,11 @@ describe('UserService', () => {
       });
       expect(prisma.communityPost.count).not.toHaveBeenCalled();
       expect(prisma.communityPost.findMany).not.toHaveBeenCalled();
+      expect(result.data).not.toHaveProperty('major');
+      expect(result.data).not.toHaveProperty('grade');
+      expect(result.data).not.toHaveProperty('learningDirection');
+      expect(result.data).not.toHaveProperty('technicalInterests');
+      expect(result.data).not.toHaveProperty('careerDirection');
     },
   );
 });

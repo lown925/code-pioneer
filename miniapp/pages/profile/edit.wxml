@@ -2,7 +2,7 @@
   <view class="intro-card">
     <text class="intro-eyebrow">个人名片</text>
     <text class="intro-title">让队友认识真实的你</text>
-    <text class="intro-copy">头像和昵称由你主动选择，仅用于码站先锋内的个人主页、排行榜和社区展示。</text>
+    <text class="intro-copy">头像和昵称由你主动选择，仅用于码站先锋内的个人主页和排行榜。</text>
   </view>
 
   <view class="section-card form-card">

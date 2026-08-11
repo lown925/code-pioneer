@@ -115,4 +115,72 @@ describe('UpdateCurrentUserDto', () => {
     expect(validator.validate('https://example.com/avatar.png')).toBe(true);
     expect(validator.validate('http://example.com/avatar.png')).toBe(false);
   });
+
+  it('accepts and trims Growth preset and custom values', async () => {
+    const dto = plainToInstance(UpdateCurrentUserDto, {
+      major: '  custom:金融工程  ',
+      grade: ' grade.freshman ',
+      learningDirection: ' direction.backend ',
+      technicalInterests: [' interest.python ', ' custom:Power BI '],
+      careerDirection: ' career.backend_engineer ',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+    expect(dto).toMatchObject({
+      major: 'custom:金融工程',
+      grade: 'grade.freshman',
+      learningDirection: 'direction.backend',
+      technicalInterests: ['interest.python', 'custom:Power BI'],
+      careerDirection: 'career.backend_engineer',
+    });
+  });
+
+  it('allows null scalar values and an empty interests array for clearing', async () => {
+    const dto = plainToInstance(UpdateCurrentUserDto, {
+      major: null,
+      grade: null,
+      learningDirection: null,
+      technicalInterests: [],
+      careerDirection: null,
+    });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it.each([
+    { field: 'major', value: '   ' },
+    { field: 'major', value: 'custom:' },
+    { field: 'major', value: 'custom:   ' },
+    { field: 'major', value: 'direction.backend' },
+    { field: 'grade', value: 'major.computer_science' },
+    { field: 'learningDirection', value: 'learning.backend' },
+    { field: 'careerDirection', value: 'interest.python' },
+    { field: 'major', value: `custom:${'a'.repeat(94)}` },
+  ])(
+    'rejects invalid Growth scalar $field=$value',
+    async ({ field, value }) => {
+      const dto = plainToInstance(UpdateCurrentUserDto, {
+        [field]: value,
+      });
+
+      expect(await validate(dto)).not.toHaveLength(0);
+    },
+  );
+
+  it.each([
+    'interest.python',
+    null,
+    [1],
+    ['custom:'],
+    ['interest.python', ' interest.python '],
+    Array.from({ length: 13 }, (_, index) => `interest.topic_${index}`),
+  ])('rejects invalid technicalInterests payload %#', async (value) => {
+    const dto = plainToInstance(UpdateCurrentUserDto, {
+      technicalInterests: value,
+    });
+
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
 });

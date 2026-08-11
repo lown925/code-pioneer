@@ -65,6 +65,12 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @UseGuards(JwtUserAuthGuard)
+  @Get('me')
+  getCurrentUser(@CurrentUser() currentUser: CurrentUserContext) {
+    return this.userService.getCurrentUser(currentUser);
+  }
+
+  @UseGuards(JwtUserAuthGuard)
   @Patch('me')
   updateCurrentUser(
     @CurrentUser() currentUser: CurrentUserContext,
