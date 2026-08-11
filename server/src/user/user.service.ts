@@ -7,11 +7,9 @@ import {
 import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import {
-  CommunityPostStatus,
-  UserStatus,
-} from '../../generated/prisma/enums';
+import { CommunityPostStatus, UserStatus } from '../../generated/prisma/enums';
 import { type CurrentUserContext } from '../auth/auth.types';
+import { isCommunityAvailable } from '../community/community-availability';
 import { previewCommunityText } from '../community/community.utils';
 import { getUploadStorageRoot } from '../environment/environment.config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -34,6 +32,23 @@ const USER_AVATAR_EXTENSIONS = new Map<string, string>([
   ['image/png', '.png'],
   ['image/webp', '.webp'],
 ]);
+
+type UserProfileCommunityPostRecord = {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: Date;
+  favoriteCount: number;
+  commentCount: number;
+  viewCount: number;
+  category: {
+    id: string;
+    key: string;
+    name: string;
+    description: string | null;
+    sortOrder: number;
+  };
+};
 
 type UploadedUserAvatarFile = {
   buffer: Buffer;
@@ -186,10 +201,7 @@ export class UserService {
     };
   }
 
-  async getUserProfile(
-    viewer: CurrentUserContext | null,
-    userId: string,
-  ) {
+  async getUserProfile(viewer: CurrentUserContext | null, userId: string) {
     const user = await this.prisma.user.findFirst({
       where: {
         id: userId,
@@ -213,75 +225,83 @@ export class UserService {
       throw new NotFoundException('USER_NOT_FOUND');
     }
 
-    const [viewerHasFollowed, followingCount, followerCount, postCount, recentPosts] =
+    const [viewerHasFollowed, followingCount, followerCount] =
       await Promise.all([
-      viewer && viewer.id !== user.id
-        ? this.prisma.userFollow
-            .findUnique({
-              where: {
-                followerUserId_followedUserId: {
-                  followerUserId: viewer.id,
-                  followedUserId: user.id,
+        viewer && viewer.id !== user.id
+          ? this.prisma.userFollow
+              .findUnique({
+                where: {
+                  followerUserId_followedUserId: {
+                    followerUserId: viewer.id,
+                    followedUserId: user.id,
+                  },
                 },
-              },
+                select: {
+                  id: true,
+                },
+              })
+              .then((record) => Boolean(record))
+          : Promise.resolve(false),
+        this.prisma.userFollow.count({
+          where: {
+            followerUserId: user.id,
+          },
+        }),
+        this.prisma.userFollow.count({
+          where: {
+            followedUserId: user.id,
+          },
+        }),
+      ]);
+
+    let postCount = 0;
+    let recentPosts: UserProfileCommunityPostRecord[] = [];
+
+    if (isCommunityAvailable()) {
+      [postCount, recentPosts] = await Promise.all([
+        this.prisma.communityPost.count({
+          where: {
+            authorId: user.id,
+            status: CommunityPostStatus.PUBLISHED,
+            deletedAt: null,
+          },
+        }),
+        this.prisma.communityPost.findMany({
+          where: {
+            authorId: user.id,
+            status: CommunityPostStatus.PUBLISHED,
+            deletedAt: null,
+          },
+          orderBy: [
+            {
+              createdAt: 'desc',
+            },
+            {
+              id: 'desc',
+            },
+          ],
+          take: USER_PROFILE_RECENT_POST_LIMIT,
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            createdAt: true,
+            favoriteCount: true,
+            commentCount: true,
+            viewCount: true,
+            category: {
               select: {
                 id: true,
+                key: true,
+                name: true,
+                description: true,
+                sortOrder: true,
               },
-            })
-            .then((record) => Boolean(record))
-        : Promise.resolve(false),
-      this.prisma.userFollow.count({
-        where: {
-          followerUserId: user.id,
-        },
-      }),
-      this.prisma.userFollow.count({
-        where: {
-          followedUserId: user.id,
-        },
-      }),
-      this.prisma.communityPost.count({
-        where: {
-          authorId: user.id,
-          status: CommunityPostStatus.PUBLISHED,
-          deletedAt: null,
-        },
-      }),
-      this.prisma.communityPost.findMany({
-        where: {
-          authorId: user.id,
-          status: CommunityPostStatus.PUBLISHED,
-          deletedAt: null,
-        },
-        orderBy: [
-          {
-            createdAt: 'desc',
-          },
-          {
-            id: 'desc',
-          },
-        ],
-        take: USER_PROFILE_RECENT_POST_LIMIT,
-        select: {
-          id: true,
-          title: true,
-          content: true,
-          createdAt: true,
-          favoriteCount: true,
-          commentCount: true,
-          viewCount: true,
-          category: {
-            select: {
-              id: true,
-              key: true,
-              name: true,
-              description: true,
-              sortOrder: true,
             },
           },
-        },
-      }),
-    ]);
+        }),
+      ]);
+    }
 
     return {
       success: true as const,
@@ -527,8 +547,8 @@ export class UserService {
             .then((records) => records.map((record) => record.followerUser)),
     ]);
 
-    const visibleUsers = users.filter((user): user is NonNullable<typeof user> =>
-      Boolean(user),
+    const visibleUsers = users.filter(
+      (user): user is NonNullable<typeof user> => Boolean(user),
     );
     const userIds = visibleUsers.map((user) => user.id);
     const viewerFollowedSet =

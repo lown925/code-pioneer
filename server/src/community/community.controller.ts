@@ -16,11 +16,19 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { type CurrentUserContext } from '../auth/auth.types';
-import { JwtUserAuthGuard, OptionalUserAuthGuard } from '../auth/jwt-user-auth.guard';
+import {
+  JwtUserAuthGuard,
+  OptionalUserAuthGuard,
+} from '../auth/jwt-user-auth.guard';
 import { CommunityService } from './community.service';
+import { CommunityAvailabilityGuard } from './community-availability';
 import { CreateCommunityCommentDto } from './dto/create-community-comment.dto';
 import { CreateCommunityPostDto } from './dto/create-community-post.dto';
-import { CommunityCursorQueryDto, CommunityPostsQueryDto, CommunityUserPostsQueryDto } from './dto/community-posts-query.dto';
+import {
+  CommunityCursorQueryDto,
+  CommunityPostsQueryDto,
+  CommunityUserPostsQueryDto,
+} from './dto/community-posts-query.dto';
 
 type UploadedCommunityImageFile = {
   buffer: Buffer;
@@ -30,6 +38,7 @@ type UploadedCommunityImageFile = {
 };
 
 @Controller()
+@UseGuards(CommunityAvailabilityGuard)
 export class CommunityController {
   constructor(private readonly communityService: CommunityService) {}
 

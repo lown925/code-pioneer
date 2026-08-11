@@ -9,6 +9,8 @@ import { promises as fs } from 'fs';
 import { CommunityPostStatus, UserStatus } from '../../generated/prisma/enums';
 import { UserService } from './user.service';
 
+const originalAppEnvironment = process.env.APP_ENV;
+
 type UserRecord = {
   id: string;
   openId: string;
@@ -101,42 +103,44 @@ function createMockPrisma() {
         users.set(user.id, user);
         return user;
       }),
-      findFirst: jest.fn(async ({ where, select }: { where: any; select?: any }) => {
-        const user =
-          [...users.values()].find((item) => {
-            if (where.id !== undefined && item.id !== where.id) {
-              return false;
-            }
-
-            if (
-              where.deletedAt !== undefined &&
-              item.deletedAt !== where.deletedAt
-            ) {
-              return false;
-            }
-
-            if (where.status !== undefined) {
-              if (
-                typeof where.status === 'object' &&
-                where.status.not !== undefined
-              ) {
-                if (item.status === where.status.not) {
-                  return false;
-                }
-              } else if (item.status !== where.status) {
+      findFirst: jest.fn(
+        async ({ where, select }: { where: any; select?: any }) => {
+          const user =
+            [...users.values()].find((item) => {
+              if (where.id !== undefined && item.id !== where.id) {
                 return false;
               }
-            }
 
-            return true;
-          }) ?? null;
+              if (
+                where.deletedAt !== undefined &&
+                item.deletedAt !== where.deletedAt
+              ) {
+                return false;
+              }
 
-        if (!user || !select) {
-          return user;
-        }
+              if (where.status !== undefined) {
+                if (
+                  typeof where.status === 'object' &&
+                  where.status.not !== undefined
+                ) {
+                  if (item.status === where.status.not) {
+                    return false;
+                  }
+                } else if (item.status !== where.status) {
+                  return false;
+                }
+              }
 
-        return buildSelectedUser(user, select, follows);
-      }),
+              return true;
+            }) ?? null;
+
+          if (!user || !select) {
+            return user;
+          }
+
+          return buildSelectedUser(user, select, follows);
+        },
+      ),
       findUnique: jest.fn(async ({ where }: { where: any }) => {
         if (where.id) {
           return users.get(where.id) ?? null;
@@ -274,62 +278,67 @@ function createMockPrisma() {
           return true;
         }).length;
       }),
-      findMany: jest.fn(async ({ where, select }: { where: any; select: any }) => {
-        if (where.followedUserId?.in) {
-          return [...follows.values()]
-            .filter(
-              (follow) =>
-                follow.followerUserId === where.followerUserId &&
-                where.followedUserId.in.includes(follow.followedUserId),
-            )
-            .map((follow) => ({
-              followedUserId: follow.followedUserId,
-            }));
-        }
-
-        const filtered = [...follows.values()].filter((follow) => {
-          if (
-            where.followerUserId !== undefined &&
-            follow.followerUserId !== where.followerUserId
-          ) {
-            return false;
+      findMany: jest.fn(
+        async ({ where, select }: { where: any; select: any }) => {
+          if (where.followedUserId?.in) {
+            return [...follows.values()]
+              .filter(
+                (follow) =>
+                  follow.followerUserId === where.followerUserId &&
+                  where.followedUserId.in.includes(follow.followedUserId),
+              )
+              .map((follow) => ({
+                followedUserId: follow.followedUserId,
+              }));
           }
 
-          if (
-            where.followedUserId !== undefined &&
-            follow.followedUserId !== where.followedUserId
-          ) {
-            return false;
-          }
+          const filtered = [...follows.values()].filter((follow) => {
+            if (
+              where.followerUserId !== undefined &&
+              follow.followerUserId !== where.followerUserId
+            ) {
+              return false;
+            }
 
-          return true;
-        });
+            if (
+              where.followedUserId !== undefined &&
+              follow.followedUserId !== where.followedUserId
+            ) {
+              return false;
+            }
 
-        return filtered.map((follow) => {
-          if (select.followedUser) {
+            return true;
+          });
+
+          return filtered.map((follow) => {
+            if (select.followedUser) {
+              return {
+                followedUser: buildSelectedUser(
+                  users.get(follow.followedUserId)!,
+                  select.followedUser.select,
+                  follows,
+                ),
+              };
+            }
+
             return {
-              followedUser: buildSelectedUser(
-                users.get(follow.followedUserId)!,
-                select.followedUser.select,
+              followerUser: buildSelectedUser(
+                users.get(follow.followerUserId)!,
+                select.followerUser.select,
                 follows,
               ),
             };
-          }
-
-          return {
-            followerUser: buildSelectedUser(
-              users.get(follow.followerUserId)!,
-              select.followerUser.select,
-              follows,
-            ),
-          };
-        });
-      }),
+          });
+        },
+      ),
     },
     communityPost: {
       count: jest.fn(async ({ where }: { where: any }) => {
         return [...posts.values()].filter((post) => {
-          if (where.authorId !== undefined && post.authorId !== where.authorId) {
+          if (
+            where.authorId !== undefined &&
+            post.authorId !== where.authorId
+          ) {
             return false;
           }
 
@@ -344,26 +353,34 @@ function createMockPrisma() {
           return true;
         }).length;
       }),
-      findMany: jest.fn(async ({ where, take }: { where: any; take?: number }) => {
-        return [...posts.values()]
-          .filter((post) => {
-            if (where.authorId !== undefined && post.authorId !== where.authorId) {
-              return false;
-            }
+      findMany: jest.fn(
+        async ({ where, take }: { where: any; take?: number }) => {
+          return [...posts.values()]
+            .filter((post) => {
+              if (
+                where.authorId !== undefined &&
+                post.authorId !== where.authorId
+              ) {
+                return false;
+              }
 
-            if (where.status !== undefined && post.status !== where.status) {
-              return false;
-            }
+              if (where.status !== undefined && post.status !== where.status) {
+                return false;
+              }
 
-            if (where.deletedAt === null && post.deletedAt !== null) {
-              return false;
-            }
+              if (where.deletedAt === null && post.deletedAt !== null) {
+                return false;
+              }
 
-            return true;
-          })
-          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-          .slice(0, take ?? Number.MAX_SAFE_INTEGER);
-      }),
+              return true;
+            })
+            .sort(
+              (left, right) =>
+                right.createdAt.getTime() - left.createdAt.getTime(),
+            )
+            .slice(0, take ?? Number.MAX_SAFE_INTEGER);
+        },
+      ),
     },
   };
 
@@ -431,8 +448,18 @@ function createService() {
 }
 
 describe('UserService', () => {
+  beforeEach(() => {
+    process.env.APP_ENV = 'test';
+  });
+
   afterEach(() => {
     jest.restoreAllMocks();
+
+    if (originalAppEnvironment === undefined) {
+      delete process.env.APP_ENV;
+    } else {
+      process.env.APP_ENV = originalAppEnvironment;
+    }
   });
 
   it('stores a valid avatar and returns a stable public URL', async () => {
@@ -878,64 +905,141 @@ describe('UserService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('aggregates public user profile and follow state', async () => {
-    const { service, prisma, follows, posts } = createService();
-    const viewer = await prisma.user.create({
-      data: {
-        openId: 'mock-openid-user-service-profile-viewer',
-        nickname: '查看者',
-      },
-    });
-    const author = await prisma.user.create({
-      data: {
-        openId: 'mock-openid-user-service-profile-author',
-        nickname: '发帖用户',
-        battleRating: 1210,
-      },
-    });
+  it.each(['development', 'test'] as const)(
+    'aggregates public user profile and Community posts in APP_ENV=%s',
+    async (appEnvironment) => {
+      process.env.APP_ENV = appEnvironment;
+      const { service, prisma, follows, posts } = createService();
+      const viewer = await prisma.user.create({
+        data: {
+          openId: 'mock-openid-user-service-profile-viewer',
+          nickname: '查看者',
+        },
+      });
+      const author = await prisma.user.create({
+        data: {
+          openId: 'mock-openid-user-service-profile-author',
+          nickname: '发帖用户',
+          battleRating: 1210,
+        },
+      });
 
-    follows.set(`${viewer.id}:${author.id}`, {
-      id: randomUUID(),
-      followerUserId: viewer.id,
-      followedUserId: author.id,
-      createdAt: new Date(),
-    });
-
-    posts.set(randomUUID(), {
-      id: randomUUID(),
-      authorId: author.id,
-      title: '第一篇帖子',
-      content: '这是一段用于生成摘要的帖子内容',
-      status: CommunityPostStatus.PUBLISHED,
-      favoriteCount: 3,
-      commentCount: 2,
-      viewCount: 10,
-      deletedAt: null,
-      createdAt: new Date('2026-07-30T09:00:00.000Z'),
-      category: {
+      follows.set(`${viewer.id}:${author.id}`, {
         id: randomUUID(),
-        key: 'GENERAL',
-        name: '综合交流',
-        description: null,
-        sortOrder: 1,
-      },
-    });
+        followerUserId: viewer.id,
+        followedUserId: author.id,
+        createdAt: new Date(),
+      });
 
-    const result = await service.getUserProfile(
-      {
-        id: viewer.id,
-        sessionId: 'session-id',
-        tokenType: 'USER',
-        role: 'NORMAL',
-      },
-      author.id,
-    );
+      posts.set(randomUUID(), {
+        id: randomUUID(),
+        authorId: author.id,
+        title: '第一篇帖子',
+        content: '这是一段用于生成摘要的帖子内容',
+        status: CommunityPostStatus.PUBLISHED,
+        favoriteCount: 3,
+        commentCount: 2,
+        viewCount: 10,
+        deletedAt: null,
+        createdAt: new Date('2026-07-30T09:00:00.000Z'),
+        category: {
+          id: randomUUID(),
+          key: 'GENERAL',
+          name: '综合交流',
+          description: null,
+          sortOrder: 1,
+        },
+      });
 
-    expect(result.success).toBe(true);
-    expect(result.data.userId).toBe(author.id);
-    expect(result.data.viewerHasFollowed).toBe(true);
-    expect(result.data.viewerIsSelf).toBe(false);
-    expect(result.data.recentPosts).toHaveLength(1);
-    expect(result.data.postCount).toBe(1);
-  });
+      const result = await service.getUserProfile(
+        {
+          id: viewer.id,
+          sessionId: 'session-id',
+          tokenType: 'USER',
+          role: 'NORMAL',
+        },
+        author.id,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.userId).toBe(author.id);
+      expect(result.data.viewerHasFollowed).toBe(true);
+      expect(result.data.viewerIsSelf).toBe(false);
+      expect(result.data.recentPosts).toHaveLength(1);
+      expect(result.data.postCount).toBe(1);
+    },
+  );
+
+  it.each(['production', 'trial'] as const)(
+    'keeps public profile fields but omits Community posts in APP_ENV=%s',
+    async (appEnvironment) => {
+      process.env.APP_ENV = appEnvironment;
+      const { service, prisma, follows, posts } = createService();
+      const viewer = await prisma.user.create({
+        data: {
+          openId: `mock-openid-${appEnvironment}-profile-viewer`,
+          nickname: '查看者',
+        },
+      });
+      const author = await prisma.user.create({
+        data: {
+          openId: `mock-openid-${appEnvironment}-profile-author`,
+          nickname: '目标用户',
+          avatarUrl: 'https://cdn.example.com/avatar.png',
+          battleRating: 1210,
+        },
+      });
+
+      follows.set(`${viewer.id}:${author.id}`, {
+        id: randomUUID(),
+        followerUserId: viewer.id,
+        followedUserId: author.id,
+        createdAt: new Date(),
+      });
+      posts.set(randomUUID(), {
+        id: randomUUID(),
+        authorId: author.id,
+        title: '不可公开的历史帖子',
+        content: '正式环境不应查询或返回这段内容',
+        status: CommunityPostStatus.PUBLISHED,
+        favoriteCount: 3,
+        commentCount: 2,
+        viewCount: 10,
+        deletedAt: null,
+        createdAt: new Date('2026-07-30T09:00:00.000Z'),
+        category: {
+          id: randomUUID(),
+          key: 'GENERAL',
+          name: '综合交流',
+          description: null,
+          sortOrder: 1,
+        },
+      });
+
+      const result = await service.getUserProfile(
+        {
+          id: viewer.id,
+          sessionId: 'session-id',
+          tokenType: 'USER',
+          role: 'NORMAL',
+        },
+        author.id,
+      );
+
+      expect(result.data).toMatchObject({
+        userId: author.id,
+        nickname: '目标用户',
+        avatarUrl: 'https://cdn.example.com/avatar.png',
+        battleRating: 1210,
+        followingCount: 0,
+        followerCount: 1,
+        postCount: 0,
+        recentPosts: [],
+        viewerHasFollowed: true,
+        viewerIsSelf: false,
+      });
+      expect(prisma.communityPost.count).not.toHaveBeenCalled();
+      expect(prisma.communityPost.findMany).not.toHaveBeenCalled();
+    },
+  );
 });

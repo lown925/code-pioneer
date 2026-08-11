@@ -1,6 +1,6 @@
 import type { UserFollowListItem, UserFollowListMode } from '../../types/user';
 import { getAuthStateSummary } from '../../utils/auth';
-import { isUuid } from '../../utils/community';
+import { isUuid } from '../../utils/validation';
 import { fetchUserFollowList, getUserErrorMessage } from '../../utils/user';
 
 type PageState = 'loading' | 'success' | 'empty' | 'error';
@@ -40,7 +40,7 @@ let isPageActive = false;
 let requestSerial = 0;
 
 function getDisplayName(item: UserFollowListItem) {
-  return item.nickname?.trim() || '社区用户';
+  return item.nickname?.trim() || '微信用户';
 }
 
 function getProfileInitial(item: UserFollowListItem) {

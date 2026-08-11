@@ -1,29 +1,15 @@
 import type { AuthUserProfile } from '../../types/auth';
 import type { BattleProfileResponse } from '../../types/battle';
-import type {
-  CommunityPostDetail,
-  CommunitySummaryResponse,
-} from '../../types/community';
 import type { WrongQuestionStatisticsResponse } from '../../types/wrong-question';
 import {
   clearAuthSession,
   getAuthStateSummary,
   redirectToLogin,
 } from '../../utils/auth';
-import {
-  fetchMyCommunityPosts,
-  fetchMyCommunitySummary,
-  formatCommunityTimestamp,
-  getCommunityErrorMessage,
-} from '../../utils/community';
 import { request, RequestError } from '../../utils/request';
 import { fetchUserProfile } from '../../utils/user';
 
-type ProfileMetricKey =
-  | 'battleHistory'
-  | 'wrongQuestion'
-  | 'favorite'
-  | 'history';
+type ProfileMetricKey = 'battleHistory' | 'wrongQuestion';
 
 type ProfileMetricCard = {
   key: ProfileMetricKey;
@@ -32,24 +18,10 @@ type ProfileMetricCard = {
   helperText: string;
 };
 
-type ProfilePostCard = CommunityPostDetail & {
-  createdAtText: string;
-  favoriteCountText: string;
-  commentCountText: string;
-  viewCountText: string;
-  categoryText: string;
-};
-
 type ProfileBattleSummary = {
   totalBattlesText: string;
   ratingText: string;
   recordText: string;
-};
-
-type ProfileCommunitySummary = {
-  favoriteCountText: string;
-  historyCountText: string;
-  postCountText: string;
 };
 
 type ProfileWrongQuestionSummary = {
@@ -65,50 +37,35 @@ type ProfilePageData = {
   followingCountText: string;
   followerCountText: string;
   battleSummary: ProfileBattleSummary | null;
-  communitySummary: ProfileCommunitySummary | null;
   wrongQuestionSummary: ProfileWrongQuestionSummary | null;
   metrics: ProfileMetricCard[];
   isOverviewLoading: boolean;
   overviewErrorMessage: string;
-  isPostsLoading: boolean;
-  postsErrorMessage: string;
-  postItems: ProfilePostCard[];
 };
 
 type ProfilePageMethods = {
   syncAuthState(): boolean;
   loadPageData(): Promise<void>;
   loadOverview(): Promise<void>;
-  loadPosts(): Promise<void>;
   updateMetrics(): void;
   handleLogin(): void;
   handleOverviewRetry(): void;
-  handlePostsRetry(): void;
   handleFollowEntry(): void;
   handleFansEntry(): void;
   handleMetricTap(
     event: WechatMiniprogram.BaseEvent<{ metricKey?: ProfileMetricKey }>,
   ): void;
-  handleOpenAllPosts(): void;
-  handleOpenPostDetail(
-    event: WechatMiniprogram.BaseEvent<{ postId?: string }>,
-  ): void;
   handleLearningEntry(): void;
   handleEditProfile(): void;
   handleLogout(): Promise<void>;
   mapBattleSummary(data: BattleProfileResponse): ProfileBattleSummary;
-  mapCommunitySummary(data: CommunitySummaryResponse): ProfileCommunitySummary;
   mapWrongQuestionSummary(
     data: WrongQuestionStatisticsResponse,
   ): ProfileWrongQuestionSummary;
-  mapPostCard(item: CommunityPostDetail): ProfilePostCard;
 };
-
-const PROFILE_POST_LIMIT = 3;
 
 let isPageActive = false;
 let overviewRequestSerial = 0;
-let postsRequestSerial = 0;
 
 function getDisplayName(user: AuthUserProfile | null) {
   return user?.nickname?.trim() || '微信用户';
@@ -144,7 +101,6 @@ Page<ProfilePageData, ProfilePageMethods>({
     followingCountText: '0',
     followerCountText: '0',
     battleSummary: null,
-    communitySummary: null,
     wrongQuestionSummary: null,
     metrics: [
       {
@@ -159,24 +115,9 @@ Page<ProfilePageData, ProfilePageMethods>({
         valueText: '0',
         helperText: '学习与 Battle 错题',
       },
-      {
-        key: 'favorite',
-        title: '收藏',
-        valueText: '0',
-        helperText: '社区收藏',
-      },
-      {
-        key: 'history',
-        title: '历史',
-        valueText: '0',
-        helperText: '社区浏览历史',
-      },
     ],
     isOverviewLoading: false,
     overviewErrorMessage: '',
-    isPostsLoading: false,
-    postsErrorMessage: '',
-    postItems: [],
   },
 
   onShow() {
@@ -187,7 +128,6 @@ Page<ProfilePageData, ProfilePageMethods>({
   onUnload() {
     isPageActive = false;
     overviewRequestSerial += 1;
-    postsRequestSerial += 1;
   },
 
   onPullDownRefresh() {
@@ -217,22 +157,18 @@ Page<ProfilePageData, ProfilePageMethods>({
       if (isPageActive) {
         this.setData({
           battleSummary: null,
-          communitySummary: null,
           wrongQuestionSummary: null,
           followingCountText: '0',
           followerCountText: '0',
-          postItems: [],
           isOverviewLoading: false,
           overviewErrorMessage: '',
-          isPostsLoading: false,
-          postsErrorMessage: '',
         });
         this.updateMetrics();
       }
       return;
     }
 
-    await Promise.allSettled([this.loadOverview(), this.loadPosts()]);
+    await this.loadOverview();
   },
 
   async loadOverview() {
@@ -245,7 +181,7 @@ Page<ProfilePageData, ProfilePageMethods>({
     });
 
     try {
-      const [battleSummary, wrongQuestionSummary, communitySummary, userProfile] =
+      const [battleSummary, wrongQuestionSummary, userProfile] =
         await Promise.all([
           request<BattleProfileResponse>({
             url: '/battles/profile',
@@ -257,7 +193,6 @@ Page<ProfilePageData, ProfilePageMethods>({
             method: 'GET',
             authMode: 'required',
           }),
-          fetchMyCommunitySummary(),
           userId ? fetchUserProfile(userId) : Promise.resolve(null),
         ]);
 
@@ -270,7 +205,6 @@ Page<ProfilePageData, ProfilePageMethods>({
         overviewErrorMessage: '',
         battleSummary: this.mapBattleSummary(battleSummary),
         wrongQuestionSummary: this.mapWrongQuestionSummary(wrongQuestionSummary),
-        communitySummary: this.mapCommunitySummary(communitySummary),
         followingCountText: userProfile
           ? formatCount(userProfile.followingCount)
           : '0',
@@ -294,44 +228,6 @@ Page<ProfilePageData, ProfilePageMethods>({
     }
   },
 
-  async loadPosts() {
-    const currentSerial = ++postsRequestSerial;
-
-    this.setData({
-      isPostsLoading: true,
-      postsErrorMessage: '',
-    });
-
-    try {
-      const response = await fetchMyCommunityPosts({
-        limit: PROFILE_POST_LIMIT,
-      });
-
-      if (!isPageActive || currentSerial !== postsRequestSerial) {
-        return;
-      }
-
-      this.setData({
-        isPostsLoading: false,
-        postsErrorMessage: '',
-        postItems: response.items.map((item) => this.mapPostCard(item)),
-      });
-    } catch (error) {
-      if (!isPageActive || currentSerial !== postsRequestSerial) {
-        return;
-      }
-
-      this.setData({
-        isPostsLoading: false,
-        postsErrorMessage: getCommunityErrorMessage(
-          error,
-          '帖子加载失败，请稍后重试',
-        ),
-        postItems: [],
-      });
-    }
-  },
-
   updateMetrics() {
     this.setData({
       metrics: [
@@ -348,18 +244,6 @@ Page<ProfilePageData, ProfilePageMethods>({
             this.data.wrongQuestionSummary?.totalWrongQuestionsText ?? '0',
           helperText: '学习与 Battle 错题',
         },
-        {
-          key: 'favorite',
-          title: '收藏',
-          valueText: this.data.communitySummary?.favoriteCountText ?? '0',
-          helperText: '社区收藏',
-        },
-        {
-          key: 'history',
-          title: '历史',
-          valueText: this.data.communitySummary?.historyCountText ?? '0',
-          helperText: '社区浏览历史',
-        },
       ],
     });
   },
@@ -370,10 +254,6 @@ Page<ProfilePageData, ProfilePageMethods>({
 
   handleOverviewRetry() {
     void this.loadOverview();
-  },
-
-  handlePostsRetry() {
-    void this.loadPosts();
   },
 
   handleFollowEntry() {
@@ -423,50 +303,7 @@ Page<ProfilePageData, ProfilePageMethods>({
       wx.navigateTo({
         url: '/pages/wrong-question/index',
       });
-      return;
     }
-
-    if (metricKey === 'favorite') {
-      wx.navigateTo({
-        url: '/pages/profile/community-favorites',
-      });
-      return;
-    }
-
-    if (metricKey === 'history') {
-      wx.navigateTo({
-        url: '/pages/profile/community-history',
-      });
-    }
-  },
-
-  handleOpenAllPosts() {
-    if (!this.data.isAuthenticated) {
-      redirectToLogin('/pages/profile/community-posts');
-      return;
-    }
-
-    wx.navigateTo({
-      url: '/pages/profile/community-posts',
-    });
-  },
-
-  handleOpenPostDetail(
-    event: WechatMiniprogram.BaseEvent<{ postId?: string }>,
-  ) {
-    const postId = event.currentTarget.dataset.postId;
-
-    if (!postId) {
-      wx.showToast({
-        title: '帖子参数无效',
-        icon: 'none',
-      });
-      return;
-    }
-
-    wx.navigateTo({
-      url: `/pages/community/detail?postId=${encodeURIComponent(postId)}`,
-    });
   },
 
   handleLearningEntry() {
@@ -518,16 +355,12 @@ Page<ProfilePageData, ProfilePageMethods>({
       if (isPageActive) {
         this.setData({
           battleSummary: null,
-          communitySummary: null,
           wrongQuestionSummary: null,
           followingCountText: '0',
           followerCountText: '0',
-          postItems: [],
           isLoggingOut: false,
           isOverviewLoading: false,
           overviewErrorMessage: '',
-          isPostsLoading: false,
-          postsErrorMessage: '',
         });
         this.updateMetrics();
       }
@@ -547,28 +380,9 @@ Page<ProfilePageData, ProfilePageMethods>({
     };
   },
 
-  mapCommunitySummary(data: CommunitySummaryResponse) {
-    return {
-      favoriteCountText: formatCount(data.favoriteCount),
-      historyCountText: formatCount(data.historyCount),
-      postCountText: formatCount(data.postCount),
-    };
-  },
-
   mapWrongQuestionSummary(data: WrongQuestionStatisticsResponse) {
     return {
       totalWrongQuestionsText: formatCount(data.totalWrongQuestions),
-    };
-  },
-
-  mapPostCard(item: CommunityPostDetail) {
-    return {
-      ...item,
-      createdAtText: formatCommunityTimestamp(item.createdAt),
-      favoriteCountText: formatCount(item.favoriteCount),
-      commentCountText: formatCount(item.commentCount),
-      viewCountText: formatCount(item.viewCount),
-      categoryText: item.category.name?.trim() || '综合交流',
     };
   },
 });

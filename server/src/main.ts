@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { existsSync, mkdirSync } from 'fs';
 import express from 'express';
 import { AppModule } from './app.module';
+import { createCommunityUploadBlocker } from './environment/community-upload.middleware';
 import { validateEnvironmentConfiguration } from './environment/environment.config';
 import { createEnvironmentMiddleware } from './environment/environment.middleware';
 
@@ -26,6 +27,10 @@ async function bootstrap() {
   });
   app.setGlobalPrefix('api/v1');
   app.use(createEnvironmentMiddleware(environmentConfig));
+  app.use(
+    '/uploads/community',
+    createCommunityUploadBlocker(environmentConfig.appEnvironment),
+  );
   app.use('/uploads', express.static(environmentConfig.uploadStorageRoot));
   app.useGlobalPipes(
     new ValidationPipe({

@@ -32,7 +32,6 @@ export const DEFAULT_TAB_PAGE_PATH = "/pages/battle/index";
 const TAB_BAR_PATHS = new Set([
   "/pages/battle/index",
   "/pages/learning/index",
-  "/pages/community/index",
   "/pages/profile/index",
 ]);
 

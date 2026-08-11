@@ -8,7 +8,6 @@
 
 .guest-card,
 .profile-card,
-.post-section,
 .action-card {
   padding: 30rpx;
 }
@@ -172,8 +171,7 @@
   color: #a64f4f;
 }
 
-.overview-error-action,
-.section-link {
+.overview-error-action {
   min-height: 64rpx;
   padding: 0 24rpx;
   font-size: 24rpx;
@@ -246,126 +244,6 @@
   text-align: right;
   font-size: 24rpx;
   color: #5f7596;
-}
-
-.section-head-inline {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20rpx;
-}
-
-.compact-state {
-  margin-top: 24rpx;
-  padding: 48rpx 28rpx;
-}
-
-.state-button {
-  margin-top: 10rpx;
-  min-height: 68rpx;
-}
-
-.post-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-  margin-top: 24rpx;
-}
-
-.post-card {
-  padding: 24rpx;
-  border-radius: 24rpx;
-  background: #f8fbff;
-  box-shadow: inset 0 0 0 1rpx rgba(47, 107, 255, 0.06);
-}
-
-.post-head {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-}
-
-.post-author-badge {
-  width: 70rpx;
-  height: 70rpx;
-  border-radius: 50%;
-  background: #eaf1ff;
-  color: #2f6bff;
-  font-size: 30rpx;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-}
-
-.post-author-meta {
-  flex: 1;
-  min-width: 0;
-}
-
-.post-author-name {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #17324d;
-}
-
-.post-author-time {
-  display: block;
-  margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #6e84a3;
-}
-
-.post-category-tag {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 54rpx;
-  padding: 0 18rpx;
-  border-radius: 999rpx;
-  background: #eef4ff;
-  color: #2f6bff;
-  font-size: 22rpx;
-  font-weight: 700;
-}
-
-.post-title {
-  display: block;
-  margin-top: 20rpx;
-  font-size: 34rpx;
-  line-height: 1.45;
-  font-weight: 700;
-  color: #17324d;
-}
-
-.post-preview {
-  display: block;
-  margin-top: 12rpx;
-  font-size: 26rpx;
-  line-height: 1.8;
-  color: #546b8b;
-}
-
-.post-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14rpx;
-  margin-top: 18rpx;
-}
-
-.post-metric-item {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 52rpx;
-  padding: 0 18rpx;
-  border-radius: 999rpx;
-  background: #ffffff;
-  color: #6e84a3;
-  font-size: 22rpx;
 }
 
 .logout-button {

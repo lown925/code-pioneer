@@ -55,52 +55,6 @@
           <text class="metric-title">战绩</text>
           <text class="metric-helper">累计 Battle 对局</text>
         </view>
-        <view class="metric-card">
-          <text class="metric-value">{{profile.postCount}}</text>
-          <text class="metric-title">帖子</text>
-          <text class="metric-helper">已发布社区帖子</text>
-        </view>
-      </view>
-    </view>
-
-    <view class="section-card post-section">
-      <view class="section-head-inline">
-        <view>
-          <text class="section-title">Ta 的帖子</text>
-          <text class="section-subtitle">查看该用户最近发布的社区帖子。</text>
-        </view>
-      </view>
-
-      <view wx:if="{{postItems.length === 0}}" class="state-box compact-state">
-        <text class="state-text">该用户暂时还没有公开帖子。</text>
-      </view>
-
-      <view wx:else class="post-list">
-        <view
-          wx:for="{{postItems}}"
-          wx:key="postId"
-          class="post-card"
-          data-post-id="{{item.postId}}"
-          bindtap="handleOpenPost"
-        >
-          <view class="post-head">
-            <view class="post-author-badge">{{profileInitial}}</view>
-            <view class="post-author-meta">
-              <text class="post-author-name">{{displayName}}</text>
-              <text class="post-author-time">{{item.createdAtText}}</text>
-            </view>
-            <view class="post-category-tag">{{item.category.name}}</view>
-          </view>
-
-          <text class="post-title">{{item.title}}</text>
-          <text class="post-preview">{{item.contentPreview}}</text>
-
-          <view class="post-metrics">
-            <text class="post-metric-item">收藏 {{item.favoriteCountText}}</text>
-            <text class="post-metric-item">评论 {{item.commentCountText}}</text>
-            <text class="post-metric-item">浏览 {{item.viewCountText}}</text>
-          </view>
-        </view>
       </view>
     </view>
   </block>

@@ -6,8 +6,7 @@
   gap: 22rpx;
 }
 
-.profile-card,
-.post-section {
+.profile-card {
   padding: 30rpx;
 }
 
@@ -107,7 +106,7 @@
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 18rpx;
   margin-top: 28rpx;
 }
@@ -138,121 +137,6 @@
   font-size: 22rpx;
   line-height: 1.6;
   color: #6e84a3;
-}
-
-.section-head-inline {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20rpx;
-}
-
-.compact-state {
-  margin-top: 24rpx;
-  padding: 48rpx 28rpx;
-}
-
-.post-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-  margin-top: 24rpx;
-}
-
-.post-card {
-  padding: 24rpx;
-  border-radius: 24rpx;
-  background: #f8fbff;
-  box-shadow: inset 0 0 0 1rpx rgba(47, 107, 255, 0.06);
-}
-
-.post-head {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-}
-
-.post-author-badge {
-  width: 70rpx;
-  height: 70rpx;
-  border-radius: 50%;
-  background: #eaf1ff;
-  color: #2f6bff;
-  font-size: 30rpx;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-}
-
-.post-author-meta {
-  flex: 1;
-  min-width: 0;
-}
-
-.post-author-name {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #17324d;
-}
-
-.post-author-time {
-  display: block;
-  margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #6e84a3;
-}
-
-.post-category-tag {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 54rpx;
-  padding: 0 18rpx;
-  border-radius: 999rpx;
-  background: #eef4ff;
-  color: #2f6bff;
-  font-size: 22rpx;
-  font-weight: 700;
-}
-
-.post-title {
-  display: block;
-  margin-top: 20rpx;
-  font-size: 34rpx;
-  line-height: 1.45;
-  font-weight: 700;
-  color: #17324d;
-}
-
-.post-preview {
-  display: block;
-  margin-top: 12rpx;
-  font-size: 26rpx;
-  line-height: 1.8;
-  color: #546b8b;
-}
-
-.post-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14rpx;
-  margin-top: 18rpx;
-}
-
-.post-metric-item {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 52rpx;
-  padding: 0 18rpx;
-  border-radius: 999rpx;
-  background: #ffffff;
-  color: #6e84a3;
-  font-size: 22rpx;
 }
 
 .state-button {

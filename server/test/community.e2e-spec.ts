@@ -5,6 +5,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { promises as fs } from 'fs';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
@@ -100,6 +101,7 @@ const USER_A_TOKEN = 'community-user-a-token';
 const USER_B_TOKEN = 'community-user-b-token';
 const TEST_PUBLIC_BASE_URL = 'https://aryqvdjgwpnp.sealoshzh.site';
 const originalPublicBaseUrl = process.env.PUBLIC_BASE_URL;
+const originalAppEnvironment = process.env.APP_ENV;
 
 function createCommunityPrismaMock() {
   const users = new Map<string, UserRecord>();
@@ -192,7 +194,10 @@ function createCommunityPrismaMock() {
       return false;
     }
 
-    if (where.categoryId !== undefined && post.categoryId !== where.categoryId) {
+    if (
+      where.categoryId !== undefined &&
+      post.categoryId !== where.categoryId
+    ) {
       return false;
     }
 
@@ -240,8 +245,10 @@ function createCommunityPrismaMock() {
 
         const leftValue = left[field as keyof CommunityPostRecord];
         const rightValue = right[field as keyof CommunityPostRecord];
-        const leftComparable = leftValue instanceof Date ? leftValue.getTime() : leftValue;
-        const rightComparable = rightValue instanceof Date ? rightValue.getTime() : rightValue;
+        const leftComparable =
+          leftValue instanceof Date ? leftValue.getTime() : leftValue;
+        const rightComparable =
+          rightValue instanceof Date ? rightValue.getTime() : rightValue;
 
         if (leftComparable === rightComparable) {
           continue;
@@ -420,7 +427,10 @@ function createCommunityPrismaMock() {
             data.favoriteCount?.increment !== undefined
               ? existing.favoriteCount + data.favoriteCount.increment
               : data.favoriteCount?.decrement !== undefined
-                ? Math.max(0, existing.favoriteCount - data.favoriteCount.decrement)
+                ? Math.max(
+                    0,
+                    existing.favoriteCount - data.favoriteCount.decrement,
+                  )
                 : existing.favoriteCount,
           likeCount:
             data.likeCount?.increment !== undefined
@@ -432,7 +442,10 @@ function createCommunityPrismaMock() {
             data.commentCount?.increment !== undefined
               ? existing.commentCount + data.commentCount.increment
               : data.commentCount?.decrement !== undefined
-                ? Math.max(0, existing.commentCount - data.commentCount.decrement)
+                ? Math.max(
+                    0,
+                    existing.commentCount - data.commentCount.decrement,
+                  )
                 : existing.commentCount,
           recommendationScore:
             data.recommendationScore?.increment !== undefined
@@ -477,19 +490,26 @@ function createCommunityPrismaMock() {
         return buildPostPayload(updated);
       }),
       count: jest.fn(async ({ where }: { where?: any }) => {
-        return [...posts.values()].filter((post) => matchesPostWhere(post, where))
-          .length;
+        return [...posts.values()].filter((post) =>
+          matchesPostWhere(post, where),
+        ).length;
       }),
     },
     communityComment: {
       findMany: jest.fn(async ({ where }: { where?: any }) => {
         return [...comments.values()]
           .filter((comment) => {
-            if (where?.postId !== undefined && comment.postId !== where.postId) {
+            if (
+              where?.postId !== undefined &&
+              comment.postId !== where.postId
+            ) {
               return false;
             }
 
-            if (where?.status !== undefined && comment.status !== where.status) {
+            if (
+              where?.status !== undefined &&
+              comment.status !== where.status
+            ) {
               return false;
             }
 
@@ -500,7 +520,8 @@ function createCommunityPrismaMock() {
             return true;
           })
           .sort((left, right) => {
-            const timeDelta = left.createdAt.getTime() - right.createdAt.getTime();
+            const timeDelta =
+              left.createdAt.getTime() - right.createdAt.getTime();
 
             if (timeDelta !== 0) {
               return timeDelta;
@@ -541,7 +562,10 @@ function createCommunityPrismaMock() {
           skip?: number;
         }) => {
           let records = [...favorites.values()].filter((favorite) => {
-            if (where?.userId !== undefined && favorite.userId !== where.userId) {
+            if (
+              where?.userId !== undefined &&
+              favorite.userId !== where.userId
+            ) {
               return false;
             }
 
@@ -554,10 +578,10 @@ function createCommunityPrismaMock() {
 
               return Boolean(
                 post &&
-                  matchesPostWhere(post, {
-                    status: where.post.status,
-                    deletedAt: where.post.deletedAt,
-                  }),
+                matchesPostWhere(post, {
+                  status: where.post.status,
+                  deletedAt: where.post.deletedAt,
+                }),
               );
             }
 
@@ -565,7 +589,8 @@ function createCommunityPrismaMock() {
           });
 
           records = records.sort((left, right) => {
-            const timeDelta = right.createdAt.getTime() - left.createdAt.getTime();
+            const timeDelta =
+              right.createdAt.getTime() - left.createdAt.getTime();
 
             if (timeDelta !== 0) {
               return timeDelta;
@@ -574,10 +599,11 @@ function createCommunityPrismaMock() {
             return right.id.localeCompare(left.id);
           });
 
-          const pagedRecords = applyCursor(records, cursor?.id, skip ?? 0).slice(
-            0,
-            take ?? records.length,
-          );
+          const pagedRecords = applyCursor(
+            records,
+            cursor?.id,
+            skip ?? 0,
+          ).slice(0, take ?? records.length);
 
           if (where?.postId?.in) {
             return pagedRecords.map((record) => ({
@@ -593,7 +619,11 @@ function createCommunityPrismaMock() {
         },
       ),
       createMany: jest.fn(
-        async ({ data }: { data: Array<{ postId: string; userId: string }> }) => {
+        async ({
+          data,
+        }: {
+          data: Array<{ postId: string; userId: string }>;
+        }) => {
           let count = 0;
 
           data.forEach((item) => {
@@ -651,10 +681,10 @@ function createCommunityPrismaMock() {
 
             return Boolean(
               post &&
-                matchesPostWhere(post, {
-                  status: where.post.status,
-                  deletedAt: where.post.deletedAt,
-                }),
+              matchesPostWhere(post, {
+                status: where.post.status,
+                deletedAt: where.post.deletedAt,
+              }),
             );
           }
 
@@ -679,7 +709,11 @@ function createCommunityPrismaMock() {
           .map((like) => ({ postId: like.postId }));
       }),
       createMany: jest.fn(
-        async ({ data }: { data: Array<{ postId: string; userId: string }> }) => {
+        async ({
+          data,
+        }: {
+          data: Array<{ postId: string; userId: string }>;
+        }) => {
           let count = 0;
 
           data.forEach((item) => {
@@ -786,7 +820,10 @@ function createCommunityPrismaMock() {
         }) => {
           const records = [...histories.values()]
             .filter((history) => {
-              if (where?.userId !== undefined && history.userId !== where.userId) {
+              if (
+                where?.userId !== undefined &&
+                history.userId !== where.userId
+              ) {
                 return false;
               }
 
@@ -795,10 +832,10 @@ function createCommunityPrismaMock() {
 
                 return Boolean(
                   post &&
-                    matchesPostWhere(post, {
-                      status: where.post.status,
-                      deletedAt: where.post.deletedAt,
-                    }),
+                  matchesPostWhere(post, {
+                    status: where.post.status,
+                    deletedAt: where.post.deletedAt,
+                  }),
                 );
               }
 
@@ -858,10 +895,10 @@ function createCommunityPrismaMock() {
 
             return Boolean(
               post &&
-                matchesPostWhere(post, {
-                  status: where.post.status,
-                  deletedAt: where.post.deletedAt,
-                }),
+              matchesPostWhere(post, {
+                status: where.post.status,
+                deletedAt: where.post.deletedAt,
+              }),
             );
           }
 
@@ -891,6 +928,7 @@ describe('Community routes (e2e)', () => {
   let mockState: ReturnType<typeof createCommunityPrismaMock>;
 
   beforeEach(async () => {
+    process.env.APP_ENV = 'test';
     process.env.PUBLIC_BASE_URL = TEST_PUBLIC_BASE_URL;
     mockState = createCommunityPrismaMock();
     mockState.users.set(USER_A.id, {
@@ -953,6 +991,13 @@ describe('Community routes (e2e)', () => {
 
   afterEach(async () => {
     await app.close();
+    jest.restoreAllMocks();
+
+    if (originalAppEnvironment === undefined) {
+      delete process.env.APP_ENV;
+    } else {
+      process.env.APP_ENV = originalAppEnvironment;
+    }
 
     if (originalPublicBaseUrl === undefined) {
       delete process.env.PUBLIC_BASE_URL;
@@ -961,15 +1006,161 @@ describe('Community routes (e2e)', () => {
     }
   });
 
+  it.each(['development', 'test'] as const)(
+    'keeps Community available in APP_ENV=%s',
+    async (appEnvironment) => {
+      process.env.APP_ENV = appEnvironment;
+
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/community/categories')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.items).toHaveLength(5);
+    },
+  );
+
+  it.each(['production', 'trial'] as const)(
+    'blocks every Community endpoint before service work in APP_ENV=%s',
+    async (appEnvironment) => {
+      process.env.APP_ENV = appEnvironment;
+      const mkdirSpy = jest.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
+      const writeFileSpy = jest
+        .spyOn(fs, 'writeFile')
+        .mockResolvedValue(undefined);
+      const postId = '33333333-3333-4333-8333-333333333333';
+      const authenticated = (testRequest: request.Test) =>
+        testRequest.set('Authorization', `Bearer ${USER_A_TOKEN}`);
+      const requests = [
+        () => request(app.getHttpServer()).get('/api/v1/community/categories'),
+        () => request(app.getHttpServer()).get('/api/v1/community/posts'),
+        () =>
+          request(app.getHttpServer()).get(`/api/v1/community/posts/${postId}`),
+        () =>
+          request(app.getHttpServer()).get(
+            `/api/v1/community/posts/${postId}/comments`,
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).post('/api/v1/community/posts'),
+          ).send({
+            categoryKey: 'GENERAL',
+            title: 'blocked post',
+            content: 'blocked content',
+          }),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).post('/api/v1/community/images'),
+          ).attach('file', Buffer.from('blocked-image'), {
+            filename: 'blocked.png',
+            contentType: 'image/png',
+          }),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).post(
+              `/api/v1/community/posts/${postId}/comments`,
+            ),
+          ).send({ content: 'blocked comment' }),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).delete(
+              `/api/v1/community/posts/${postId}`,
+            ),
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).post(
+              `/api/v1/community/posts/${postId}/like`,
+            ),
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).delete(
+              `/api/v1/community/posts/${postId}/like`,
+            ),
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).post(
+              `/api/v1/community/posts/${postId}/favorite`,
+            ),
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).delete(
+              `/api/v1/community/posts/${postId}/favorite`,
+            ),
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).get(
+              '/api/v1/users/me/community/favorites',
+            ),
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).get(
+              '/api/v1/users/me/community/history',
+            ),
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).delete(
+              `/api/v1/users/me/community/history/${postId}`,
+            ),
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).delete(
+              '/api/v1/users/me/community/history',
+            ),
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).get(
+              '/api/v1/users/me/community/posts',
+            ),
+          ),
+        () =>
+          authenticated(
+            request(app.getHttpServer()).get(
+              '/api/v1/users/me/community/summary',
+            ),
+          ),
+      ];
+
+      for (const createRequest of requests) {
+        const response = await createRequest().expect(503);
+
+        expect(response.body).toEqual({
+          success: false,
+          error: {
+            code: 'COMMUNITY_UNAVAILABLE',
+            message: 'COMMUNITY_UNAVAILABLE',
+          },
+        });
+      }
+
+      expect(mockState.categories.size).toBe(0);
+      expect(mockState.posts.size).toBe(0);
+      expect(mockState.comments.size).toBe(0);
+      expect(mockState.favorites.size).toBe(0);
+      expect(mockState.likes.size).toBe(0);
+      expect(mockState.histories.size).toBe(0);
+      expect(mkdirSpy).not.toHaveBeenCalled();
+      expect(writeFileSpy).not.toHaveBeenCalled();
+    },
+  );
+
   it('covers categories, post publishing, pagination, comments, favorites, history, summary, and soft delete', async () => {
     const categoriesResponse = await request(app.getHttpServer())
       .get('/api/v1/community/categories')
       .expect(200);
 
     expect(categoriesResponse.body.success).toBe(true);
-    expect(categoriesResponse.body.data.items.map((item: any) => item.key)).toEqual(
-      ['LEARNING', 'BATTLE', 'CODE_HELP', 'CAREER', 'GENERAL'],
-    );
+    expect(
+      categoriesResponse.body.data.items.map((item: any) => item.key),
+    ).toEqual(['LEARNING', 'BATTLE', 'CODE_HELP', 'CAREER', 'GENERAL']);
 
     await request(app.getHttpServer())
       .post('/api/v1/community/posts')
@@ -1142,7 +1333,9 @@ describe('Community routes (e2e)', () => {
       .expect(200)
       .expect((response) => {
         expect(response.body.data.items).toHaveLength(1);
-        expect(response.body.data.items[0].content).toBe('First useful comment.');
+        expect(response.body.data.items[0].content).toBe(
+          'First useful comment.',
+        );
         expect(response.body.data.items[0].author.userId).toBe(USER_B.id);
       });
 

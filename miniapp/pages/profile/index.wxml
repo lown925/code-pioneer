@@ -2,7 +2,7 @@
   <view wx:if="{{!isAuthenticated}}" class="section-card guest-card">
     <text class="guest-title">登录后查看个人主页</text>
     <text class="guest-copy">
-      登录后可查看 Battle 战绩、统一错题、社区收藏与历史，以及你发布过的帖子。
+      登录后可查看 Battle 战绩、统一错题、学习入口和账号资料。
     </text>
     <view class="primary-button guest-action" bindtap="handleLogin">去登录</view>
   </view>
@@ -65,57 +65,6 @@
           <text class="profile-footer-chip-title">学习中心</text>
         </view>
         <text wx:if="{{battleSummary}}" class="profile-footer-text">{{battleSummary.recordText}}</text>
-      </view>
-    </view>
-
-    <view class="section-card post-section">
-      <view class="section-head-inline">
-        <view>
-          <text class="section-title">我的帖子</text>
-          <text class="section-subtitle">展示你最近发布的社区帖子。</text>
-        </view>
-        <view class="ghost-button section-link" bindtap="handleOpenAllPosts">查看全部</view>
-      </view>
-
-      <view wx:if="{{isPostsLoading}}" class="state-box compact-state">
-        <text class="state-text">正在加载帖子，请稍候。</text>
-      </view>
-
-      <view wx:elif="{{postsErrorMessage}}" class="state-box compact-state">
-        <text class="state-text">{{postsErrorMessage}}</text>
-        <view class="ghost-button state-button" bindtap="handlePostsRetry">重新加载</view>
-      </view>
-
-      <view wx:elif="{{postItems.length === 0}}" class="state-box compact-state">
-        <text class="state-text">你还没有发布帖子，去互助社区发第一条内容吧。</text>
-      </view>
-
-      <view wx:else class="post-list">
-        <view
-          wx:for="{{postItems}}"
-          wx:key="postId"
-          class="post-card"
-          data-post-id="{{item.postId}}"
-          bindtap="handleOpenPostDetail"
-        >
-          <view class="post-head">
-            <view class="post-author-badge">{{profileInitial}}</view>
-            <view class="post-author-meta">
-              <text class="post-author-name">{{displayName}}</text>
-              <text class="post-author-time">{{item.createdAtText}}</text>
-            </view>
-            <view class="post-category-tag">{{item.categoryText}}</view>
-          </view>
-
-          <text class="post-title">{{item.title}}</text>
-          <text class="post-preview">{{item.contentPreview}}</text>
-
-          <view class="post-metrics">
-            <text class="post-metric-item">收藏 {{item.favoriteCountText}}</text>
-            <text class="post-metric-item">评论 {{item.commentCountText}}</text>
-            <text class="post-metric-item">浏览 {{item.viewCountText}}</text>
-          </view>
-        </view>
       </view>
     </view>
 

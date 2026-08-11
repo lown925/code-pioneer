@@ -2,16 +2,10 @@
   "pages": [
     "pages/battle/index",
     "pages/learning/index",
-    "pages/community/index",
-    "pages/community/create",
-    "pages/community/detail",
     "pages/profile/index",
     "pages/profile/edit",
     "pages/profile/user-profile",
     "pages/profile/follow-list",
-    "pages/profile/community-posts",
-    "pages/profile/community-favorites",
-    "pages/profile/community-history",
     "pages/course/list",
     "pages/course/detail",
     "pages/chapter/detail",
@@ -54,12 +48,6 @@
       {
         "pagePath": "pages/learning/index",
         "text": "学习",
-        "iconPath": "assets/tab-default.png",
-        "selectedIconPath": "assets/tab-selected.png"
-      },
-      {
-        "pagePath": "pages/community/index",
-        "text": "互助",
         "iconPath": "assets/tab-default.png",
         "selectedIconPath": "assets/tab-selected.png"
       },

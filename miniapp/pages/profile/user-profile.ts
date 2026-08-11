@@ -1,6 +1,6 @@
 import type { PublicUserProfileResponse } from '../../types/user';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
-import { formatCommunityTimestamp, isUuid } from '../../utils/community';
+import { isUuid } from '../../utils/validation';
 import {
   fetchUserProfile,
   followUser,
@@ -10,13 +10,6 @@ import {
 
 type PageState = 'loading' | 'success' | 'error';
 
-type UserProfilePostCard = PublicUserProfileResponse['recentPosts'][number] & {
-  createdAtText: string;
-  favoriteCountText: string;
-  commentCountText: string;
-  viewCountText: string;
-};
-
 type UserProfilePageData = {
   state: PageState;
   userId: string;
@@ -25,7 +18,6 @@ type UserProfilePageData = {
   displayName: string;
   profileInitial: string;
   isFollowSubmitting: boolean;
-  postItems: UserProfilePostCard[];
 };
 
 type UserProfilePageMethods = {
@@ -33,9 +25,6 @@ type UserProfilePageMethods = {
   handleRetry(): void;
   handleFollowToggle(): void;
   confirmUnfollow(): Promise<void>;
-  handleOpenPost(
-    event: WechatMiniprogram.BaseEvent<{ postId?: string }>,
-  ): void;
   handleOpenFollowing(): void;
   handleOpenFollowers(): void;
 };
@@ -44,15 +33,11 @@ let isPageActive = false;
 let requestSerial = 0;
 
 function getDisplayName(profile: PublicUserProfileResponse | null) {
-  return profile?.nickname?.trim() || '社区用户';
+  return profile?.nickname?.trim() || '微信用户';
 }
 
 function getProfileInitial(profile: PublicUserProfileResponse | null) {
   return getDisplayName(profile).slice(0, 1) || '人';
-}
-
-function formatCount(value: number) {
-  return String(Math.max(0, Math.floor(value)));
 }
 
 Page<UserProfilePageData, UserProfilePageMethods>({
@@ -61,10 +46,9 @@ Page<UserProfilePageData, UserProfilePageMethods>({
     userId: '',
     errorMessage: '',
     profile: null,
-    displayName: '社区用户',
+    displayName: '微信用户',
     profileInitial: '人',
     isFollowSubmitting: false,
-    postItems: [],
   },
 
   onLoad(query) {
@@ -129,13 +113,6 @@ Page<UserProfilePageData, UserProfilePageMethods>({
         profile,
         displayName: getDisplayName(profile),
         profileInitial: getProfileInitial(profile),
-        postItems: profile.recentPosts.map((post) => ({
-          ...post,
-          createdAtText: formatCommunityTimestamp(post.createdAt),
-          favoriteCountText: formatCount(post.favoriteCount),
-          commentCountText: formatCount(post.commentCount),
-          viewCountText: formatCount(post.viewCount),
-        })),
       });
     } catch (error) {
       if (!isPageActive || currentSerial !== requestSerial) {
@@ -267,24 +244,6 @@ Page<UserProfilePageData, UserProfilePageMethods>({
         icon: 'none',
       });
     }
-  },
-
-  handleOpenPost(
-    event: WechatMiniprogram.BaseEvent<{ postId?: string }>,
-  ) {
-    const postId = event.currentTarget.dataset.postId;
-
-    if (!postId) {
-      wx.showToast({
-        title: '帖子参数无效',
-        icon: 'none',
-      });
-      return;
-    }
-
-    wx.navigateTo({
-      url: `/pages/community/detail?postId=${encodeURIComponent(postId)}`,
-    });
   },
 
   handleOpenFollowing() {

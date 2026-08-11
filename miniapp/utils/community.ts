@@ -26,6 +26,7 @@ import type {
 import { RequestError, getApiBaseUrl, request, uploadFile } from './request';
 import { getEnvironmentStorageKey } from './config';
 import { formatLearningTimestamp } from './time';
+export { isUuid } from './validation';
 
 const COMMUNITY_CONTENT_VERSION_KEY = getEnvironmentStorageKey(
   'community.version.content',
@@ -357,16 +358,6 @@ export function getCommunityErrorMessage(
   }
 
   return fallback;
-}
-
-export function isUuid(value: string | undefined | null) {
-  if (!value) {
-    return false;
-  }
-
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value,
-  );
 }
 
 function normalizeCommunityAssetUrl(url: string) {

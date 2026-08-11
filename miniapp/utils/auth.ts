@@ -15,6 +15,7 @@ import {
   getMiniProgramEnvVersion as getConfiguredEnvVersion,
   normalizePagePath,
 } from './config';
+import { sanitizeLoginRedirectPath } from './navigation';
 
 const AUTH_STORAGE_KEY = getEnvironmentStorageKey('auth.session');
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 30_000;
@@ -247,7 +248,10 @@ export function redirectToLogin(redirectPath?: string) {
     return;
   }
 
-  const target = normalizePagePath(redirectPath || currentUrl);
+  const target = sanitizeLoginRedirectPath(
+    normalizePagePath(redirectPath || currentUrl),
+    DEFAULT_TAB_PAGE_PATH,
+  );
   const loginUrl = `${LOGIN_PAGE_PATH}?redirect=${encodeURIComponent(target)}`;
 
   loginNavigationPending = true;
@@ -269,7 +273,10 @@ export function redirectToLogin(redirectPath?: string) {
 }
 
 export function finishLoginNavigation(redirectPath?: string) {
-  const target = normalizePagePath(redirectPath || DEFAULT_TAB_PAGE_PATH);
+  const target = sanitizeLoginRedirectPath(
+    normalizePagePath(redirectPath || DEFAULT_TAB_PAGE_PATH),
+    DEFAULT_TAB_PAGE_PATH,
+  );
   const [pagePath] = target.split('?');
 
   if (isTabBarPage(pagePath)) {
