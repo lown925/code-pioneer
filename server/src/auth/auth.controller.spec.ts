@@ -6,6 +6,7 @@ describe('AuthController', () => {
   let authController: AuthController;
   const authService = {
     wechatLogin: jest.fn(),
+    devLogin: jest.fn(),
     refresh: jest.fn(),
     logout: jest.fn(),
   };
@@ -23,6 +24,33 @@ describe('AuthController', () => {
 
     authController = module.get(AuthController);
     Object.values(authService).forEach((mockFn) => mockFn.mockReset());
+  });
+
+  it('delegates dev-login to AuthService', async () => {
+    const dto = { account: 'player-a' as const };
+    const expected = {
+      success: true,
+      data: {
+        accessToken: 'dev-access-token',
+        refreshToken: 'dev-refresh-token',
+        expiresIn: 900,
+        user: {
+          id: 'dev-user-id',
+          nickname: '测试玩家 A',
+          avatarUrl: null,
+          status: 'NORMAL',
+          experience: 0,
+          battleRating: 1000,
+          continuousLearningDays: 0,
+        },
+        isNewUser: true,
+      },
+    };
+
+    authService.devLogin.mockResolvedValue(expected);
+
+    await expect(authController.devLogin(dto)).resolves.toEqual(expected);
+    expect(authService.devLogin).toHaveBeenCalledWith(dto);
   });
 
   it('delegates wechat-login to AuthService', async () => {

@@ -2,15 +2,20 @@ import type { LoginResponseData } from "../../types/auth";
 import {
   finishLoginNavigation,
   getAuthStateSummary,
+  isDevelopmentEnvironment,
   saveLoginSession,
 } from "../../utils/auth";
 import { RequestError, request } from "../../utils/request";
 
 type LoginPageData = {
   isWechatSubmitting: boolean;
+  devSubmittingAccount: DevLoginAccount | "";
+  showDevLogin: boolean;
   errorMessage: string;
   redirectPath: string;
 };
+
+type DevLoginAccount = "player-a" | "player-b";
 
 function decodeQueryValue(value: string) {
   try {
@@ -101,9 +106,22 @@ function openProfileOnboarding(redirectPath: string) {
   });
 }
 
+function devLogin(account: DevLoginAccount) {
+  return request<LoginResponseData>({
+    url: "/auth/dev-login",
+    method: "POST",
+    data: { account },
+    authMode: "none",
+    retryOnAuthFailure: false,
+    disableAuthRedirect: true,
+  });
+}
+
 Page<LoginPageData>({
   data: {
     isWechatSubmitting: false,
+    devSubmittingAccount: "",
+    showDevLogin: isDevelopmentEnvironment(),
     errorMessage: "",
     redirectPath: "",
   },
@@ -137,7 +155,7 @@ Page<LoginPageData>({
   },
 
   async handleWechatLogin() {
-    if (this.data.isWechatSubmitting) {
+    if (this.data.isWechatSubmitting || this.data.devSubmittingAccount) {
       return;
     }
 
@@ -176,6 +194,48 @@ Page<LoginPageData>({
     } finally {
       this.setData({
         isWechatSubmitting: false,
+      });
+    }
+  },
+
+  handleDevPlayerALogin() {
+    return this.handleDevLogin("player-a");
+  },
+
+  handleDevPlayerBLogin() {
+    return this.handleDevLogin("player-b");
+  },
+
+  async handleDevLogin(account: DevLoginAccount) {
+    if (
+      !this.data.showDevLogin ||
+      this.data.isWechatSubmitting ||
+      this.data.devSubmittingAccount
+    ) {
+      return;
+    }
+
+    this.setData({
+      devSubmittingAccount: account,
+      errorMessage: "",
+    });
+
+    try {
+      const data = await devLogin(account);
+
+      saveLoginSession(data);
+      wx.showToast({
+        title: `${data.user.nickname ?? "测试玩家"}登录成功`,
+        icon: "none",
+      });
+      finishLoginNavigation(this.data.redirectPath);
+    } catch (error) {
+      this.setData({
+        errorMessage: getReadableLoginError(error),
+      });
+    } finally {
+      this.setData({
+        devSubmittingAccount: "",
       });
     }
   },

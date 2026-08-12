@@ -355,6 +355,110 @@ describe('AuthService', () => {
     expect(sessions.size).toBe(2);
   });
 
+  it('creates fixed dev users, valid sessions, and reusable user JWTs', async () => {
+    const { service, users, sessions } = createService();
+
+    const playerA = await service.devLogin({ account: 'player-a' });
+    const playerB = await service.devLogin({ account: 'player-b' });
+
+    expect([...users.values()]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          openId: 'dev:test-player-a',
+          nickname: '测试玩家 A',
+          status: UserStatus.NORMAL,
+        }),
+        expect.objectContaining({
+          openId: 'dev:test-player-b',
+          nickname: '测试玩家 B',
+          status: UserStatus.NORMAL,
+        }),
+      ]),
+    );
+    expect(users.size).toBe(2);
+    expect(sessions.size).toBe(2);
+    await expect(
+      service.validateAccessToken(playerA.data.accessToken),
+    ).resolves.toMatchObject({
+      id: playerA.data.user.id,
+      tokenType: 'USER',
+      role: 'NORMAL',
+    });
+    await expect(
+      service.validateAccessToken(playerB.data.accessToken),
+    ).resolves.toMatchObject({
+      id: playerB.data.user.id,
+      tokenType: 'USER',
+      role: 'NORMAL',
+    });
+  });
+
+  it('reuses the fixed dev user while creating a session for every login', async () => {
+    const { service, users, sessions } = createService();
+
+    const first = await service.devLogin({ account: 'player-a' });
+    const second = await service.devLogin({ account: 'player-a' });
+
+    expect(first.data.isNewUser).toBe(true);
+    expect(second.data.isNewUser).toBe(false);
+    expect(first.data.user.id).toBe(second.data.user.id);
+    expect(users.size).toBe(1);
+    expect(sessions.size).toBe(2);
+  });
+
+  it.each([
+    ['production', 'true'],
+    ['trial', 'true'],
+    [undefined, 'true'],
+    ['', 'true'],
+    ['Development', 'true'],
+    ['development', 'false'],
+    ['development', undefined],
+  ])(
+    'fails closed for APP_ENV=%s and AUTH_MOCK_ENABLED=%s',
+    async (appEnvironment, mockEnabled) => {
+      if (appEnvironment === undefined) {
+        delete process.env.APP_ENV;
+      } else {
+        process.env.APP_ENV = appEnvironment;
+      }
+
+      if (mockEnabled === undefined) {
+        delete process.env.AUTH_MOCK_ENABLED;
+      } else {
+        process.env.AUTH_MOCK_ENABLED = mockEnabled;
+      }
+
+      const { service, users, sessions } = createService();
+
+      await expect(
+        service.devLogin({ account: 'player-a' }),
+      ).rejects.toMatchObject({
+        status: 404,
+        response: { message: 'DEV_LOGIN_NOT_FOUND' },
+      });
+      expect(users.size).toBe(0);
+      expect(sessions.size).toBe(0);
+    },
+  );
+
+  it('allows dev login in the explicit test environment', async () => {
+    process.env.APP_ENV = 'test';
+    process.env.AUTH_MOCK_ENABLED = 'true';
+    const { service } = createService();
+
+    await expect(
+      service.devLogin({ account: 'player-b' }),
+    ).resolves.toMatchObject({
+      success: true,
+      data: {
+        user: {
+          nickname: '测试玩家 B',
+        },
+      },
+    });
+  });
+
   it('rejects re-login for users already marked as DELETED', async () => {
     const { service, prisma, sessions, users } = createService();
     const deletedUser = await prisma.user.create({

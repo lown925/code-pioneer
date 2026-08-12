@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./.cleanup-dev-dist",
+    "rootDir": ".",
+    "declaration": false,
+    "sourceMap": false,
+    "incremental": false
+  },
+  "include": [
+    "scripts/cleanup-dev-battle-users.ts",
+    "generated/prisma/**/*.ts",
+    "src/prisma/prisma.service.ts",
+    "src/environment/environment.config.ts"
+  ]
+}

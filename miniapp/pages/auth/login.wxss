@@ -8,6 +8,7 @@
 
 .hero-card,
 .auth-card,
+.dev-auth-card,
 .error-card {
   padding: 32rpx;
 }
@@ -58,6 +59,24 @@
 .action-button-primary {
   background: linear-gradient(135deg, #2f6bff 0%, #4aa4ff 100%);
   color: #ffffff;
+}
+
+.dev-login-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20rpx;
+  margin-top: 28rpx;
+}
+
+.dev-login-actions .action-button {
+  width: 100%;
+  margin-top: 0;
+}
+
+.action-button-secondary {
+  background: #edf4ff;
+  color: #17324d;
+  border: 2rpx solid #bfd3f4;
 }
 
 .error-card {

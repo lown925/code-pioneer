@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { createHash, timingSafeEqual } from 'crypto';
@@ -12,6 +13,7 @@ import { type CurrentUserContext, type JwtUserPayload } from './auth.types';
 import { JwtService } from './jwt.service';
 import { WechatLoginDto } from './dto/wechat-login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { type DevLoginAccount, DevLoginDto } from './dto/dev-login.dto';
 
 type LoginResponseUser = {
   id: string;
@@ -26,6 +28,7 @@ type LoginResponseUser = {
 type WechatIdentity = {
   openId: string;
   unionId: string | null;
+  nickname?: string;
 };
 
 type WechatSessionResponse = {
@@ -36,6 +39,20 @@ type WechatSessionResponse = {
 };
 
 const WECHAT_INVALID_CODE_ERROR_CODES = new Set([40029, 40163, 40226]);
+
+const DEV_LOGIN_IDENTITIES: Record<
+  DevLoginAccount,
+  Pick<WechatIdentity, 'openId' | 'nickname'>
+> = {
+  'player-a': {
+    openId: 'dev:test-player-a',
+    nickname: '测试玩家 A',
+  },
+  'player-b': {
+    openId: 'dev:test-player-b',
+    nickname: '测试玩家 B',
+  },
+};
 
 type RefreshSessionRecord = {
   id: string;
@@ -59,6 +76,21 @@ export class AuthService {
 
   async wechatLogin(dto: WechatLoginDto) {
     const identity = await this.resolveWechatIdentity(dto);
+
+    return this.loginWithIdentity(identity);
+  }
+
+  async devLogin(dto: DevLoginDto) {
+    this.assertDevLoginEnabled();
+    const identity = DEV_LOGIN_IDENTITIES[dto.account];
+
+    return this.loginWithIdentity({
+      ...identity,
+      unionId: null,
+    });
+  }
+
+  private async loginWithIdentity(identity: WechatIdentity) {
     const now = new Date();
 
     const existingUser = await this.prisma.user.findUnique({
@@ -79,6 +111,7 @@ export class AuthService {
           where: { id: existingUser.id },
           data: {
             unionId: existingUser.unionId ?? identity.unionId,
+            ...(identity.nickname ? { nickname: identity.nickname } : {}),
             lastLoginAt: now,
           },
         })
@@ -86,6 +119,7 @@ export class AuthService {
           data: {
             openId: identity.openId,
             unionId: identity.unionId,
+            ...(identity.nickname ? { nickname: identity.nickname } : {}),
             lastLoginAt: now,
           },
         });
@@ -121,6 +155,19 @@ export class AuthService {
         isNewUser: !existingUser,
       },
     };
+  }
+
+  private assertDevLoginEnabled() {
+    const appEnvironment = process.env.APP_ENV;
+    const mockEnabled =
+      process.env.AUTH_MOCK_ENABLED?.trim().toLowerCase() === 'true';
+
+    if (
+      (appEnvironment !== 'development' && appEnvironment !== 'test') ||
+      !mockEnabled
+    ) {
+      throw new NotFoundException('DEV_LOGIN_NOT_FOUND');
+    }
   }
 
   async refresh(dto: RefreshTokenDto) {

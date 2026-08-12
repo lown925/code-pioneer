@@ -2,6 +2,7 @@ server/node_modules/
 server/dist/
 server/.tsbuildinfo
 server/coverage/
+server/.cleanup-dev-dist/
 server/.env
 server/generated/
 server/public/uploads/

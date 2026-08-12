@@ -20,6 +20,7 @@
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate --config prisma.config.ts",
     "cleanup:release-test-data": "node scripts/run-cleanup-release-test-data.cjs",
+    "cleanup:dev-battle-users": "node scripts/run-cleanup-dev-battle-users.cjs",
     "seed:content": "node scripts/run-seed-content.cjs",
     "seed:quiz": "prisma db execute --file prisma/seed.sql --config prisma.config.ts"
   },
