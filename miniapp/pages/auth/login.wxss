@@ -8,7 +8,7 @@
 
 .hero-card,
 .auth-card,
-.dev-auth-card,
+.test-auth-card,
 .error-card {
   padding: 32rpx;
 }
@@ -61,14 +61,14 @@
   color: #ffffff;
 }
 
-.dev-login-actions {
+.test-login-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20rpx;
   margin-top: 28rpx;
 }
 
-.dev-login-actions .action-button {
+.test-login-actions .action-button {
   width: 100%;
   margin-top: 0;
 }

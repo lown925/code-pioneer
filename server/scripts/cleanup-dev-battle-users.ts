@@ -10,9 +10,9 @@ const EXECUTE_FLAG = '--execute';
 const CLEANUP_ALLOWED_ENV = 'CLEANUP_TEST_DATA_ALLOWED';
 const TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 120_000 } as const;
 
-export const DEV_BATTLE_OPEN_IDS = [
-  'dev:test-player-a',
-  'dev:test-player-b',
+export const MOCK_BATTLE_OPEN_IDS = [
+  'test-player-a',
+  'test-player-b',
 ] as const;
 
 type TargetUser = {
@@ -135,7 +135,7 @@ export async function loadScope(
   prisma: CleanupClient,
 ): Promise<CleanupScope> {
   const users = await prisma.user.findMany({
-    where: { openId: { in: [...DEV_BATTLE_OPEN_IDS] } },
+    where: { openId: { in: [...MOCK_BATTLE_OPEN_IDS] } },
     select: { id: true, openId: true },
     orderBy: { openId: 'asc' },
   });
@@ -210,7 +210,7 @@ export async function loadScope(
   if (mixedUserReferenceRoomIds.length > 0 || mixedQueueRoomIds.length > 0) {
     throw new Error(
       [
-        'BLOCKER: dev Battle rooms reference non-dev users.',
+        'BLOCKER: test Battle rooms reference non-test users.',
         `mixed user-reference rooms: ${mixedUserReferenceRoomIds.length}`,
         `mixed queue rooms: ${mixedQueueRoomIds.length}`,
         'No database or upload data was deleted.',
@@ -271,7 +271,7 @@ export async function loadScope(
   if (mixedCommunityPostIds.length > 0) {
     throw new Error(
       [
-        'BLOCKER: dev Community posts reference non-dev users.',
+        'BLOCKER: test Community posts reference non-test users.',
         `mixed posts: ${mixedCommunityPostIds.length}`,
         'No database or upload data was deleted.',
       ].join(' '),
@@ -431,7 +431,7 @@ function assertSameScope(expected: CleanupScope, actual: CleanupScope) {
     JSON.stringify(comparable(expected)) !== JSON.stringify(comparable(actual))
   ) {
     throw new Error(
-      'BLOCKER: dev cleanup scope changed after locks were acquired. No data was deleted.',
+      'BLOCKER: test cleanup scope changed after locks were acquired. No data was deleted.',
     );
   }
 }
@@ -550,7 +550,7 @@ async function main() {
     const uploads = await loadUploadCandidates(uploadRoot, scope.userIds);
 
     console.log(execute ? 'Mode: EXECUTE' : 'Mode: DRY-RUN');
-    console.log(`Exact OpenIDs: ${DEV_BATTLE_OPEN_IDS.join(', ')}`);
+    console.log(`Exact OpenIDs: ${MOCK_BATTLE_OPEN_IDS.join(', ')}`);
     console.log(`Matched users: ${scope.users.length}`);
     printCounts('Target rows', counts);
     console.log(`\nTarget upload files: ${uploads.length}`);
@@ -567,7 +567,7 @@ async function main() {
     const afterScope = await loadScope(prisma);
     const afterCounts = await loadCounts(prisma, afterScope);
 
-    printCounts('Rows remaining for exact dev users', afterCounts);
+    printCounts('Rows remaining for exact test users', afterCounts);
     console.log(`Deleted upload files: ${deletedUploads}`);
     console.log('Cleanup complete.');
   } finally {

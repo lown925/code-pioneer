@@ -18,22 +18,22 @@
     </button>
   </view>
 
-  <view wx:if="{{showDevLogin}}" class="section-card dev-auth-card">
+  <view wx:if="{{showTestLogin}}" class="section-card test-auth-card">
     <text class="section-title">测试登录</text>
-    <view class="dev-login-actions">
+    <view class="test-login-actions">
       <button
         class="action-button action-button-secondary"
-        loading="{{devSubmittingAccount === 'player-a'}}"
-        disabled="{{isWechatSubmitting || devSubmittingAccount}}"
-        bindtap="handleDevPlayerALogin"
+        loading="{{testSubmittingOpenId === 'test-player-a'}}"
+        disabled="{{isWechatSubmitting || testSubmittingOpenId}}"
+        bindtap="handleTestPlayerALogin"
       >
         测试玩家 A
       </button>
       <button
         class="action-button action-button-secondary"
-        loading="{{devSubmittingAccount === 'player-b'}}"
-        disabled="{{isWechatSubmitting || devSubmittingAccount}}"
-        bindtap="handleDevPlayerBLogin"
+        loading="{{testSubmittingOpenId === 'test-player-b'}}"
+        disabled="{{isWechatSubmitting || testSubmittingOpenId}}"
+        bindtap="handleTestPlayerBLogin"
       >
         测试玩家 B
       </button>

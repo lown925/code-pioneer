@@ -1,5 +1,5 @@
 import {
-  DEV_BATTLE_OPEN_IDS,
+  MOCK_BATTLE_OPEN_IDS,
   loadScope,
 } from '../scripts/cleanup-dev-battle-users';
 
@@ -10,8 +10,8 @@ function createScopePrisma(options?: {
   mixedInviter?: boolean;
 }) {
   const users = [
-    { id: 'dev-user-a', openId: DEV_BATTLE_OPEN_IDS[0] },
-    { id: 'dev-user-b', openId: DEV_BATTLE_OPEN_IDS[1] },
+    { id: 'test-user-a', openId: MOCK_BATTLE_OPEN_IDS[0] },
+    { id: 'test-user-b', openId: MOCK_BATTLE_OPEN_IDS[1] },
   ];
   const prisma = {
     user: {
@@ -85,15 +85,15 @@ function createScopePrisma(options?: {
   return { prisma, users };
 }
 
-describe('Dev Battle user cleanup scope', () => {
-  it('queries only the two exact dev OpenIDs', async () => {
+describe('Mock Battle user cleanup scope', () => {
+  it('queries only the two exact mock OpenIDs', async () => {
     const { prisma, users } = createScopePrisma();
 
     const scope = await loadScope(prisma as never);
 
     expect(prisma.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { openId: { in: [...DEV_BATTLE_OPEN_IDS] } },
+        where: { openId: { in: [...MOCK_BATTLE_OPEN_IDS] } },
       }),
     );
     expect(scope.userIds).toEqual(users.map((user) => user.id));
@@ -104,20 +104,20 @@ describe('Dev Battle user cleanup scope', () => {
     ['participant', { mixedParticipant: true }],
     ['match queue', { mixedQueue: true }],
     ['inviter', { mixedInviter: true }],
-  ])('blocks a room with a non-dev %s', async (_name, options) => {
+  ])('blocks a room with a non-test %s', async (_name, options) => {
     const { prisma } = createScopePrisma(options);
 
     await expect(loadScope(prisma as never)).rejects.toThrow(
-      'BLOCKER: dev Battle rooms reference non-dev users.',
+      'BLOCKER: test Battle rooms reference non-test users.',
     );
     expect(prisma.communityPost.findMany).not.toHaveBeenCalled();
   });
 
-  it('blocks a dev Community post with a non-dev interaction', async () => {
+  it('blocks a test Community post with a non-test interaction', async () => {
     const { prisma } = createScopePrisma({ mixedCommunity: true });
 
     await expect(loadScope(prisma as never)).rejects.toThrow(
-      'BLOCKER: dev Community posts reference non-dev users.',
+      'BLOCKER: test Community posts reference non-test users.',
     );
     expect(prisma.courseLearningRecord.findMany).toHaveBeenCalled();
   });

@@ -4,7 +4,6 @@ import { CurrentUser } from './current-user.decorator';
 import { LogoutAuthGuard } from './jwt-user-auth.guard';
 import { WechatLoginDto } from './dto/wechat-login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { DevLoginDto } from './dto/dev-login.dto';
 import { type CurrentUserContext } from './auth.types';
 
 @Controller('auth')
@@ -14,11 +13,6 @@ export class AuthController {
   @Post('wechat-login')
   wechatLogin(@Body() dto: WechatLoginDto) {
     return this.authService.wechatLogin(dto);
-  }
-
-  @Post('dev-login')
-  devLogin(@Body() dto: DevLoginDto) {
-    return this.authService.devLogin(dto);
   }
 
   @Post('refresh')

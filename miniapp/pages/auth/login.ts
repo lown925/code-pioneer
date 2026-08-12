@@ -9,13 +9,13 @@ import { RequestError, request } from "../../utils/request";
 
 type LoginPageData = {
   isWechatSubmitting: boolean;
-  devSubmittingAccount: DevLoginAccount | "";
-  showDevLogin: boolean;
+  testSubmittingOpenId: TestPlayerOpenId | "";
+  showTestLogin: boolean;
   errorMessage: string;
   redirectPath: string;
 };
 
-type DevLoginAccount = "player-a" | "player-b";
+type TestPlayerOpenId = "test-player-a" | "test-player-b";
 
 function decodeQueryValue(value: string) {
   try {
@@ -106,11 +106,16 @@ function openProfileOnboarding(redirectPath: string) {
   });
 }
 
-function devLogin(account: DevLoginAccount) {
+async function mockOpenIdLogin(mockOpenId: TestPlayerOpenId) {
+  const loginResult = await wxLogin();
+
   return request<LoginResponseData>({
-    url: "/auth/dev-login",
+    url: "/auth/wechat-login",
     method: "POST",
-    data: { account },
+    data: {
+      code: loginResult.code,
+      mockOpenId,
+    },
     authMode: "none",
     retryOnAuthFailure: false,
     disableAuthRedirect: true,
@@ -120,8 +125,8 @@ function devLogin(account: DevLoginAccount) {
 Page<LoginPageData>({
   data: {
     isWechatSubmitting: false,
-    devSubmittingAccount: "",
-    showDevLogin: isDevelopmentEnvironment(),
+    testSubmittingOpenId: "",
+    showTestLogin: isDevelopmentEnvironment(),
     errorMessage: "",
     redirectPath: "",
   },
@@ -155,7 +160,7 @@ Page<LoginPageData>({
   },
 
   async handleWechatLogin() {
-    if (this.data.isWechatSubmitting || this.data.devSubmittingAccount) {
+    if (this.data.isWechatSubmitting || this.data.testSubmittingOpenId) {
       return;
     }
 
@@ -198,30 +203,30 @@ Page<LoginPageData>({
     }
   },
 
-  handleDevPlayerALogin() {
-    return this.handleDevLogin("player-a");
+  handleTestPlayerALogin() {
+    return this.handleTestLogin("test-player-a");
   },
 
-  handleDevPlayerBLogin() {
-    return this.handleDevLogin("player-b");
+  handleTestPlayerBLogin() {
+    return this.handleTestLogin("test-player-b");
   },
 
-  async handleDevLogin(account: DevLoginAccount) {
+  async handleTestLogin(mockOpenId: TestPlayerOpenId) {
     if (
-      !this.data.showDevLogin ||
+      !this.data.showTestLogin ||
       this.data.isWechatSubmitting ||
-      this.data.devSubmittingAccount
+      this.data.testSubmittingOpenId
     ) {
       return;
     }
 
     this.setData({
-      devSubmittingAccount: account,
+      testSubmittingOpenId: mockOpenId,
       errorMessage: "",
     });
 
     try {
-      const data = await devLogin(account);
+      const data = await mockOpenIdLogin(mockOpenId);
 
       saveLoginSession(data);
       wx.showToast({
@@ -235,7 +240,7 @@ Page<LoginPageData>({
       });
     } finally {
       this.setData({
-        devSubmittingAccount: "",
+        testSubmittingOpenId: "",
       });
     }
   },

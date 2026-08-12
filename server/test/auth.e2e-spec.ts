@@ -6,6 +6,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { UserStatus } from '../generated/prisma/enums';
 import { AppModule } from './../src/app.module';
+import { AuthService } from './../src/auth/auth.service';
 import { PrismaService } from './../src/prisma/prisma.service';
 
 type UserRecord = {
@@ -249,11 +250,6 @@ describe('Auth flow (e2e)', () => {
     await app.init();
   });
 
-  afterEach(() => {
-    process.env.APP_ENV = 'development';
-    process.env.AUTH_MOCK_ENABLED = 'true';
-  });
-
   afterAll(async () => {
     await app.close();
     restoreEnv('NODE_ENV');
@@ -265,116 +261,61 @@ describe('Auth flow (e2e)', () => {
     restoreEnv('JWT_REFRESH_EXPIRES');
   });
 
-  it('creates fixed dev users and supports protected API, refresh, and logout', async () => {
-    const firstPlayerA = await request(app.getHttpServer())
-      .post('/api/v1/auth/dev-login')
-      .send({ account: 'player-a' })
-      .expect(201);
-    const secondPlayerA = await request(app.getHttpServer())
-      .post('/api/v1/auth/dev-login')
-      .send({ account: 'player-a' })
+  it('creates fixed mock players with normal user JWTs and /users/me access', async () => {
+    const playerA = await request(app.getHttpServer())
+      .post('/api/v1/auth/wechat-login')
+      .send({ code: 'ignored-a', mockOpenId: 'test-player-a' })
       .expect(201);
     const playerB = await request(app.getHttpServer())
-      .post('/api/v1/auth/dev-login')
-      .send({ account: 'player-b' })
+      .post('/api/v1/auth/wechat-login')
+      .send({ code: 'ignored-b', mockOpenId: 'test-player-b' })
       .expect(201);
 
-    expect(firstPlayerA.body.data).toMatchObject({
-      isNewUser: true,
-      user: { nickname: '测试玩家 A' },
-    });
-    expect(secondPlayerA.body.data).toMatchObject({
-      isNewUser: false,
-      user: { id: firstPlayerA.body.data.user.id },
-    });
-    expect(playerB.body.data).toMatchObject({
-      isNewUser: true,
-      user: { nickname: '测试玩家 B' },
-    });
-    expect(firstPlayerA.body.data.user).not.toHaveProperty('openId');
+    expect(playerA.body.data.user.id).not.toBe(playerB.body.data.user.id);
     expect([...users.values()]).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ openId: 'dev:test-player-a' }),
-        expect.objectContaining({ openId: 'dev:test-player-b' }),
+        expect.objectContaining({
+          id: playerA.body.data.user.id,
+          openId: 'test-player-a',
+          status: UserStatus.NORMAL,
+        }),
+        expect.objectContaining({
+          id: playerB.body.data.user.id,
+          openId: 'test-player-b',
+          status: UserStatus.NORMAL,
+        }),
       ]),
     );
-    expect(
-      [...users.values()].filter((user) => user.openId === 'dev:test-player-a'),
-    ).toHaveLength(1);
-    expect(sessions.size).toBe(3);
+    expect(sessions.size).toBe(2);
 
-    await request(app.getHttpServer())
-      .get('/api/v1/users/me')
-      .set('Authorization', `Bearer ${firstPlayerA.body.data.accessToken}`)
-      .expect(200)
-      .expect((response) => {
-        expect(response.body.data.id).toBe(firstPlayerA.body.data.user.id);
-      });
+    const authService = app.get(AuthService);
 
-    const refreshResponse = await request(app.getHttpServer())
-      .post('/api/v1/auth/refresh')
-      .send({ refreshToken: firstPlayerA.body.data.refreshToken })
-      .expect(201);
+    await expect(
+      authService.validateAccessToken(playerA.body.data.accessToken),
+    ).resolves.toMatchObject({
+      id: playerA.body.data.user.id,
+      tokenType: 'USER',
+      role: 'NORMAL',
+    });
+    await expect(
+      authService.validateAccessToken(playerB.body.data.accessToken),
+    ).resolves.toMatchObject({
+      id: playerB.body.data.user.id,
+      tokenType: 'USER',
+      role: 'NORMAL',
+    });
 
-    await request(app.getHttpServer())
-      .post('/api/v1/auth/logout')
-      .set('Authorization', `Bearer ${refreshResponse.body.data.accessToken}`)
-      .expect(200);
-
-    await request(app.getHttpServer())
-      .get('/api/v1/users/me')
-      .set('Authorization', `Bearer ${refreshResponse.body.data.accessToken}`)
-      .expect(401);
+    for (const login of [playerA, playerB]) {
+      await request(app.getHttpServer())
+        .get('/api/v1/users/me')
+        .set('Authorization', `Bearer ${login.body.data.accessToken}`)
+        .expect(200)
+        .expect((response) => {
+          expect(response.body.data.id).toBe(login.body.data.user.id);
+          expect(response.body.data.status).toBe(UserStatus.NORMAL);
+        });
+    }
   });
-
-  it.each([
-    ['unknown player', { account: 'player-c' }],
-    ['arbitrary openId', { account: 'player-a', openId: 'wechat-looking-id' }],
-    ['arbitrary userId', { account: 'player-a', userId: randomUUID() }],
-    ['arbitrary role', { account: 'player-a', role: 'SUPER_ADMIN' }],
-  ])('rejects dev-login payload injection: %s', async (_name, payload) => {
-    await request(app.getHttpServer())
-      .post('/api/v1/auth/dev-login')
-      .send(payload)
-      .expect(400);
-  });
-
-  it.each([
-    ['production', 'true'],
-    ['trial', 'true'],
-    [undefined, 'true'],
-    ['', 'true'],
-    ['Development', 'true'],
-    ['development', 'false'],
-    ['development', undefined],
-  ])(
-    'returns 404 for APP_ENV=%s and AUTH_MOCK_ENABLED=%s',
-    async (appEnvironment, mockEnabled) => {
-      if (appEnvironment === undefined) {
-        delete process.env.APP_ENV;
-      } else {
-        process.env.APP_ENV = appEnvironment;
-      }
-
-      if (mockEnabled === undefined) {
-        delete process.env.AUTH_MOCK_ENABLED;
-      } else {
-        process.env.AUTH_MOCK_ENABLED = mockEnabled;
-      }
-
-      const beforeUsers = users.size;
-      const beforeSessions = sessions.size;
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/auth/dev-login')
-        .set('X-Client-Environment', 'develop')
-        .send({ account: 'player-a' })
-        .expect(404);
-
-      expect(response.body.message).toBe('DEV_LOGIN_NOT_FOUND');
-      expect(users.size).toBe(beforeUsers);
-      expect(sessions.size).toBe(beforeSessions);
-    },
-  );
 
   it('keeps /auth/me unavailable and makes logout idempotent', async () => {
     const loginResponse = await request(app.getHttpServer())
