@@ -2,7 +2,10 @@ import 'dotenv/config';
 
 import { createHash } from 'crypto';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { VERSIONED_COURSE_SEEDS } from '../prisma/seed-data';
+import {
+  BATTLE_SKILL_SEEDS,
+  VERSIONED_COURSE_SEEDS,
+} from '../prisma/seed-data';
 import type {
   SeedChapter,
   SeedCodeFillQuestion,
@@ -603,6 +606,9 @@ async function upsertCourseSeed(prisma: PrismaService, course: SeedCourse) {
               caseSensitive: getCaseSensitive(question),
               knowledgeTags,
               programmingLanguage: getProgrammingLanguage(question),
+              battleSkillCode: question.isBattleEnabled
+                ? course.battleSkillCode
+                : null,
             },
             update: {
               quizId: quiz.id,
@@ -626,6 +632,9 @@ async function upsertCourseSeed(prisma: PrismaService, course: SeedCourse) {
               caseSensitive: getCaseSensitive(question),
               knowledgeTags,
               programmingLanguage: getProgrammingLanguage(question),
+              battleSkillCode: question.isBattleEnabled
+                ? course.battleSkillCode
+                : null,
             },
           });
 
@@ -773,6 +782,20 @@ async function countBattleEligibleQuestions(prisma: PrismaService) {
   }).length;
 }
 
+async function upsertBattleSkills(prisma: PrismaService) {
+  for (const skill of BATTLE_SKILL_SEEDS) {
+    await prisma.battleSkill.upsert({
+      where: { code: skill.code },
+      create: skill,
+      update: {
+        name: skill.name,
+        isEnabled: skill.isEnabled,
+        sortOrder: skill.sortOrder,
+      },
+    });
+  }
+}
+
 async function main() {
   for (const course of VERSIONED_COURSE_SEEDS) {
     validateCourseSeed(course);
@@ -782,6 +805,7 @@ async function main() {
 
   try {
     await prisma.$connect();
+    await upsertBattleSkills(prisma);
 
     const importedCourses: Array<{
       slug: string;

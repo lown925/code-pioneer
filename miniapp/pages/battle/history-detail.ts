@@ -10,6 +10,7 @@ import {
   formatBattleInitial,
   formatBattleNickname,
   formatBattleRating,
+  formatBattleSkill,
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
@@ -67,6 +68,7 @@ type DetailPageData = {
   descriptionText: string;
   errorMessage: string;
   modeText: string;
+  skillText: string;
   statusText: string;
   resultText: string;
   resultBadgeClassName: string;
@@ -172,6 +174,7 @@ Page<DetailPageData, DetailPageMethods>({
     descriptionText: '系统正在同步本场 Battle 的题目快照、你的作答和服务端结算结果。',
     errorMessage: '',
     modeText: '',
+    skillText: '',
     statusText: '',
     resultText: '',
     resultBadgeClassName: 'result-badge-draw',
@@ -294,6 +297,7 @@ Page<DetailPageData, DetailPageMethods>({
         descriptionText: '当前页面只展示本人的逐题作答、正确答案和解析，不展示对手逐题答案。',
         errorMessage: '',
         modeText: this.getModeText(response.mode),
+        skillText: formatBattleSkill(response.skill),
         statusText: this.getStatusText(response.status),
         resultText: resultMeta.text,
         resultBadgeClassName: resultMeta.className,
@@ -625,7 +629,15 @@ Page<DetailPageData, DetailPageMethods>({
   },
 
   getModeText(mode: string) {
-    return mode === 'FRIEND' ? '好友对战' : '排位对战';
+    if (mode === 'FRIEND') {
+      return '好友对战';
+    }
+
+    if (mode === 'RANKED') {
+      return '排位对战';
+    }
+
+    return '未知模式';
   },
 
   getStatusText(status: string) {

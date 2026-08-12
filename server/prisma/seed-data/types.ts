@@ -218,8 +218,16 @@ export type SeedCourse = {
   learningObjectives: string[];
   status: 'PUBLISHED';
   sortOrder: number;
+  battleSkillCode: string;
   retiredChapterIds?: string[];
   chapters: SeedChapter[];
+};
+
+export type SeedBattleSkill = {
+  code: string;
+  name: string;
+  isEnabled: boolean;
+  sortOrder: number;
 };
 
 export const SUPPORTED_LESSON_BLOCK_TYPES = new Set<ContentBlockType>([

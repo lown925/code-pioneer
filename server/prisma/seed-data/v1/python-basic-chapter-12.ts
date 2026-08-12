@@ -1,13 +1,5 @@
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { readSeedDocument } from '../content-source';
 import { parsePythonChapterSource } from './python-basic-chapter-03';
-
-const CHAPTER_SOURCE_PATH = resolve(
-  process.cwd(),
-  '..',
-  'docs',
-  'python-basic-chapter-12-formal.md',
-);
 
 const LESSON_KEYS = [
   'understand-files-and-open',
@@ -40,7 +32,7 @@ const QUESTION_KEYS = [
 ] as const;
 
 export const PYTHON_BASIC_CHAPTER_12 = parsePythonChapterSource(
-  readFileSync(CHAPTER_SOURCE_PATH, 'utf8'),
+  readSeedDocument('python-basic-chapter-12-formal.md'),
   {
     chapterNumber: 12,
     chapterOrdinal: '十二',

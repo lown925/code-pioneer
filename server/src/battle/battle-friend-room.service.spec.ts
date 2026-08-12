@@ -40,6 +40,12 @@ describe('BattleFriendRoomService', () => {
       domainService,
     );
     const tokenService = new BattleTokenService();
+    const skillService = {
+      assertAvailableSkill: jest.fn(async (skill: string) => ({
+        code: skill,
+        name: skill === 'PYTHON' ? 'Python' : skill,
+      })),
+    };
     jest
       .spyOn(tokenService, 'generateInvitationToken')
       .mockReturnValueOnce('safe-token-one')
@@ -75,9 +81,10 @@ describe('BattleFriendRoomService', () => {
       domainService,
       tokenService,
       roomService,
+      skillService as never,
     );
 
-    return { mock, service, tokenService };
+    return { mock, service, tokenService, skillService };
   }
 
   it('creates a friend room, seat 1 participant, and active invitation token', async () => {

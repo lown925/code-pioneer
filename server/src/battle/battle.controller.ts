@@ -29,6 +29,7 @@ import { BattleLeaderboardQueryDto } from './dto/battle-leaderboard-query.dto';
 import { InviteCodeParamDto } from './dto/invite-code-param.dto';
 import { InvitationTokenParamDto } from './dto/invitation-token-param.dto';
 import { SubmitBattleAnswerDto } from './dto/submit-battle-answer.dto';
+import { BattleSkillDto } from './dto/battle-skill.dto';
 
 @UseGuards(JwtUserAuthGuard)
 @Controller('battles')
@@ -48,8 +49,11 @@ export class BattleController {
   ) {}
 
   @Post('matchmaking/join')
-  joinMatchmaking(@CurrentUser() currentUser: CurrentUserContext) {
-    return this.battleMatchmakingService.joinMatchmaking(currentUser);
+  joinMatchmaking(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Body() dto: BattleSkillDto,
+  ) {
+    return this.battleMatchmakingService.joinMatchmaking(currentUser, dto.skill);
   }
 
   @Get('matchmaking/status')
@@ -71,6 +75,7 @@ export class BattleController {
       currentUser.id,
       query.page,
       query.pageSize,
+      query.skill,
     );
   }
 
@@ -100,8 +105,11 @@ export class BattleController {
   }
 
   @Post('friend-rooms')
-  createFriendRoom(@CurrentUser() currentUser: CurrentUserContext) {
-    return this.battleFriendRoomService.createFriendRoom(currentUser);
+  createFriendRoom(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Body() dto: BattleSkillDto,
+  ) {
+    return this.battleFriendRoomService.createFriendRoom(currentUser, dto.skill);
   }
 
   @Get('friend-rooms/:invitationToken')

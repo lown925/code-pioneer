@@ -27,9 +27,28 @@ describe('BattleMatchmakingService', () => {
   function createService() {
     const mock = createBattlePrismaMock();
     const domainService = new BattleDomainService(mock.prisma as never);
+    const skillRatings = new Map<string, { rating: number }>();
+    const skillService = {
+      assertAvailableSkill: jest.fn(async (skill: string) => ({
+        code: skill,
+        name: skill === 'PYTHON' ? 'Python' : skill,
+      })),
+      ensureUserSkillRating: jest.fn(async (userId: string) => {
+        const existing = skillRatings.get(userId);
+
+        if (existing) {
+          return existing;
+        }
+
+        const rating = { rating: 1000 };
+        skillRatings.set(userId, rating);
+        return rating;
+      }),
+    };
     const service = new BattleMatchmakingService(
       mock.prisma as never,
       domainService,
+      skillService as never,
     );
 
     mock.users.set(USER_A.id, {
@@ -43,11 +62,11 @@ describe('BattleMatchmakingService', () => {
       nickname: 'User B',
     });
 
-    return { mock, service };
+    return { mock, service, skillService, skillRatings };
   }
 
   it('creates a SEARCHING queue on first join', async () => {
-    const { mock, service } = createService();
+    const { mock, service, skillService } = createService();
 
     const result = await service.joinMatchmaking(USER_A);
 
@@ -59,16 +78,28 @@ describe('BattleMatchmakingService', () => {
       }),
     });
     expect(mock.battleQueues.get(USER_A.id)?.status).toBe('SEARCHING');
+    expect(mock.battleQueues.get(USER_A.id)?.skillCode).toBe('PYTHON');
+    expect(skillService.ensureUserSkillRating).toHaveBeenCalledTimes(1);
   });
 
   it('returns SEARCHING idempotently for repeated join', async () => {
-    const { mock, service } = createService();
+    const { mock, service, skillRatings } = createService();
 
     await service.joinMatchmaking(USER_A);
     const result = await service.joinMatchmaking(USER_A);
 
     expect(result.data.status).toBe('SEARCHING');
     expect(mock.battleQueues.size).toBe(1);
+    expect(skillRatings.size).toBe(1);
+  });
+
+  it('uses the selected skill rating for the queue snapshot', async () => {
+    const { mock, service, skillService } = createService();
+    skillService.ensureUserSkillRating.mockResolvedValueOnce({ rating: 1280 });
+
+    await service.joinMatchmaking(USER_A, 'PYTHON');
+
+    expect(mock.battleQueues.get(USER_A.id)?.ratingSnapshot).toBe(1280);
   });
 
   it('returns MATCHED when the current queue already points to an active room', async () => {
@@ -182,6 +213,7 @@ describe('BattleMatchmakingService', () => {
     mock.battleQueues.set(USER_B.id, {
       id: 'queue-b',
       userId: USER_B.id,
+      skillCode: 'PYTHON',
       status: 'SEARCHING',
       ratingSnapshot: 1300,
       matchedBattleRoomId: null,
@@ -204,6 +236,7 @@ describe('BattleMatchmakingService', () => {
     mock.battleQueues.set(USER_B.id, {
       id: 'queue-b',
       userId: USER_B.id,
+      skillCode: 'PYTHON',
       status: 'SEARCHING',
       ratingSnapshot: 1250,
       matchedBattleRoomId: null,
@@ -228,6 +261,7 @@ describe('BattleMatchmakingService', () => {
     mock.battleQueues.set(USER_B.id, {
       id: 'queue-b',
       userId: USER_B.id,
+      skillCode: 'PYTHON',
       status: 'SEARCHING',
       ratingSnapshot: 1040,
       matchedBattleRoomId: null,
@@ -242,9 +276,34 @@ describe('BattleMatchmakingService', () => {
     expect(result.data.status).toBe('MATCHED');
     const createdRoom = [...mock.battleRooms.values()][0];
     expect(createdRoom.mode).toBe(BattleMode.RANKED);
+    expect(createdRoom.skillCode).toBe('PYTHON');
     expect(createdRoom.status).toBe(BattleRoomStatus.WAITING);
     expect(mock.battleQueues.get(USER_A.id)?.status).toBe('MATCHED');
     expect(mock.battleQueues.get(USER_B.id)?.status).toBe('MATCHED');
+  });
+
+  it('never matches queues from different skills even after the rating window expands', async () => {
+    const { mock, service } = createService();
+    const now = new Date();
+
+    mock.battleQueues.set(USER_B.id, {
+      id: 'queue-b',
+      userId: USER_B.id,
+      skillCode: 'JAVASCRIPT',
+      status: 'SEARCHING',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(now.getTime() - 120000),
+      matchedAt: null,
+      cancelledAt: null,
+      expiresAt: new Date(now.getTime() + 120000),
+    });
+
+    const result = await service.joinMatchmaking(USER_A, 'PYTHON');
+
+    expect(result.data.status).toBe('SEARCHING');
+    expect(mock.battleRooms.size).toBe(0);
+    expect(mock.battleQueues.get(USER_B.id)?.status).toBe('SEARCHING');
   });
 
   it('returns IDLE when status is queried without any queue record', async () => {

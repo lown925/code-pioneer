@@ -7,6 +7,7 @@ import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatBattleInitial,
   formatBattleNickname,
+  formatBattleSkill,
   formatBattleRating,
   getBattleErrorMessage,
 } from '../../utils/battle';
@@ -23,6 +24,7 @@ type HistoryCard = BattleHistoryListItemResponse & {
   opponentNicknameText: string;
   opponentAvatarFallbackText: string;
   modeText: string;
+  skillText: string;
   resultText: string;
   resultClassName: string;
   scoreText: string;
@@ -366,6 +368,7 @@ Page<HistoryPageData, HistoryPageMethods>({
       opponentNicknameText: formatBattleNickname(item.opponent.nickname),
       opponentAvatarFallbackText: formatBattleInitial(item.opponent.nickname),
       modeText: this.getModeText(item.mode),
+      skillText: formatBattleSkill(item.skill),
       resultText: resultMeta.resultText,
       resultClassName: resultMeta.resultClassName,
       scoreText: `${item.myScore} : ${item.opponentScore}`,
@@ -376,7 +379,15 @@ Page<HistoryPageData, HistoryPageMethods>({
   },
 
   getModeText(mode: string) {
-    return mode === 'FRIEND' ? '好友对战' : '排位对战';
+    if (mode === 'FRIEND') {
+      return '好友对战';
+    }
+
+    if (mode === 'RANKED') {
+      return '排位对战';
+    }
+
+    return '未知模式';
   },
 
   getResultMeta(result: 'WIN' | 'LOSS' | 'DRAW') {

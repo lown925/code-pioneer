@@ -122,6 +122,49 @@
   margin-top: 18rpx;
 }
 
+.skill-list {
+  margin-top: 20rpx;
+}
+
+.skill-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 22rpx;
+  border: 2rpx solid rgba(47, 107, 255, 0.1);
+  border-radius: 22rpx;
+  background: #f6f9fd;
+}
+
+.skill-option-selected {
+  border-color: #2f6bff;
+  background: #eef4ff;
+}
+
+.skill-name,
+.skill-copy {
+  display: block;
+}
+
+.skill-name {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.skill-copy {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #6e84a3;
+}
+
+.skill-check {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #2f6bff;
+}
+
 .invite-input {
   min-height: 88rpx;
   padding: 0 24rpx;

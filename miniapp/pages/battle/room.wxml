@@ -62,6 +62,10 @@
         <text class="meta-value">{{roomStatusText}}</text>
       </view>
       <view class="meta-item">
+        <text class="meta-label">对战方向</text>
+        <text class="meta-value">{{skillText}}</text>
+      </view>
+      <view class="meta-item">
         <text class="meta-label">题目数量</text>
         <text class="meta-value">{{questionCountText}}</text>
       </view>

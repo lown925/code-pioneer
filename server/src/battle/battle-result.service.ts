@@ -36,6 +36,7 @@ export class BattleResultService {
         select: {
           id: true,
           mode: true,
+          skillCode: true,
           status: true,
           endReason: true,
           completedAt: true,
@@ -82,6 +83,7 @@ export class BattleResultService {
         return {
           battleId: room.id,
           mode: room.mode,
+          skill: room.skillCode,
           status: room.status,
           completed: false,
           serverTime: now,
@@ -113,6 +115,7 @@ export class BattleResultService {
       return {
         battleId: room.id,
         mode: room.mode,
+        skill: room.skillCode,
         status: BattleRoomStatus.COMPLETED,
         completed: true,
         result: currentParticipant.result,

@@ -61,6 +61,7 @@ export const PYTHON_BASIC_COURSE: SeedCourse = {
   ],
   status: 'PUBLISHED',
   sortOrder: 200,
+  battleSkillCode: 'PYTHON',
   retiredChapterIds: [
     '86d43efa-3f4c-4adc-8e17-a718f3d26efe',
     '7d1d410c-44c3-4f23-a54f-17095f503585',

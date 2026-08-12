@@ -1,5 +1,4 @@
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { readSeedDocument } from '../content-source';
 import type {
   SeedChapter,
   SeedLesson,
@@ -7,13 +6,6 @@ import type {
   SeedQuestion,
   SeedQuestionOption,
 } from '../types';
-
-const CHAPTER_SOURCE_PATH = resolve(
-  process.cwd(),
-  '..',
-  'docs',
-  'python-basic-chapter-03.md',
-);
 
 const LESSON_KEYS = [
   'receive-user-input',
@@ -538,7 +530,7 @@ export function parsePythonChapterSource(
 }
 
 export const PYTHON_BASIC_CHAPTER_03 = parsePythonChapterSource(
-  readFileSync(CHAPTER_SOURCE_PATH, 'utf8'),
+  readSeedDocument('python-basic-chapter-03.md'),
   {
     chapterNumber: 3,
     chapterOrdinal: '三',

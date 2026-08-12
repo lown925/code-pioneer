@@ -79,6 +79,7 @@
         </view>
         <view class="badge-row">
           <text class="mode-badge">{{record.modeText}}</text>
+          <text class="mode-badge">{{record.skillText}}</text>
           <text class="result-badge {{record.resultClassName}}">{{record.resultText}}</text>
         </view>
       </view>

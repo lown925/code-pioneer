@@ -62,6 +62,17 @@ export type BattleProfileResponse = {
   bestWinStreak: number;
   rank: number;
   currentRank: number;
+  availableSkills: BattleSkillProfile[];
+};
+
+export type BattleSkillProfile = {
+  code: string;
+  name: string;
+  rating: number | null;
+  highestRating: number | null;
+  rankedBattles: number;
+  rank: number | null;
+  status: 'RANKED' | 'UNRANKED';
 };
 
 export type BattleLeaderboardItem = {
@@ -86,11 +97,13 @@ export type BattleLeaderboardResponse = {
   myRank: number | null;
   myRating: number | null;
   serverTime: string;
+  skill: string | null;
 };
 
 export type BattleLeaderboardQuery = {
   page: number;
   pageSize: number;
+  skill?: string;
 };
 
 export type MatchmakingViewStatus =
@@ -106,6 +119,7 @@ export type MatchmakingStatusResponse = {
   searchStartedAt: string | null;
   expiresAt: string | null;
   serverTime: string;
+  skill: string | null;
 };
 
 export type BattleParticipantSummary = {
@@ -119,6 +133,7 @@ export type BattleParticipantSummary = {
 export type BattleRoomSummaryResponse = {
   battleId: string;
   mode: BattleMode;
+  skill: string | null;
   status: BattleRoomStatus;
   questionCount: number;
   durationSeconds: number;
@@ -140,6 +155,7 @@ export type BattleRoomDetailResponse = BattleRoomSummaryResponse & {
 export type FriendRoomCreateResponse = {
   battleId: string;
   mode: BattleMode;
+  skill: string | null;
   status: BattleRoomStatus;
   invitationToken: string;
   inviteCode: string | null;
@@ -150,6 +166,7 @@ export type FriendRoomCreateResponse = {
 
 export type FriendRoomPreviewResponse = {
   battleId: string;
+  skill: string | null;
   roomStatus: BattleRoomStatus;
   invitationStatus: BattleInvitationStatus;
   inviteCode: string | null;
@@ -215,6 +232,7 @@ export type BattleQuestionItemResponse = {
 
 export type BattleQuestionsResponse = {
   battleId: string;
+  skill: string | null;
   status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING' | 'COMPLETED';
   startedAt: string | null;
   expiresAt: string | null;
@@ -244,6 +262,7 @@ export type BattleSubmitActionResponse = {
 export type PendingBattleResultResponse = {
   battleId: string;
   mode: BattleMode;
+  skill: string | null;
   status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING';
   completed: false;
   serverTime: string;
@@ -252,6 +271,7 @@ export type PendingBattleResultResponse = {
 export type CompletedBattleResultResponse = {
   battleId: string;
   mode: BattleMode;
+  skill: string | null;
   status: 'COMPLETED';
   completed: true;
   result: BattleResult;
@@ -290,6 +310,7 @@ export type BattleHistoryQuery = {
 export type BattleHistoryListItemResponse = {
   battleId: string;
   mode: BattleMode;
+  skill: string | null;
   result: BattleResult;
   opponent: {
     userId: string;
@@ -368,6 +389,7 @@ export type BattleHistorySummaryResponse = {
 export type BattleHistoryDetailResponse = {
   battleId: string;
   mode: BattleMode;
+  skill: string | null;
   status: 'COMPLETED';
   result: BattleResult;
   startedAt: string | null;

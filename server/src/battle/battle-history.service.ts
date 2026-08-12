@@ -75,6 +75,7 @@ type BattleHistoryAnswerRecord = {
 type BattleHistoryRoomRecord = {
   id: string;
   mode: BattleMode;
+  skillCode: string | null;
   status: BattleRoomStatus;
   startedAt: Date | null;
   expiresAt: Date | null;
@@ -189,6 +190,7 @@ export class BattleHistoryService {
       data: {
         battleId: room.id,
         mode: room.mode,
+        skill: room.skillCode,
         status: room.status,
         result: currentParticipant.result,
         startedAt: room.startedAt,
@@ -309,6 +311,7 @@ export class BattleHistoryService {
     return {
       battleId: room.id,
       mode: room.mode,
+      skill: room.skillCode,
       result: currentParticipant.result,
       opponent: {
         userId: opponentParticipant.user.id,
@@ -431,6 +434,7 @@ export class BattleHistoryService {
   private readonly roomSelect = {
     id: true,
     mode: true,
+    skillCode: true,
     status: true,
     startedAt: true,
     expiresAt: true,

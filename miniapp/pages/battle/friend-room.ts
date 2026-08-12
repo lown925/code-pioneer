@@ -1,5 +1,7 @@
 import type {
+  BattleProfileResponse,
   BattleRoomSummaryResponse,
+  BattleSkillProfile,
   FriendRoomCreateResponse,
   FriendRoomPreviewResponse,
 } from '../../types/battle';
@@ -40,6 +42,9 @@ type FriendRoomPageData = {
   isJoinInputVisible: boolean;
   isBusy: boolean;
   joinButtonText: string;
+  availableSkills: BattleSkillProfile[];
+  selectedSkillCode: string;
+  selectedSkillName: string;
 };
 
 type FriendRoomPageMethods = {
@@ -49,12 +54,16 @@ type FriendRoomPageMethods = {
   loadInitialData(): Promise<void>;
   refreshPreview(): Promise<void>;
   createFriendRoom(): Promise<void>;
+  loadSkills(): Promise<void>;
   previewFriendRoomByToken(): Promise<void>;
   previewFriendRoomByCode(inviteCode: string): Promise<FriendRoomPreviewResponse | null>;
   joinFriendRoomByToken(): Promise<void>;
   joinFriendRoomByCode(inviteCode: string): Promise<void>;
   applyPreview(payload: FriendRoomPreviewResponse): void;
   handleCreateRoom(): void;
+  handleSelectSkill(
+    event: WechatMiniprogram.CustomEvent<{ skill?: string }>,
+  ): void;
   handleShowJoinInput(): void;
   handleJoinCodeInput(
     event: WechatMiniprogram.CustomEvent<{
@@ -158,6 +167,9 @@ Page<FriendRoomPageData, FriendRoomPageMethods>({
     isJoinInputVisible: false,
     isBusy: false,
     joinButtonText: '查询并加入',
+    availableSkills: [],
+    selectedSkillCode: '',
+    selectedSkillName: '',
   },
 
   onLoad(options) {
@@ -239,6 +251,7 @@ Page<FriendRoomPageData, FriendRoomPageMethods>({
       if (this.data.invitationToken) {
         await this.previewFriendRoomByToken();
       } else if (isPageActive) {
+        await this.loadSkills();
         this.resetToIdle();
       }
     } finally {
@@ -262,6 +275,11 @@ Page<FriendRoomPageData, FriendRoomPageMethods>({
       return;
     }
 
+    if (!this.data.selectedSkillCode) {
+      wx.showToast({ title: '请先选择对战方向', icon: 'none' });
+      return;
+    }
+
     const currentRequestSerial = ++requestSerial;
 
     this.setData({
@@ -278,6 +296,9 @@ Page<FriendRoomPageData, FriendRoomPageMethods>({
         url: '/battles/friend-rooms',
         method: 'POST',
         authMode: 'required',
+        data: {
+          skill: this.data.selectedSkillCode,
+        },
       });
 
       if (!isPageActive || currentRequestSerial !== requestSerial) {
@@ -605,11 +626,53 @@ Page<FriendRoomPageData, FriendRoomPageMethods>({
       canJoin,
       isBusy: false,
       joinButtonText: '查询并加入',
+      selectedSkillCode: payload.skill ?? '',
+      selectedSkillName: payload.skill === 'PYTHON' ? 'Python' : payload.skill ?? '历史对战',
+    });
+  },
+
+  async loadSkills() {
+    const profile = await request<BattleProfileResponse>({
+      url: '/battles/profile',
+      method: 'GET',
+      authMode: 'required',
+    });
+    const selectedSkill =
+      profile.availableSkills.find(
+        (skill) => skill.code === this.data.selectedSkillCode,
+      ) ?? profile.availableSkills[0];
+
+    this.setData({
+      availableSkills: profile.availableSkills,
+      selectedSkillCode: selectedSkill?.code ?? '',
+      selectedSkillName: selectedSkill?.name ?? '',
     });
   },
 
   handleCreateRoom() {
     void this.createFriendRoom();
+  },
+
+  handleSelectSkill(
+    event: WechatMiniprogram.CustomEvent<{ skill?: string }>,
+  ) {
+    if (this.data.isBusy || this.data.invitationToken) {
+      return;
+    }
+
+    const skillCode = event.currentTarget.dataset.skill;
+    const skill = this.data.availableSkills.find(
+      (item) => item.code === skillCode,
+    );
+
+    if (!skill) {
+      return;
+    }
+
+    this.setData({
+      selectedSkillCode: skill.code,
+      selectedSkillName: skill.name,
+    });
   },
 
   handleShowJoinInput() {

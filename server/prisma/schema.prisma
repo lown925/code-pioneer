@@ -209,6 +209,7 @@ model User {
   practiceAttempts       PracticeAttempt[]
   practiceAnswers        PracticeAnswer[]
   battleProfile          BattleProfile?
+  battleSkillRatings     UserBattleSkillRating[]
   createdBattleRooms     BattleRoom[]               @relation("BattleRoomCreatedBy")
   wonBattleRooms         BattleRoom[]               @relation("BattleRoomWinner")
   battleParticipants     BattleParticipant[]
@@ -419,6 +420,7 @@ model QuizQuestion {
   caseSensitive         Boolean                     @default(true) @map("case_sensitive")
   knowledgeTags         Json?                       @map("knowledge_tags")
   programmingLanguage   String?                     @map("programming_language")
+  battleSkillCode       String?                     @map("battle_skill_code")
   createdAt             DateTime                    @default(now()) @map("created_at")
   updatedAt             DateTime                    @updatedAt @map("updated_at")
   quiz                  Quiz                        @relation(fields: [quizId], references: [id])
@@ -426,10 +428,12 @@ model QuizQuestion {
   answers               QuizAnswer[]
   battleQuestionSources BattleQuestionSnapshot[]    @relation("BattleQuestionSnapshotSource")
   practiceAnswers       PracticeAnswer[]
+  battleSkill           BattleSkill?                @relation(fields: [battleSkillCode], references: [code], onDelete: Restrict)
 
   @@unique([quizId, sortOrder])
   @@index([quizId])
   @@index([isBattleEnabled])
+  @@index([battleSkillCode, isBattleEnabled])
   @@map("quiz_questions")
 }
 
@@ -548,9 +552,50 @@ model BattleProfile {
   @@map("battle_profiles")
 }
 
+model BattleSkill {
+  code              String                  @id
+  name              String
+  isEnabled         Boolean                 @default(false) @map("is_enabled")
+  sortOrder         Int                     @default(0) @map("sort_order")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  userRatings       UserBattleSkillRating[]
+  quizQuestions     QuizQuestion[]
+  battleRooms       BattleRoom[]
+  questionSnapshots BattleQuestionSnapshot[]
+  ratingLogs        BattleRatingLog[]
+  matchQueues       BattleMatchQueue[]
+
+  @@index([isEnabled, sortOrder])
+  @@map("battle_skills")
+}
+
+model UserBattleSkillRating {
+  id               String      @id @default(uuid()) @db.Uuid
+  userId           String      @map("user_id") @db.Uuid
+  skillCode        String      @map("skill_code")
+  rating           Int         @default(1000)
+  highestRating    Int         @default(1000) @map("highest_rating")
+  rankedBattles    Int         @default(0) @map("ranked_battles")
+  wins             Int         @default(0)
+  losses           Int         @default(0)
+  draws            Int         @default(0)
+  currentWinStreak Int         @default(0) @map("current_win_streak")
+  bestWinStreak    Int         @default(0) @map("best_win_streak")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  user             User        @relation(fields: [userId], references: [id])
+  skill            BattleSkill @relation(fields: [skillCode], references: [code])
+
+  @@unique([userId, skillCode])
+  @@index([skillCode, rating(sort: Desc), rankedBattles(sort: Desc), userId], map: "user_battle_skill_rating_rank_idx")
+  @@map("user_battle_skill_ratings")
+}
+
 model BattleRoom {
   id                String                   @id @default(uuid()) @db.Uuid
   mode              BattleMode
+  skillCode         String?                  @map("skill_code")
   status            BattleRoomStatus         @default(WAITING)
   questionCount     Int                      @default(20) @map("question_count")
   durationSeconds   Int                      @default(180) @map("duration_seconds")
@@ -575,9 +620,11 @@ model BattleRoom {
   invitation        BattleInvitation?
   ratingLogs        BattleRatingLog[]
   matchedQueues     BattleMatchQueue[]
+  skill             BattleSkill?             @relation(fields: [skillCode], references: [code], onDelete: Restrict)
 
   @@index([status])
   @@index([mode, status])
+  @@index([skillCode, mode, status])
   @@index([createdAt])
   @@index([expiresAt])
   @@map("battle_rooms")
@@ -633,16 +680,19 @@ model BattleQuestionSnapshot {
   answerNormalizationSnapshot Json?                      @map("answer_normalization_snapshot")
   knowledgeTagsSnapshot       Json?                      @map("knowledge_tags_snapshot")
   programmingLanguage         String?                    @map("programming_language")
+  skillCodeSnapshot           String?                    @map("skill_code_snapshot")
   courseIdSnapshot            String?                    @map("course_id_snapshot") @db.Uuid
   chapterIdSnapshot           String?                    @map("chapter_id_snapshot") @db.Uuid
   createdAt                   DateTime                   @default(now()) @map("created_at")
   battleRoom                  BattleRoom                 @relation(fields: [battleRoomId], references: [id])
   sourceQuizQuestion          QuizQuestion?              @relation("BattleQuestionSnapshotSource", fields: [sourceQuizQuestionId], references: [id], onDelete: SetNull)
+  skill                       BattleSkill?                @relation(fields: [skillCodeSnapshot], references: [code], onDelete: Restrict)
   answers                     BattleAnswer[]
 
   @@unique([battleRoomId, orderIndex])
   @@index([battleRoomId])
   @@index([sourceQuizQuestionId])
+  @@index([skillCodeSnapshot])
   @@map("battle_question_snapshots")
 }
 
@@ -701,6 +751,7 @@ model BattleRatingLog {
   userId        String             @map("user_id") @db.Uuid
   battleRoomId  String?            @map("battle_room_id") @db.Uuid
   participantId String?            @map("participant_id") @db.Uuid
+  skillCode     String?            @map("skill_code")
   reason        BattleRatingReason
   ratingBefore  Int                @map("rating_before")
   ratingDelta   Int                @map("rating_delta")
@@ -709,16 +760,19 @@ model BattleRatingLog {
   user          User               @relation(fields: [userId], references: [id])
   battleRoom    BattleRoom?        @relation(fields: [battleRoomId], references: [id])
   participant   BattleParticipant? @relation(fields: [participantId], references: [id])
+  skill         BattleSkill?       @relation(fields: [skillCode], references: [code], onDelete: Restrict)
 
   @@unique([battleRoomId, userId, reason])
   @@index([userId, createdAt])
   @@index([battleRoomId])
+  @@index([skillCode, userId, createdAt])
   @@map("battle_rating_logs")
 }
 
 model BattleMatchQueue {
   id                  String                 @id @default(uuid()) @db.Uuid
   userId              String                 @unique @map("user_id") @db.Uuid
+  skillCode           String?                @map("skill_code")
   status              BattleMatchQueueStatus @default(CANCELLED)
   ratingSnapshot      Int                    @map("rating_snapshot")
   matchedBattleRoomId String?                @map("matched_battle_room_id") @db.Uuid
@@ -730,8 +784,10 @@ model BattleMatchQueue {
   updatedAt           DateTime               @updatedAt @map("updated_at")
   user                User                   @relation(fields: [userId], references: [id])
   matchedBattleRoom   BattleRoom?            @relation(fields: [matchedBattleRoomId], references: [id])
+  skill               BattleSkill?           @relation(fields: [skillCode], references: [code], onDelete: Restrict)
 
   @@index([status])
+  @@index([skillCode, status, expiresAt])
   @@index([expiresAt])
   @@map("battle_match_queues")
 }

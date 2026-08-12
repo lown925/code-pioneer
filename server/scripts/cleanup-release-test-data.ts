@@ -44,6 +44,8 @@ const TABLES = [
   ['PracticeAttempt', 'practiceAttempt'],
   ['PracticeAnswer', 'practiceAnswer'],
   ['BattleProfile', 'battleProfile'],
+  ['BattleSkill', 'battleSkill'],
+  ['UserBattleSkillRating', 'userBattleSkillRating'],
   ['BattleRoom', 'battleRoom'],
   ['BattleParticipant', 'battleParticipant'],
   ['BattleQuestionSnapshot', 'battleQuestionSnapshot'],
@@ -68,6 +70,7 @@ const PROTECTED_TABLES = new Set([
   'Quiz',
   'QuizQuestion',
   'QuizOption',
+  'BattleSkill',
   'CommunityCategory',
 ]);
 
@@ -619,6 +622,7 @@ async function deleteRuntimeData(
     await tx.battleQuestionSnapshot.deleteMany();
     await tx.battleParticipant.deleteMany();
     await tx.battleRoom.deleteMany();
+    await tx.userBattleSkillRating.deleteMany();
 
     await tx.quizAnswer.deleteMany();
     await tx.quizAttempt.deleteMany();

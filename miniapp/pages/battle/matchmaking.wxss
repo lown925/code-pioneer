@@ -8,8 +8,69 @@
 
 .hero-card,
 .rating-card,
+.skill-card,
 .status-card {
   padding: 28rpx;
+}
+
+.skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-top: 22rpx;
+}
+
+.skill-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 22rpx;
+  border: 2rpx solid rgba(47, 107, 255, 0.1);
+  border-radius: 22rpx;
+  background: #f6f9fd;
+}
+
+.skill-option-selected {
+  border-color: #2f6bff;
+  background: #eef4ff;
+}
+
+.skill-option-locked {
+  opacity: 0.76;
+}
+
+.skill-name,
+.skill-status {
+  display: block;
+}
+
+.skill-name {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #17324d;
+}
+
+.skill-status {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #6e84a3;
+}
+
+.skill-check,
+.locked-skill {
+  color: #2f6bff;
+  font-weight: 700;
+}
+
+.skill-check {
+  font-size: 24rpx;
+}
+
+.locked-skill {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 24rpx;
 }
 
 .hero-card {

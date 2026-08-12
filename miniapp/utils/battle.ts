@@ -20,6 +20,22 @@ export function formatBattleRating(rating: number | null | undefined) {
   return String(Math.round(normalizeNumber(rating ?? 0)));
 }
 
+export function formatBattleSkill(skill: string | null | undefined) {
+  if (!skill) {
+    return '历史对战';
+  }
+
+  if (skill === 'PYTHON') {
+    return 'Python';
+  }
+
+  if (skill === 'JAVASCRIPT') {
+    return 'JavaScript';
+  }
+
+  return skill;
+}
+
 export function formatBattleRank(rank: number | null | undefined) {
   if (!Number.isFinite(rank) || !rank || rank <= 0) {
     return '未上榜';

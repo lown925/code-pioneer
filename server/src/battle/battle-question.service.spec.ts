@@ -3,7 +3,12 @@ import {
   BattleQuestionPresentation,
   BattleQuestionType,
   BattleRoomStatus,
+  QuestionType,
+  QuizStatus,
+  ChapterStatus,
+  CourseStatus,
 } from '../../generated/prisma/enums';
+import { ConflictException } from '@nestjs/common';
 import { BattleQuestionService } from './battle-question.service';
 import { BattleDomainService } from './battle-domain.service';
 import { BattleRoomService } from './battle-room.service';
@@ -177,4 +182,102 @@ describe('BattleQuestionService', () => {
       'explanationSnapshot',
     );
   });
+
+  it('creates snapshots only from the room skill and copies the skill snapshot', async () => {
+    const { mock, service } = createService();
+    mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
+    mock.battleQuestionSnapshots.clear();
+    mock.quizQuestions.set('python-1', createCandidate('python-1', 'PYTHON'));
+    mock.quizQuestions.set('python-2', createCandidate('python-2', 'PYTHON'));
+    mock.quizQuestions.set(
+      'javascript-1',
+      createCandidate('javascript-1', 'JAVASCRIPT'),
+    );
+
+    await service.createQuestionSnapshotsAndStartCountdown(mock.tx as never, {
+      battleId: 'room-1',
+      questionCount: 2,
+      durationSeconds: 180,
+      now: new Date(),
+      skillCode: 'PYTHON',
+    });
+
+    const snapshots = [...mock.battleQuestionSnapshots.values()];
+    expect(snapshots).toHaveLength(2);
+    const createdSnapshots = snapshots.filter((item) =>
+      item.sourceQuizQuestionId?.startsWith('python-'),
+    );
+    expect(createdSnapshots).toHaveLength(2);
+    expect(
+      createdSnapshots.every((item) => item.skillCodeSnapshot === 'PYTHON'),
+    ).toBe(true);
+    expect(
+      snapshots.some((item) => item.sourceQuizQuestionId === 'javascript-1'),
+    ).toBe(false);
+  });
+
+  it('fails when the selected skill pool is insufficient without falling back', async () => {
+    const { mock, service } = createService();
+    mock.quizQuestions.set('python-1', createCandidate('python-1', 'PYTHON'));
+    mock.quizQuestions.set(
+      'javascript-1',
+      createCandidate('javascript-1', 'JAVASCRIPT'),
+    );
+
+    await expect(
+      service.createQuestionSnapshotsAndStartCountdown(mock.tx as never, {
+        battleId: 'room-1',
+        questionCount: 2,
+        durationSeconds: 180,
+        now: new Date(),
+        skillCode: 'PYTHON',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
 });
+
+function createCandidate(id: string, battleSkillCode: string) {
+  return {
+    id,
+    type: QuestionType.SINGLE_CHOICE,
+    content: id,
+    explanation: 'Explanation',
+    battlePresentation: BattleQuestionPresentation.TEXT_CHOICE,
+    battleDifficulty: 'EASY' as const,
+    isBattleEnabled: true,
+    stemBlocks: [{ type: 'TEXT', text: id }],
+    explanationBlocks: [{ type: 'TEXT', text: 'Explanation' }],
+    acceptedAnswers: null,
+    answerNormalization: null,
+    caseSensitive: true,
+    knowledgeTags: ['tag'],
+    programmingLanguage: battleSkillCode === 'PYTHON' ? 'python' : 'javascript',
+    battleSkillCode,
+    createdAt: new Date(),
+    options: [
+      {
+        id: `${id}-correct`,
+        content: 'Correct',
+        contentBlocks: null,
+        isCorrect: true,
+        sortOrder: 1,
+      },
+      {
+        id: `${id}-wrong`,
+        content: 'Wrong',
+        contentBlocks: null,
+        isCorrect: false,
+        sortOrder: 2,
+      },
+    ],
+    quiz: {
+      status: QuizStatus.PUBLISHED,
+      chapterId: 'chapter-1',
+      chapter: {
+        status: ChapterStatus.PUBLISHED,
+        courseId: 'course-1',
+        course: { status: CourseStatus.PUBLISHED },
+      },
+    },
+  };
+}

@@ -135,6 +135,7 @@ describe('Battle routes (e2e)', () => {
     const queueJoin = await request(app.getHttpServer())
       .post('/api/v1/battles/matchmaking/join')
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
       .expect(201);
 
     expect(queueJoin.body.success).toBe(true);
@@ -159,6 +160,7 @@ describe('Battle routes (e2e)', () => {
     const createdRoom = await request(app.getHttpServer())
       .post('/api/v1/battles/friend-rooms')
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
       .expect(201);
 
     const invitationToken = createdRoom.body.data.invitationToken as string;
@@ -308,6 +310,7 @@ describe('Battle routes (e2e)', () => {
     const createdRoom = await request(app.getHttpServer())
       .post('/api/v1/battles/friend-rooms')
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
       .expect(201);
 
     const invitationToken = createdRoom.body.data.invitationToken as string;
@@ -434,6 +437,7 @@ describe('Battle routes (e2e)', () => {
     const timeoutRoom = await request(app.getHttpServer())
       .post('/api/v1/battles/friend-rooms')
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
       .expect(201);
 
     const timeoutJoin = await request(app.getHttpServer())
@@ -486,6 +490,7 @@ describe('Battle routes (e2e)', () => {
     const forfeitRoom = await request(app.getHttpServer())
       .post('/api/v1/battles/friend-rooms')
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
       .expect(201);
 
     const forfeitJoin = await request(app.getHttpServer())
@@ -538,6 +543,7 @@ describe('Battle routes (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/battles/matchmaking/join')
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
       .expect(201)
       .expect((response) => {
         expect(response.body.data.status).toBe('SEARCHING');
@@ -554,6 +560,7 @@ describe('Battle routes (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/battles/friend-rooms')
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
       .expect(201)
       .expect((response) => {
         expect(response.body.data.status).toBe('WAITING');
@@ -562,6 +569,7 @@ describe('Battle routes (e2e)', () => {
     const secondJoin = await request(app.getHttpServer())
       .post('/api/v1/battles/matchmaking/join')
       .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .send({ skill: 'PYTHON' })
       .expect(201);
 
     expect(secondJoin.body.data.status).toBe('SEARCHING');
@@ -571,6 +579,7 @@ describe('Battle routes (e2e)', () => {
     const createdRoom = await request(app.getHttpServer())
       .post('/api/v1/battles/friend-rooms')
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
       .expect(201);
 
     const invitationToken = createdRoom.body.data.invitationToken as string;
@@ -587,6 +596,7 @@ describe('Battle routes (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/battles/matchmaking/join')
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
       .expect(201)
       .expect((response) => {
         expect(response.body.data.status).toBe('SEARCHING');
@@ -619,6 +629,7 @@ function seedBattleQuestions(
       caseSensitive: true,
       knowledgeTags: ['battle'],
       programmingLanguage: null,
+      battleSkillCode: 'PYTHON',
       createdAt: new Date(Date.UTC(2026, 6, 25, 10, 0, index)),
       options: [
         {
@@ -644,6 +655,7 @@ function seedBattleQuestions(
           courseId: `course-${index + 1}`,
           course: {
             status: 'PUBLISHED',
+            deletedAt: null,
           },
         },
       },

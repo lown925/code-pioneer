@@ -228,6 +228,7 @@ describe('BattleSettlementService', () => {
 
     if (room) {
       room.expiresAt = expiresAt;
+      room.skillCode = 'PYTHON';
     }
 
     const participantA = mock.battleParticipants.get('participant-a');
@@ -368,6 +369,56 @@ describe('BattleSettlementService', () => {
     );
     expect(mock.battleProfiles.size).toBe(0);
     expect(mock.battleRatingLogs.size).toBe(0);
+    expect(mock.userBattleSkillRatings.size).toBe(0);
+  });
+
+  it('settles a skill ranked battle into skill rating and preserves legacy profiles', async () => {
+    const { mock, service } = createService(BattleMode.RANKED);
+    mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
+    mock.userBattleSkillRatings.set(`${USER_A_ID}:PYTHON`, {
+      id: 'skill-a',
+      userId: USER_A_ID,
+      skillCode: 'PYTHON',
+      rating: 1200,
+      highestRating: 1300,
+      rankedBattles: 3,
+      wins: 2,
+      losses: 1,
+      draws: 0,
+      currentWinStreak: 0,
+      bestWinStreak: 2,
+    });
+    mock.userBattleSkillRatings.set(`${USER_B_ID}:PYTHON`, {
+      id: 'skill-b',
+      userId: USER_B_ID,
+      skillCode: 'PYTHON',
+      rating: 1000,
+      highestRating: 1000,
+      rankedBattles: 1,
+      wins: 0,
+      losses: 1,
+      draws: 0,
+      currentWinStreak: 0,
+      bestWinStreak: 0,
+    });
+
+    await service.normalizeBattleState(
+      'room-1',
+      new Date('2026-07-25T10:04:00.000Z'),
+    );
+
+    expect(mock.battleProfiles.size).toBe(0);
+    expect(
+      mock.userBattleSkillRatings.get(`${USER_A_ID}:PYTHON`),
+    ).toMatchObject({
+      rankedBattles: 4,
+      highestRating: 1300,
+    });
+    expect(
+      [...mock.battleRatingLogs.values()].every(
+        (log) => log.skillCode === 'PYTHON',
+      ),
+    ).toBe(true);
   });
 
   it('settles only once when multiple requests trigger settlement concurrently', async () => {

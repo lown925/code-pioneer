@@ -20,6 +20,7 @@ type BattleClient = PrismaService | BattleTransactionClient;
 type RoomRecord = {
   id: string;
   mode: string;
+  skillCode: string | null;
   status: BattleRoomStatus;
   questionCount: number;
   durationSeconds: number;
@@ -222,6 +223,7 @@ export class BattleRoomService {
     return {
       battleId: room.id,
       mode: room.mode,
+      skill: room.skillCode,
       status: room.status,
       questionCount: room.questionCount,
       durationSeconds: room.durationSeconds,
@@ -252,6 +254,7 @@ export class BattleRoomService {
   private readonly roomSelect = {
     id: true,
     mode: true,
+    skillCode: true,
     status: true,
     questionCount: true,
     durationSeconds: true,

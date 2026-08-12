@@ -31,6 +31,7 @@ export const JAVASCRIPT_STARTER_COURSE: SeedCourse = {
   ],
   status: 'PUBLISHED',
   sortOrder: 100,
+  battleSkillCode: 'JAVASCRIPT',
   chapters: [
     {
       key: 'js-getting-started',

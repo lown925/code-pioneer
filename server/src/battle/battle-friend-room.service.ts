@@ -27,6 +27,7 @@ import { BattleRoomService } from './battle-room.service';
 import { BattleTokenService } from './battle-token.service';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { BattleSkillService } from './battle-skill.service';
 import type {
   BattleTransactionClient,
   FriendRoomPreviewPayload,
@@ -51,6 +52,7 @@ type InvitationRecord = {
   battleRoom: {
     id: string;
     mode: BattleMode;
+    skillCode: string | null;
     status: BattleRoomStatus;
     startedAt: Date | null;
     expiresAt: Date | null;
@@ -68,13 +70,21 @@ export class BattleFriendRoomService {
     private readonly battleDomainService: BattleDomainService,
     private readonly battleTokenService: BattleTokenService,
     private readonly battleRoomService: BattleRoomService,
+    private readonly battleSkillService: BattleSkillService,
   ) {}
 
-  async createFriendRoom(currentUser: CurrentUserContext) {
+  async createFriendRoom(
+    currentUser: CurrentUserContext,
+    requestedSkill = 'PYTHON',
+  ) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
       await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
       await this.battleDomainService.ensureBattleProfile(currentUser.id, tx);
+      const skill = await this.battleSkillService.assertAvailableSkill(
+        requestedSkill,
+        tx,
+      );
       await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
         currentUser.id,
         now,
@@ -110,9 +120,22 @@ export class BattleFriendRoomService {
               existingInvitation.status === BattleInvitationStatus.ACCEPTED) &&
             existingInvitation.expiresAt > now
           ) {
+            const activeRoom = await tx.battleRoom.findUnique({
+              where: { id: activeBattle.battleRoomId },
+              select: { skillCode: true },
+            });
+
+            if (
+              activeRoom?.skillCode &&
+              activeRoom.skillCode !== skill.code
+            ) {
+              throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_SKILL_LOCKED);
+            }
+
             return {
               battleId: activeBattle.battleRoomId,
               mode: BattleMode.FRIEND,
+              skill: activeRoom?.skillCode ?? null,
               status: activeBattle.roomStatus,
               invitationToken: existingInvitation.token,
               inviteCode: existingInvitation.inviteCode,
@@ -134,6 +157,7 @@ export class BattleFriendRoomService {
       const room = await tx.battleRoom.create({
         data: {
           mode: BattleMode.FRIEND,
+          skillCode: skill.code,
           status: BattleRoomStatus.WAITING,
           questionCount: DEFAULT_BATTLE_QUESTION_COUNT,
           durationSeconds: BATTLE_DURATION_SECONDS,
@@ -147,6 +171,7 @@ export class BattleFriendRoomService {
           id: true,
           mode: true,
           status: true,
+          skillCode: true,
         },
       });
 
@@ -169,6 +194,7 @@ export class BattleFriendRoomService {
       return {
         battleId: room.id,
         mode: room.mode,
+        skill: room.skillCode,
         status: room.status,
         invitationToken: invitation.token,
         inviteCode: invitation.inviteCode,
@@ -766,6 +792,7 @@ export class BattleFriendRoomService {
       cannotJoinReason: string | null;
     }) => ({
       battleId: invitation.battleRoomId,
+      skill: invitation.battleRoom.skillCode,
       roomStatus: invitation.battleRoom.status,
       invitationStatus: invitation.status,
       inviteCode: invitation.inviteCode,
@@ -818,6 +845,7 @@ export class BattleFriendRoomService {
           select: {
             id: true,
             mode: true,
+            skillCode: true,
             status: true,
             startedAt: true,
             expiresAt: true,
@@ -863,6 +891,7 @@ export class BattleFriendRoomService {
           select: {
             id: true,
             mode: true,
+            skillCode: true,
             status: true,
             startedAt: true,
             expiresAt: true,

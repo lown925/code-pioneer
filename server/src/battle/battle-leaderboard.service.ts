@@ -8,6 +8,7 @@ import {
   compareBattleRanking,
 } from './battle-ranking';
 import type { BattleLeaderboardPayload } from './battle.types';
+import { BattleSkillService } from './battle-skill.service';
 
 type BattleLeaderboardRecord = {
   userId: string;
@@ -28,12 +29,30 @@ export class BattleLeaderboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly battleDomainService: BattleDomainService,
+    private readonly battleSkillService: BattleSkillService,
   ) {}
 
-  async getLeaderboard(currentUserId: string, page = 1, pageSize = 100) {
+  async getLeaderboard(
+    currentUserId: string,
+    page = 1,
+    pageSize = 100,
+    requestedSkill?: string,
+  ) {
     if (page < 1 || pageSize < 1 || pageSize > 100) {
       throw new BadRequestException(
         BATTLE_ERROR_CODES.BATTLE_INVALID_LEADERBOARD_QUERY,
+      );
+    }
+
+    if (requestedSkill) {
+      const skill = await this.battleSkillService.assertAvailableSkill(
+        requestedSkill,
+      );
+      return this.getSkillLeaderboard(
+        currentUserId,
+        skill.code,
+        page,
+        pageSize,
       );
     }
 
@@ -89,6 +108,74 @@ export class BattleLeaderboardService {
           sortedProfiles.find((profile) => profile.userId === currentUserId)
             ?.rating ?? null,
         serverTime: new Date(),
+        skill: null,
+      } satisfies BattleLeaderboardPayload,
+    };
+  }
+
+  private async getSkillLeaderboard(
+    currentUserId: string,
+    skillCode: string,
+    page: number,
+    pageSize: number,
+  ) {
+    const ratings = await this.prisma.userBattleSkillRating.findMany({
+      where: {
+        skillCode,
+        rankedBattles: { gt: 0 },
+      },
+      orderBy: [
+        { rating: 'desc' },
+        { rankedBattles: 'desc' },
+        { userId: 'asc' },
+      ],
+      select: {
+        userId: true,
+        rating: true,
+        highestRating: true,
+        rankedBattles: true,
+        wins: true,
+        losses: true,
+        draws: true,
+        user: {
+          select: {
+            nickname: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+    const total = ratings.length;
+    const skip = (page - 1) * pageSize;
+    const pageItems = ratings.slice(skip, skip + pageSize);
+    const myIndex = ratings.findIndex((rating) => rating.userId === currentUserId);
+
+    return {
+      success: true as const,
+      data: {
+        items: pageItems.map((rating, index) => ({
+          rank: skip + index + 1,
+          userId: rating.userId,
+          nickname: rating.user.nickname,
+          avatarUrl: rating.user.avatarUrl ?? null,
+          rating: rating.rating,
+          highestRating: rating.highestRating,
+          wins: rating.wins,
+          losses: rating.losses,
+          draws: rating.draws,
+          winRate: calculateBattleWinRate(
+            rating.rankedBattles,
+            rating.wins,
+          ),
+        })),
+        page,
+        pageSize,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+        myRank: myIndex >= 0 ? myIndex + 1 : null,
+        myRating: myIndex >= 0 ? ratings[myIndex]!.rating : null,
+        serverTime: new Date(),
+        skill: skillCode,
       } satisfies BattleLeaderboardPayload,
     };
   }

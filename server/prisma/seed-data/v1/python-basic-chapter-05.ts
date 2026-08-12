@@ -1,13 +1,5 @@
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { readSeedDocument } from '../content-source';
 import { parsePythonChapterSource } from './python-basic-chapter-03';
-
-const CHAPTER_SOURCE_PATH = resolve(
-  process.cwd(),
-  '..',
-  'docs',
-  'python-basic-chapter-05.md',
-);
 
 const LESSON_KEYS = [
   'single-branch-if-statements',
@@ -40,7 +32,7 @@ const QUESTION_KEYS = [
 ] as const;
 
 export const PYTHON_BASIC_CHAPTER_05 = parsePythonChapterSource(
-  readFileSync(CHAPTER_SOURCE_PATH, 'utf8'),
+  readSeedDocument('python-basic-chapter-05.md'),
   {
     chapterNumber: 5,
     chapterOrdinal: '五',

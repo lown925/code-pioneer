@@ -45,6 +45,7 @@ type CandidateQuestionRecord = {
   caseSensitive: boolean;
   knowledgeTags: unknown;
   programmingLanguage: string | null;
+  battleSkillCode: string | null;
   options: Array<{
     id: string;
     content: string;
@@ -70,6 +71,7 @@ type SnapshotRecord = {
   stemSnapshot: unknown;
   optionsSnapshot: unknown;
   programmingLanguage: string | null;
+  skillCodeSnapshot: string | null;
 };
 
 type AnswerRecord = {
@@ -105,6 +107,7 @@ export class BattleQuestionService {
         select: {
           id: true,
           status: true,
+          skillCode: true,
           startedAt: true,
           expiresAt: true,
           participants: {
@@ -135,6 +138,7 @@ export class BattleQuestionService {
         return {
           battleId: room.id,
           status: room.status,
+          skill: room.skillCode,
           startedAt: room.startedAt,
           expiresAt: room.expiresAt,
           serverTime: now,
@@ -180,6 +184,7 @@ export class BattleQuestionService {
           stemSnapshot: true,
           optionsSnapshot: true,
           programmingLanguage: true,
+          skillCodeSnapshot: true,
         },
       })) as SnapshotRecord[];
 
@@ -207,6 +212,7 @@ export class BattleQuestionService {
       return {
         battleId: room.id,
         status: room.status,
+        skill: room.skillCode,
         startedAt: room.startedAt,
         expiresAt: room.expiresAt,
         serverTime: now,
@@ -227,9 +233,13 @@ export class BattleQuestionService {
       questionCount: number;
       durationSeconds: number;
       now: Date;
+      skillCode: string | null;
     },
   ) {
-    const candidates = await this.loadBattleQuestionCandidates(tx);
+    const candidates = await this.loadBattleQuestionCandidates(
+      tx,
+      input.skillCode,
+    );
     const selected = this.selectBattleQuestions(
       candidates,
       input.questionCount,
@@ -242,7 +252,12 @@ export class BattleQuestionService {
     }
 
     const snapshots = selected.map((question, orderIndex) =>
-      this.createSnapshotRecord(input.battleId, question, orderIndex),
+      this.createSnapshotRecord(
+        input.battleId,
+        input.skillCode,
+        question,
+        orderIndex,
+      ),
     );
 
     await tx.battleQuestionSnapshot.createMany({
@@ -273,10 +288,14 @@ export class BattleQuestionService {
     };
   }
 
-  private async loadBattleQuestionCandidates(tx: BattleTransactionClient) {
+  private async loadBattleQuestionCandidates(
+    tx: BattleTransactionClient,
+    skillCode: string | null,
+  ) {
     const records = (await tx.quizQuestion.findMany({
       where: {
         isBattleEnabled: true,
+        ...(skillCode ? { battleSkillCode: skillCode } : {}),
         type: {
           in: [QuestionType.SINGLE_CHOICE, QuestionType.CODE_FILL],
         },
@@ -286,6 +305,7 @@ export class BattleQuestionService {
             status: ChapterStatus.PUBLISHED,
             course: {
               status: CourseStatus.PUBLISHED,
+              deletedAt: null,
             },
           },
         },
@@ -305,6 +325,7 @@ export class BattleQuestionService {
         caseSensitive: true,
         knowledgeTags: true,
         programmingLanguage: true,
+        battleSkillCode: true,
         options: {
           orderBy: {
             sortOrder: 'asc',
@@ -463,6 +484,7 @@ export class BattleQuestionService {
 
   private createSnapshotRecord(
     battleId: string,
+    skillCode: string | null,
     question: CandidateQuestionRecord,
     orderIndex: number,
   ) {
@@ -480,6 +502,7 @@ export class BattleQuestionService {
       explanationSnapshot: this.resolveExplanationSnapshot(question),
       knowledgeTagsSnapshot: this.resolveKnowledgeTagsSnapshot(question),
       programmingLanguage: question.programmingLanguage,
+      skillCodeSnapshot: skillCode,
       courseIdSnapshot: question.quiz.chapter.courseId,
       chapterIdSnapshot: question.quiz.chapterId,
     };

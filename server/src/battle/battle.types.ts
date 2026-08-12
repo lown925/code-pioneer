@@ -122,6 +122,7 @@ export type MatchmakingStatusPayload = {
   searchStartedAt: Date | null;
   expiresAt: Date | null;
   serverTime: Date;
+  skill: string | null;
 };
 
 export type BattleParticipantSummary = {
@@ -135,6 +136,7 @@ export type BattleParticipantSummary = {
 export type BattleRoomSummaryPayload = {
   battleId: string;
   mode: string;
+  skill: string | null;
   status: string;
   questionCount: number;
   durationSeconds: number;
@@ -171,6 +173,7 @@ export type BattleQuestionView = {
 export type BattleQuestionsPayload = {
   battleId: string;
   status: string;
+  skill: string | null;
   startedAt: Date | null;
   expiresAt: Date | null;
   serverTime: Date;
@@ -205,6 +208,7 @@ export type BattleResultOpponentPayload = {
 export type PendingBattleResultPayload = {
   battleId: string;
   mode: string;
+  skill: string | null;
   status: string;
   completed: false;
   serverTime: Date;
@@ -213,6 +217,7 @@ export type PendingBattleResultPayload = {
 export type CompletedBattleResultPayload = {
   battleId: string;
   mode: string;
+  skill: string | null;
   status: 'COMPLETED';
   completed: true;
   result: Exclude<BattleResult, 'NONE'>;
@@ -239,6 +244,7 @@ export type BattleResultPayload =
 
 export type FriendRoomPreviewPayload = {
   battleId: string;
+  skill: string | null;
   roomStatus: string;
   invitationStatus: string;
   inviteCode: string | null;
@@ -269,6 +275,17 @@ export type BattleProfilePayload = {
   bestWinStreak: number;
   rank: number;
   currentRank: number;
+  availableSkills: BattleSkillProfilePayload[];
+};
+
+export type BattleSkillProfilePayload = {
+  code: string;
+  name: string;
+  rating: number | null;
+  highestRating: number | null;
+  rankedBattles: number;
+  rank: number | null;
+  status: 'RANKED' | 'UNRANKED';
 };
 
 export type BattleLeaderboardItemPayload = {
@@ -293,6 +310,7 @@ export type BattleLeaderboardPayload = {
   myRank: number | null;
   myRating: number | null;
   serverTime: Date;
+  skill: string | null;
 };
 
 export type BattleHistoryMyAnswerPayload = {
@@ -304,6 +322,7 @@ export type BattleHistoryMyAnswerPayload = {
 export type BattleHistoryListItemPayload = {
   battleId: string;
   mode: string;
+  skill: string | null;
   result: Exclude<BattleResult, 'NONE'>;
   opponent: BattleResultOpponentPayload;
   myScore: number;
@@ -366,6 +385,7 @@ export type BattleHistoryQuestionPayload = {
 export type BattleHistoryDetailPayload = {
   battleId: string;
   mode: string;
+  skill: string | null;
   status: string;
   result: Exclude<BattleResult, 'NONE'>;
   startedAt: Date | null;

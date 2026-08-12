@@ -25,6 +25,7 @@
         <view class="result-badge {{resultBadgeClassName}}">{{resultText}}</view>
         <view class="summary-meta">
           <text class="summary-mode">{{modeText}}</text>
+          <text class="summary-status">{{skillText}}</text>
           <text class="summary-status">{{statusText}}</text>
         </view>
       </view>

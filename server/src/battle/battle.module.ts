@@ -18,6 +18,7 @@ import { BattleRoomService } from './battle-room.service';
 import { BattleScoreService } from './battle-score.service';
 import { BattleSettlementService } from './battle-settlement.service';
 import { BattleSubmitService } from './battle-submit.service';
+import { BattleSkillService } from './battle-skill.service';
 import { BattleTokenService } from './battle-token.service';
 
 @Module({
@@ -35,6 +36,7 @@ import { BattleTokenService } from './battle-token.service';
     BattleReadyService,
     BattleAnswerService,
     BattleSubmitService,
+    BattleSkillService,
     BattleResultService,
     BattleProfileService,
     BattleLeaderboardService,

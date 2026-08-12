@@ -20,6 +20,7 @@ import { BattleDomainService } from './battle-domain.service';
 import { BATTLE_ERROR_CODES } from './battle.errors';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { BattleSkillService } from './battle-skill.service';
 import type {
   BattleTransactionClient,
   MatchmakingStatusPayload,
@@ -28,6 +29,7 @@ import type {
 
 type QueueRecord = {
   userId: string;
+  skillCode: string | null;
   status: 'SEARCHING' | 'MATCHED' | 'CANCELLED' | 'EXPIRED';
   ratingSnapshot: number;
   matchedBattleRoomId: string | null;
@@ -42,14 +44,23 @@ export class BattleMatchmakingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly battleDomainService: BattleDomainService,
+    private readonly battleSkillService: BattleSkillService,
   ) {}
 
-  async joinMatchmaking(currentUser: CurrentUserContext) {
+  async joinMatchmaking(
+    currentUser: CurrentUserContext,
+    requestedSkill = 'PYTHON',
+  ) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
       await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
-      const profile = await this.battleDomainService.ensureBattleProfile(
+      const skill = await this.battleSkillService.assertAvailableSkill(
+        requestedSkill,
+        tx,
+      );
+      const skillRating = await this.battleSkillService.ensureUserSkillRating(
         currentUser.id,
+        skill.code,
         tx,
       );
 
@@ -68,6 +79,7 @@ export class BattleMatchmakingService {
         (await this.isActiveBattleRoom(tx, queue.matchedBattleRoomId))
       ) {
         return this.createPayload('MATCHED', {
+          skill: queue.skillCode,
           battleId: queue.matchedBattleRoomId,
           searchStartedAt: queue.searchStartedAt,
           expiresAt: queue.expiresAt,
@@ -81,8 +93,13 @@ export class BattleMatchmakingService {
       );
 
       if (queue?.status === 'SEARCHING') {
+        if (queue.skillCode !== skill.code) {
+          throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_SKILL_LOCKED);
+        }
+
         const matchResult = await this.tryMatchUser(tx, {
           currentUserId: currentUser.id,
+          skillCode: skill.code,
           currentRating: queue.ratingSnapshot,
           searchStartedAt: queue.searchStartedAt ?? now,
           expiresAt: queue.expiresAt ?? this.createExpiry(now),
@@ -92,6 +109,7 @@ export class BattleMatchmakingService {
         return (
           matchResult ??
           this.createPayload('SEARCHING', {
+            skill: skill.code,
             searchStartedAt: queue.searchStartedAt,
             expiresAt: queue.expiresAt,
             serverTime: now,
@@ -107,7 +125,8 @@ export class BattleMatchmakingService {
           where: { userId: currentUser.id },
           data: {
             status: 'SEARCHING',
-            ratingSnapshot: profile.rating,
+            skillCode: skill.code,
+            ratingSnapshot: skillRating.rating,
             searchStartedAt,
             matchedAt: null,
             cancelledAt: null,
@@ -119,8 +138,9 @@ export class BattleMatchmakingService {
         await tx.battleMatchQueue.create({
           data: {
             userId: currentUser.id,
+            skillCode: skill.code,
             status: 'SEARCHING',
-            ratingSnapshot: profile.rating,
+            ratingSnapshot: skillRating.rating,
             searchStartedAt,
             expiresAt,
           },
@@ -129,7 +149,8 @@ export class BattleMatchmakingService {
 
       const matchResult = await this.tryMatchUser(tx, {
         currentUserId: currentUser.id,
-        currentRating: profile.rating,
+        skillCode: skill.code,
+        currentRating: skillRating.rating,
         searchStartedAt,
         expiresAt,
         now,
@@ -138,6 +159,7 @@ export class BattleMatchmakingService {
       return (
         matchResult ??
         this.createPayload('SEARCHING', {
+          skill: skill.code,
           searchStartedAt,
           expiresAt,
           serverTime: now,
@@ -175,6 +197,7 @@ export class BattleMatchmakingService {
       if (queue.status === 'SEARCHING') {
         const matchResult = await this.tryMatchUser(tx, {
           currentUserId: currentUser.id,
+          skillCode: queue.skillCode,
           currentRating: queue.ratingSnapshot,
           searchStartedAt: queue.searchStartedAt ?? now,
           expiresAt: queue.expiresAt ?? this.createExpiry(now),
@@ -184,6 +207,7 @@ export class BattleMatchmakingService {
         return (
           matchResult ??
           this.createPayload('SEARCHING', {
+            skill: queue.skillCode,
             searchStartedAt: queue.searchStartedAt,
             expiresAt: queue.expiresAt,
             serverTime: now,
@@ -197,6 +221,7 @@ export class BattleMatchmakingService {
         (await this.isActiveBattleRoom(tx, queue.matchedBattleRoomId))
       ) {
         return this.createPayload('MATCHED', {
+          skill: queue.skillCode,
           battleId: queue.matchedBattleRoomId,
           searchStartedAt: queue.searchStartedAt,
           expiresAt: queue.expiresAt,
@@ -205,6 +230,7 @@ export class BattleMatchmakingService {
       }
 
       return this.createPayload(queue.status, {
+        skill: queue.skillCode,
         searchStartedAt: queue.searchStartedAt,
         expiresAt: queue.expiresAt,
         serverTime: now,
@@ -271,6 +297,7 @@ export class BattleMatchmakingService {
         });
 
         return this.createPayload('CANCELLED', {
+          skill: queue.skillCode,
           searchStartedAt: queue.searchStartedAt,
           expiresAt: queue.expiresAt,
           serverTime: now,
@@ -299,6 +326,7 @@ export class BattleMatchmakingService {
         }
 
         return this.createPayload('CANCELLED', {
+          skill: queue.skillCode,
           searchStartedAt: queue.searchStartedAt,
           expiresAt: queue.expiresAt,
           serverTime: now,
@@ -306,6 +334,7 @@ export class BattleMatchmakingService {
       }
 
       return this.createPayload(queue.status, {
+        skill: queue.skillCode,
         searchStartedAt: queue.searchStartedAt,
         expiresAt: queue.expiresAt,
         serverTime: now,
@@ -322,14 +351,21 @@ export class BattleMatchmakingService {
     tx: BattleTransactionClient,
     input: {
       currentUserId: string;
+      skillCode: string | null;
       currentRating: number;
       searchStartedAt: Date;
       expiresAt: Date;
       now: Date;
     },
   ) {
-    const { currentUserId, currentRating, searchStartedAt, expiresAt, now } =
-      input;
+    const {
+      currentUserId,
+      skillCode,
+      currentRating,
+      searchStartedAt,
+      expiresAt,
+      now,
+    } = input;
 
     const candidates = (await tx.battleMatchQueue.findMany({
       where: {
@@ -337,12 +373,14 @@ export class BattleMatchmakingService {
         userId: {
           not: currentUserId,
         },
+        skillCode,
         expiresAt: {
           gt: now,
         },
       },
       select: {
         userId: true,
+        skillCode: true,
         status: true,
         ratingSnapshot: true,
         searchStartedAt: true,
@@ -424,6 +462,7 @@ export class BattleMatchmakingService {
       const currentClaim = await tx.battleMatchQueue.updateMany({
         where: {
           userId: currentUserId,
+          skillCode,
           status: 'SEARCHING',
           expiresAt: {
             gt: now,
@@ -442,6 +481,7 @@ export class BattleMatchmakingService {
       const candidateClaim = await tx.battleMatchQueue.updateMany({
         where: {
           userId: candidate.userId,
+          skillCode,
           status: 'SEARCHING',
           expiresAt: {
             gt: now,
@@ -467,6 +507,7 @@ export class BattleMatchmakingService {
       const room = await tx.battleRoom.create({
         data: {
           mode: BattleMode.RANKED,
+          skillCode,
           status: BattleRoomStatus.WAITING,
           questionCount: DEFAULT_BATTLE_QUESTION_COUNT,
           durationSeconds: BATTLE_DURATION_SECONDS,
@@ -513,6 +554,7 @@ export class BattleMatchmakingService {
       });
 
       return this.createPayload('MATCHED', {
+        skill: skillCode,
         battleId: room.id,
         searchStartedAt,
         expiresAt,
@@ -643,6 +685,7 @@ export class BattleMatchmakingService {
       searchStartedAt: input.searchStartedAt ?? null,
       expiresAt: input.expiresAt ?? null,
       serverTime: input.serverTime,
+      skill: input.skill ?? null,
     };
   }
 
@@ -651,6 +694,7 @@ export class BattleMatchmakingService {
       where: { userId },
       select: {
         userId: true,
+        skillCode: true,
         status: true,
         ratingSnapshot: true,
         matchedBattleRoomId: true,

@@ -25,6 +25,7 @@ type BattleClient = PrismaService | BattleTransactionClient;
 type RoomRecord = {
   id: string;
   mode: BattleMode;
+  skillCode: string | null;
   status: BattleRoomStatus;
   questionCount: number;
   correctScore: number;
@@ -290,19 +291,50 @@ export class BattleSettlementService {
     const [leftParticipant, rightParticipant] = participants;
 
     const winner = this.resolveWinner(room, leftParticipant, rightParticipant);
-    const ratingSnapshots = await Promise.all(
-      participants.map((participant) =>
-        this.battleDomainService.ensureBattleProfile(participant.userId, prisma),
-      ),
-    );
+    const usesSkillRating =
+      room.mode === BattleMode.RANKED && Boolean(room.skillCode);
+    const skillRatingSnapshots = usesSkillRating
+      ? await Promise.all(
+          participants.map((participant) =>
+            prisma.userBattleSkillRating.upsert({
+              where: {
+                userId_skillCode: {
+                  userId: participant.userId,
+                  skillCode: room.skillCode!,
+                },
+              },
+              update: {},
+              create: {
+                userId: participant.userId,
+                skillCode: room.skillCode!,
+              },
+            }),
+          ),
+        )
+      : null;
+    const legacyProfileSnapshots = usesSkillRating
+      ? null
+      : await Promise.all(
+          participants.map((participant) =>
+            this.battleDomainService.ensureBattleProfile(
+              participant.userId,
+              prisma,
+            ),
+          ),
+        );
+    const ratingSnapshots = skillRatingSnapshots ?? legacyProfileSnapshots;
 
-    const ratingResults =
-      room.mode === BattleMode.RANKED
-        ? this.calculateRankedRatings(
-            participants,
-            ratingSnapshots.map((item) => item.rating),
-          )
-        : this.calculateFriendRatings(ratingSnapshots.map((item) => item.rating));
+    if (!ratingSnapshots) {
+      throw new InternalServerErrorException(
+        BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+      );
+    }
+
+    const ratingResults = this.calculateRatingsForRoom(
+      room,
+      participants,
+      ratingSnapshots.map((item) => item.rating),
+    );
 
     for (const [index, participant] of participants.entries()) {
       const ratingResult = ratingResults[index];
@@ -328,72 +360,35 @@ export class BattleSettlementService {
 
     for (const [index, participant] of participants.entries()) {
       const ratingResult = ratingResults[index];
-      const existingProfile = ratingSnapshots[index];
+      const existingRating = ratingSnapshots[index];
 
-      await prisma.battleProfile.update({
-        where: {
-          userId: participant.userId,
-        },
-        data: {
-          totalBattles: {
-            increment: 1,
+      if (usesSkillRating) {
+        await prisma.userBattleSkillRating.update({
+          where: {
+            userId_skillCode: {
+              userId: participant.userId,
+              skillCode: room.skillCode!,
+            },
           },
-          rankedBattles:
-            room.mode === BattleMode.RANKED
-              ? {
-                  increment: 1,
-                }
-              : undefined,
-          friendBattles:
-            room.mode === BattleMode.FRIEND
-              ? {
-                  increment: 1,
-                }
-              : undefined,
-          wins:
-            participant.result === BattleResult.WIN
-              ? {
-                  increment: 1,
-                }
-              : undefined,
-          losses:
-            participant.result === BattleResult.LOSS
-              ? {
-                  increment: 1,
-                }
-              : undefined,
-          draws:
-            participant.result === BattleResult.DRAW
-              ? {
-                  increment: 1,
-                }
-              : undefined,
-          currentWinStreak:
-            participant.result === BattleResult.WIN
-              ? {
-                  increment: 1,
-                }
-              : 0,
-          bestWinStreak:
-            participant.result === BattleResult.WIN
-              ? Math.max(
-                  existingProfile.bestWinStreak,
-                  existingProfile.currentWinStreak + 1,
-                )
-              : existingProfile.bestWinStreak,
-          rating:
-            room.mode === BattleMode.RANKED
-              ? ratingResult.ratingAfter
-              : existingProfile.rating,
-          highestRating:
-            room.mode === BattleMode.RANKED
-              ? Math.max(
-                  existingProfile.highestRating,
-                  ratingResult.ratingAfter,
-                )
-              : existingProfile.highestRating,
-        },
-      });
+          data: this.createSkillRatingUpdate(
+            participant,
+            existingRating,
+            ratingResult.ratingAfter,
+          ),
+        });
+      } else {
+        await prisma.battleProfile.update({
+          where: {
+            userId: participant.userId,
+          },
+          data: this.createLegacyProfileUpdate(
+            room,
+            participant,
+            existingRating,
+            ratingResult.ratingAfter,
+          ),
+        });
+      }
 
       if (room.mode === BattleMode.RANKED) {
         await prisma.battleRatingLog.create({
@@ -401,6 +396,7 @@ export class BattleSettlementService {
             userId: participant.userId,
             battleRoomId: battleId,
             participantId: participant.id,
+            skillCode: room.skillCode,
             reason: BattleRatingReason.BATTLE_RESULT,
             ratingBefore: ratingResult.ratingBefore,
             ratingDelta: ratingResult.ratingDelta,
@@ -571,6 +567,106 @@ export class BattleSettlementService {
     );
   }
 
+  private calculateRatingsForRoom(
+    room: RoomRecord,
+    participants: SettledParticipant[],
+    ratings: number[],
+  ) {
+    if (room.mode === BattleMode.RANKED) {
+      return this.calculateRankedRatings(participants, ratings);
+    }
+
+    if (room.mode === BattleMode.FRIEND) {
+      return this.calculateFriendRatings(ratings);
+    }
+
+    throw new InternalServerErrorException(
+      BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+    );
+  }
+
+  private createSkillRatingUpdate(
+    participant: SettledParticipant,
+    existingRating: {
+      highestRating: number;
+      currentWinStreak: number;
+      bestWinStreak: number;
+    },
+    ratingAfter: number,
+  ) {
+    return {
+      rating: ratingAfter,
+      highestRating: Math.max(existingRating.highestRating, ratingAfter),
+      rankedBattles: { increment: 1 },
+      wins:
+        participant.result === BattleResult.WIN ? { increment: 1 } : undefined,
+      losses:
+        participant.result === BattleResult.LOSS
+          ? { increment: 1 }
+          : undefined,
+      draws:
+        participant.result === BattleResult.DRAW
+          ? { increment: 1 }
+          : undefined,
+      currentWinStreak:
+        participant.result === BattleResult.WIN ? { increment: 1 } : 0,
+      bestWinStreak:
+        participant.result === BattleResult.WIN
+          ? Math.max(
+              existingRating.bestWinStreak,
+              existingRating.currentWinStreak + 1,
+            )
+          : existingRating.bestWinStreak,
+    };
+  }
+
+  private createLegacyProfileUpdate(
+    room: RoomRecord,
+    participant: SettledParticipant,
+    existingProfile: {
+      rating: number;
+      highestRating: number;
+      currentWinStreak: number;
+      bestWinStreak: number;
+    },
+    ratingAfter: number,
+  ) {
+    return {
+      totalBattles: { increment: 1 },
+      rankedBattles:
+        room.mode === BattleMode.RANKED ? { increment: 1 } : undefined,
+      friendBattles:
+        room.mode === BattleMode.FRIEND ? { increment: 1 } : undefined,
+      wins:
+        participant.result === BattleResult.WIN ? { increment: 1 } : undefined,
+      losses:
+        participant.result === BattleResult.LOSS
+          ? { increment: 1 }
+          : undefined,
+      draws:
+        participant.result === BattleResult.DRAW
+          ? { increment: 1 }
+          : undefined,
+      currentWinStreak:
+        participant.result === BattleResult.WIN ? { increment: 1 } : 0,
+      bestWinStreak:
+        participant.result === BattleResult.WIN
+          ? Math.max(
+              existingProfile.bestWinStreak,
+              existingProfile.currentWinStreak + 1,
+            )
+          : existingProfile.bestWinStreak,
+      rating:
+        room.mode === BattleMode.RANKED
+          ? ratingAfter
+          : existingProfile.rating,
+      highestRating:
+        room.mode === BattleMode.RANKED
+          ? Math.max(existingProfile.highestRating, ratingAfter)
+          : existingProfile.highestRating,
+    };
+  }
+
   private resolveForfeitLoser(participants: SettledParticipant[]) {
     return [...participants].sort((left, right) => {
       const leftAt = left.forfeitedAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -653,6 +749,7 @@ export class BattleSettlementService {
       select: {
         id: true,
         mode: true,
+        skillCode: true,
         status: true,
         questionCount: true,
         correctScore: true,

@@ -9,6 +9,7 @@ import {
   formatBattleDuration,
   formatBattleInitial,
   formatBattleNickname,
+  formatBattleSkill,
   getBattleErrorMessage,
   showBattleConfirmModal,
 } from '../../utils/battle';
@@ -48,6 +49,7 @@ type RoomPageData = {
   isValidBattleId: boolean;
   state: RoomPageState;
   roomModeText: string;
+  skillText: string;
   roomStatusText: string;
   titleText: string;
   descriptionText: string;
@@ -198,6 +200,7 @@ Page<RoomPageData, RoomPageMethods>({
     isValidBattleId: false,
     state: 'LOADING',
     roomModeText: '',
+    skillText: '',
     roomStatusText: '',
     titleText: '正在加载房间',
     descriptionText: '系统正在同步房间状态，请稍候。',
@@ -569,6 +572,7 @@ Page<RoomPageData, RoomPageMethods>({
     this.setData({
       state,
       roomModeText: isFriendMode ? '好友对战' : '随机匹配',
+      skillText: formatBattleSkill(payload.skill),
       roomStatusText: meta.roomStatusText,
       titleText: meta.titleText,
       descriptionText: meta.descriptionText,

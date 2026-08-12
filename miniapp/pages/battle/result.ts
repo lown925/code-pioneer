@@ -9,6 +9,7 @@ import {
   formatBattleInitial,
   formatBattleNickname,
   formatBattleRating,
+  formatBattleSkill,
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
@@ -25,6 +26,7 @@ type ResultPageData = {
   descriptionText: string;
   errorMessage: string;
   modeText: string;
+  skillText: string;
   statusText: string;
   resultText: string;
   resultHintText: string;
@@ -94,6 +96,7 @@ Page<ResultPageData, ResultPageMethods>({
     descriptionText: '系统正在同步本场对战的结算结果，请稍候。',
     errorMessage: '',
     modeText: '',
+    skillText: '',
     statusText: '',
     resultText: '',
     resultHintText: '',
@@ -221,6 +224,7 @@ Page<ResultPageData, ResultPageMethods>({
           descriptionText: this.getPendingDescription(response.status),
           errorMessage: '',
           modeText: this.getModeText(response.mode),
+          skillText: formatBattleSkill(response.skill),
           statusText: this.getStatusText(response.status, false),
           resultText: '等待结算',
           resultHintText: '结果准备完成后会自动刷新展示。',
@@ -239,6 +243,7 @@ Page<ResultPageData, ResultPageMethods>({
         descriptionText: '本场对战的分数、胜负和 rating 变化均以服务端结算结果为准。',
         errorMessage: '',
         modeText: this.getModeText(response.mode),
+        skillText: formatBattleSkill(response.skill),
         statusText: this.getStatusText(response.status, true),
         resultText: resultMeta.resultText,
         resultHintText: resultMeta.resultHintText,
@@ -392,7 +397,15 @@ Page<ResultPageData, ResultPageMethods>({
   },
 
   getModeText(mode: BattleMode) {
-    return mode === 'FRIEND' ? '好友对战' : '排位对战';
+    if (mode === 'FRIEND') {
+      return '好友对战';
+    }
+
+    if (mode === 'RANKED') {
+      return '排位对战';
+    }
+
+    return '未知模式';
   },
 
   getResultMeta(result: BattleResult) {

@@ -25,6 +25,21 @@
       <text class="entry-copy">
         适合你先发起房间，再通过微信分享或邀请码邀请好友加入。
       </text>
+      <view class="skill-list">
+        <view
+          wx:for="{{availableSkills}}"
+          wx:key="code"
+          class="skill-option {{selectedSkillCode === item.code ? 'skill-option-selected' : ''}}"
+          data-skill="{{item.code}}"
+          bindtap="handleSelectSkill"
+        >
+          <view>
+            <text class="skill-name">{{item.name}}</text>
+            <text class="skill-copy">本局只出现该方向题目</text>
+          </view>
+          <text class="skill-check">{{selectedSkillCode === item.code ? '已选择' : '选择'}}</text>
+        </view>
+      </view>
       <view class="primary-button action-button" bindtap="handleCreateRoom">
         创建好友房
       </view>
@@ -69,6 +84,10 @@
       <text class="preview-copy">{{stateDescription}}</text>
 
       <view class="preview-meta">
+        <view class="preview-meta-item">
+          <text class="preview-meta-label">对战方向</text>
+          <text class="preview-meta-value">{{selectedSkillName || '历史对战'}}</text>
+        </view>
         <view class="preview-meta-item">
           <text class="preview-meta-label">房主</text>
           <text class="preview-meta-value">{{inviterName || '匿名用户'}}</text>

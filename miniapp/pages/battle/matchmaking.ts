@@ -1,5 +1,6 @@
 import type {
   BattleProfileResponse,
+  BattleSkillProfile,
   MatchmakingStatusResponse,
 } from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
@@ -34,6 +35,11 @@ type MatchmakingPageData = {
   expiresAtMs: number;
   stateTitle: string;
   stateDescription: string;
+  availableSkills: BattleSkillProfile[];
+  selectedSkillCode: string;
+  selectedSkillName: string;
+  skillRatingText: string;
+  skillRankText: string;
 };
 
 type MatchmakingPageMethods = {
@@ -53,6 +59,9 @@ type MatchmakingPageMethods = {
   startElapsedTicker(): void;
   stopElapsedTicker(): void;
   handleStartMatchmaking(): void;
+  handleSelectSkill(
+    event: WechatMiniprogram.CustomEvent<{ skill?: string }>,
+  ): void;
   handleCancelMatchmaking(): void;
   handleRetry(): void;
   handleBackHome(): void;
@@ -98,6 +107,11 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     expiresAtMs: 0,
     stateTitle: '准备开始随机匹配',
     stateDescription: '进入匹配池后会按评分范围轮询查找对手。',
+    availableSkills: [],
+    selectedSkillCode: '',
+    selectedSkillName: '',
+    skillRatingText: '未定级',
+    skillRankText: '未上榜',
   },
 
   onLoad() {
@@ -261,6 +275,9 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
         url: '/battles/matchmaking/join',
         method: 'POST',
         authMode: 'required',
+        data: {
+          skill: this.data.selectedSkillCode,
+        },
       });
 
       if (!isPageActive || currentRequestSerial !== requestSerial) {
@@ -377,6 +394,17 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     const expiresAtMs = parseTimestamp(payload.expiresAt);
     const battleId = payload.battleId ?? '';
     const nextState = payload.status;
+    const selectedSkillCode = payload.skill ?? this.data.selectedSkillCode;
+    const selectedSkill = this.data.availableSkills.find(
+      (skill) => skill.code === selectedSkillCode,
+    );
+
+    if (selectedSkillCode) {
+      this.setData({
+        selectedSkillCode,
+        selectedSkillName: selectedSkill?.name ?? selectedSkillCode,
+      });
+    }
 
     this.stopPolling();
     this.stopElapsedTicker();
@@ -545,7 +573,40 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
   },
 
   handleStartMatchmaking() {
+    if (!this.data.selectedSkillCode) {
+      wx.showToast({
+        title: '请先选择对战方向',
+        icon: 'none',
+      });
+      return;
+    }
+
     void this.joinMatchmaking();
+  },
+
+  handleSelectSkill(
+    event: WechatMiniprogram.CustomEvent<{ skill?: string }>,
+  ) {
+    if (this.data.state === 'SEARCHING' || this.data.state === 'MATCHED') {
+      return;
+    }
+
+    const skillCode = event.currentTarget.dataset.skill;
+    const skill = this.data.availableSkills.find(
+      (item) => item.code === skillCode,
+    );
+
+    if (!skill) {
+      return;
+    }
+
+    this.setData({
+      selectedSkillCode: skill.code,
+      selectedSkillName: skill.name,
+      skillRatingText:
+        skill.rating === null ? '未定级' : formatBattleRating(skill.rating),
+      skillRankText: formatBattleRank(skill.rank),
+    });
   },
 
   handleCancelMatchmaking() {
@@ -625,14 +686,29 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
         BATTLE_MATCH_EXPIRED: '本次匹配已过期，请重新开始匹配。',
         BATTLE_INVALID_STATUS:
           '当前匹配状态已变化，请重新同步服务端状态后再继续操作。',
+        BATTLE_SKILL_UNAVAILABLE: '该方向暂未开放或题量不足，请选择其他方向。',
+        BATTLE_SKILL_LOCKED: '当前匹配已锁定方向，请先取消后再切换。',
       },
     );
   },
 
   updateProfileCard(profile: BattleProfileResponse) {
+    const selectedSkill =
+      profile.availableSkills.find(
+        (skill) => skill.code === this.data.selectedSkillCode,
+      ) ?? profile.availableSkills[0];
+
     this.setData({
       ratingText: formatBattleRating(profile.rating),
       rankText: formatBattleRank(profile.currentRank),
+      availableSkills: profile.availableSkills,
+      selectedSkillCode: selectedSkill?.code ?? '',
+      selectedSkillName: selectedSkill?.name ?? '',
+      skillRatingText:
+        selectedSkill?.rating === null || selectedSkill?.rating === undefined
+          ? '未定级'
+          : formatBattleRating(selectedSkill.rating),
+      skillRankText: formatBattleRank(selectedSkill?.rank),
     });
   },
 });

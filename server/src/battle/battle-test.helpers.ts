@@ -37,9 +37,31 @@ type BattleProfileRecord = {
   bestWinStreak?: number;
 };
 
+type UserBattleSkillRatingRecord = {
+  id: string;
+  userId: string;
+  skillCode: string;
+  rating: number;
+  highestRating: number;
+  rankedBattles: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  currentWinStreak: number;
+  bestWinStreak: number;
+};
+
+type BattleSkillRecord = {
+  code: string;
+  name: string;
+  isEnabled: boolean;
+  sortOrder: number;
+};
+
 type BattleQueueRecord = {
   id: string;
   userId: string;
+  skillCode?: string | null;
   status: 'SEARCHING' | 'MATCHED' | 'CANCELLED' | 'EXPIRED';
   ratingSnapshot: number;
   matchedBattleRoomId: string | null;
@@ -52,6 +74,7 @@ type BattleQueueRecord = {
 type BattleRoomRecord = {
   id: string;
   mode: BattleMode;
+  skillCode?: string | null;
   status: BattleRoomStatus;
   questionCount: number;
   durationSeconds: number;
@@ -121,6 +144,7 @@ type BattleQuestionSnapshotRecord = {
   answerNormalizationSnapshot: unknown;
   knowledgeTagsSnapshot: unknown;
   programmingLanguage: string | null;
+  skillCodeSnapshot?: string | null;
   courseIdSnapshot: string | null;
   chapterIdSnapshot: string | null;
   createdAt: Date;
@@ -148,6 +172,7 @@ type BattleRatingLogRecord = {
   userId: string;
   battleRoomId: string | null;
   participantId: string | null;
+  skillCode?: string | null;
   reason: BattleRatingReason;
   ratingBefore: number;
   ratingDelta: number;
@@ -170,6 +195,7 @@ type QuizQuestionRecord = {
   caseSensitive: boolean;
   knowledgeTags: unknown;
   programmingLanguage: string | null;
+  battleSkillCode?: string | null;
   createdAt: Date;
   options: Array<{
     id: string;
@@ -186,6 +212,7 @@ type QuizQuestionRecord = {
       courseId: string;
       course: {
         status: CourseStatus;
+        deletedAt?: Date | null;
       };
     };
   };
@@ -308,6 +335,21 @@ function toRoomView(
 export function createBattlePrismaMock() {
   const users = new Map<string, UserRecord>();
   const battleProfiles = new Map<string, BattleProfileRecord>();
+  const battleSkills = new Map<string, BattleSkillRecord>([
+    [
+      'PYTHON',
+      {
+        code: 'PYTHON',
+        name: 'Python',
+        isEnabled: true,
+        sortOrder: 100,
+      },
+    ],
+  ]);
+  const userBattleSkillRatings = new Map<
+    string,
+    UserBattleSkillRatingRecord
+  >();
   const battleQueues = new Map<string, BattleQueueRecord>();
   const battleRooms = new Map<string, BattleRoomRecord>();
   const battleParticipants = new Map<string, BattleParticipantRecord>();
@@ -419,6 +461,133 @@ export function createBattlePrismaMock() {
         },
       ),
     },
+    battleSkill: {
+      findMany: jest.fn(
+        async ({
+          where,
+          select,
+        }: {
+          where?: { isEnabled?: boolean };
+          select?: {
+            quizQuestions?: { where?: Record<string, unknown> };
+          };
+        }) =>
+          [...battleSkills.values()]
+            .filter(
+              (skill) =>
+                where?.isEnabled === undefined ||
+                skill.isEnabled === where.isEnabled,
+            )
+            .sort(
+              (left, right) =>
+                left.sortOrder - right.sortOrder ||
+                left.code.localeCompare(right.code),
+            )
+            .map((skill) => ({
+              ...skill,
+              quizQuestions: [...quizQuestions.values()].filter(
+                (question) =>
+                  question.battleSkillCode === skill.code &&
+                  matchesQuizQuestionWhere(
+                    question,
+                    select?.quizQuestions?.where ?? {},
+                  ),
+              ),
+            })),
+      ),
+    },
+    userBattleSkillRating: {
+      upsert: jest.fn(
+        async ({
+          where,
+          create,
+        }: {
+          where: { userId_skillCode: { userId: string; skillCode: string } };
+          create: Partial<UserBattleSkillRatingRecord> & {
+            userId: string;
+            skillCode: string;
+          };
+        }) => {
+          const key = `${where.userId_skillCode.userId}:${where.userId_skillCode.skillCode}`;
+          const existing = userBattleSkillRatings.get(key);
+
+          if (existing) {
+            return existing;
+          }
+
+          const record: UserBattleSkillRatingRecord = {
+            id: create.id ?? nextId(),
+            userId: create.userId,
+            skillCode: create.skillCode,
+            rating: create.rating ?? 1000,
+            highestRating: create.highestRating ?? 1000,
+            rankedBattles: create.rankedBattles ?? 0,
+            wins: create.wins ?? 0,
+            losses: create.losses ?? 0,
+            draws: create.draws ?? 0,
+            currentWinStreak: create.currentWinStreak ?? 0,
+            bestWinStreak: create.bestWinStreak ?? 0,
+          };
+          userBattleSkillRatings.set(key, record);
+          return record;
+        },
+      ),
+      update: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { userId_skillCode: { userId: string; skillCode: string } };
+          data: Record<string, unknown>;
+        }) => {
+          const key = `${where.userId_skillCode.userId}:${where.userId_skillCode.skillCode}`;
+          const existing = userBattleSkillRatings.get(key);
+
+          if (!existing) {
+            throw new Error('Battle skill rating not found');
+          }
+
+          const updated = applyScalarUpdate(existing, data);
+          userBattleSkillRatings.set(key, updated);
+          return updated;
+        },
+      ),
+      findMany: jest.fn(
+        async ({ where }: { where?: Record<string, unknown> }) =>
+          [...userBattleSkillRatings.values()]
+            .filter((record) => {
+              if (!where) {
+                return true;
+              }
+
+              if (
+                typeof where.skillCode === 'string' &&
+                record.skillCode !== where.skillCode
+              ) {
+                return false;
+              }
+
+              if (
+                where.rankedBattles &&
+                typeof where.rankedBattles === 'object' &&
+                'gt' in where.rankedBattles &&
+                record.rankedBattles <=
+                  ((where.rankedBattles as { gt?: number }).gt ?? 0)
+              ) {
+                return false;
+              }
+
+              return true;
+            })
+            .map((record) => ({
+              ...record,
+              user: {
+                nickname: users.get(record.userId)?.nickname ?? null,
+                avatarUrl: users.get(record.userId)?.avatarUrl ?? null,
+              },
+            })),
+      ),
+    },
     battleMatchQueue: {
       findUnique: jest.fn(async ({ where }: { where: { userId: string } }) => {
         return battleQueues.get(where.userId) ?? null;
@@ -428,6 +597,7 @@ export function createBattlePrismaMock() {
           const record: BattleQueueRecord = {
             id: nextId(),
             userId: data.userId!,
+            skillCode: data.skillCode ?? null,
             status: (data.status as BattleQueueRecord['status']) ?? 'CANCELLED',
             ratingSnapshot: data.ratingSnapshot ?? 1000,
             matchedBattleRoomId: data.matchedBattleRoomId ?? null,
@@ -498,9 +668,10 @@ export function createBattlePrismaMock() {
     },
     battleRoom: {
       create: jest.fn(async ({ data }: { data: Partial<BattleRoomRecord> }) => {
-        const record: BattleRoomRecord = {
+          const record: BattleRoomRecord = {
           id: data.id ?? nextId(),
           mode: data.mode ?? BattleMode.RANKED,
+          skillCode: data.skillCode ?? null,
           status: data.status ?? BattleRoomStatus.WAITING,
           questionCount: data.questionCount ?? 20,
           durationSeconds: data.durationSeconds ?? 180,
@@ -958,6 +1129,7 @@ export function createBattlePrismaMock() {
             userId: data.userId!,
             battleRoomId: data.battleRoomId ?? null,
             participantId: data.participantId ?? null,
+            skillCode: data.skillCode ?? null,
             reason: data.reason!,
             ratingBefore: data.ratingBefore ?? 0,
             ratingDelta: data.ratingDelta ?? 0,
@@ -1029,6 +1201,7 @@ export function createBattlePrismaMock() {
                 item.answerNormalizationSnapshot ?? null,
               knowledgeTagsSnapshot: item.knowledgeTagsSnapshot ?? null,
               programmingLanguage: item.programmingLanguage ?? null,
+              skillCodeSnapshot: item.skillCodeSnapshot ?? null,
               courseIdSnapshot: item.courseIdSnapshot ?? null,
               chapterIdSnapshot: item.chapterIdSnapshot ?? null,
               createdAt: item.createdAt ?? new Date(),
@@ -1175,6 +1348,10 @@ export function createBattlePrismaMock() {
       const snapshot = {
         users: structuredClone([...users.entries()]),
         battleProfiles: structuredClone([...battleProfiles.entries()]),
+        battleSkills: structuredClone([...battleSkills.entries()]),
+        userBattleSkillRatings: structuredClone([
+          ...userBattleSkillRatings.entries(),
+        ]),
         battleQueues: structuredClone([...battleQueues.entries()]),
         battleRooms: structuredClone([...battleRooms.entries()]),
         battleParticipants: structuredClone([...battleParticipants.entries()]),
@@ -1192,6 +1369,11 @@ export function createBattlePrismaMock() {
       } catch (error) {
         restoreMap(users, snapshot.users);
         restoreMap(battleProfiles, snapshot.battleProfiles);
+        restoreMap(battleSkills, snapshot.battleSkills);
+        restoreMap(
+          userBattleSkillRatings,
+          snapshot.userBattleSkillRatings,
+        );
         restoreMap(battleQueues, snapshot.battleQueues);
         restoreMap(battleRooms, snapshot.battleRooms);
         restoreMap(battleParticipants, snapshot.battleParticipants);
@@ -1210,6 +1392,8 @@ export function createBattlePrismaMock() {
     tx,
     users,
     battleProfiles,
+    battleSkills,
+    userBattleSkillRatings,
     battleQueues,
     battleRooms,
     battleParticipants,
@@ -1256,6 +1440,10 @@ function matchesQueueWhere(
   }
 
   if (where.status !== undefined && record.status !== where.status) {
+    return false;
+  }
+
+  if (where.skillCode !== undefined && record.skillCode !== where.skillCode) {
     return false;
   }
 
@@ -1688,6 +1876,13 @@ function matchesQuizQuestionWhere(
     }
   }
 
+  if (
+    where.battleSkillCode !== undefined &&
+    record.battleSkillCode !== where.battleSkillCode
+  ) {
+    return false;
+  }
+
   if (where.type && typeof where.type === 'object' && where.type !== null) {
     const values = (where.type as { in?: QuestionType[] }).in ?? [];
 
@@ -1703,6 +1898,7 @@ function matchesQuizQuestionWhere(
         status?: ChapterStatus;
         course?: {
           status?: CourseStatus;
+          deletedAt?: null;
         };
       };
     };
@@ -1721,6 +1917,13 @@ function matchesQuizQuestionWhere(
     if (
       quizWhere.chapter?.course?.status &&
       record.quiz.chapter.course.status !== quizWhere.chapter.course.status
+    ) {
+      return false;
+    }
+
+    if (
+      quizWhere.chapter?.course?.deletedAt === null &&
+      record.quiz.chapter.course.deletedAt != null
     ) {
       return false;
     }

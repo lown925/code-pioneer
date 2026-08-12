@@ -44,6 +44,7 @@ export class BattleReadyService {
         select: {
           id: true,
           status: true,
+          skillCode: true,
           questionCount: true,
           durationSeconds: true,
           startedAt: true,
@@ -208,6 +209,7 @@ export class BattleReadyService {
             tx,
             {
               battleId,
+              skillCode: room.skillCode,
               questionCount: room.questionCount,
               durationSeconds: room.durationSeconds,
               now,

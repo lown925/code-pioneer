@@ -7,6 +7,7 @@ import {
   compareBattleRanking,
 } from './battle-ranking';
 import type { BattleProfilePayload } from './battle.types';
+import { BattleSkillService } from './battle-skill.service';
 
 type BattleProfileRecord = {
   userId: string;
@@ -27,6 +28,7 @@ export class BattleProfileService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly battleDomainService: BattleDomainService,
+    private readonly battleSkillService: BattleSkillService,
   ) {}
 
   async getBattleProfile(currentUserId: string) {
@@ -35,10 +37,11 @@ export class BattleProfileService {
     );
     const profiles = await this.loadProfiles();
     const sortedProfiles = [...profiles].sort(compareBattleRanking);
+    const availableSkills = await this.loadAvailableSkillProfiles(currentUserId);
 
     return {
       success: true as const,
-      data: this.toPayload(profile, sortedProfiles),
+      data: this.toPayload(profile, sortedProfiles, availableSkills),
     };
   }
 
@@ -63,6 +66,7 @@ export class BattleProfileService {
   private toPayload(
     profile: BattleProfileRecord,
     sortedProfiles: BattleProfileRecord[],
+    availableSkills: BattleProfilePayload['availableSkills'],
   ): BattleProfilePayload {
     const rank = calculateBattleRank(sortedProfiles, profile.userId);
 
@@ -84,6 +88,58 @@ export class BattleProfileService {
       bestWinStreak: profile.bestWinStreak ?? 0,
       rank: rank ?? 0,
       currentRank: rank ?? 0,
+      availableSkills,
     };
+  }
+
+  private async loadAvailableSkillProfiles(currentUserId: string) {
+    const availableSkills = await this.battleSkillService.getAvailableSkills();
+    const ratings = await this.prisma.userBattleSkillRating.findMany({
+      where: {
+        skillCode: { in: availableSkills.map((skill) => skill.code) },
+      },
+      select: {
+        userId: true,
+        skillCode: true,
+        rating: true,
+        highestRating: true,
+        rankedBattles: true,
+      },
+    });
+
+    return availableSkills.map((skill) => {
+      const skillRatings = ratings
+        .filter((rating) => rating.skillCode === skill.code)
+        .sort((left, right) => {
+          if (left.rating !== right.rating) {
+            return right.rating - left.rating;
+          }
+
+          if (left.rankedBattles !== right.rankedBattles) {
+            return right.rankedBattles - left.rankedBattles;
+          }
+
+          return left.userId.localeCompare(right.userId);
+        });
+      const rating = skillRatings.find(
+        (item) => item.userId === currentUserId,
+      );
+      const rankedRatings = skillRatings.filter(
+        (item) => item.rankedBattles > 0,
+      );
+      const rankIndex = rankedRatings.findIndex(
+        (item) => item.userId === currentUserId,
+      );
+
+      return {
+        code: skill.code,
+        name: skill.name,
+        rating: rating?.rating ?? null,
+        highestRating: rating?.highestRating ?? null,
+        rankedBattles: rating?.rankedBattles ?? 0,
+        rank: rankIndex >= 0 ? rankIndex + 1 : null,
+        status: rating ? ('RANKED' as const) : ('UNRANKED' as const),
+      };
+    });
   }
 }
