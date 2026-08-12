@@ -72,6 +72,9 @@ type SnapshotRecord = {
   optionsSnapshot: unknown;
   programmingLanguage: string | null;
   skillCodeSnapshot: string | null;
+  sourceQuizQuestion: {
+    content: string;
+  } | null;
 };
 
 type AnswerRecord = {
@@ -185,6 +188,11 @@ export class BattleQuestionService {
           optionsSnapshot: true,
           programmingLanguage: true,
           skillCodeSnapshot: true,
+          sourceQuizQuestion: {
+            select: {
+              content: true,
+            },
+          },
         },
       })) as SnapshotRecord[];
 
@@ -197,7 +205,7 @@ export class BattleQuestionService {
           questionType: snapshot.questionType,
           presentation: snapshot.presentation,
           difficulty: snapshot.difficulty,
-          stem: this.asContentBlocks(snapshot.stemSnapshot),
+          stem: this.restoreLegacyStem(snapshot),
           options: this.asOptionSnapshots(snapshot.optionsSnapshot),
           programmingLanguage: snapshot.programmingLanguage,
           answered: Boolean(answer),
@@ -549,7 +557,17 @@ export class BattleQuestionService {
   }
 
   private resolveStemSnapshot(question: CandidateQuestionRecord) {
-    return this.resolveContentBlocks(question.stemBlocks, question.content);
+    const blocks = this.resolveContentBlocks(
+      question.stemBlocks,
+      question.content,
+    );
+    const hasVisibleText = blocks.some(
+      (block) => block.type === 'TEXT' && block.text.trim().length > 0,
+    );
+
+    return hasVisibleText
+      ? blocks
+      : [...this.createTextBlock(question.content), ...blocks];
   }
 
   private resolveExplanationSnapshot(question: CandidateQuestionRecord) {
@@ -615,6 +633,22 @@ export class BattleQuestionService {
         type: 'TEXT',
         text,
       },
+    ];
+  }
+
+  private restoreLegacyStem(snapshot: SnapshotRecord) {
+    const blocks = this.asContentBlocks(snapshot.stemSnapshot);
+    const hasVisibleText = blocks.some(
+      (block) => block.type === 'TEXT' && block.text.trim().length > 0,
+    );
+
+    if (hasVisibleText || !snapshot.sourceQuizQuestion?.content.trim()) {
+      return blocks;
+    }
+
+    return [
+      ...this.createTextBlock(snapshot.sourceQuizQuestion.content),
+      ...blocks,
     ];
   }
 

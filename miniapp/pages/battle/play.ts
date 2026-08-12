@@ -107,9 +107,11 @@ type PlayPageMethods = {
   stopCountdownPolling(): void;
   startSettlementPolling(): void;
   stopSettlementPolling(): void;
+  startResultPolling(): void;
+  stopResultPolling(): void;
   stopAllQuestionDebounceTimers(): void;
   updateTimeDisplay(): void;
-  loadResultStatus(): Promise<void>;
+  loadResultStatus(options?: { preservePlaying?: boolean }): Promise<void>;
   enterWaitingSettlement(descriptionText: string, errorMessage?: string): void;
   navigateToResult(autoNavigate?: boolean): void;
   handleRetry(): void;
@@ -219,6 +221,7 @@ const UUID_PATTERN =
 const TIME_TICK_MS = 500;
 const COUNTDOWN_POLL_MS = 1800;
 const SETTLEMENT_POLL_MS = 1800;
+const RESULT_POLL_MS = 1800;
 const CODE_FILL_MAX_LENGTH = 4000;
 const CODE_FILL_AUTOSAVE_DELAY_MS = 650;
 
@@ -229,6 +232,7 @@ let requestSerial = 0;
 let timeTicker: number | null = null;
 let countdownPollTicker: number | null = null;
 let settlementPollTicker: number | null = null;
+let resultPollTicker: number | null = null;
 let isQuestionsRequesting = false;
 let isResultRequesting = false;
 let isBattleActionRequesting = false;
@@ -372,6 +376,7 @@ Page<PlayPageData, PlayPageMethods>({
     this.stopTimeTicker();
     this.stopCountdownPolling();
     this.stopSettlementPolling();
+    this.stopResultPolling();
     this.stopAllQuestionDebounceTimers();
   },
 
@@ -383,6 +388,7 @@ Page<PlayPageData, PlayPageMethods>({
     this.stopTimeTicker();
     this.stopCountdownPolling();
     this.stopSettlementPolling();
+    this.stopResultPolling();
     this.stopAllQuestionDebounceTimers();
     questionSyncRuntimeMap.clear();
   },
@@ -497,6 +503,7 @@ Page<PlayPageData, PlayPageMethods>({
     this.stopTimeTicker();
     this.stopCountdownPolling();
     this.stopSettlementPolling();
+    this.stopResultPolling();
 
     this.setData({
       state: nextState,
@@ -538,6 +545,11 @@ Page<PlayPageData, PlayPageMethods>({
 
     if (nextState === 'WAITING_SETTLEMENT') {
       this.startSettlementPolling();
+      return;
+    }
+
+    if (nextState === 'PLAYING') {
+      this.startResultPolling();
       return;
     }
 
@@ -628,6 +640,31 @@ Page<PlayPageData, PlayPageMethods>({
     }
   },
 
+  startResultPolling() {
+    this.stopResultPolling();
+
+    if (!isPageVisible || this.data.state !== 'PLAYING') {
+      return;
+    }
+
+    resultPollTicker = setTimeout(() => {
+      resultPollTicker = null;
+
+      if (!isPageVisible || this.data.state !== 'PLAYING') {
+        return;
+      }
+
+      void this.loadResultStatus({ preservePlaying: true });
+    }, RESULT_POLL_MS) as unknown as number;
+  },
+
+  stopResultPolling() {
+    if (resultPollTicker !== null) {
+      clearTimeout(resultPollTicker);
+      resultPollTicker = null;
+    }
+  },
+
   stopAllQuestionDebounceTimers() {
     questionSyncRuntimeMap.forEach((runtime) => {
       if (runtime.debounceTimer !== null) {
@@ -674,7 +711,7 @@ Page<PlayPageData, PlayPageMethods>({
     });
   },
 
-  async loadResultStatus() {
+  async loadResultStatus(options?: { preservePlaying?: boolean }) {
     if (
       !this.data.isValidBattleId ||
       !this.ensureAuthenticated() ||
@@ -700,7 +737,37 @@ Page<PlayPageData, PlayPageMethods>({
       serverTimeOffsetMs = parseTimestamp(response.serverTime) - Date.now();
 
       if (response.completed) {
+        const opponentForfeited =
+          response.endReason === 'USER_FORFEIT' && response.result === 'WIN';
+        this.stopTimeTicker();
+        this.stopCountdownPolling();
+        this.stopSettlementPolling();
+        this.stopResultPolling();
+        this.stopAllQuestionDebounceTimers();
+        this.setData({
+          state: 'COMPLETED',
+          titleText: '本场对战已结束',
+          descriptionText:
+            opponentForfeited
+              ? '对手已认输，本场已结算，正在进入结果页。'
+              : '当前对局已经完成，正在进入结果页。',
+          errorMessage: '',
+          isBattleActionPending: false,
+          submitBattleButtonText: '交卷',
+          forfeitButtonText: '认输',
+        });
+        if (opponentForfeited) {
+          wx.showToast({
+            title: '对手已认输，本场已结算',
+            icon: 'none',
+          });
+        }
         this.navigateToResult(true);
+        return;
+      }
+
+      if (options?.preservePlaying && response.status === 'IN_PROGRESS') {
+        this.startResultPolling();
         return;
       }
 
@@ -714,6 +781,11 @@ Page<PlayPageData, PlayPageMethods>({
       this.enterWaitingSettlement(waitingMessage);
     } catch (error) {
       if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      if (options?.preservePlaying && this.data.state === 'PLAYING') {
+        this.startResultPolling();
         return;
       }
 
@@ -737,6 +809,7 @@ Page<PlayPageData, PlayPageMethods>({
   enterWaitingSettlement(descriptionText: string, errorMessage = '') {
     this.stopTimeTicker();
     this.stopCountdownPolling();
+    this.stopResultPolling();
     this.stopAllQuestionDebounceTimers();
 
     this.setData({
@@ -1293,6 +1366,13 @@ Page<PlayPageData, PlayPageMethods>({
       }
 
       if (error instanceof RequestError) {
+        if (error.code === 'BATTLE_PARTICIPANT_ALREADY_SUBMITTED') {
+          this.enterWaitingSettlement(
+            '本场已停止作答，系统正在确认最终结果。',
+          );
+          return;
+        }
+
         if (
           error.code === 'BATTLE_EXPIRED' ||
           error.code === 'BATTLE_SETTLEMENT_IN_PROGRESS'
@@ -1305,6 +1385,9 @@ Page<PlayPageData, PlayPageMethods>({
         }
 
         if (error.code === 'BATTLE_ALREADY_COMPLETED') {
+          this.stopTimeTicker();
+          this.stopResultPolling();
+          this.stopAllQuestionDebounceTimers();
           this.setData({
             state: 'COMPLETED',
             titleText: '本场对战已结束',
@@ -1312,6 +1395,14 @@ Page<PlayPageData, PlayPageMethods>({
             errorMessage: this.getReadableError(error, '本场对战已结束。'),
           });
           this.navigateToResult(true);
+          return;
+        }
+
+        if (error.code === 'BATTLE_INVALID_STATUS') {
+          this.stopTimeTicker();
+          this.stopResultPolling();
+          this.stopAllQuestionDebounceTimers();
+          void this.loadResultStatus();
           return;
         }
       }

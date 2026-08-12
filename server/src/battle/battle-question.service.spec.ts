@@ -183,6 +183,36 @@ describe('BattleQuestionService', () => {
     );
   });
 
+  it('restores the prompt for an existing code-only snapshot at read time', async () => {
+    const { mock, service } = createService();
+    mock.battleRooms.get('room-1')!.startedAt = new Date(Date.now() - 1000);
+    mock.battleRooms.get('room-1')!.expiresAt = new Date(Date.now() + 60000);
+    mock.quizQuestions.set(
+      'source-1',
+      createCandidate('source-1', 'PYTHON', {
+        content: '请补全代码，使程序输出欢迎语。',
+      }),
+    );
+    mock.battleQuestionSnapshots.get('snapshot-1')!.stemSnapshot = [
+      {
+        type: 'CODE',
+        language: 'python',
+        code: '________\nprint("欢迎来到码站先锋")',
+      },
+    ];
+
+    const result = await service.getBattleQuestions(USER_A_ID, 'room-1');
+
+    expect(result.data.questions?.[0]?.stem).toEqual([
+      { type: 'TEXT', text: '请补全代码，使程序输出欢迎语。' },
+      {
+        type: 'CODE',
+        language: 'python',
+        code: '________\nprint("欢迎来到码站先锋")',
+      },
+    ]);
+  });
+
   it('creates snapshots only from the room skill and copies the skill snapshot', async () => {
     const { mock, service } = createService();
     mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
@@ -216,6 +246,46 @@ describe('BattleQuestionService', () => {
     ).toBe(false);
   });
 
+  it('restores the prompt when legacy question blocks contain code only', async () => {
+    const { mock, service } = createService();
+    mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
+    mock.battleQuestionSnapshots.clear();
+    mock.quizQuestions.set(
+      'python-1',
+      createCandidate('python-1', 'PYTHON', {
+        content: '下面程序会输出什么？',
+        stemBlocks: [
+          {
+            type: 'CODE',
+            language: 'python',
+            code: 'text = "Python"\nprint(len(text))',
+          },
+        ],
+      }),
+    );
+    mock.quizQuestions.set('python-2', createCandidate('python-2', 'PYTHON'));
+
+    await service.createQuestionSnapshotsAndStartCountdown(mock.tx as never, {
+      battleId: 'room-1',
+      questionCount: 2,
+      durationSeconds: 180,
+      now: new Date(),
+      skillCode: 'PYTHON',
+    });
+
+    const snapshot = [...mock.battleQuestionSnapshots.values()].find(
+      (item) => item.sourceQuizQuestionId === 'python-1',
+    );
+    expect(snapshot?.stemSnapshot).toEqual([
+      { type: 'TEXT', text: '下面程序会输出什么？' },
+      {
+        type: 'CODE',
+        language: 'python',
+        code: 'text = "Python"\nprint(len(text))',
+      },
+    ]);
+  });
+
   it('fails when the selected skill pool is insufficient without falling back', async () => {
     const { mock, service } = createService();
     mock.quizQuestions.set('python-1', createCandidate('python-1', 'PYTHON'));
@@ -236,16 +306,20 @@ describe('BattleQuestionService', () => {
   });
 });
 
-function createCandidate(id: string, battleSkillCode: string) {
+function createCandidate(
+  id: string,
+  battleSkillCode: string,
+  overrides: { content?: string; stemBlocks?: unknown } = {},
+) {
   return {
     id,
     type: QuestionType.SINGLE_CHOICE,
-    content: id,
+    content: overrides.content ?? id,
     explanation: 'Explanation',
     battlePresentation: BattleQuestionPresentation.TEXT_CHOICE,
     battleDifficulty: 'EASY' as const,
     isBattleEnabled: true,
-    stemBlocks: [{ type: 'TEXT', text: id }],
+    stemBlocks: overrides.stemBlocks ?? [{ type: 'TEXT', text: id }],
     explanationBlocks: [{ type: 'TEXT', text: 'Explanation' }],
     acceptedAnswers: null,
     answerNormalization: null,

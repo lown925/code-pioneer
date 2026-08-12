@@ -1,10 +1,21 @@
 <view class="page-shell leaderboard-page">
   <view class="section-card hero-card">
     <text class="hero-eyebrow">排行榜</text>
-    <text class="hero-title">Battle 全站排名</text>
-    <text class="hero-copy">
-      榜单数据来自正式 Battle 排行接口，当前支持分页加载、下拉刷新和当前用户高亮。
-    </text>
+    <text class="hero-title">{{titleText}}</text>
+    <text class="hero-copy">{{descriptionText}}</text>
+  </view>
+
+  <view class="leaderboard-scope" role="tablist">
+    <view
+      class="scope-option {{scope === 'TOTAL' ? 'scope-option-active' : ''}}"
+      data-scope="TOTAL"
+      bindtap="handleScopeChange"
+    >总榜</view>
+    <view
+      class="scope-option {{scope === 'PYTHON' ? 'scope-option-active' : ''}}"
+      data-scope="PYTHON"
+      bindtap="handleScopeChange"
+    >Python 榜</view>
   </view>
 
   <view wx:if="{{mySummary}}" class="section-card summary-card">

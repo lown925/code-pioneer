@@ -43,6 +43,17 @@ function countQuestions(courseSlug: string) {
   };
 }
 
+function findQuestion(courseSlug: string, questionKey: string) {
+  const { questions } = countQuestions(courseSlug);
+  const question = questions.find((candidate) => candidate.key === questionKey);
+
+  if (!question) {
+    throw new Error(`Missing seed question: ${questionKey}`);
+  }
+
+  return question;
+}
+
 describe('seed content parser', () => {
   it('resolves every Python chapter document from the repository docs', () => {
     for (const fileName of PYTHON_CHAPTER_FILES) {
@@ -76,6 +87,37 @@ describe('seed content parser', () => {
     expect(questions).toHaveLength(270);
     expect(battleQuestions).toHaveLength(190);
     expect(course.battleSkillCode).toBe('PYTHON');
+  });
+
+  it('keeps the question prompt before code in parsed Python Battle stems', () => {
+    const outputQuestion = findQuestion(
+      'python-basic',
+      'string-length-output',
+    );
+    const sqrtQuestion = findQuestion(
+      'python-basic',
+      'calculate-square-root-with-math',
+    );
+
+    expect(outputQuestion.stemBlocks).toEqual([
+      { type: 'TEXT', text: '下面程序会输出什么？' },
+      {
+        type: 'CODE',
+        language: 'python',
+        code: 'text = "Python"\nprint(len(text))',
+      },
+    ]);
+    expect(sqrtQuestion.stemBlocks).toEqual([
+      {
+        type: 'TEXT',
+        text: '程序已经导入 math 模块。请补全代码，计算 81 的平方根。',
+      },
+      {
+        type: 'CODE',
+        language: 'python',
+        code: 'import math\n\nresult = __________________\nprint(result)',
+      },
+    ]);
   });
 
   it('loads the JavaScript and BattleSkill seed contracts', () => {

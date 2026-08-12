@@ -293,6 +293,14 @@ export class BattleSettlementService {
     const winner = this.resolveWinner(room, leftParticipant, rightParticipant);
     const usesSkillRating =
       room.mode === BattleMode.RANKED && Boolean(room.skillCode);
+    const profileSnapshots = await Promise.all(
+      participants.map((participant) =>
+        this.battleDomainService.ensureBattleProfile(
+          participant.userId,
+          prisma,
+        ),
+      ),
+    );
     const skillRatingSnapshots = usesSkillRating
       ? await Promise.all(
           participants.map((participant) =>
@@ -312,17 +320,7 @@ export class BattleSettlementService {
           ),
         )
       : null;
-    const legacyProfileSnapshots = usesSkillRating
-      ? null
-      : await Promise.all(
-          participants.map((participant) =>
-            this.battleDomainService.ensureBattleProfile(
-              participant.userId,
-              prisma,
-            ),
-          ),
-        );
-    const ratingSnapshots = skillRatingSnapshots ?? legacyProfileSnapshots;
+    const ratingSnapshots = skillRatingSnapshots ?? profileSnapshots;
 
     if (!ratingSnapshots) {
       throw new InternalServerErrorException(
@@ -376,19 +374,25 @@ export class BattleSettlementService {
             ratingResult.ratingAfter,
           ),
         });
-      } else {
-        await prisma.battleProfile.update({
-          where: {
-            userId: participant.userId,
-          },
-          data: this.createLegacyProfileUpdate(
-            room,
-            participant,
-            existingRating,
-            ratingResult.ratingAfter,
-          ),
-        });
       }
+
+      await prisma.battleProfile.update({
+        where: {
+          userId: participant.userId,
+        },
+        data: usesSkillRating
+          ? this.createBattleProfileAggregateUpdate(
+              room,
+              participant,
+              profileSnapshots[index],
+            )
+          : this.createLegacyProfileUpdate(
+              room,
+              participant,
+              profileSnapshots[index],
+              ratingResult.ratingAfter,
+            ),
+      });
 
       if (room.mode === BattleMode.RANKED) {
         await prisma.battleRatingLog.create({
@@ -664,6 +668,38 @@ export class BattleSettlementService {
         room.mode === BattleMode.RANKED
           ? Math.max(existingProfile.highestRating, ratingAfter)
           : existingProfile.highestRating,
+    };
+  }
+
+  private createBattleProfileAggregateUpdate(
+    room: RoomRecord,
+    participant: SettledParticipant,
+    existingProfile: {
+      currentWinStreak: number;
+      bestWinStreak: number;
+    },
+  ) {
+    return {
+      totalBattles: { increment: 1 },
+      rankedBattles: room.mode === BattleMode.RANKED ? { increment: 1 } : undefined,
+      friendBattles: room.mode === BattleMode.FRIEND ? { increment: 1 } : undefined,
+      wins:
+        participant.result === BattleResult.WIN ? { increment: 1 } : undefined,
+      losses:
+        participant.result === BattleResult.LOSS
+          ? { increment: 1 }
+          : undefined,
+      draws:
+        participant.result === BattleResult.DRAW ? { increment: 1 } : undefined,
+      currentWinStreak:
+        participant.result === BattleResult.WIN ? { increment: 1 } : 0,
+      bestWinStreak:
+        participant.result === BattleResult.WIN
+          ? Math.max(
+              existingProfile.bestWinStreak,
+              existingProfile.currentWinStreak + 1,
+            )
+          : existingProfile.bestWinStreak,
     };
   }
 

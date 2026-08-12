@@ -1216,17 +1216,34 @@ export function createBattlePrismaMock() {
       findMany: jest.fn(
         async ({
           where,
+          select,
         }: {
           where: Record<string, unknown>;
           orderBy?: { orderIndex?: 'asc' | 'desc' };
+          select?: { sourceQuizQuestion?: unknown };
         }) => {
           const items = [...battleQuestionSnapshots.values()].filter(
             (snapshot) => matchesQuestionSnapshotWhere(snapshot, where),
           );
 
-          return items.sort(
+          const sortedItems = items.sort(
             (left, right) => left.orderIndex - right.orderIndex,
           );
+
+          return sortedItems.map((snapshot) => ({
+            ...snapshot,
+            ...(select?.sourceQuizQuestion
+              ? {
+                  sourceQuizQuestion: snapshot.sourceQuizQuestionId
+                    ? {
+                        content:
+                          quizQuestions.get(snapshot.sourceQuizQuestionId)
+                            ?.content ?? '',
+                      }
+                    : null,
+                }
+              : {}),
+          }));
         },
       ),
       findFirst: jest.fn(

@@ -45,6 +45,32 @@
   color: rgba(255, 255, 255, 0.84);
 }
 
+.leaderboard-scope {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 6rpx;
+  border: 1rpx solid #dbe4f2;
+  border-radius: 14rpx;
+  background: #edf2f8;
+}
+
+.scope-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 70rpx;
+  border-radius: 10rpx;
+  color: #5f7596;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.scope-option-active {
+  background: #ffffff;
+  color: #17324d;
+  box-shadow: 0 6rpx 16rpx rgba(23, 50, 77, 0.1);
+}
+
 .summary-card {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

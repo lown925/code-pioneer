@@ -16,6 +16,7 @@ import {
 import { request, RequestError } from '../../utils/request';
 
 type PageState = 'loading' | 'success' | 'empty' | 'error' | 'unauthorized';
+type LeaderboardScope = 'TOTAL' | 'PYTHON';
 
 type LeaderboardCard = BattleLeaderboardItem & {
   nicknameText: string;
@@ -47,6 +48,9 @@ type BattleLeaderboardPageData = {
   hasMore: boolean;
   isLoadingMore: boolean;
   mySummary: MyRankSummary | null;
+  scope: LeaderboardScope;
+  titleText: string;
+  descriptionText: string;
 };
 
 type BattleLeaderboardPageMethods = {
@@ -58,6 +62,9 @@ type BattleLeaderboardPageMethods = {
   buildQuery(page: number): BattleLeaderboardQuery;
   handleRetry(): void;
   handleLoadMoreRetry(): void;
+  handleScopeChange(
+    event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>,
+  ): void;
   mapLeaderboardItem(item: BattleLeaderboardItem): LeaderboardCard;
   mapMySummary(
     response: BattleLeaderboardResponse,
@@ -88,6 +95,9 @@ Page<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     hasMore: false,
     isLoadingMore: false,
     mySummary: null,
+    scope: 'TOTAL',
+    titleText: '总榜',
+    descriptionText: '按全部方向 Rating 总和排名。',
   },
 
   onLoad() {
@@ -264,7 +274,29 @@ Page<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     return {
       page,
       pageSize: PAGE_SIZE,
+      ...(this.data.scope === 'PYTHON' ? { skill: 'PYTHON' } : {}),
     };
+  },
+
+  handleScopeChange(
+    event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>,
+  ) {
+    const scope = event.currentTarget.dataset.scope;
+
+    if (!scope || scope === this.data.scope || isRequesting) {
+      return;
+    }
+
+    this.setData({
+      scope,
+      titleText: scope === 'PYTHON' ? 'Python 排行榜' : '总榜',
+      descriptionText:
+        scope === 'PYTHON'
+          ? '按 Python Ranked 方向 Rating 排名。'
+          : '按全部方向 Rating 总和排名。',
+      mySummary: null,
+    });
+    void this.loadFirstPage();
   },
 
   handleRetry() {

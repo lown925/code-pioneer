@@ -14,6 +14,7 @@ import {
 import { request } from '../../utils/request';
 
 type PageState = 'guest' | 'loading' | 'success' | 'empty' | 'error';
+type LeaderboardScope = 'TOTAL' | 'PYTHON';
 
 type LeaderboardRow = {
   rank: number;
@@ -43,6 +44,11 @@ type BattlePageData = {
   errorMessage: string;
   rankings: LeaderboardRow[];
   myRank: MyRankCard | null;
+  leaderboardScope: LeaderboardScope;
+  leaderboardTitle: string;
+  leaderboardSubtitle: string;
+  leaderboardRatingLabel: string;
+  leaderboardBattlesLabel: string;
 };
 
 type BattlePageMethods = {
@@ -53,6 +59,9 @@ type BattlePageMethods = {
   handleRandomMatch(): void;
   handleFriendBattle(): void;
   handleHistory(): void;
+  handleLeaderboardScopeChange(
+    event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>,
+  ): void;
   openBattlePage(path: string): void;
   mapLeaderboardItem(item: BattleLeaderboardItem): LeaderboardRow;
   mapMyRank(
@@ -75,6 +84,11 @@ Page<BattlePageData, BattlePageMethods>({
     errorMessage: '',
     rankings: [],
     myRank: null,
+    leaderboardScope: 'TOTAL',
+    leaderboardTitle: '总榜',
+    leaderboardSubtitle: '全部方向 Rating 总和排名',
+    leaderboardRatingLabel: '总榜 Rating',
+    leaderboardBattlesLabel: '总场次',
   },
 
   onLoad() {
@@ -148,6 +162,9 @@ Page<BattlePageData, BattlePageMethods>({
           data: {
             page: 1,
             pageSize: LEADERBOARD_LIMIT,
+            ...(this.data.leaderboardScope === 'PYTHON'
+              ? { skill: 'PYTHON' }
+              : {}),
           },
           authMode: 'required',
         }),
@@ -203,6 +220,30 @@ Page<BattlePageData, BattlePageMethods>({
     this.openBattlePage('/pages/battle/history');
   },
 
+  handleLeaderboardScopeChange(
+    event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>,
+  ) {
+    const scope = event.currentTarget.dataset.scope;
+
+    if (!scope || scope === this.data.leaderboardScope || isRequesting) {
+      return;
+    }
+
+    this.setData({
+      leaderboardScope: scope,
+      leaderboardTitle: scope === 'PYTHON' ? 'Python 榜' : '总榜',
+      leaderboardSubtitle:
+        scope === 'PYTHON'
+          ? 'Python 方向 Rating 排名'
+          : '全部方向 Rating 总和排名',
+      leaderboardRatingLabel:
+        scope === 'PYTHON' ? 'Python Rating' : '总榜 Rating',
+      leaderboardBattlesLabel: scope === 'PYTHON' ? 'Python 场次' : '总场次',
+      myRank: null,
+    });
+    void this.loadBattleHome();
+  },
+
   openBattlePage(path: string) {
     if (!this.data.isAuthenticated) {
       redirectToLogin('/pages/battle/index');
@@ -238,14 +279,31 @@ Page<BattlePageData, BattlePageMethods>({
     leaderboard: BattleLeaderboardResponse,
   ) {
     const user = getAuthStateSummary().user;
+    const currentItem = leaderboard.items.find(
+      (item) => item.userId === user?.id,
+    );
+    const primarySkill = profile.availableSkills.find(
+      (skill) => skill.code === 'PYTHON',
+    );
+    const rating = leaderboard.myRating;
+    const totalBattles = currentItem
+      ? Math.max(0, currentItem.wins) +
+        Math.max(0, currentItem.losses) +
+        Math.max(0, currentItem.draws)
+      : this.data.leaderboardScope === 'PYTHON'
+        ? primarySkill?.rankedBattles ?? 0
+        : profile.availableSkills.reduce(
+            (sum, skill) => sum + Math.max(0, skill.rankedBattles),
+            0,
+          );
 
     return {
       avatarUrl: user?.avatarUrl ?? null,
       avatarFallbackText: formatBattleInitial(user?.nickname ?? null),
       nicknameText: user?.nickname?.trim() || '微信用户',
-      rankText: formatBattleRank(leaderboard.myRank ?? profile.currentRank),
-      ratingText: formatBattleRating(leaderboard.myRating ?? profile.rating),
-      totalBattlesText: String(Math.max(0, profile.totalBattles)),
+      rankText: formatBattleRank(leaderboard.myRank),
+      ratingText: rating === null ? '未定级' : formatBattleRating(rating),
+      totalBattlesText: String(totalBattles),
     };
   },
 

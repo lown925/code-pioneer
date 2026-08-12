@@ -372,7 +372,7 @@ describe('BattleSettlementService', () => {
     expect(mock.userBattleSkillRatings.size).toBe(0);
   });
 
-  it('settles a skill ranked battle into skill rating and preserves legacy profiles', async () => {
+  it('settles skill rating while updating profile totals without replacing legacy rating', async () => {
     const { mock, service } = createService(BattleMode.RANKED);
     mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
     mock.userBattleSkillRatings.set(`${USER_A_ID}:PYTHON`, {
@@ -407,7 +407,20 @@ describe('BattleSettlementService', () => {
       new Date('2026-07-25T10:04:00.000Z'),
     );
 
-    expect(mock.battleProfiles.size).toBe(0);
+    expect(mock.battleProfiles.get(USER_A_ID)).toMatchObject({
+      rating: 1000,
+      highestRating: 1000,
+      totalBattles: 1,
+      rankedBattles: 1,
+      draws: 1,
+    });
+    expect(mock.battleProfiles.get(USER_B_ID)).toMatchObject({
+      rating: 1000,
+      highestRating: 1000,
+      totalBattles: 1,
+      rankedBattles: 1,
+      draws: 1,
+    });
     expect(
       mock.userBattleSkillRatings.get(`${USER_A_ID}:PYTHON`),
     ).toMatchObject({

@@ -8,7 +8,7 @@
     <view wx:if="{{myRank}}" class="hero-summary">
       <text class="hero-summary-item">{{myRank.rankText}}</text>
       <text class="hero-summary-divider"></text>
-      <text class="hero-summary-item">Rating {{myRank.ratingText}}</text>
+      <text class="hero-summary-item">{{leaderboardRatingLabel}} {{myRank.ratingText}}</text>
       <text class="hero-summary-divider"></text>
       <text class="hero-summary-item">{{myRank.totalBattlesText}} 场对战</text>
     </view>
@@ -22,14 +22,28 @@
 
   <view wx:else class="section-card leaderboard-panel">
     <view class="leaderboard-heading">
-      <view>
-        <text class="leaderboard-title">排行榜</text>
-        <text class="leaderboard-subtitle">全站 Rating 前 20 名</text>
+      <view class="leaderboard-heading-copy">
+        <text class="leaderboard-title">{{leaderboardTitle}}</text>
+        <text class="leaderboard-subtitle">{{leaderboardSubtitle}}</text>
       </view>
-      <view class="leaderboard-live">
-        <text class="live-dot"></text>
-        <text>实时排名</text>
+      <view class="leaderboard-heading-actions">
+        <view class="leaderboard-live">
+          <text class="live-dot"></text>
+          <text>实时排名</text>
+        </view>
       </view>
+    </view>
+    <view class="leaderboard-scope" role="tablist">
+      <view
+        class="scope-option {{leaderboardScope === 'TOTAL' ? 'scope-option-active' : ''}}"
+        data-scope="TOTAL"
+        bindtap="handleLeaderboardScopeChange"
+      >总榜</view>
+      <view
+        class="scope-option {{leaderboardScope === 'PYTHON' ? 'scope-option-active' : ''}}"
+        data-scope="PYTHON"
+        bindtap="handleLeaderboardScopeChange"
+      >Python 榜</view>
     </view>
 
     <view wx:if="{{state === 'loading'}}" class="leaderboard-state">
@@ -107,11 +121,11 @@
         </view>
         <view class="my-rank-stat">
           <text class="my-rank-value">{{myRank.ratingText}}</text>
-          <text class="my-rank-label">Rating</text>
+          <text class="my-rank-label">{{leaderboardRatingLabel}}</text>
         </view>
         <view class="my-rank-stat my-rank-battles">
           <text class="my-rank-value">{{myRank.totalBattlesText}}</text>
-          <text class="my-rank-label">总场次</text>
+          <text class="my-rank-label">{{leaderboardBattlesLabel}}</text>
         </view>
       </view>
     </view>

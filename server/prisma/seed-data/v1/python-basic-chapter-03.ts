@@ -282,7 +282,10 @@ function parseQuestion(
   ) === '是';
   const stemCode = segment.match(/```python\n([\s\S]*?)\n```/)?.[1]?.trim();
   const stemBlocks = stemCode
-    ? [{ type: 'CODE' as const, language: 'python', code: stemCode }]
+    ? [
+        { type: 'TEXT' as const, text: title },
+        { type: 'CODE' as const, language: 'python', code: stemCode },
+      ]
     : undefined;
 
   if (type === 'SINGLE_CHOICE') {

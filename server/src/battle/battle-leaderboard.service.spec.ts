@@ -64,4 +64,79 @@ describe('BattleLeaderboardService skill leaderboard', () => {
     expect(result.data.items[0]?.userId).toBe(currentUserId);
     expect(result.data.myRank).toBe(1);
   });
+
+  it('sums all ranked skill ratings for the total leaderboard', async () => {
+    const mock = createBattlePrismaMock();
+    const userA = '11111111-1111-4111-8111-111111111111';
+    const userB = '22222222-2222-4222-8222-222222222222';
+    mock.users.set(userA, {
+      id: userA,
+      battleRating: 1000,
+      nickname: 'Player A',
+    });
+    mock.users.set(userB, {
+      id: userB,
+      battleRating: 1000,
+      nickname: 'Player B',
+    });
+    mock.userBattleSkillRatings.set(`${userA}:PYTHON`, {
+      id: 'rating-a-python',
+      userId: userA,
+      skillCode: 'PYTHON',
+      rating: 1016,
+      highestRating: 1020,
+      rankedBattles: 3,
+      wins: 2,
+      losses: 1,
+      draws: 0,
+      currentWinStreak: 0,
+      bestWinStreak: 2,
+    });
+    mock.userBattleSkillRatings.set(`${userA}:JAVASCRIPT`, {
+      id: 'rating-a-javascript',
+      userId: userA,
+      skillCode: 'JAVASCRIPT',
+      rating: 980,
+      highestRating: 1000,
+      rankedBattles: 2,
+      wins: 1,
+      losses: 1,
+      draws: 0,
+      currentWinStreak: 0,
+      bestWinStreak: 1,
+    });
+    mock.userBattleSkillRatings.set(`${userB}:PYTHON`, {
+      id: 'rating-b-python',
+      userId: userB,
+      skillCode: 'PYTHON',
+      rating: 1000,
+      highestRating: 1000,
+      rankedBattles: 2,
+      wins: 1,
+      losses: 1,
+      draws: 0,
+      currentWinStreak: 0,
+      bestWinStreak: 1,
+    });
+    const service = new BattleLeaderboardService(
+      mock.prisma as never,
+      new BattleDomainService(mock.prisma as never),
+      { assertAvailableSkill: jest.fn() } as never,
+    );
+
+    const result = await service.getLeaderboard(userA, 1, 20);
+
+    expect(result.data.skill).toBeNull();
+    expect(result.data.items[0]).toEqual(
+      expect.objectContaining({
+        userId: userA,
+        rating: 1996,
+        highestRating: 2020,
+        wins: 3,
+        losses: 2,
+      }),
+    );
+    expect(result.data.myRating).toBe(1996);
+    expect(result.data.myRank).toBe(1);
+  });
 });

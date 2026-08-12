@@ -24,6 +24,20 @@ type BattleLeaderboardRecord = {
   };
 };
 
+type BattleSkillLeaderboardRecord = {
+  userId: string;
+  rating: number;
+  highestRating: number;
+  rankedBattles: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  user: {
+    nickname: string | null;
+    avatarUrl: string | null;
+  };
+};
+
 @Injectable()
 export class BattleLeaderboardService {
   constructor(
@@ -56,14 +70,15 @@ export class BattleLeaderboardService {
       );
     }
 
-    await this.battleDomainService.ensureBattleProfile(currentUserId);
-
-    const profiles = (await this.prisma.battleProfile.findMany({
+    const ratings = (await this.prisma.userBattleSkillRating.findMany({
+      where: {
+        rankedBattles: { gt: 0 },
+      },
       select: {
         userId: true,
         rating: true,
         highestRating: true,
-        totalBattles: true,
+        rankedBattles: true,
         wins: true,
         losses: true,
         draws: true,
@@ -74,7 +89,9 @@ export class BattleLeaderboardService {
           },
         },
       },
-    })) as BattleLeaderboardRecord[];
+    })) as BattleSkillLeaderboardRecord[];
+
+    const profiles = this.aggregateTotalLeaderboard(ratings);
 
     const sortedProfiles = [...profiles].sort(compareBattleRanking);
     const total = sortedProfiles.length;
@@ -111,6 +128,39 @@ export class BattleLeaderboardService {
         skill: null,
       } satisfies BattleLeaderboardPayload,
     };
+  }
+
+  private aggregateTotalLeaderboard(
+    ratings: BattleSkillLeaderboardRecord[],
+  ): BattleLeaderboardRecord[] {
+    const aggregated = new Map<string, BattleLeaderboardRecord>();
+
+    for (const rating of ratings) {
+      const existing = aggregated.get(rating.userId);
+
+      if (existing) {
+        existing.rating += rating.rating;
+        existing.highestRating += rating.highestRating;
+        existing.totalBattles += rating.rankedBattles;
+        existing.wins += rating.wins;
+        existing.losses += rating.losses;
+        existing.draws += rating.draws;
+        continue;
+      }
+
+      aggregated.set(rating.userId, {
+        userId: rating.userId,
+        rating: rating.rating,
+        highestRating: rating.highestRating,
+        totalBattles: rating.rankedBattles,
+        wins: rating.wins,
+        losses: rating.losses,
+        draws: rating.draws,
+        user: rating.user,
+      });
+    }
+
+    return [...aggregated.values()];
   }
 
   private async getSkillLeaderboard(

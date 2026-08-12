@@ -535,6 +535,7 @@ describe('Battle routes (e2e)', () => {
       .expect((response) => {
         expect(response.body.data.completed).toBe(true);
         expect(response.body.data.result).toBe('WIN');
+        expect(response.body.data.endReason).toBe('USER_FORFEIT');
         expect(response.body.data.ratingDelta).toBe(0);
       });
   });

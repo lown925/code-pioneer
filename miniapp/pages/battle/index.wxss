@@ -99,6 +99,17 @@
   padding: 18rpx 24rpx 14rpx;
 }
 
+.leaderboard-heading-copy {
+  min-width: 0;
+}
+
+.leaderboard-heading-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8rpx;
+}
+
 .leaderboard-title,
 .leaderboard-subtitle {
   display: block;
@@ -126,6 +137,31 @@
   color: #25805a;
   font-size: 18rpx;
   font-weight: 600;
+}
+
+.leaderboard-scope {
+  display: flex;
+  gap: 6rpx;
+  margin: 0 24rpx 14rpx;
+  padding: 5rpx;
+  border-radius: 14rpx;
+  background: #f0f4fa;
+}
+
+.scope-option {
+  flex: 1;
+  padding: 9rpx 12rpx;
+  border-radius: 10rpx;
+  color: #718198;
+  font-size: 20rpx;
+  font-weight: 600;
+  text-align: center;
+}
+
+.scope-option-active {
+  background: #ffffff;
+  color: #205cc9;
+  box-shadow: 0 3rpx 10rpx rgba(38, 77, 139, 0.12);
 }
 
 .live-dot {
