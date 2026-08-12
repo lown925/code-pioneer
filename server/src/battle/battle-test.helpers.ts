@@ -665,6 +665,11 @@ export function createBattlePrismaMock() {
           );
         },
       ),
+      count: jest.fn(async ({ where }: { where: Record<string, unknown> }) => {
+        return [...battleQueues.values()].filter((record) =>
+          matchesQueueWhere(record, where),
+        ).length;
+      }),
     },
     battleRoom: {
       create: jest.fn(async ({ data }: { data: Partial<BattleRoomRecord> }) => {

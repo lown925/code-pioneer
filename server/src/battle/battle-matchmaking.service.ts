@@ -166,10 +166,14 @@ export class BattleMatchmakingService {
         })
       );
     });
+    const waitingCount = await this.countWaitingUsers();
 
     return {
       success: true as const,
-      data,
+      data: {
+        ...data,
+        waitingCount,
+      },
     };
   }
 
@@ -236,10 +240,14 @@ export class BattleMatchmakingService {
         serverTime: now,
       });
     });
+    const waitingCount = await this.countWaitingUsers();
 
     return {
       success: true as const,
-      data,
+      data: {
+        ...data,
+        waitingCount,
+      },
     };
   }
 
@@ -340,10 +348,14 @@ export class BattleMatchmakingService {
         serverTime: now,
       });
     });
+    const waitingCount = await this.countWaitingUsers();
 
     return {
       success: true as const,
-      data,
+      data: {
+        ...data,
+        waitingCount,
+      },
     };
   }
 
@@ -686,7 +698,19 @@ export class BattleMatchmakingService {
       expiresAt: input.expiresAt ?? null,
       serverTime: input.serverTime,
       skill: input.skill ?? null,
+      waitingCount: input.waitingCount ?? 0,
     };
+  }
+
+  private countWaitingUsers() {
+    return this.prisma.battleMatchQueue.count({
+      where: {
+        status: 'SEARCHING',
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+    });
   }
 
   private async findQueueByUserId(tx: BattleTransactionClient, userId: string) {

@@ -104,11 +104,14 @@
   color: rgba(255, 255, 255, 0.84);
 }
 
-.rating-card,
 .timer-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18rpx;
+}
+
+.rating-card {
+  display: block;
 }
 
 .rating-item,
@@ -133,6 +136,18 @@
   font-size: 38rpx;
   font-weight: 700;
   color: #17324d;
+}
+
+.waiting-count-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10rpx;
+}
+
+.waiting-count-unit {
+  color: #6e84a3;
+  font-size: 22rpx;
+  font-weight: 600;
 }
 
 .timer-grid {
@@ -179,7 +194,6 @@
 }
 
 @media (max-width: 420px) {
-  .rating-card,
   .timer-grid {
     grid-template-columns: minmax(0, 1fr);
   }

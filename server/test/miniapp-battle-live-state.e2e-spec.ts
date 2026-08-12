@@ -51,4 +51,17 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(leaderboardTemplate).toContain('>总榜</view>');
     expect(leaderboardTemplate).toContain('>Python 榜</view>');
   });
+
+  it('shows the live waiting count instead of profile rating and rank', () => {
+    const matchmakingScript = readMiniappFile('pages/battle/matchmaking.ts');
+    const matchmakingTemplate = readMiniappFile(
+      'pages/battle/matchmaking.wxml',
+    );
+
+    expect(matchmakingScript).toContain('payload.waitingCount');
+    expect(matchmakingTemplate).toContain('当前等待匹配人数');
+    expect(matchmakingTemplate).toContain('{{waitingCountText}}');
+    expect(matchmakingTemplate).not.toContain('当前评分');
+    expect(matchmakingTemplate).not.toContain('当前排名');
+  });
 });

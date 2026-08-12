@@ -123,6 +123,7 @@ export type MatchmakingStatusPayload = {
   expiresAt: Date | null;
   serverTime: Date;
   skill: string | null;
+  waitingCount: number;
 };
 
 export type BattleParticipantSummary = {

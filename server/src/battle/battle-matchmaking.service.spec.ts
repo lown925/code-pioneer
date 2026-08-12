@@ -75,6 +75,7 @@ describe('BattleMatchmakingService', () => {
       data: expect.objectContaining({
         status: 'SEARCHING',
         battleId: null,
+        waitingCount: 1,
       }),
     });
     expect(mock.battleQueues.get(USER_A.id)?.status).toBe('SEARCHING');
@@ -312,6 +313,52 @@ describe('BattleMatchmakingService', () => {
     const result = await service.getMatchmakingStatus(USER_A);
 
     expect(result.data.status).toBe('IDLE');
+  });
+
+  it('counts only active SEARCHING queues as waiting users', async () => {
+    const { mock, service } = createService();
+    const now = Date.now();
+    mock.battleQueues.set(USER_B.id, {
+      id: 'queue-b',
+      userId: USER_B.id,
+      skillCode: 'PYTHON',
+      status: 'SEARCHING',
+      ratingSnapshot: 1040,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(now - 5000),
+      matchedAt: null,
+      cancelledAt: null,
+      expiresAt: new Date(now + 120000),
+    });
+    mock.battleQueues.set('expired-user', {
+      id: 'queue-expired',
+      userId: 'expired-user',
+      skillCode: 'PYTHON',
+      status: 'SEARCHING',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(now - 200000),
+      matchedAt: null,
+      cancelledAt: null,
+      expiresAt: new Date(now - 1000),
+    });
+    mock.battleQueues.set('cancelled-user', {
+      id: 'queue-cancelled',
+      userId: 'cancelled-user',
+      skillCode: 'PYTHON',
+      status: 'CANCELLED',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(now - 10000),
+      matchedAt: null,
+      cancelledAt: new Date(now - 5000),
+      expiresAt: new Date(now + 120000),
+    });
+
+    const result = await service.getMatchmakingStatus(USER_A);
+
+    expect(result.data.status).toBe('IDLE');
+    expect(result.data.waitingCount).toBe(1);
   });
 
   it('expires stale SEARCHING queues lazily through the status endpoint', async () => {

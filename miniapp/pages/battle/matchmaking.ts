@@ -6,8 +6,6 @@ import type {
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatBattleDuration,
-  formatBattleRank,
-  formatBattleRating,
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
@@ -25,8 +23,7 @@ type MatchmakingPageState =
 
 type MatchmakingPageData = {
   state: MatchmakingPageState;
-  ratingText: string;
-  rankText: string;
+  waitingCountText: string;
   battleId: string;
   errorMessage: string;
   waitedText: string;
@@ -38,8 +35,6 @@ type MatchmakingPageData = {
   availableSkills: BattleSkillProfile[];
   selectedSkillCode: string;
   selectedSkillName: string;
-  skillRatingText: string;
-  skillRankText: string;
 };
 
 type MatchmakingPageMethods = {
@@ -97,8 +92,7 @@ function parseTimestamp(value: string | null) {
 Page<MatchmakingPageData, MatchmakingPageMethods>({
   data: {
     state: 'IDLE',
-    ratingText: '0',
-    rankText: '未上榜',
+    waitingCountText: '—',
     battleId: '',
     errorMessage: '',
     waitedText: '00:00',
@@ -110,8 +104,6 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     availableSkills: [],
     selectedSkillCode: '',
     selectedSkillName: '',
-    skillRatingText: '未定级',
-    skillRankText: '未上榜',
   },
 
   onLoad() {
@@ -154,15 +146,6 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     const authState = getAuthStateSummary();
 
     if (authState.isAuthenticated) {
-      const fallbackRating =
-        typeof authState.user?.battleRating === 'number'
-          ? formatBattleRating(authState.user.battleRating)
-          : '0';
-
-      this.setData({
-        ratingText: fallbackRating,
-      });
-
       return true;
     }
 
@@ -398,6 +381,13 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     const selectedSkill = this.data.availableSkills.find(
       (skill) => skill.code === selectedSkillCode,
     );
+    const waitingCount = Number.isFinite(payload.waitingCount)
+      ? Math.max(0, payload.waitingCount)
+      : 0;
+
+    this.setData({
+      waitingCountText: String(waitingCount),
+    });
 
     if (selectedSkillCode) {
       this.setData({
@@ -603,9 +593,6 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     this.setData({
       selectedSkillCode: skill.code,
       selectedSkillName: skill.name,
-      skillRatingText:
-        skill.rating === null ? '未定级' : formatBattleRating(skill.rating),
-      skillRankText: formatBattleRank(skill.rank),
     });
   },
 
@@ -699,16 +686,9 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
       ) ?? profile.availableSkills[0];
 
     this.setData({
-      ratingText: formatBattleRating(profile.rating),
-      rankText: formatBattleRank(profile.currentRank),
       availableSkills: profile.availableSkills,
       selectedSkillCode: selectedSkill?.code ?? '',
       selectedSkillName: selectedSkill?.name ?? '',
-      skillRatingText:
-        selectedSkill?.rating === null || selectedSkill?.rating === undefined
-          ? '未定级'
-          : formatBattleRating(selectedSkill.rating),
-      skillRankText: formatBattleRank(selectedSkill?.rank),
     });
   },
 });

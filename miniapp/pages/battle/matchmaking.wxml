@@ -9,12 +9,11 @@
 
   <view class="section-card rating-card">
     <view class="rating-item">
-      <text class="rating-label">当前评分</text>
-      <text class="rating-value">{{ratingText}}</text>
-    </view>
-    <view class="rating-item">
-      <text class="rating-label">当前排名</text>
-      <text class="rating-value">{{rankText}}</text>
+      <text class="rating-label">当前等待匹配人数</text>
+      <view class="waiting-count-line">
+        <text class="rating-value">{{waitingCountText}}</text>
+        <text class="waiting-count-unit">人</text>
+      </view>
     </view>
   </view>
 

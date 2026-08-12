@@ -120,6 +120,7 @@ export type MatchmakingStatusResponse = {
   expiresAt: string | null;
   serverTime: string;
   skill: string | null;
+  waitingCount: number;
 };
 
 export type BattleParticipantSummary = {
