@@ -210,9 +210,9 @@ function seedBattleQuestions(
   count: number,
 ) {
   const difficulties = [
-    BattleQuestionDifficulty.EASY,
     BattleQuestionDifficulty.MEDIUM,
     BattleQuestionDifficulty.HARD,
+    BattleQuestionDifficulty.MEDIUM,
   ];
 
   for (let index = 0; index < count; index += 1) {
@@ -229,7 +229,7 @@ function seedBattleQuestions(
         index === count - 1
           ? BattleQuestionPresentation.INPUT_CODE_FILL
           : BattleQuestionPresentation.TEXT_CHOICE,
-      battleDifficulty: difficulties[index] ?? BattleQuestionDifficulty.EASY,
+      battleDifficulty: difficulties[index] ?? BattleQuestionDifficulty.MEDIUM,
       isBattleEnabled: true,
       stemBlocks: null,
       explanationBlocks: null,

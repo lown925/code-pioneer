@@ -23,6 +23,7 @@ import { BattleReadyService } from './battle-ready.service';
 import { BattleResultService } from './battle-result.service';
 import { BattleRoomService } from './battle-room.service';
 import { BattleSubmitService } from './battle-submit.service';
+import { BattleTrainingService } from './battle-training.service';
 import { BattleIdParamDto } from './dto/battle-id-param.dto';
 import { BattleHistoryQueryDto } from './dto/battle-history-query.dto';
 import { BattleLeaderboardQueryDto } from './dto/battle-leaderboard-query.dto';
@@ -44,6 +45,7 @@ export class BattleController {
     private readonly battleQuestionService: BattleQuestionService,
     private readonly battleAnswerService: BattleAnswerService,
     private readonly battleSubmitService: BattleSubmitService,
+    private readonly battleTrainingService: BattleTrainingService,
     private readonly battleResultService: BattleResultService,
     private readonly battleRoomService: BattleRoomService,
   ) {}
@@ -57,13 +59,24 @@ export class BattleController {
   }
 
   @Get('matchmaking/status')
-  getMatchmakingStatus(@CurrentUser() currentUser: CurrentUserContext) {
-    return this.battleMatchmakingService.getMatchmakingStatus(currentUser);
+  getMatchmakingStatus(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Query('skill') skill?: string,
+  ) {
+    return this.battleMatchmakingService.getMatchmakingStatus(
+      currentUser,
+      skill,
+    );
   }
 
   @Get('profile')
   getBattleProfile(@CurrentUser() currentUser: CurrentUserContext) {
     return this.battleProfileService.getBattleProfile(currentUser.id);
+  }
+
+  @Post('training')
+  startTraining(@CurrentUser() currentUser: CurrentUserContext) {
+    return this.battleTrainingService.startTraining(currentUser);
   }
 
   @Get('leaderboard')

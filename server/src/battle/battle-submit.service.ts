@@ -4,6 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import {
+  BattleMode,
   BattleParticipantStatus,
   BattleRoomStatus,
 } from '../../generated/prisma/enums';
@@ -168,6 +169,10 @@ export class BattleSubmitService {
         room.status !== BattleRoomStatus.IN_PROGRESS &&
         room.status !== BattleRoomStatus.SETTLING
       ) {
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_CANNOT_FORFEIT);
+      }
+
+      if (room.mode === BattleMode.TRAINING) {
         throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_CANNOT_FORFEIT);
       }
 

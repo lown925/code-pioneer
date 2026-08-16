@@ -152,11 +152,15 @@ export class BattleHistoryService {
     const opponentParticipant = room.participants.find(
       (participant) => participant.userId !== currentUserId,
     );
+    const isTraining = room.mode === BattleMode.TRAINING;
 
     if (
-      !opponentParticipant ||
-      currentParticipant.result === BattleResult.NONE ||
-      opponentParticipant.result === BattleResult.NONE
+      (isTraining &&
+        (opponentParticipant || currentParticipant.result !== BattleResult.NONE)) ||
+      (!isTraining &&
+        (!opponentParticipant ||
+          currentParticipant.result === BattleResult.NONE ||
+          opponentParticipant.result === BattleResult.NONE))
     ) {
       throw new ConflictException(
         BATTLE_ERROR_CODES.BATTLE_HISTORY_NOT_COMPLETED,
@@ -196,23 +200,27 @@ export class BattleHistoryService {
         startedAt: room.startedAt,
         durationSeconds: room.durationSeconds,
         myScore: currentParticipant.score,
-        opponentScore: opponentParticipant.score,
+        opponentScore: opponentParticipant?.score ?? null,
         myCorrectCount: currentParticipant.correctCount,
         myWrongCount: currentParticipant.wrongCount,
         myUnansweredCount: currentParticipant.unansweredCount,
-        opponentCorrectCount: opponentParticipant.correctCount,
-        opponentWrongCount: opponentParticipant.wrongCount,
-        opponentUnansweredCount: opponentParticipant.unansweredCount,
+        opponentCorrectCount: opponentParticipant?.correctCount ?? null,
+        opponentWrongCount: opponentParticipant?.wrongCount ?? null,
+        opponentUnansweredCount: opponentParticipant?.unansweredCount ?? null,
         ratingBefore: currentParticipant.ratingBefore ?? 0,
         ratingDelta: currentParticipant.ratingDelta,
         ratingAfter: currentParticipant.ratingAfter ?? 0,
-        opponent: {
-          userId: opponentParticipant.user.id,
-          nickname: opponentParticipant.user.nickname,
-          avatarUrl: opponentParticipant.user.avatarUrl,
-        },
+        opponent: opponentParticipant
+          ? {
+              userId: opponentParticipant.user.id,
+              nickname: opponentParticipant.user.nickname,
+              avatarUrl: opponentParticipant.user.avatarUrl,
+            }
+          : null,
         mySummary: this.toSummary(currentParticipant),
-        opponentSummary: this.toOpponentSummary(opponentParticipant),
+        opponentSummary: opponentParticipant
+          ? this.toOpponentSummary(opponentParticipant)
+          : null,
         endReason: room.endReason,
         completedAt: room.completedAt ?? new Date(),
         serverTime: new Date(),
@@ -296,12 +304,16 @@ export class BattleHistoryService {
     const opponentParticipant = room.participants.find(
       (participant) => participant.userId !== currentUserId,
     );
+    const isTraining = room.mode === BattleMode.TRAINING;
 
     if (
       !currentParticipant ||
-      !opponentParticipant ||
-      currentParticipant.result === BattleResult.NONE ||
-      opponentParticipant.result === BattleResult.NONE
+      (isTraining &&
+        (opponentParticipant || currentParticipant.result !== BattleResult.NONE)) ||
+      (!isTraining &&
+        (!opponentParticipant ||
+          currentParticipant.result === BattleResult.NONE ||
+          opponentParticipant.result === BattleResult.NONE))
     ) {
       throw new ConflictException(
         BATTLE_ERROR_CODES.BATTLE_HISTORY_NOT_COMPLETED,
@@ -313,13 +325,15 @@ export class BattleHistoryService {
       mode: room.mode,
       skill: room.skillCode,
       result: currentParticipant.result,
-      opponent: {
-        userId: opponentParticipant.user.id,
-        nickname: opponentParticipant.user.nickname,
-        avatarUrl: opponentParticipant.user.avatarUrl,
-      },
+      opponent: opponentParticipant
+        ? {
+            userId: opponentParticipant.user.id,
+            nickname: opponentParticipant.user.nickname,
+            avatarUrl: opponentParticipant.user.avatarUrl,
+          }
+        : null,
       myScore: currentParticipant.score,
-      opponentScore: opponentParticipant.score,
+      opponentScore: opponentParticipant?.score ?? null,
       myCorrectCount: currentParticipant.correctCount,
       myWrongCount: currentParticipant.wrongCount,
       myUnansweredCount: currentParticipant.unansweredCount,

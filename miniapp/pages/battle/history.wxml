@@ -65,9 +65,9 @@
         <view class="opponent-meta">
           <view class="avatar-frame">
             <image
-              wx:if="{{record.opponent.avatarUrl}}"
+              wx:if="{{record.opponentAvatarUrl}}"
               class="avatar-image"
-              src="{{record.opponent.avatarUrl}}"
+              src="{{record.opponentAvatarUrl}}"
               mode="aspectFill"
             />
             <view wx:else class="avatar-fallback">{{record.opponentAvatarFallbackText}}</view>
@@ -85,7 +85,7 @@
       </view>
 
       <view class="card-score-row">
-        <text class="score-label">比分</text>
+        <text class="score-label">{{record.scoreLabelText}}</text>
         <text class="score-value">{{record.scoreText}}</text>
       </view>
 

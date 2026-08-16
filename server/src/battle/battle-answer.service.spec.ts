@@ -153,6 +153,30 @@ describe('BattleAnswerService', () => {
     expect([...mock.battleAnswers.values()][0]?.isCorrect).toBe(true);
   });
 
+  it('stores training answers through the regular BattleAnswer flow', async () => {
+    const { mock, service } = createService();
+    mock.battleRooms.get('room-1')!.mode = 'TRAINING';
+    mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
+
+    await service.submitAnswer(USER_A_ID, 'room-1', {
+      battleQuestionId: 'snapshot-choice',
+      clientRequestId: 'training-request',
+      answerVersion: 1,
+      answer: {
+        optionId: 'option-wrong',
+      },
+    });
+
+    expect([...mock.battleAnswers.values()]).toEqual([
+      expect.objectContaining({
+        battleRoomId: 'room-1',
+        userId: USER_A_ID,
+        clientRequestId: 'training-request',
+        isCorrect: false,
+      }),
+    ]);
+  });
+
   it('returns the same response idempotently for repeated clientRequestId', async () => {
     const { mock, service } = createService();
 

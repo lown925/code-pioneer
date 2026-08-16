@@ -434,6 +434,79 @@ describe('BattleSettlementService', () => {
     ).toBe(true);
   });
 
+  it('settles a single-player training room without changing rating or ranked statistics', async () => {
+    const { mock, service } = createService(BattleMode.TRAINING);
+    mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
+    mock.battleParticipants.delete('participant-b');
+    mock.userBattleSkillRatings.set(`${USER_A_ID}:PYTHON`, {
+      id: 'skill-a',
+      userId: USER_A_ID,
+      skillCode: 'PYTHON',
+      rating: 1280,
+      highestRating: 1320,
+      rankedBattles: 4,
+      wins: 3,
+      losses: 1,
+      draws: 0,
+      currentWinStreak: 2,
+      bestWinStreak: 3,
+    });
+    mock.battleAnswers.set('answer-a-1', {
+      id: 'answer-a-1',
+      battleRoomId: 'room-1',
+      participantId: 'participant-a',
+      battleQuestionSnapshotId: 'snapshot-1',
+      userId: USER_A_ID,
+      clientRequestId: 'request-a-1',
+      answerVersion: 1,
+      answerPayload: { type: 'SINGLE_CHOICE', optionId: 'option-b' },
+      normalizedAnswer: null,
+      isCorrect: false,
+      scoreDelta: -1,
+      submittedAt: new Date('2026-07-25T10:03:00.000Z'),
+      timeSpentMs: null,
+      createdAt: new Date('2026-07-25T10:03:00.000Z'),
+    });
+
+    await service.normalizeBattleState(
+      'room-1',
+      new Date('2026-07-25T10:04:00.000Z'),
+    );
+
+    expect(mock.battleParticipants.get('participant-a')).toMatchObject({
+      status: BattleParticipantStatus.COMPLETED,
+      result: BattleResult.NONE,
+      score: -1,
+      wrongCount: 1,
+      unansweredCount: 2,
+      ratingBefore: 1000,
+      ratingDelta: 0,
+      ratingAfter: 1000,
+    });
+    expect(mock.battleProfiles.get(USER_A_ID)).toMatchObject({
+      rating: 1000,
+      totalBattles: 1,
+      rankedBattles: 0,
+      friendBattles: 0,
+      trainingBattles: 1,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      currentWinStreak: 0,
+    });
+    expect(mock.userBattleSkillRatings.get(`${USER_A_ID}:PYTHON`)).toMatchObject({
+      rating: 1280,
+      rankedBattles: 4,
+      currentWinStreak: 2,
+    });
+    expect(mock.battleRatingLogs.size).toBe(0);
+    expect(mock.battleRooms.get('room-1')).toMatchObject({
+      status: BattleRoomStatus.COMPLETED,
+      winnerUserId: null,
+      endReason: BattleEndReason.NORMAL,
+    });
+  });
+
   it('settles only once when multiple requests trigger settlement concurrently', async () => {
     const { mock, service } = createService(BattleMode.RANKED);
 

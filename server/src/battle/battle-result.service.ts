@@ -3,7 +3,11 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import { BattleResult, BattleRoomStatus } from '../../generated/prisma/enums';
+import {
+  BattleMode,
+  BattleResult,
+  BattleRoomStatus,
+} from '../../generated/prisma/enums';
 import { BATTLE_ERROR_CODES } from './battle.errors';
 import { BattleRoomService } from './battle-room.service';
 import { BattleSettlementService } from './battle-settlement.service';
@@ -97,13 +101,49 @@ export class BattleResultService {
         (participant) => participant.userId !== currentUserId,
       );
 
-      if (!currentParticipant || !opponentParticipant || !room.completedAt) {
+      if (!currentParticipant || !room.completedAt) {
         throw new ConflictException(
           BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
         );
       }
 
+      if (room.mode === BattleMode.TRAINING) {
+        if (
+          opponentParticipant ||
+          currentParticipant.result !== BattleResult.NONE
+        ) {
+          throw new ConflictException(
+            BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+          );
+        }
+
+        return {
+          battleId: room.id,
+          mode: room.mode,
+          skill: room.skillCode,
+          status: BattleRoomStatus.COMPLETED,
+          completed: true,
+          result: BattleResult.NONE,
+          myScore: currentParticipant.score,
+          opponentScore: null,
+          myCorrectCount: currentParticipant.correctCount,
+          myWrongCount: currentParticipant.wrongCount,
+          myUnansweredCount: currentParticipant.unansweredCount,
+          opponentCorrectCount: null,
+          opponentWrongCount: null,
+          opponentUnansweredCount: null,
+          ratingBefore: currentParticipant.ratingBefore ?? 0,
+          ratingDelta: 0,
+          ratingAfter: currentParticipant.ratingAfter ?? 0,
+          opponent: null,
+          endReason: room.endReason,
+          completedAt: room.completedAt,
+          serverTime: now,
+        } satisfies BattleResultPayload;
+      }
+
       if (
+        !opponentParticipant ||
         currentParticipant.result === BattleResult.NONE ||
         opponentParticipant.result === BattleResult.NONE
       ) {

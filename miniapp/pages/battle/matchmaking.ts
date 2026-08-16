@@ -1,6 +1,7 @@
 import type {
   BattleProfileResponse,
   BattleSkillProfile,
+  BattleTrainingStartResponse,
   MatchmakingStatusResponse,
 } from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
@@ -35,6 +36,8 @@ type MatchmakingPageData = {
   availableSkills: BattleSkillProfile[];
   selectedSkillCode: string;
   selectedSkillName: string;
+  canStartTraining: boolean;
+  isStartingTraining: boolean;
 };
 
 type MatchmakingPageMethods = {
@@ -44,6 +47,7 @@ type MatchmakingPageMethods = {
   refreshStatus(options?: { autoNavigate?: boolean }): Promise<void>;
   joinMatchmaking(): Promise<void>;
   cancelMatchmaking(): Promise<void>;
+  startTraining(): Promise<void>;
   applyStatus(
     payload: MatchmakingStatusResponse,
     options?: { autoNavigate?: boolean },
@@ -58,6 +62,8 @@ type MatchmakingPageMethods = {
     event: WechatMiniprogram.CustomEvent<{ skill?: string }>,
   ): void;
   handleCancelMatchmaking(): void;
+  handleContinueWaiting(): void;
+  handleStartTraining(): void;
   handleRetry(): void;
   handleBackHome(): void;
   handleEnterRoom(): void;
@@ -68,6 +74,7 @@ type MatchmakingPageMethods = {
 
 const POLL_INTERVAL_MS = 1800;
 const ELAPSED_TICK_MS = 1000;
+const TRAINING_UNLOCK_MS = 60_000;
 
 let isPageActive = false;
 let hasLoadedOnce = false;
@@ -78,6 +85,8 @@ let isStatusRequesting = false;
 let isJoining = false;
 let isCancelling = false;
 let lastAutoNavigatedBattleId = '';
+let trainingPromptShown = false;
+let trainingSearchStartedAtMs = 0;
 
 function parseTimestamp(value: string | null) {
   if (!value) {
@@ -104,6 +113,8 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     availableSkills: [],
     selectedSkillCode: '',
     selectedSkillName: '',
+    canStartTraining: false,
+    isStartingTraining: false,
   },
 
   onLoad() {
@@ -202,6 +213,9 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
       const response = await request<MatchmakingStatusResponse>({
         url: '/battles/matchmaking/status',
         method: 'GET',
+        data: {
+          skill: this.data.selectedSkillCode || 'PYTHON',
+        },
         authMode: 'required',
       });
 
@@ -369,6 +383,56 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     }
   },
 
+  async startTraining() {
+    if (
+      !this.ensureAuthenticated() ||
+      this.data.state !== 'SEARCHING' ||
+      !this.data.canStartTraining ||
+      this.data.isStartingTraining
+    ) {
+      return;
+    }
+
+    this.setData({
+      isStartingTraining: true,
+      errorMessage: '',
+      stateDescription: '正在退出真人匹配并创建单人训练。',
+    });
+    this.stopPolling();
+    this.stopElapsedTicker();
+    const currentRequestSerial = ++requestSerial;
+
+    try {
+      const response = await request<BattleTrainingStartResponse>({
+        url: '/battles/training',
+        method: 'POST',
+        authMode: 'required',
+      });
+
+      if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      wx.redirectTo({
+        url: `/pages/battle/play?battleId=${encodeURIComponent(response.battleId)}`,
+      });
+    } catch (error) {
+      if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      this.setData({
+        isStartingTraining: false,
+        errorMessage: this.getReadableErrorMessage(
+          error,
+          '单人训练创建失败，请重新同步匹配状态后再试。',
+        ),
+        stateDescription: '你可以继续等待真人，或重新尝试进入单人训练。',
+      });
+      await this.refreshStatus({ autoNavigate: true });
+    }
+  },
+
   applyStatus(
     payload: MatchmakingStatusResponse,
     options?: { autoNavigate?: boolean },
@@ -404,12 +468,21 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     }
 
     if (nextState === 'SEARCHING') {
+      if (trainingSearchStartedAtMs !== searchStartedAtMs) {
+        trainingSearchStartedAtMs = searchStartedAtMs;
+        trainingPromptShown = false;
+      }
+
       this.setData({
         state: 'SEARCHING',
         battleId: '',
         errorMessage: '',
         searchStartedAtMs,
         expiresAtMs,
+        canStartTraining:
+          searchStartedAtMs > 0 &&
+          Date.now() - searchStartedAtMs >= TRAINING_UNLOCK_MS,
+        isStartingTraining: false,
         stateTitle: '正在搜索对手',
         stateDescription: '页面可安全离开，恢复后会重新同步服务端状态。',
       });
@@ -420,12 +493,16 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     }
 
     if (nextState === 'MATCHED') {
+      trainingPromptShown = false;
+      trainingSearchStartedAtMs = 0;
       this.setData({
         state: 'MATCHED',
         battleId,
         errorMessage: '',
         searchStartedAtMs,
         expiresAtMs,
+        canStartTraining: false,
+        isStartingTraining: false,
         waitedText:
           searchStartedAtMs > 0
             ? formatBattleDuration(
@@ -444,6 +521,8 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     }
 
     if (nextState === 'CANCELLED') {
+      trainingPromptShown = false;
+      trainingSearchStartedAtMs = 0;
       this.setData({
         state: 'CANCELLED',
         battleId: '',
@@ -452,6 +531,8 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
         expiresAtMs,
         waitedText: '00:00',
         remainingText: '00:00',
+        canStartTraining: false,
+        isStartingTraining: false,
         stateTitle: '匹配已取消',
         stateDescription: '当前没有进行中的随机匹配，你可以重新开始。',
       });
@@ -459,6 +540,8 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     }
 
     if (nextState === 'EXPIRED') {
+      trainingPromptShown = false;
+      trainingSearchStartedAtMs = 0;
       this.setData({
         state: 'EXPIRED',
         battleId: '',
@@ -467,6 +550,8 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
         expiresAtMs,
         waitedText: '00:00',
         remainingText: '00:00',
+        canStartTraining: false,
+        isStartingTraining: false,
         stateTitle: '本次匹配已过期',
         stateDescription: '匹配窗口已结束，你可以重新开始随机匹配。',
       });
@@ -481,6 +566,8 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
       expiresAtMs: 0,
       waitedText: '00:00',
       remainingText: '00:00',
+      canStartTraining: false,
+      isStartingTraining: false,
       stateTitle: '准备开始随机匹配',
       stateDescription: '进入匹配池后会按评分范围轮询查找对手。',
     });
@@ -504,7 +591,23 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
     this.setData({
       waitedText: formatBattleDuration(waitedSeconds),
       remainingText: formatBattleDuration(remainingSeconds),
+      canStartTraining: waitedSeconds * 1000 >= TRAINING_UNLOCK_MS,
     });
+
+    if (waitedSeconds * 1000 >= TRAINING_UNLOCK_MS && !trainingPromptShown) {
+      trainingPromptShown = true;
+      wx.showModal({
+        title: '匹配等待较久',
+        content: '暂时没有找到合适对手，是否退出真人匹配并进入单人训练？',
+        confirmText: '单人训练',
+        cancelText: '继续等待',
+        success: (result) => {
+          if (result.confirm) {
+            void this.startTraining();
+          }
+        },
+      });
+    }
   },
 
   startPolling() {
@@ -594,10 +697,23 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
       selectedSkillCode: skill.code,
       selectedSkillName: skill.name,
     });
+
+    void this.refreshStatus();
   },
 
   handleCancelMatchmaking() {
     void this.cancelMatchmaking();
+  },
+
+  handleContinueWaiting() {
+    trainingPromptShown = true;
+    this.setData({
+      stateDescription: '将继续等待合适的真人对手，你也可以随时进入单人训练。',
+    });
+  },
+
+  handleStartTraining() {
+    void this.startTraining();
   },
 
   handleRetry() {
@@ -675,6 +791,8 @@ Page<MatchmakingPageData, MatchmakingPageMethods>({
           '当前匹配状态已变化，请重新同步服务端状态后再继续操作。',
         BATTLE_SKILL_UNAVAILABLE: '该方向暂未开放或题量不足，请选择其他方向。',
         BATTLE_SKILL_LOCKED: '当前匹配已锁定方向，请先取消后再切换。',
+        BATTLE_TRAINING_NOT_AVAILABLE:
+          '当前还不满足单人训练条件，请继续等待并重新同步状态。',
       },
     );
   },

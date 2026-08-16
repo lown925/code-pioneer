@@ -93,6 +93,7 @@ enum PracticeAttemptStatus {
 enum BattleMode {
   RANKED
   FRIEND
+  TRAINING
 }
 
 enum BattleRoomStatus {
@@ -540,6 +541,7 @@ model BattleProfile {
   totalBattles     Int      @default(0) @map("total_battles")
   rankedBattles    Int      @default(0) @map("ranked_battles")
   friendBattles    Int      @default(0) @map("friend_battles")
+  trainingBattles  Int      @default(0) @map("training_battles")
   wins             Int      @default(0)
   losses           Int      @default(0)
   draws            Int      @default(0)

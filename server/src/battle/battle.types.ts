@@ -173,6 +173,7 @@ export type BattleQuestionView = {
 
 export type BattleQuestionsPayload = {
   battleId: string;
+  mode: string;
   status: string;
   skill: string | null;
   startedAt: Date | null;
@@ -200,6 +201,16 @@ export type BattleSubmitActionPayload = {
   serverTime: Date;
 };
 
+export type BattleTrainingStartPayload = {
+  battleId: string;
+  mode: 'TRAINING';
+  skill: string;
+  status: 'COUNTDOWN';
+  startedAt: Date;
+  expiresAt: Date;
+  serverTime: Date;
+};
+
 export type BattleResultOpponentPayload = {
   userId: string;
   nickname: string | null;
@@ -221,19 +232,19 @@ export type CompletedBattleResultPayload = {
   skill: string | null;
   status: 'COMPLETED';
   completed: true;
-  result: Exclude<BattleResult, 'NONE'>;
+  result: BattleResult;
   myScore: number;
-  opponentScore: number;
+  opponentScore: number | null;
   myCorrectCount: number;
   myWrongCount: number;
   myUnansweredCount: number;
-  opponentCorrectCount: number;
-  opponentWrongCount: number;
-  opponentUnansweredCount: number;
+  opponentCorrectCount: number | null;
+  opponentWrongCount: number | null;
+  opponentUnansweredCount: number | null;
   ratingBefore: number;
   ratingDelta: number;
   ratingAfter: number;
-  opponent: BattleResultOpponentPayload;
+  opponent: BattleResultOpponentPayload | null;
   endReason: string | null;
   completedAt: Date;
   serverTime: Date;
@@ -268,6 +279,7 @@ export type BattleProfilePayload = {
   totalBattles: number;
   rankedBattles: number;
   friendBattles: number;
+  trainingBattles: number;
   wins: number;
   losses: number;
   draws: number;
@@ -324,10 +336,10 @@ export type BattleHistoryListItemPayload = {
   battleId: string;
   mode: string;
   skill: string | null;
-  result: Exclude<BattleResult, 'NONE'>;
-  opponent: BattleResultOpponentPayload;
+  result: BattleResult;
+  opponent: BattleResultOpponentPayload | null;
   myScore: number;
-  opponentScore: number;
+  opponentScore: number | null;
   myCorrectCount: number;
   myWrongCount: number;
   myUnansweredCount: number;
@@ -388,23 +400,23 @@ export type BattleHistoryDetailPayload = {
   mode: string;
   skill: string | null;
   status: string;
-  result: Exclude<BattleResult, 'NONE'>;
+  result: BattleResult;
   startedAt: Date | null;
   durationSeconds: number;
   myScore: number;
-  opponentScore: number;
+  opponentScore: number | null;
   myCorrectCount: number;
   myWrongCount: number;
   myUnansweredCount: number;
-  opponentCorrectCount: number;
-  opponentWrongCount: number;
-  opponentUnansweredCount: number;
+  opponentCorrectCount: number | null;
+  opponentWrongCount: number | null;
+  opponentUnansweredCount: number | null;
   ratingBefore: number;
   ratingDelta: number;
   ratingAfter: number;
-  opponent: BattleResultOpponentPayload;
+  opponent: BattleResultOpponentPayload | null;
   mySummary: BattleHistorySummaryPayload;
-  opponentSummary: BattleHistoryOpponentSummaryPayload;
+  opponentSummary: BattleHistoryOpponentSummaryPayload | null;
   endReason: string | null;
   completedAt: Date;
   serverTime: Date;

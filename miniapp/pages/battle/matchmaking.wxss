@@ -161,6 +161,39 @@
   background: #eef4ff;
 }
 
+.training-offer {
+  margin-top: 24rpx;
+  padding: 24rpx;
+  border: 2rpx solid rgba(47, 107, 255, 0.16);
+  border-radius: 22rpx;
+  background: linear-gradient(145deg, #f4f8ff 0%, #eef8f5 100%);
+}
+
+.training-title,
+.training-copy {
+  display: block;
+}
+
+.training-title {
+  color: #17324d;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.training-copy {
+  margin-top: 10rpx;
+  color: #5b718d;
+  font-size: 24rpx;
+  line-height: 1.7;
+}
+
+.training-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+
 .matched-value {
   display: block;
   margin-top: 10rpx;

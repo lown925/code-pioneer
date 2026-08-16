@@ -30,6 +30,7 @@ type BattleProfileRecord = {
   totalBattles?: number;
   rankedBattles?: number;
   friendBattles?: number;
+  trainingBattles?: number;
   wins?: number;
   losses?: number;
   draws?: number;
@@ -69,6 +70,7 @@ type BattleQueueRecord = {
   matchedAt: Date | null;
   cancelledAt: Date | null;
   expiresAt: Date | null;
+  updatedAt?: Date;
 };
 
 type BattleRoomRecord = {
@@ -400,6 +402,7 @@ export function createBattlePrismaMock() {
             totalBattles: 0,
             rankedBattles: 0,
             friendBattles: 0,
+            trainingBattles: 0,
             wins: 0,
             losses: 0,
             draws: 0,
@@ -605,6 +608,7 @@ export function createBattlePrismaMock() {
             matchedAt: data.matchedAt ?? null,
             cancelledAt: data.cancelledAt ?? null,
             expiresAt: data.expiresAt ?? null,
+            updatedAt: data.updatedAt ?? new Date(),
           };
           battleQueues.set(record.userId, record);
           return record;
@@ -627,6 +631,7 @@ export function createBattlePrismaMock() {
           const updated = {
             ...existing,
             ...data,
+            updatedAt: data.updatedAt ?? new Date(),
           };
 
           battleQueues.set(where.userId, updated);
@@ -651,6 +656,7 @@ export function createBattlePrismaMock() {
             battleQueues.set(userId, {
               ...record,
               ...data,
+              updatedAt: data.updatedAt ?? new Date(),
             });
             count += 1;
           }
@@ -1480,6 +1486,15 @@ function matchesQueueWhere(
     }
   }
 
+  if (where.updatedAt !== undefined && where.updatedAt !== null) {
+    const updatedAt = where.updatedAt as { gt?: Date };
+    const recordUpdatedAt = record.updatedAt ?? new Date();
+
+    if (updatedAt.gt && !(recordUpdatedAt > updatedAt.gt)) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -1903,6 +1918,23 @@ function matchesQuizQuestionWhere(
     record.battleSkillCode !== where.battleSkillCode
   ) {
     return false;
+  }
+
+  if (
+    where.battleDifficulty &&
+    typeof where.battleDifficulty === 'object' &&
+    where.battleDifficulty !== null
+  ) {
+    const values = (
+      where.battleDifficulty as { in?: BattleQuestionDifficulty[] }
+    ).in ?? [];
+
+    if (
+      values.length > 0 &&
+      (!record.battleDifficulty || !values.includes(record.battleDifficulty))
+    ) {
+      return false;
+    }
   }
 
   if (where.type && typeof where.type === 'object' && where.type !== null) {

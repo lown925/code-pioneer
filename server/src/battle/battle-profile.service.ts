@@ -16,6 +16,7 @@ type BattleProfileRecord = {
   totalBattles: number;
   rankedBattles: number;
   friendBattles: number;
+  trainingBattles: number;
   wins: number;
   losses: number;
   draws: number;
@@ -54,6 +55,7 @@ export class BattleProfileService {
         totalBattles: true,
         rankedBattles: true,
         friendBattles: true,
+        trainingBattles: true,
         wins: true,
         losses: true,
         draws: true,
@@ -77,11 +79,14 @@ export class BattleProfileService {
       totalBattles: profile.totalBattles ?? 0,
       rankedBattles: profile.rankedBattles ?? 0,
       friendBattles: profile.friendBattles ?? 0,
+      trainingBattles: profile.trainingBattles ?? 0,
       wins: profile.wins ?? 0,
       losses: profile.losses ?? 0,
       draws: profile.draws ?? 0,
       winRate: calculateBattleWinRate(
-        profile.totalBattles ?? 0,
+        (profile.wins ?? 0) +
+          (profile.losses ?? 0) +
+          (profile.draws ?? 0),
         profile.wins ?? 0,
       ),
       currentWinStreak: profile.currentWinStreak ?? 0,

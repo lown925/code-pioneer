@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '../../generated/prisma/client';
 import {
   BattleEndReason,
+  BattleMode,
   BattleResult,
   BattleRoomStatus,
   QuestionType,
@@ -666,7 +667,11 @@ export class WrongQuestionService {
         (participant) => participant.userId !== currentUserId,
       );
 
-      if (!currentParticipant || currentParticipant.result === BattleResult.NONE) {
+      if (
+        !currentParticipant ||
+        (room.mode !== BattleMode.TRAINING &&
+          currentParticipant.result === BattleResult.NONE)
+      ) {
         continue;
       }
 

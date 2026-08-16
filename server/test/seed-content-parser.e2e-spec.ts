@@ -70,6 +70,10 @@ describe('seed content parser', () => {
   it('loads the complete Python seed contract', () => {
     const { course, questions, battleQuestions } =
       countQuestions('python-basic');
+    const eligibleBattleQuestions = battleQuestions.filter(
+      (question) =>
+        question.difficulty === 'MEDIUM' || question.difficulty === 'HARD',
+    );
 
     expect(course.chapters).toHaveLength(15);
     expect(course.chapters.map((chapter) => chapter.sortOrder)).toEqual(
@@ -86,6 +90,7 @@ describe('seed content parser', () => {
     ).toBe(true);
     expect(questions).toHaveLength(270);
     expect(battleQuestions).toHaveLength(190);
+    expect(eligibleBattleQuestions.length).toBeGreaterThanOrEqual(20);
     expect(course.battleSkillCode).toBe('PYTHON');
   });
 

@@ -9,7 +9,7 @@
 
   <view class="section-card rating-card">
     <view class="rating-item">
-      <text class="rating-label">当前等待匹配人数</text>
+      <text class="rating-label">当前 {{selectedSkillName || 'Python'}} 在线匹配人数</text>
       <view class="waiting-count-line">
         <text class="rating-value">{{waitingCountText}}</text>
         <text class="waiting-count-unit">人</text>
@@ -50,6 +50,20 @@
       <view class="timer-card">
         <text class="timer-label">剩余匹配时间</text>
         <text class="timer-value">{{remainingText}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{state === 'SEARCHING' && canStartTraining}}" class="training-offer">
+      <text class="training-title">暂无合适对手</text>
+      <text class="training-copy">你可以继续等待真人，或进入不计 Rating 的 Python 单人训练。</text>
+      <view class="training-actions">
+        <view class="ghost-button action-button" bindtap="handleContinueWaiting">继续等待</view>
+        <view
+          class="primary-button action-button {{isStartingTraining ? 'disabled-button' : ''}}"
+          bindtap="handleStartTraining"
+        >
+          {{isStartingTraining ? '正在创建训练' : '开始单人训练'}}
+        </view>
       </view>
     </view>
 

@@ -194,6 +194,96 @@ describe('WrongQuestionService', () => {
     );
   });
 
+  it('includes wrong answers from completed single-player training rooms', async () => {
+    const submittedAt = new Date('2026-08-16T10:00:00.000Z');
+    const prisma = {
+      ...createMockPrisma(),
+      battleRoom: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'training-room',
+            mode: 'TRAINING',
+            status: 'COMPLETED',
+            completedAt: new Date('2026-08-16T10:03:00.000Z'),
+            endReason: 'NORMAL',
+            participants: [
+              {
+                id: 'training-participant',
+                userId: CURRENT_USER.id,
+                score: 1,
+                result: 'NONE',
+                correctCount: 1,
+                wrongCount: 1,
+                unansweredCount: 0,
+                ratingBefore: 1000,
+                ratingDelta: 0,
+                ratingAfter: 1000,
+                user: {
+                  id: CURRENT_USER.id,
+                  nickname: null,
+                  avatarUrl: null,
+                },
+              },
+            ],
+            questionSnapshots: [
+              {
+                id: 'snapshot-training-1',
+                battleRoomId: 'training-room',
+                sourceQuizQuestionId: 'question-training-1',
+                orderIndex: 0,
+                questionType: 'SINGLE_CHOICE',
+                presentation: 'TEXT_CHOICE',
+                difficulty: 'MEDIUM',
+                stemSnapshot: [{ type: 'TEXT', text: '训练错题' }],
+                optionsSnapshot: [],
+                correctAnswerSnapshot: {
+                  type: 'SINGLE_CHOICE',
+                  optionId: 'correct-option',
+                },
+                explanationSnapshot: null,
+                programmingLanguage: 'python',
+                courseIdSnapshot: 'course-1',
+                chapterIdSnapshot: 'chapter-1',
+              },
+            ],
+            answers: [
+              {
+                battleRoomId: 'training-room',
+                participantId: 'training-participant',
+                battleQuestionSnapshotId: 'snapshot-training-1',
+                answerPayload: {
+                  type: 'SINGLE_CHOICE',
+                  optionId: 'wrong-option',
+                },
+                submittedAt,
+                timeSpentMs: 1000,
+                isCorrect: false,
+                scoreDelta: -1,
+              },
+            ],
+          },
+        ]),
+      },
+    };
+    const service = new WrongQuestionService(prisma as never);
+
+    const result = await service.getList(CURRENT_USER, { source: 'BATTLE' });
+
+    expect(result.data.items).toEqual([
+      expect.objectContaining({
+        source: 'BATTLE',
+        questionId: 'question-training-1',
+        battleQuestionSnapshotId: 'snapshot-training-1',
+        wrongCount: 1,
+        latestWrongAt: submittedAt,
+        battle: expect.objectContaining({
+          battleId: 'training-room',
+          opponent: null,
+        }),
+      }),
+    ]);
+  });
+
   it('returns the correct answer and explanation for a practice wrong question', async () => {
     const prisma = createMockPrisma();
     const lastWrongAt = new Date('2026-07-21T11:30:00.000Z');

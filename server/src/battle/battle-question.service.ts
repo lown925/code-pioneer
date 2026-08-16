@@ -109,6 +109,7 @@ export class BattleQuestionService {
         },
         select: {
           id: true,
+          mode: true,
           status: true,
           skillCode: true,
           startedAt: true,
@@ -140,6 +141,7 @@ export class BattleQuestionService {
       if (room.status === BattleRoomStatus.COUNTDOWN && room.startedAt) {
         return {
           battleId: room.id,
+          mode: room.mode,
           status: room.status,
           skill: room.skillCode,
           startedAt: room.startedAt,
@@ -219,6 +221,7 @@ export class BattleQuestionService {
 
       return {
         battleId: room.id,
+        mode: room.mode,
         status: room.status,
         skill: room.skillCode,
         startedAt: room.startedAt,
@@ -304,6 +307,12 @@ export class BattleQuestionService {
       where: {
         isBattleEnabled: true,
         ...(skillCode ? { battleSkillCode: skillCode } : {}),
+        battleDifficulty: {
+          in: [
+            BattleQuestionDifficulty.MEDIUM,
+            BattleQuestionDifficulty.HARD,
+          ],
+        },
         type: {
           in: [QuestionType.SINGLE_CHOICE, QuestionType.CODE_FILL],
         },
@@ -363,7 +372,11 @@ export class BattleQuestionService {
   }
 
   private isValidCandidate(question: CandidateQuestionRecord) {
-    if (!question.battlePresentation) {
+    if (
+      !question.battlePresentation ||
+      (question.battleDifficulty !== BattleQuestionDifficulty.MEDIUM &&
+        question.battleDifficulty !== BattleQuestionDifficulty.HARD)
+    ) {
       return false;
     }
 
@@ -390,12 +403,6 @@ export class BattleQuestionService {
     const selectedIds = new Set<string>();
     const targets = this.getDifficultyTargets(questionCount);
     const buckets = {
-      [BattleQuestionDifficulty.EASY]: this.shuffle(
-        candidates.filter(
-          (question) =>
-            question.battleDifficulty === BattleQuestionDifficulty.EASY,
-        ),
-      ),
       [BattleQuestionDifficulty.MEDIUM]: this.shuffle(
         candidates.filter(
           (question) =>
@@ -453,12 +460,10 @@ export class BattleQuestionService {
   }
 
   private getDifficultyTargets(questionCount: number) {
-    const easy = Math.floor(questionCount * 0.4);
-    const medium = Math.floor(questionCount * 0.4);
-    const hard = questionCount - easy - medium;
+    const medium = Math.ceil(questionCount * 0.7);
+    const hard = questionCount - medium;
 
     return {
-      [BattleQuestionDifficulty.EASY]: easy,
       [BattleQuestionDifficulty.MEDIUM]: medium,
       [BattleQuestionDifficulty.HARD]: hard,
     };

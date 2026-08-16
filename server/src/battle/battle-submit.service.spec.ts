@@ -257,6 +257,42 @@ describe('BattleSubmitService', () => {
     );
   });
 
+  it('settles a single-player training room immediately on submit', async () => {
+    const { mock, submitService } = createServices();
+    mock.battleRooms.get('room-1')!.mode = BattleMode.TRAINING;
+    mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
+    mock.battleParticipants.delete('participant-b');
+
+    const result = await submitService.submitBattle(USER_A_ID, 'room-1');
+
+    expect(result.data).toMatchObject({
+      battleId: 'room-1',
+      roomStatus: BattleRoomStatus.COMPLETED,
+      participantStatus: BattleParticipantStatus.COMPLETED,
+      waitingForOpponent: false,
+      completed: true,
+    });
+    expect(mock.battleParticipants.get('participant-a')).toMatchObject({
+      result: BattleResult.NONE,
+      ratingDelta: 0,
+    });
+    expect(mock.battleProfiles.get(USER_A_ID)).toMatchObject({
+      totalBattles: 1,
+      trainingBattles: 1,
+      rankedBattles: 0,
+    });
+  });
+
+  it('rejects forfeiting a single-player training room', async () => {
+    const { mock, submitService } = createServices();
+    mock.battleRooms.get('room-1')!.mode = BattleMode.TRAINING;
+    mock.battleParticipants.delete('participant-b');
+
+    await expect(
+      submitService.forfeitBattle(USER_A_ID, 'room-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
   it('forfeit settles immediately and is idempotent on repeat calls', async () => {
     const { mock, submitService } = createServices();
 

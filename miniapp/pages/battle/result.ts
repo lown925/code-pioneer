@@ -47,6 +47,7 @@ type ResultPageData = {
   opponentAvatarFallbackText: string;
   completedAtText: string;
   endReasonText: string;
+  isTrainingMode: boolean;
 };
 
 type ResultPageMethods = {
@@ -117,6 +118,7 @@ Page<ResultPageData, ResultPageMethods>({
     opponentAvatarFallbackText: '对',
     completedAtText: '',
     endReasonText: '',
+    isTrainingMode: false,
   },
 
   onLoad(options) {
@@ -229,6 +231,7 @@ Page<ResultPageData, ResultPageMethods>({
           resultText: '等待结算',
           resultHintText: '结果准备完成后会自动刷新展示。',
           resultBadgeClassName: 'result-badge-waiting',
+          isTrainingMode: response.mode === 'TRAINING',
         });
 
         this.startPolling();
@@ -236,11 +239,14 @@ Page<ResultPageData, ResultPageMethods>({
       }
 
       const resultMeta = this.getResultMeta(response.result);
+      const isTrainingMode = response.mode === 'TRAINING';
 
       this.setData({
         state: 'SUCCESS',
         titleText: resultMeta.resultText,
-        descriptionText: '本场对战的分数、胜负和 rating 变化均以服务端结算结果为准。',
+        descriptionText: isTrainingMode
+          ? '本场单人训练已完成，答题记录会进入 Battle 历史，且不会改变 Rating。'
+          : '本场对战的分数、胜负和 rating 变化均以服务端结算结果为准。',
         errorMessage: '',
         modeText: this.getModeText(response.mode),
         skillText: formatBattleSkill(response.skill),
@@ -249,21 +255,36 @@ Page<ResultPageData, ResultPageMethods>({
         resultHintText: resultMeta.resultHintText,
         resultBadgeClassName: resultMeta.resultBadgeClassName,
         myScoreText: String(response.myScore),
-        opponentScoreText: String(response.opponentScore),
+        opponentScoreText:
+          response.opponentScore === null ? '—' : String(response.opponentScore),
         myCorrectCountText: String(response.myCorrectCount),
         myWrongCountText: String(response.myWrongCount),
         myUnansweredCountText: String(response.myUnansweredCount),
-        opponentCorrectCountText: String(response.opponentCorrectCount),
-        opponentWrongCountText: String(response.opponentWrongCount),
-        opponentUnansweredCountText: String(response.opponentUnansweredCount),
+        opponentCorrectCountText:
+          response.opponentCorrectCount === null
+            ? '—'
+            : String(response.opponentCorrectCount),
+        opponentWrongCountText:
+          response.opponentWrongCount === null
+            ? '—'
+            : String(response.opponentWrongCount),
+        opponentUnansweredCountText:
+          response.opponentUnansweredCount === null
+            ? '—'
+            : String(response.opponentUnansweredCount),
         ratingBeforeText: formatBattleRating(response.ratingBefore),
         ratingDeltaText: this.formatRatingDelta(response.ratingDelta),
         ratingAfterText: formatBattleRating(response.ratingAfter),
-        opponentNicknameText: formatBattleNickname(response.opponent.nickname),
-        opponentAvatarUrl: response.opponent.avatarUrl ?? '',
-        opponentAvatarFallbackText: formatBattleInitial(response.opponent.nickname),
+        opponentNicknameText: response.opponent
+          ? formatBattleNickname(response.opponent.nickname)
+          : '',
+        opponentAvatarUrl: response.opponent?.avatarUrl ?? '',
+        opponentAvatarFallbackText: response.opponent
+          ? formatBattleInitial(response.opponent.nickname)
+          : '',
         completedAtText: this.formatCompletedAt(response.completedAt),
         endReasonText: this.getEndReasonText(response.endReason),
+        isTrainingMode,
       });
     } catch (error) {
       if (!isPageActive || currentRequestSerial !== requestSerial) {
@@ -405,10 +426,22 @@ Page<ResultPageData, ResultPageMethods>({
       return '排位对战';
     }
 
+    if (mode === 'TRAINING') {
+      return '单人训练';
+    }
+
     return '未知模式';
   },
 
   getResultMeta(result: BattleResult) {
+    if (result === 'NONE') {
+      return {
+        resultText: '训练完成',
+        resultHintText: '本场训练不计 Rating，答错题目仍会进入错题记录。',
+        resultBadgeClassName: 'result-badge-draw',
+      };
+    }
+
     if (result === 'WIN') {
       return {
         resultText: '胜利',

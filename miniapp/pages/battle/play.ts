@@ -91,6 +91,7 @@ type PlayPageData = {
   submitBattleButtonText: string;
   forfeitButtonText: string;
   isBattleActionPending: boolean;
+  isTrainingMode: boolean;
   questions: QuestionCard[];
 };
 
@@ -324,6 +325,7 @@ Page<PlayPageData, PlayPageMethods>({
     submitBattleButtonText: '交卷',
     forfeitButtonText: '认输',
     isBattleActionPending: false,
+    isTrainingMode: false,
     questions: [],
   },
 
@@ -497,6 +499,7 @@ Page<PlayPageData, PlayPageMethods>({
     const items = Array.isArray(payload.questions) ? payload.questions : [];
     const built = this.buildQuestions(items, this.data.questions, currentQuestionId);
     const nextState = this.mapPlayState(payload);
+    const isTrainingMode = payload.mode === 'TRAINING';
     const currentQuestionCard =
       built.questions[built.currentQuestionIndex] ?? null;
 
@@ -519,7 +522,9 @@ Page<PlayPageData, PlayPageMethods>({
         nextState === 'COUNTDOWN'
           ? '服务端倒计时尚未结束，到达 startedAt 后会自动进入作答状态。'
           : nextState === 'WAITING_SETTLEMENT'
-            ? '当前已停止作答，系统正在等待对手或处理结算。'
+            ? isTrainingMode
+              ? '当前已停止作答，系统正在整理单人训练结果。'
+              : '当前已停止作答，系统正在等待对手或处理结算。'
             : nextState === 'COMPLETED'
               ? '当前对局已完成，正在准备跳转结果页。'
               : '选择答案后会自动暂存。交卷前会等待未完成的自动保存请求。'
@@ -532,6 +537,7 @@ Page<PlayPageData, PlayPageMethods>({
       submitBattleButtonText: '交卷',
       forfeitButtonText: '认输',
       isBattleActionPending: false,
+      isTrainingMode,
       questions: built.questions,
     });
 
@@ -1155,6 +1161,7 @@ Page<PlayPageData, PlayPageMethods>({
     if (
       this.data.isBattleActionPending ||
       isBattleActionRequesting ||
+      this.data.isTrainingMode ||
       (this.data.state !== 'COUNTDOWN' && this.data.state !== 'PLAYING')
     ) {
       return;
@@ -1179,6 +1186,7 @@ Page<PlayPageData, PlayPageMethods>({
       !this.data.isValidBattleId ||
       isBattleActionRequesting ||
       this.data.isBattleActionPending ||
+      this.data.isTrainingMode ||
       (this.data.state !== 'COUNTDOWN' && this.data.state !== 'PLAYING')
     ) {
       return;

@@ -3,6 +3,7 @@ import type {
   BattleHistoryDetailResponse,
   BattleHistoryQuestionResponse,
   BattleQuestionOptionSnapshotResponse,
+  BattleResult,
 } from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
@@ -91,6 +92,7 @@ type DetailPageData = {
   opponentAvatarUrl: string;
   opponentAvatarFallbackText: string;
   questions: QuestionReviewCard[];
+  isTrainingMode: boolean;
 };
 
 type DetailPageMethods = {
@@ -131,7 +133,7 @@ type DetailPageMethods = {
   ): void;
   getModeText(mode: string): string;
   getStatusText(status: string): string;
-  getResultMeta(result: 'WIN' | 'LOSS' | 'DRAW'): {
+  getResultMeta(result: BattleResult): {
     text: string;
     className: string;
   };
@@ -197,6 +199,7 @@ Page<DetailPageData, DetailPageMethods>({
     opponentAvatarUrl: '',
     opponentAvatarFallbackText: '对',
     questions: [],
+    isTrainingMode: false,
   },
 
   onLoad(options) {
@@ -291,10 +294,13 @@ Page<DetailPageData, DetailPageMethods>({
       }
 
       const resultMeta = this.getResultMeta(response.result);
+      const isTrainingMode = response.mode === 'TRAINING';
       this.setData({
         state: 'SUCCESS',
         titleText: 'Battle 复盘详情',
-        descriptionText: '当前页面只展示本人的逐题作答、正确答案和解析，不展示对手逐题答案。',
+        descriptionText: isTrainingMode
+          ? '当前页面展示本次单人训练的逐题作答、正确答案和解析。'
+          : '当前页面只展示本人的逐题作答、正确答案和解析，不展示对手逐题答案。',
         errorMessage: '',
         modeText: this.getModeText(response.mode),
         skillText: formatBattleSkill(response.skill),
@@ -306,20 +312,35 @@ Page<DetailPageData, DetailPageMethods>({
         durationText: formatBattleDuration(response.durationSeconds),
         endReasonText: this.getEndReasonText(response.endReason),
         myScoreText: String(response.myScore),
-        opponentScoreText: String(response.opponentScore),
+        opponentScoreText:
+          response.opponentScore === null ? '—' : String(response.opponentScore),
         myCorrectCountText: String(response.myCorrectCount),
         myWrongCountText: String(response.myWrongCount),
         myUnansweredCountText: String(response.myUnansweredCount),
-        opponentCorrectCountText: String(response.opponentCorrectCount),
-        opponentWrongCountText: String(response.opponentWrongCount),
-        opponentUnansweredCountText: String(response.opponentUnansweredCount),
+        opponentCorrectCountText:
+          response.opponentCorrectCount === null
+            ? '—'
+            : String(response.opponentCorrectCount),
+        opponentWrongCountText:
+          response.opponentWrongCount === null
+            ? '—'
+            : String(response.opponentWrongCount),
+        opponentUnansweredCountText:
+          response.opponentUnansweredCount === null
+            ? '—'
+            : String(response.opponentUnansweredCount),
         ratingBeforeText: formatBattleRating(response.ratingBefore),
         ratingDeltaText: this.formatRatingDelta(response.ratingDelta),
         ratingAfterText: formatBattleRating(response.ratingAfter),
-        opponentNicknameText: formatBattleNickname(response.opponent.nickname),
-        opponentAvatarUrl: response.opponent.avatarUrl ?? '',
-        opponentAvatarFallbackText: formatBattleInitial(response.opponent.nickname),
+        opponentNicknameText: response.opponent
+          ? formatBattleNickname(response.opponent.nickname)
+          : '',
+        opponentAvatarUrl: response.opponent?.avatarUrl ?? '',
+        opponentAvatarFallbackText: response.opponent
+          ? formatBattleInitial(response.opponent.nickname)
+          : '',
         questions: response.questions.map((question) => this.mapQuestion(question)),
+        isTrainingMode,
       });
     } catch (error) {
       if (!isPageActive || currentRequestSerial !== requestSerial) {
@@ -637,6 +658,10 @@ Page<DetailPageData, DetailPageMethods>({
       return '排位对战';
     }
 
+    if (mode === 'TRAINING') {
+      return '单人训练';
+    }
+
     return '未知模式';
   },
 
@@ -652,7 +677,14 @@ Page<DetailPageData, DetailPageMethods>({
     return status;
   },
 
-  getResultMeta(result: 'WIN' | 'LOSS' | 'DRAW') {
+  getResultMeta(result: BattleResult) {
+    if (result === 'NONE') {
+      return {
+        text: '训练完成',
+        className: 'result-badge-draw',
+      };
+    }
+
     if (result === 'WIN') {
       return {
         text: '胜利',

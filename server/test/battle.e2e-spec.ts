@@ -617,11 +617,9 @@ function seedBattleQuestions(
       explanation: `Explanation ${index + 1}`,
       battlePresentation: BattleQuestionPresentation.TEXT_CHOICE,
       battleDifficulty:
-        index % 3 === 0
-          ? BattleQuestionDifficulty.EASY
-          : index % 3 === 1
-            ? BattleQuestionDifficulty.MEDIUM
-            : BattleQuestionDifficulty.HARD,
+        index % 2 === 0
+          ? BattleQuestionDifficulty.MEDIUM
+          : BattleQuestionDifficulty.HARD,
       isBattleEnabled: true,
       stemBlocks: null,
       explanationBlocks: null,

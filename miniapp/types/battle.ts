@@ -1,4 +1,4 @@
-export type BattleMode = 'RANKED' | 'FRIEND';
+export type BattleMode = 'RANKED' | 'FRIEND' | 'TRAINING';
 
 export type BattleRoomStatus =
   | 'WAITING'
@@ -18,7 +18,7 @@ export type BattleParticipantStatus =
   | 'FORFEITED'
   | 'COMPLETED';
 
-export type BattleResult = 'WIN' | 'LOSS' | 'DRAW';
+export type BattleResult = 'WIN' | 'LOSS' | 'DRAW' | 'NONE';
 
 export type BattleQuestionType = 'SINGLE_CHOICE' | 'CODE_FILL';
 
@@ -54,6 +54,7 @@ export type BattleProfileResponse = {
   totalBattles: number;
   rankedBattles: number;
   friendBattles: number;
+  trainingBattles: number;
   wins: number;
   losses: number;
   draws: number;
@@ -233,6 +234,7 @@ export type BattleQuestionItemResponse = {
 
 export type BattleQuestionsResponse = {
   battleId: string;
+  mode: BattleMode;
   skill: string | null;
   status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING' | 'COMPLETED';
   startedAt: string | null;
@@ -260,6 +262,16 @@ export type BattleSubmitActionResponse = {
   serverTime: string;
 };
 
+export type BattleTrainingStartResponse = {
+  battleId: string;
+  mode: 'TRAINING';
+  skill: string;
+  status: 'COUNTDOWN';
+  startedAt: string;
+  expiresAt: string;
+  serverTime: string;
+};
+
 export type PendingBattleResultResponse = {
   battleId: string;
   mode: BattleMode;
@@ -277,13 +289,13 @@ export type CompletedBattleResultResponse = {
   completed: true;
   result: BattleResult;
   myScore: number;
-  opponentScore: number;
+  opponentScore: number | null;
   myCorrectCount: number;
   myWrongCount: number;
   myUnansweredCount: number;
-  opponentCorrectCount: number;
-  opponentWrongCount: number;
-  opponentUnansweredCount: number;
+  opponentCorrectCount: number | null;
+  opponentWrongCount: number | null;
+  opponentUnansweredCount: number | null;
   ratingBefore: number;
   ratingDelta: number;
   ratingAfter: number;
@@ -291,7 +303,7 @@ export type CompletedBattleResultResponse = {
     userId: string;
     nickname: string | null;
     avatarUrl: string | null;
-  };
+  } | null;
   endReason: BattleEndReason | null;
   completedAt: string;
   serverTime: string;
@@ -317,9 +329,9 @@ export type BattleHistoryListItemResponse = {
     userId: string;
     nickname: string | null;
     avatarUrl: string | null;
-  };
+  } | null;
   myScore: number;
-  opponentScore: number;
+  opponentScore: number | null;
   myCorrectCount: number;
   myWrongCount: number;
   myUnansweredCount: number;
@@ -396,13 +408,13 @@ export type BattleHistoryDetailResponse = {
   startedAt: string | null;
   durationSeconds: number;
   myScore: number;
-  opponentScore: number;
+  opponentScore: number | null;
   myCorrectCount: number;
   myWrongCount: number;
   myUnansweredCount: number;
-  opponentCorrectCount: number;
-  opponentWrongCount: number;
-  opponentUnansweredCount: number;
+  opponentCorrectCount: number | null;
+  opponentWrongCount: number | null;
+  opponentUnansweredCount: number | null;
   ratingBefore: number;
   ratingDelta: number;
   ratingAfter: number;
@@ -410,13 +422,13 @@ export type BattleHistoryDetailResponse = {
     userId: string;
     nickname: string | null;
     avatarUrl: string | null;
-  };
+  } | null;
   mySummary: BattleHistorySummaryResponse;
-  opponentSummary: BattleHistorySummaryResponse & {
+  opponentSummary: (BattleHistorySummaryResponse & {
     userId: string;
     nickname: string | null;
     avatarUrl: string | null;
-  };
+  }) | null;
   endReason: BattleEndReason | null;
   completedAt: string;
   serverTime: string;

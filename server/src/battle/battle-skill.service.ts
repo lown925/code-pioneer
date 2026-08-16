@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import {
+  BattleQuestionDifficulty,
   ChapterStatus,
   CourseStatus,
   QuestionType,
@@ -101,6 +102,12 @@ export class BattleSkillService {
   private getEligibleQuestionWhere(): Prisma.QuizQuestionWhereInput {
     return {
       isBattleEnabled: true,
+      battleDifficulty: {
+        in: [
+          BattleQuestionDifficulty.MEDIUM,
+          BattleQuestionDifficulty.HARD,
+        ],
+      },
       type: {
         in: [QuestionType.SINGLE_CHOICE, QuestionType.CODE_FILL],
       },
@@ -124,7 +131,11 @@ export class BattleSkillService {
     acceptedAnswers: unknown;
     options: Array<{ isCorrect: boolean }>;
   }) {
-    if (!question.battlePresentation || !question.battleDifficulty) {
+    if (
+      !question.battlePresentation ||
+      (question.battleDifficulty !== BattleQuestionDifficulty.MEDIUM &&
+        question.battleDifficulty !== BattleQuestionDifficulty.HARD)
+    ) {
       return false;
     }
 

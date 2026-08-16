@@ -23,11 +23,13 @@ type FilterOption = {
 type HistoryCard = BattleHistoryListItemResponse & {
   opponentNicknameText: string;
   opponentAvatarFallbackText: string;
+  opponentAvatarUrl: string;
   modeText: string;
   skillText: string;
   resultText: string;
   resultClassName: string;
   scoreText: string;
+  scoreLabelText: string;
   ratingDeltaText: string;
   completedAtText: string;
   endReasonText: string;
@@ -44,7 +46,7 @@ type HistoryPageData = {
   totalPages: number;
   hasMore: boolean;
   isLoadingMore: boolean;
-  selectedMode: '' | 'RANKED' | 'FRIEND';
+  selectedMode: '' | 'RANKED' | 'FRIEND' | 'TRAINING';
   selectedResult: '' | 'WIN' | 'LOSS' | 'DRAW';
   modeFilters: FilterOption[];
   resultFilters: FilterOption[];
@@ -70,7 +72,7 @@ type HistoryPageMethods = {
   ): void;
   mapHistoryItem(item: BattleHistoryListItemResponse): HistoryCard;
   getModeText(mode: string): string;
-  getResultMeta(result: 'WIN' | 'LOSS' | 'DRAW'): {
+  getResultMeta(result: 'WIN' | 'LOSS' | 'DRAW' | 'NONE'): {
     resultText: string;
     resultClassName: string;
   };
@@ -88,6 +90,7 @@ const MODE_FILTERS: FilterOption[] = [
   { value: '', label: '全部模式' },
   { value: 'RANKED', label: '排位' },
   { value: 'FRIEND', label: '好友' },
+  { value: 'TRAINING', label: '训练' },
 ];
 const RESULT_FILTERS: FilterOption[] = [
   { value: '', label: '全部结果' },
@@ -313,7 +316,8 @@ Page<HistoryPageData, HistoryPageMethods>({
     const value = (event.currentTarget.dataset.value ?? '') as
       | ''
       | 'RANKED'
-      | 'FRIEND';
+      | 'FRIEND'
+      | 'TRAINING';
 
     if (value === this.data.selectedMode) {
       return;
@@ -365,14 +369,26 @@ Page<HistoryPageData, HistoryPageMethods>({
 
     return {
       ...item,
-      opponentNicknameText: formatBattleNickname(item.opponent.nickname),
-      opponentAvatarFallbackText: formatBattleInitial(item.opponent.nickname),
+      opponentNicknameText: item.opponent
+        ? formatBattleNickname(item.opponent.nickname)
+        : '单人训练',
+      opponentAvatarFallbackText: item.opponent
+        ? formatBattleInitial(item.opponent.nickname)
+        : '练',
+      opponentAvatarUrl: item.opponent?.avatarUrl ?? '',
       modeText: this.getModeText(item.mode),
       skillText: formatBattleSkill(item.skill),
       resultText: resultMeta.resultText,
       resultClassName: resultMeta.resultClassName,
-      scoreText: `${item.myScore} : ${item.opponentScore}`,
-      ratingDeltaText: this.formatRatingDelta(item.ratingDelta),
+      scoreText:
+        item.opponentScore === null
+          ? `${item.myScore} 分`
+          : `${item.myScore} : ${item.opponentScore}`,
+      scoreLabelText: item.mode === 'TRAINING' ? '训练得分' : '比分',
+      ratingDeltaText:
+        item.mode === 'TRAINING'
+          ? '不计 Rating'
+          : this.formatRatingDelta(item.ratingDelta),
       completedAtText: this.formatCompletedAt(item.completedAt),
       endReasonText: this.getEndReasonText(item.endReason),
     };
@@ -387,10 +403,21 @@ Page<HistoryPageData, HistoryPageMethods>({
       return '排位对战';
     }
 
+    if (mode === 'TRAINING') {
+      return '单人训练';
+    }
+
     return '未知模式';
   },
 
-  getResultMeta(result: 'WIN' | 'LOSS' | 'DRAW') {
+  getResultMeta(result: 'WIN' | 'LOSS' | 'DRAW' | 'NONE') {
+    if (result === 'NONE') {
+      return {
+        resultText: '训练完成',
+        resultClassName: 'result-badge-draw',
+      };
+    }
+
     if (result === 'WIN') {
       return {
         resultText: '胜利',

@@ -183,6 +183,39 @@ describe('BattleResultService', () => {
     });
   });
 
+  it('returns a completed training result without an opponent or rating change', async () => {
+    const { mock, service } = createService(BattleRoomStatus.COMPLETED);
+    const room = mock.battleRooms.get('room-1')!;
+    room.mode = BattleMode.TRAINING;
+    room.skillCode = 'PYTHON';
+    room.winnerUserId = null;
+    mock.battleParticipants.delete('participant-b');
+
+    const participant = mock.battleParticipants.get('participant-a')!;
+    participant.result = BattleResult.NONE;
+    participant.ratingBefore = 1000;
+    participant.ratingDelta = 0;
+    participant.ratingAfter = 1000;
+
+    const result = await service.getBattleResult(USER_A_ID, 'room-1');
+
+    expect(result.data).toMatchObject({
+      battleId: 'room-1',
+      mode: BattleMode.TRAINING,
+      status: BattleRoomStatus.COMPLETED,
+      completed: true,
+      result: BattleResult.NONE,
+      myScore: 4,
+      opponentScore: null,
+      myCorrectCount: 2,
+      opponentCorrectCount: null,
+      ratingBefore: 1000,
+      ratingDelta: 0,
+      ratingAfter: 1000,
+      opponent: null,
+    });
+  });
+
   it('rejects non-participants and not-started rooms', async () => {
     const { mock, service } = createService(BattleRoomStatus.READY);
 

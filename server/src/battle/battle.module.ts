@@ -18,6 +18,7 @@ import { BattleRoomService } from './battle-room.service';
 import { BattleScoreService } from './battle-score.service';
 import { BattleSettlementService } from './battle-settlement.service';
 import { BattleSubmitService } from './battle-submit.service';
+import { BattleTrainingService } from './battle-training.service';
 import { BattleSkillService } from './battle-skill.service';
 import { BattleTokenService } from './battle-token.service';
 
@@ -36,6 +37,7 @@ import { BattleTokenService } from './battle-token.service';
     BattleReadyService,
     BattleAnswerService,
     BattleSubmitService,
+    BattleTrainingService,
     BattleSkillService,
     BattleResultService,
     BattleProfileService,
@@ -56,6 +58,7 @@ import { BattleTokenService } from './battle-token.service';
     BattleReadyService,
     BattleAnswerService,
     BattleSubmitService,
+    BattleTrainingService,
     BattleResultService,
     BattleProfileService,
     BattleLeaderboardService,

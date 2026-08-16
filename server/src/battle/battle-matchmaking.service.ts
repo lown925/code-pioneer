@@ -12,6 +12,7 @@ import {
   BATTLE_WRONG_SCORE,
   DEFAULT_BATTLE_QUESTION_COUNT,
   INITIAL_MATCH_RATING_RANGE,
+  MATCHMAKING_HEARTBEAT_TTL_SECONDS,
   MATCHMAKING_TTL_SECONDS,
   MATCH_RANGE_EXPANSION,
   MATCH_RANGE_EXPANSION_INTERVAL_SECONDS,
@@ -37,6 +38,7 @@ type QueueRecord = {
   matchedAt: Date | null;
   cancelledAt: Date | null;
   expiresAt: Date | null;
+  updatedAt: Date;
 };
 
 @Injectable()
@@ -96,6 +98,9 @@ export class BattleMatchmakingService {
         if (queue.skillCode !== skill.code) {
           throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_SKILL_LOCKED);
         }
+
+        await this.touchQueueHeartbeat(tx, currentUser.id, now);
+        queue = { ...queue, updatedAt: now };
 
         const matchResult = await this.tryMatchUser(tx, {
           currentUserId: currentUser.id,
@@ -166,7 +171,7 @@ export class BattleMatchmakingService {
         })
       );
     });
-    const waitingCount = await this.countWaitingUsers();
+    const waitingCount = await this.countWaitingUsers(data.skill);
 
     return {
       success: true as const,
@@ -177,7 +182,13 @@ export class BattleMatchmakingService {
     };
   }
 
-  async getMatchmakingStatus(currentUser: CurrentUserContext) {
+  async getMatchmakingStatus(
+    currentUser: CurrentUserContext,
+    requestedSkill = 'PYTHON',
+  ) {
+    const normalizedRequestedSkill = (requestedSkill || 'PYTHON')
+      .trim()
+      .toUpperCase();
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
       await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
@@ -189,16 +200,25 @@ export class BattleMatchmakingService {
       let queue = await this.findQueueByUserId(tx, currentUser.id);
 
       if (!queue) {
-        return this.createPayload('IDLE', { serverTime: now });
+        return this.createPayload('IDLE', {
+          skill: normalizedRequestedSkill,
+          serverTime: now,
+        });
       }
 
       queue = await this.normalizeQueueState(tx, queue, now);
 
       if (!queue) {
-        return this.createPayload('IDLE', { serverTime: now });
+        return this.createPayload('IDLE', {
+          skill: normalizedRequestedSkill,
+          serverTime: now,
+        });
       }
 
       if (queue.status === 'SEARCHING') {
+        await this.touchQueueHeartbeat(tx, currentUser.id, now);
+        queue = { ...queue, updatedAt: now };
+
         const matchResult = await this.tryMatchUser(tx, {
           currentUserId: currentUser.id,
           skillCode: queue.skillCode,
@@ -240,7 +260,7 @@ export class BattleMatchmakingService {
         serverTime: now,
       });
     });
-    const waitingCount = await this.countWaitingUsers();
+    const waitingCount = await this.countWaitingUsers(data.skill);
 
     return {
       success: true as const,
@@ -348,7 +368,7 @@ export class BattleMatchmakingService {
         serverTime: now,
       });
     });
-    const waitingCount = await this.countWaitingUsers();
+    const waitingCount = await this.countWaitingUsers(data.skill);
 
     return {
       success: true as const,
@@ -389,6 +409,9 @@ export class BattleMatchmakingService {
         expiresAt: {
           gt: now,
         },
+        updatedAt: {
+          gt: this.getHeartbeatCutoff(now),
+        },
       },
       select: {
         userId: true,
@@ -400,6 +423,7 @@ export class BattleMatchmakingService {
         matchedBattleRoomId: true,
         matchedAt: true,
         cancelledAt: true,
+        updatedAt: true,
       },
       orderBy: [{ searchStartedAt: 'asc' }, { userId: 'asc' }],
     })) as QueueRecord[];
@@ -479,6 +503,9 @@ export class BattleMatchmakingService {
           expiresAt: {
             gt: now,
           },
+          updatedAt: {
+            gt: this.getHeartbeatCutoff(now),
+          },
         },
         data: {
           status: 'MATCHED',
@@ -497,6 +524,9 @@ export class BattleMatchmakingService {
           status: 'SEARCHING',
           expiresAt: {
             gt: now,
+          },
+          updatedAt: {
+            gt: this.getHeartbeatCutoff(now),
           },
         },
         data: {
@@ -652,6 +682,27 @@ export class BattleMatchmakingService {
     return new Date(now.getTime() + MATCHMAKING_TTL_SECONDS * 1000);
   }
 
+  private getHeartbeatCutoff(now: Date) {
+    return new Date(
+      now.getTime() - MATCHMAKING_HEARTBEAT_TTL_SECONDS * 1000,
+    );
+  }
+
+  private async touchQueueHeartbeat(
+    tx: BattleTransactionClient,
+    userId: string,
+    now: Date,
+  ) {
+    await tx.battleMatchQueue.updateMany({
+      where: {
+        userId,
+        status: 'SEARCHING',
+        expiresAt: { gt: now },
+      },
+      data: { updatedAt: now },
+    });
+  }
+
   private getAllowedRange(searchStartedAt: Date, now: Date) {
     const waitSeconds = Math.max(
       0,
@@ -702,12 +753,20 @@ export class BattleMatchmakingService {
     };
   }
 
-  private countWaitingUsers() {
+  private countWaitingUsers(skillCode: string | null, now = new Date()) {
+    if (!skillCode) {
+      return Promise.resolve(0);
+    }
+
     return this.prisma.battleMatchQueue.count({
       where: {
         status: 'SEARCHING',
+        skillCode,
         expiresAt: {
-          gt: new Date(),
+          gt: now,
+        },
+        updatedAt: {
+          gt: this.getHeartbeatCutoff(now),
         },
       },
     });
@@ -726,6 +785,7 @@ export class BattleMatchmakingService {
         matchedAt: true,
         cancelledAt: true,
         expiresAt: true,
+        updatedAt: true,
       },
     }) as Promise<QueueRecord | null>;
   }

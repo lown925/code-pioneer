@@ -51,13 +51,13 @@
         <text class="score-label">我的分数</text>
         <text class="score-value">{{myScoreText}}</text>
       </view>
-      <view class="section-card score-card">
+      <view wx:if="{{!isTrainingMode}}" class="section-card score-card">
         <text class="score-label">对手分数</text>
         <text class="score-value">{{opponentScoreText}}</text>
       </view>
     </view>
 
-    <view class="section-card opponent-card">
+    <view wx:if="{{!isTrainingMode}}" class="section-card opponent-card">
       <view class="opponent-avatar-frame">
         <image
           wx:if="{{opponentAvatarUrl}}"
@@ -91,7 +91,7 @@
       </view>
     </view>
 
-    <view class="section-card stats-card">
+    <view wx:if="{{!isTrainingMode}}" class="section-card stats-card">
       <text class="section-title">对手汇总</text>
       <view class="stats-grid">
         <view class="stat-item">
@@ -109,7 +109,7 @@
       </view>
     </view>
 
-    <view class="section-card rating-card">
+    <view wx:if="{{!isTrainingMode}}" class="section-card rating-card">
       <text class="section-title">Rating 变化</text>
       <view class="rating-grid">
         <view class="rating-item">
@@ -125,6 +125,11 @@
           <text class="rating-value">{{ratingAfterText}}</text>
         </view>
       </view>
+    </view>
+
+    <view wx:if="{{isTrainingMode}}" class="section-card rating-card">
+      <text class="section-title">训练说明</text>
+      <text class="summary-end-reason">本场不改变 Rating、排位胜负或连胜，答错题目仍保留在 Battle 错题记录中。</text>
     </view>
 
     <view

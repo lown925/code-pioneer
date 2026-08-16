@@ -154,7 +154,7 @@
 
     <view wx:elif="{{state === 'WAITING_SETTLEMENT'}}" class="section-card state-box">
       <text class="state-title">等待结算中</text>
-      <text class="state-text">当前已停止作答，系统正在等待对手或处理本场结算。</text>
+      <text class="state-text">{{isTrainingMode ? '当前已停止作答，系统正在整理单人训练结果。' : '当前已停止作答，系统正在等待对手或处理本场结算。'}}</text>
       <text wx:if="{{errorMessage}}" class="state-text state-text-warning">{{errorMessage}}</text>
     </view>
 
@@ -189,7 +189,7 @@
         </view>
         <view class="secondary-spacer"></view>
         <view
-          wx:if="{{state === 'PLAYING' || state === 'COUNTDOWN'}}"
+          wx:if="{{!isTrainingMode && (state === 'PLAYING' || state === 'COUNTDOWN')}}"
           class="ghost-button forfeit-button {{isBattleActionPending ? 'action-button-disabled' : ''}}"
           bindtap="handleForfeitBattle"
         >

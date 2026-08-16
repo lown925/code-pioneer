@@ -269,7 +269,10 @@ export class BattleSettlementService {
       return room;
     }
 
-    if (room.participants.length !== 2) {
+    const expectedParticipantCount =
+      room.mode === BattleMode.TRAINING ? 1 : 2;
+
+    if (room.participants.length !== expectedParticipantCount) {
       throw new InternalServerErrorException(
         BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
       );
@@ -284,6 +287,10 @@ export class BattleSettlementService {
         isCorrect: true,
       },
     })) as AnswerAggregateRecord[];
+
+    if (room.mode === BattleMode.TRAINING) {
+      return this.finalizeTrainingSettlement(room, answers, now, prisma);
+    }
 
     const participants = room.participants.map((participant) =>
       this.buildParticipantSettlement(participant, room, answers),
@@ -424,6 +431,62 @@ export class BattleSettlementService {
     });
 
     return this.loadRoom(battleId, prisma);
+  }
+
+  private async finalizeTrainingSettlement(
+    room: RoomRecord,
+    answers: AnswerAggregateRecord[],
+    now: Date,
+    prisma: BattleClient,
+  ) {
+    const participant = this.buildParticipantSettlement(
+      room.participants[0]!,
+      room,
+      answers,
+    );
+    const profile = await this.battleDomainService.ensureBattleProfile(
+      participant.userId,
+      prisma,
+    );
+
+    await prisma.battleParticipant.update({
+      where: { id: participant.id },
+      data: {
+        status: BattleParticipantStatus.COMPLETED,
+        result: BattleResult.NONE,
+        score: participant.score,
+        correctCount: participant.correctCount,
+        wrongCount: participant.wrongCount,
+        unansweredCount: participant.unansweredCount,
+        ratingBefore: profile.rating,
+        ratingDelta: 0,
+        ratingAfter: profile.rating,
+        completedAt: now,
+      },
+    });
+
+    await prisma.battleProfile.update({
+      where: { userId: participant.userId },
+      data: {
+        totalBattles: { increment: 1 },
+        trainingBattles: { increment: 1 },
+      },
+    });
+
+    await prisma.battleRoom.update({
+      where: { id: room.id },
+      data: {
+        status: BattleRoomStatus.COMPLETED,
+        winnerUserId: null,
+        settledAt: now,
+        completedAt: now,
+        endReason: this.isTimeoutSettlement(room)
+          ? BattleEndReason.EXPIRED
+          : BattleEndReason.NORMAL,
+      },
+    });
+
+    return this.loadRoom(room.id, prisma);
   }
 
   private buildParticipantSettlement(

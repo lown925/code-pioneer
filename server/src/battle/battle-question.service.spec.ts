@@ -1,5 +1,6 @@
 import {
   BattleParticipantStatus,
+  BattleQuestionDifficulty,
   BattleQuestionPresentation,
   BattleQuestionType,
   BattleRoomStatus,
@@ -246,6 +247,53 @@ describe('BattleQuestionService', () => {
     ).toBe(false);
   });
 
+  it('never creates Battle snapshots from EASY questions', async () => {
+    const { mock, service } = createService();
+    mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
+    mock.battleQuestionSnapshots.clear();
+    mock.quizQuestions.set(
+      'python-easy',
+      createCandidate('python-easy', 'PYTHON', {
+        battleDifficulty: BattleQuestionDifficulty.EASY,
+      }),
+    );
+    mock.quizQuestions.set(
+      'python-medium',
+      createCandidate('python-medium', 'PYTHON', {
+        battleDifficulty: BattleQuestionDifficulty.MEDIUM,
+      }),
+    );
+    mock.quizQuestions.set(
+      'python-hard',
+      createCandidate('python-hard', 'PYTHON', {
+        battleDifficulty: BattleQuestionDifficulty.HARD,
+      }),
+    );
+
+    await service.createQuestionSnapshotsAndStartCountdown(mock.tx as never, {
+      battleId: 'room-1',
+      questionCount: 2,
+      durationSeconds: 180,
+      now: new Date(),
+      skillCode: 'PYTHON',
+    });
+
+    const snapshots = [...mock.battleQuestionSnapshots.values()];
+    expect(snapshots).toHaveLength(2);
+    expect(
+      snapshots.every(
+        (snapshot) =>
+          snapshot.difficulty === BattleQuestionDifficulty.MEDIUM ||
+          snapshot.difficulty === BattleQuestionDifficulty.HARD,
+      ),
+    ).toBe(true);
+    expect(
+      snapshots.some(
+        (snapshot) => snapshot.sourceQuizQuestionId === 'python-easy',
+      ),
+    ).toBe(false);
+  });
+
   it('restores the prompt when legacy question blocks contain code only', async () => {
     const { mock, service } = createService();
     mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
@@ -309,7 +357,11 @@ describe('BattleQuestionService', () => {
 function createCandidate(
   id: string,
   battleSkillCode: string,
-  overrides: { content?: string; stemBlocks?: unknown } = {},
+  overrides: {
+    content?: string;
+    stemBlocks?: unknown;
+    battleDifficulty?: BattleQuestionDifficulty;
+  } = {},
 ) {
   return {
     id,
@@ -317,7 +369,8 @@ function createCandidate(
     content: overrides.content ?? id,
     explanation: 'Explanation',
     battlePresentation: BattleQuestionPresentation.TEXT_CHOICE,
-    battleDifficulty: 'EASY' as const,
+    battleDifficulty:
+      overrides.battleDifficulty ?? BattleQuestionDifficulty.MEDIUM,
     isBattleEnabled: true,
     stemBlocks: overrides.stemBlocks ?? [{ type: 'TEXT', text: id }],
     explanationBlocks: [{ type: 'TEXT', text: 'Explanation' }],

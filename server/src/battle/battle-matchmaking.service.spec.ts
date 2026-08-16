@@ -329,6 +329,7 @@ describe('BattleMatchmakingService', () => {
       matchedAt: null,
       cancelledAt: null,
       expiresAt: new Date(now + 120000),
+      updatedAt: new Date(now - 1000),
     });
     mock.battleQueues.set('expired-user', {
       id: 'queue-expired',
@@ -341,6 +342,7 @@ describe('BattleMatchmakingService', () => {
       matchedAt: null,
       cancelledAt: null,
       expiresAt: new Date(now - 1000),
+      updatedAt: new Date(now - 1000),
     });
     mock.battleQueues.set('cancelled-user', {
       id: 'queue-cancelled',
@@ -353,12 +355,102 @@ describe('BattleMatchmakingService', () => {
       matchedAt: null,
       cancelledAt: new Date(now - 5000),
       expiresAt: new Date(now + 120000),
+      updatedAt: new Date(now - 1000),
+    });
+    mock.battleQueues.set('matched-user', {
+      id: 'queue-matched',
+      userId: 'matched-user',
+      skillCode: 'PYTHON',
+      status: 'MATCHED',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: 'matched-room',
+      searchStartedAt: new Date(now - 10000),
+      matchedAt: new Date(now - 1000),
+      cancelledAt: null,
+      expiresAt: new Date(now + 120000),
+      updatedAt: new Date(now - 1000),
+    });
+    mock.battleQueues.set('stale-heartbeat-user', {
+      id: 'queue-stale-heartbeat',
+      userId: 'stale-heartbeat-user',
+      skillCode: 'PYTHON',
+      status: 'SEARCHING',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(now - 30000),
+      matchedAt: null,
+      cancelledAt: null,
+      expiresAt: new Date(now + 120000),
+      updatedAt: new Date(now - 20000),
+    });
+    mock.battleQueues.set('javascript-user', {
+      id: 'queue-javascript',
+      userId: 'javascript-user',
+      skillCode: 'JAVASCRIPT',
+      status: 'SEARCHING',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(now - 5000),
+      matchedAt: null,
+      cancelledAt: null,
+      expiresAt: new Date(now + 120000),
+      updatedAt: new Date(now - 1000),
+    });
+    mock.battleQueues.set('legacy-user', {
+      id: 'queue-legacy',
+      userId: 'legacy-user',
+      skillCode: null,
+      status: 'SEARCHING',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(now - 5000),
+      matchedAt: null,
+      cancelledAt: null,
+      expiresAt: new Date(now + 120000),
+      updatedAt: new Date(now - 1000),
     });
 
     const result = await service.getMatchmakingStatus(USER_A);
 
     expect(result.data.status).toBe('IDLE');
     expect(result.data.waitingCount).toBe(1);
+
+    const javascriptResult = await service.getMatchmakingStatus(
+      USER_A,
+      'JAVASCRIPT',
+    );
+
+    expect(javascriptResult.data.status).toBe('IDLE');
+    expect(javascriptResult.data.waitingCount).toBe(1);
+  });
+
+  it('uses status polling as a heartbeat without creating duplicate queues', async () => {
+    const { mock, service } = createService();
+    const staleHeartbeat = new Date(Date.now() - 20000);
+    mock.battleQueues.set(USER_A.id, {
+      id: 'queue-a',
+      userId: USER_A.id,
+      skillCode: 'PYTHON',
+      status: 'SEARCHING',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(Date.now() - 30000),
+      matchedAt: null,
+      cancelledAt: null,
+      expiresAt: new Date(Date.now() + 120000),
+      updatedAt: staleHeartbeat,
+    });
+
+    const first = await service.getMatchmakingStatus(USER_A, 'PYTHON');
+    const second = await service.getMatchmakingStatus(USER_A, 'PYTHON');
+
+    expect(first.data.status).toBe('SEARCHING');
+    expect(second.data.status).toBe('SEARCHING');
+    expect(second.data.waitingCount).toBe(1);
+    expect(mock.battleQueues.size).toBe(1);
+    expect(mock.battleQueues.get(USER_A.id)?.updatedAt?.getTime()).toBeGreaterThan(
+      staleHeartbeat.getTime(),
+    );
   });
 
   it('expires stale SEARCHING queues lazily through the status endpoint', async () => {
