@@ -93,6 +93,7 @@ type DetailPageData = {
   opponentAvatarFallbackText: string;
   questions: QuestionReviewCard[];
   isTrainingMode: boolean;
+  isRankedMode: boolean;
 };
 
 type DetailPageMethods = {
@@ -101,12 +102,8 @@ type DetailPageMethods = {
   handleRetry(): void;
   handleBackResult(): void;
   handleBackHome(): void;
-  handleCourseTap(
-    event: WechatMiniprogram.BaseEvent<{ courseId?: string }>,
-  ): void;
-  handleChapterTap(
-    event: WechatMiniprogram.BaseEvent<{ chapterId?: string }>,
-  ): void;
+  handleCourseTap(event: WechatMiniprogram.BaseEvent<{ courseId?: string }>): void;
+  handleChapterTap(event: WechatMiniprogram.BaseEvent<{ chapterId?: string }>): void;
   handleImageError(
     event: WechatMiniprogram.BaseEvent<{
       questionId?: string;
@@ -144,10 +141,7 @@ type DetailPageMethods = {
     text: string;
     className: string;
   };
-  findOptionLabel(
-    options: BattleQuestionOptionSnapshotResponse[],
-    optionId: string,
-  ): string;
+  findOptionLabel(options: BattleQuestionOptionSnapshotResponse[], optionId: string): string;
   findOptionBlocks(
     options: BattleQuestionOptionSnapshotResponse[],
     optionId: string,
@@ -159,8 +153,7 @@ type DetailPageMethods = {
   getReadableError(error: unknown): string;
 };
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 let isPageActive = false;
 let hasLoadedOnce = false;
@@ -200,12 +193,12 @@ Page<DetailPageData, DetailPageMethods>({
     opponentAvatarFallbackText: '对',
     questions: [],
     isTrainingMode: false,
+    isRankedMode: false,
   },
 
   onLoad(options) {
     isPageActive = true;
-    const battleId =
-      typeof options?.battleId === 'string' ? options.battleId.trim() : '';
+    const battleId = typeof options?.battleId === 'string' ? options.battleId.trim() : '';
     const isValidBattleId = UUID_PATTERN.test(battleId);
 
     this.setData({
@@ -262,11 +255,7 @@ Page<DetailPageData, DetailPageMethods>({
   },
 
   async loadDetail() {
-    if (
-      !this.data.isValidBattleId ||
-      !this.ensureAuthenticated() ||
-      isRequesting
-    ) {
+    if (!this.data.isValidBattleId || !this.ensureAuthenticated() || isRequesting) {
       return;
     }
 
@@ -312,19 +301,14 @@ Page<DetailPageData, DetailPageMethods>({
         durationText: formatBattleDuration(response.durationSeconds),
         endReasonText: this.getEndReasonText(response.endReason),
         myScoreText: String(response.myScore),
-        opponentScoreText:
-          response.opponentScore === null ? '—' : String(response.opponentScore),
+        opponentScoreText: response.opponentScore === null ? '—' : String(response.opponentScore),
         myCorrectCountText: String(response.myCorrectCount),
         myWrongCountText: String(response.myWrongCount),
         myUnansweredCountText: String(response.myUnansweredCount),
         opponentCorrectCountText:
-          response.opponentCorrectCount === null
-            ? '—'
-            : String(response.opponentCorrectCount),
+          response.opponentCorrectCount === null ? '—' : String(response.opponentCorrectCount),
         opponentWrongCountText:
-          response.opponentWrongCount === null
-            ? '—'
-            : String(response.opponentWrongCount),
+          response.opponentWrongCount === null ? '—' : String(response.opponentWrongCount),
         opponentUnansweredCountText:
           response.opponentUnansweredCount === null
             ? '—'
@@ -341,6 +325,7 @@ Page<DetailPageData, DetailPageMethods>({
           : '',
         questions: response.questions.map((question) => this.mapQuestion(question)),
         isTrainingMode,
+        isRankedMode: response.mode === 'RANKED',
       });
     } catch (error) {
       if (!isPageActive || currentRequestSerial !== requestSerial) {
@@ -382,9 +367,7 @@ Page<DetailPageData, DetailPageMethods>({
     });
   },
 
-  handleCourseTap(
-    event: WechatMiniprogram.BaseEvent<{ courseId?: string }>,
-  ) {
+  handleCourseTap(event: WechatMiniprogram.BaseEvent<{ courseId?: string }>) {
     const courseId = event.currentTarget.dataset.courseId ?? '';
 
     if (!UUID_PATTERN.test(courseId)) {
@@ -396,9 +379,7 @@ Page<DetailPageData, DetailPageMethods>({
     });
   },
 
-  handleChapterTap(
-    event: WechatMiniprogram.BaseEvent<{ chapterId?: string }>,
-  ) {
+  handleChapterTap(event: WechatMiniprogram.BaseEvent<{ chapterId?: string }>) {
     const chapterId = event.currentTarget.dataset.chapterId ?? '';
 
     if (!UUID_PATTERN.test(chapterId)) {
@@ -489,18 +470,11 @@ Page<DetailPageData, DetailPageMethods>({
 
     if (myAnswer) {
       if (myAnswer.answer.type === 'SINGLE_CHOICE') {
-        const optionLabel = this.findOptionLabel(
-          question.options,
-          myAnswer.answer.optionId,
-        );
+        const optionLabel = this.findOptionLabel(question.options, myAnswer.answer.optionId);
 
         myAnswerLabel = '我的作答选项';
-        myAnswerText = optionLabel
-          ? `已选择选项 ${optionLabel}`
-          : '已提交单选答案';
-        myAnswerBlocks.push(
-          ...this.findOptionBlocks(question.options, myAnswer.answer.optionId),
-        );
+        myAnswerText = optionLabel ? `已选择选项 ${optionLabel}` : '已提交单选答案';
+        myAnswerBlocks.push(...this.findOptionBlocks(question.options, myAnswer.answer.optionId));
       } else {
         myAnswerLabel = '我的代码填空答案';
         myAnswerText = '已提交代码填空答案';
@@ -516,13 +490,8 @@ Page<DetailPageData, DetailPageMethods>({
     let correctAnswerText = '';
 
     if (question.correctAnswer.type === 'SINGLE_CHOICE') {
-      const optionLabel = this.findOptionLabel(
-        question.options,
-        question.correctAnswer.optionId,
-      );
-      correctAnswerText = optionLabel
-        ? `正确选项 ${optionLabel}`
-        : '正确单选答案';
+      const optionLabel = this.findOptionLabel(question.options, question.correctAnswer.optionId);
+      correctAnswerText = optionLabel ? `正确选项 ${optionLabel}` : '正确单选答案';
       correctAnswerBlocks.push(
         ...this.findOptionBlocks(question.options, question.correctAnswer.optionId),
       );
@@ -544,20 +513,12 @@ Page<DetailPageData, DetailPageMethods>({
       myAnswerLabel,
       myAnswerText,
       myAnswerBlocks: this.mapBlocks(myAnswerBlocks, `${questionId}-my-answer`),
-      myAnswerSubmittedAtText: myAnswer
-        ? this.formatDateTime(myAnswer.submittedAt)
-        : '',
+      myAnswerSubmittedAtText: myAnswer ? this.formatDateTime(myAnswer.submittedAt) : '',
       myAnswerTimeSpentText: this.formatTimeSpent(myAnswer?.timeSpentMs ?? null),
       correctAnswerLabel,
       correctAnswerText,
-      correctAnswerBlocks: this.mapBlocks(
-        correctAnswerBlocks,
-        `${questionId}-correct-answer`,
-      ),
-      explanation: this.mapBlocks(
-        question.explanation ?? [],
-        `${questionId}-explanation`,
-      ),
+      correctAnswerBlocks: this.mapBlocks(correctAnswerBlocks, `${questionId}-correct-answer`),
+      explanation: this.mapBlocks(question.explanation ?? [], `${questionId}-explanation`),
       hasExplanation: Array.isArray(question.explanation) && question.explanation.length > 0,
       courseId: question.courseId ?? '',
       courseTitle: question.courseTitle ?? '',
@@ -569,11 +530,7 @@ Page<DetailPageData, DetailPageMethods>({
     };
   },
 
-  mapBlocks(
-    blocks: BattleContentBlock[],
-    keyPrefix: string,
-    previousBlocks?: ViewBlock[],
-  ) {
+  mapBlocks(blocks: BattleContentBlock[], keyPrefix: string, previousBlocks?: ViewBlock[]) {
     const previousFailedMap = new Map(
       (previousBlocks ?? []).map((block) => [block.blockKey, block.imageFailed]),
     );
@@ -627,9 +584,7 @@ Page<DetailPageData, DetailPageMethods>({
   replaceQuestion(question: QuestionReviewCard) {
     this.setData({
       questions: this.data.questions.map((item) =>
-        item.battleQuestionSnapshotId === question.battleQuestionSnapshotId
-          ? question
-          : item,
+        item.battleQuestionSnapshotId === question.battleQuestionSnapshotId ? question : item,
       ),
     });
   },
@@ -766,19 +721,13 @@ Page<DetailPageData, DetailPageMethods>({
     };
   },
 
-  findOptionLabel(
-    options: BattleQuestionOptionSnapshotResponse[],
-    optionId: string,
-  ) {
+  findOptionLabel(options: BattleQuestionOptionSnapshotResponse[], optionId: string) {
     const index = options.findIndex((option) => option.id === optionId);
 
     return index >= 0 ? String.fromCharCode(65 + index) : '';
   },
 
-  findOptionBlocks(
-    options: BattleQuestionOptionSnapshotResponse[],
-    optionId: string,
-  ) {
+  findOptionBlocks(options: BattleQuestionOptionSnapshotResponse[], optionId: string) {
     return options.find((option) => option.id === optionId)?.blocks ?? [];
   },
 
@@ -846,10 +795,8 @@ Page<DetailPageData, DetailPageMethods>({
       },
       {
         BATTLE_HISTORY_NOT_FOUND: '当前 Battle 战绩不存在或已无法查看。',
-        BATTLE_HISTORY_NOT_COMPLETED:
-          '当前 Battle 尚未形成可复盘的已完成战绩。',
-        BATTLE_NOT_PARTICIPANT:
-          '你不是这场对战的参与者，无法查看 Battle 复盘详情。',
+        BATTLE_HISTORY_NOT_COMPLETED: '当前 Battle 尚未形成可复盘的已完成战绩。',
+        BATTLE_NOT_PARTICIPANT: '你不是这场对战的参与者，无法查看 Battle 复盘详情。',
       },
     );
   },

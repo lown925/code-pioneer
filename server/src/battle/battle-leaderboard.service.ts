@@ -9,6 +9,10 @@ import {
 } from './battle-ranking';
 import type { BattleLeaderboardPayload } from './battle.types';
 import { BattleSkillService } from './battle-skill.service';
+import {
+  calculateBattleCompetitiveTier,
+  createBattleCompetitiveTitle,
+} from './battle-competitive-tier';
 
 type BattleLeaderboardRecord = {
   userId: string;
@@ -59,12 +63,12 @@ export class BattleLeaderboardService {
     }
 
     if (requestedSkill) {
-      const skill = await this.battleSkillService.assertAvailableSkill(
-        requestedSkill,
-      );
+      const skill =
+        await this.battleSkillService.assertAvailableSkill(requestedSkill);
       return this.getSkillLeaderboard(
         currentUserId,
         skill.code,
+        skill.name,
         page,
         pageSize,
       );
@@ -108,6 +112,7 @@ export class BattleLeaderboardService {
           avatarUrl: profile.user.avatarUrl ?? null,
           rating: profile.rating,
           highestRating: profile.highestRating,
+          rankedBattles: profile.totalBattles,
           wins: profile.wins ?? 0,
           losses: profile.losses ?? 0,
           draws: profile.draws ?? 0,
@@ -166,6 +171,7 @@ export class BattleLeaderboardService {
   private async getSkillLeaderboard(
     currentUserId: string,
     skillCode: string,
+    skillName: string,
     page: number,
     pageSize: number,
   ) {
@@ -198,26 +204,37 @@ export class BattleLeaderboardService {
     const total = ratings.length;
     const skip = (page - 1) * pageSize;
     const pageItems = ratings.slice(skip, skip + pageSize);
-    const myIndex = ratings.findIndex((rating) => rating.userId === currentUserId);
+    const myIndex = ratings.findIndex(
+      (rating) => rating.userId === currentUserId,
+    );
 
     return {
       success: true as const,
       data: {
-        items: pageItems.map((rating, index) => ({
-          rank: skip + index + 1,
-          userId: rating.userId,
-          nickname: rating.user.nickname,
-          avatarUrl: rating.user.avatarUrl ?? null,
-          rating: rating.rating,
-          highestRating: rating.highestRating,
-          wins: rating.wins,
-          losses: rating.losses,
-          draws: rating.draws,
-          winRate: calculateBattleWinRate(
+        items: pageItems.map((rating, index) => {
+          const tier = calculateBattleCompetitiveTier(
+            rating.rating,
             rating.rankedBattles,
-            rating.wins,
-          ),
-        })),
+          );
+          const rankedDecisions =
+            rating.wins + rating.losses + rating.draws;
+
+          return {
+            rank: skip + index + 1,
+            userId: rating.userId,
+            nickname: rating.user.nickname,
+            avatarUrl: rating.user.avatarUrl ?? null,
+            rating: rating.rating,
+            highestRating: rating.highestRating,
+            rankedBattles: rating.rankedBattles,
+            wins: rating.wins,
+            losses: rating.losses,
+            draws: rating.draws,
+            winRate: calculateBattleWinRate(rankedDecisions, rating.wins),
+            star: tier.star!,
+            title: createBattleCompetitiveTitle(skillName, tier.star),
+          };
+        }),
         page,
         pageSize,
         total,

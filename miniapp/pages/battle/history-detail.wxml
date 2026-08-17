@@ -109,7 +109,7 @@
       </view>
     </view>
 
-    <view wx:if="{{!isTrainingMode}}" class="section-card rating-card">
+    <view wx:if="{{isRankedMode}}" class="section-card rating-card">
       <text class="section-title">Rating 变化</text>
       <view class="rating-grid">
         <view class="rating-item">

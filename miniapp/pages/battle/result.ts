@@ -39,15 +39,28 @@ type ResultPageData = {
   opponentCorrectCountText: string;
   opponentWrongCountText: string;
   opponentUnansweredCountText: string;
+  answeredCountText: string;
+  accuracyText: string;
+  completionRateText: string;
+  bestComboText: string;
+  opponentAnsweredCountText: string;
+  opponentAccuracyText: string;
+  opponentCompletionRateText: string;
+  scoreDifferenceText: string;
   ratingBeforeText: string;
   ratingDeltaText: string;
   ratingAfterText: string;
+  starText: string;
+  tierTitleText: string;
+  tierChangeText: string;
   opponentNicknameText: string;
   opponentAvatarUrl: string;
   opponentAvatarFallbackText: string;
   completedAtText: string;
   endReasonText: string;
   isTrainingMode: boolean;
+  isRankedMode: boolean;
+  hasCompetitiveTier: boolean;
 };
 
 type ResultPageMethods = {
@@ -59,9 +72,7 @@ type ResultPageMethods = {
   handleBackHome(): void;
   handleReplay(): void;
   getPendingTitle(status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING'): string;
-  getPendingDescription(
-    status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING',
-  ): string;
+  getPendingDescription(status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING'): string;
   getStatusText(
     status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING' | 'COMPLETED',
     completed: boolean,
@@ -75,11 +86,16 @@ type ResultPageMethods = {
   getEndReasonText(endReason: BattleEndReason | null): string;
   formatCompletedAt(value: string): string;
   formatRatingDelta(value: number): string;
+  formatPercentage(value: number): string;
+  formatScoreDifference(value: number | null): string;
+  getTierChangeText(
+    change: 'PLACED' | 'PROMOTED' | 'DEMOTED' | 'UNCHANGED' | null,
+    star: number | null,
+  ): string;
   getReadableError(error: unknown): string;
 };
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RESULT_POLL_MS = 1800;
 
 let isPageActive = false;
@@ -110,21 +126,33 @@ Page<ResultPageData, ResultPageMethods>({
     opponentCorrectCountText: '0',
     opponentWrongCountText: '0',
     opponentUnansweredCountText: '0',
+    answeredCountText: '0',
+    accuracyText: '0.0%',
+    completionRateText: '0.0%',
+    bestComboText: '0',
+    opponentAnsweredCountText: '—',
+    opponentAccuracyText: '—',
+    opponentCompletionRateText: '—',
+    scoreDifferenceText: '—',
     ratingBeforeText: '0',
     ratingDeltaText: '0',
     ratingAfterText: '0',
+    starText: '未定级',
+    tierTitleText: '未定级',
+    tierChangeText: '',
     opponentNicknameText: '对手用户',
     opponentAvatarUrl: '',
     opponentAvatarFallbackText: '对',
     completedAtText: '',
     endReasonText: '',
     isTrainingMode: false,
+    isRankedMode: false,
+    hasCompetitiveTier: false,
   },
 
   onLoad(options) {
     isPageActive = true;
-    const battleId =
-      typeof options?.battleId === 'string' ? options.battleId.trim() : '';
+    const battleId = typeof options?.battleId === 'string' ? options.battleId.trim() : '';
     const isValidBattleId = UUID_PATTERN.test(battleId);
 
     this.setData({
@@ -175,9 +203,7 @@ Page<ResultPageData, ResultPageMethods>({
     }
 
     if (this.data.isValidBattleId) {
-      redirectToLogin(
-        `/pages/battle/result?battleId=${encodeURIComponent(this.data.battleId)}`,
-      );
+      redirectToLogin(`/pages/battle/result?battleId=${encodeURIComponent(this.data.battleId)}`);
     } else {
       redirectToLogin('/pages/battle/index');
     }
@@ -186,11 +212,7 @@ Page<ResultPageData, ResultPageMethods>({
   },
 
   async loadResult() {
-    if (
-      !this.data.isValidBattleId ||
-      !this.ensureAuthenticated() ||
-      isResultRequesting
-    ) {
+    if (!this.data.isValidBattleId || !this.ensureAuthenticated() || isResultRequesting) {
       return;
     }
 
@@ -232,6 +254,8 @@ Page<ResultPageData, ResultPageMethods>({
           resultHintText: '结果准备完成后会自动刷新展示。',
           resultBadgeClassName: 'result-badge-waiting',
           isTrainingMode: response.mode === 'TRAINING',
+          isRankedMode: false,
+          hasCompetitiveTier: false,
         });
 
         this.startPolling();
@@ -240,13 +264,18 @@ Page<ResultPageData, ResultPageMethods>({
 
       const resultMeta = this.getResultMeta(response.result);
       const isTrainingMode = response.mode === 'TRAINING';
+      const isRankedMode = response.mode === 'RANKED';
+      const hasCompetitiveTier =
+        isRankedMode && response.skill !== null && response.star !== null;
 
       this.setData({
         state: 'SUCCESS',
         titleText: resultMeta.resultText,
         descriptionText: isTrainingMode
           ? '本场单人训练已完成，答题记录会进入 Battle 历史，且不会改变 Rating。'
-          : '本场对战的分数、胜负和 rating 变化均以服务端结算结果为准。',
+          : isRankedMode
+            ? '本场排位的分数、胜负和 Rating 变化均以服务端结算结果为准。'
+            : '本场好友对战已完成，分数与胜负以服务端结算结果为准，不计 Rating。',
         errorMessage: '',
         modeText: this.getModeText(response.mode),
         skillText: formatBattleSkill(response.skill),
@@ -255,26 +284,39 @@ Page<ResultPageData, ResultPageMethods>({
         resultHintText: resultMeta.resultHintText,
         resultBadgeClassName: resultMeta.resultBadgeClassName,
         myScoreText: String(response.myScore),
-        opponentScoreText:
-          response.opponentScore === null ? '—' : String(response.opponentScore),
+        opponentScoreText: response.opponentScore === null ? '—' : String(response.opponentScore),
         myCorrectCountText: String(response.myCorrectCount),
         myWrongCountText: String(response.myWrongCount),
         myUnansweredCountText: String(response.myUnansweredCount),
         opponentCorrectCountText:
-          response.opponentCorrectCount === null
-            ? '—'
-            : String(response.opponentCorrectCount),
+          response.opponentCorrectCount === null ? '—' : String(response.opponentCorrectCount),
         opponentWrongCountText:
-          response.opponentWrongCount === null
-            ? '—'
-            : String(response.opponentWrongCount),
+          response.opponentWrongCount === null ? '—' : String(response.opponentWrongCount),
         opponentUnansweredCountText:
           response.opponentUnansweredCount === null
             ? '—'
             : String(response.opponentUnansweredCount),
+        answeredCountText: String(response.answeredCount),
+        accuracyText: this.formatPercentage(response.accuracy),
+        completionRateText: this.formatPercentage(response.completionRate),
+        bestComboText: String(response.bestCombo),
+        opponentAnsweredCountText:
+          response.opponentAnsweredCount === null ? '—' : String(response.opponentAnsweredCount),
+        opponentAccuracyText:
+          response.opponentAccuracy === null
+            ? '—'
+            : this.formatPercentage(response.opponentAccuracy),
+        opponentCompletionRateText:
+          response.opponentCompletionRate === null
+            ? '—'
+            : this.formatPercentage(response.opponentCompletionRate),
+        scoreDifferenceText: this.formatScoreDifference(response.scoreDifference),
         ratingBeforeText: formatBattleRating(response.ratingBefore),
         ratingDeltaText: this.formatRatingDelta(response.ratingDelta),
         ratingAfterText: formatBattleRating(response.ratingAfter),
+        starText: response.star === null ? '未定级' : `${response.star} 星`,
+        tierTitleText: response.title ?? '未定级',
+        tierChangeText: this.getTierChangeText(response.tierChange, response.afterStar),
         opponentNicknameText: response.opponent
           ? formatBattleNickname(response.opponent.nickname)
           : '',
@@ -285,16 +327,15 @@ Page<ResultPageData, ResultPageMethods>({
         completedAtText: this.formatCompletedAt(response.completedAt),
         endReasonText: this.getEndReasonText(response.endReason),
         isTrainingMode,
+        isRankedMode,
+        hasCompetitiveTier,
       });
     } catch (error) {
       if (!isPageActive || currentRequestSerial !== requestSerial) {
         return;
       }
 
-      if (
-        error instanceof RequestError &&
-        error.code === 'BATTLE_NOT_STARTED'
-      ) {
+      if (error instanceof RequestError && error.code === 'BATTLE_NOT_STARTED') {
         this.setData({
           state: 'WAITING',
           titleText: '对战尚未结束',
@@ -510,12 +551,41 @@ Page<ResultPageData, ResultPageMethods>({
     return String(value);
   },
 
+  formatPercentage(value: number) {
+    return `${Number.isFinite(value) ? value.toFixed(1) : '0.0'}%`;
+  },
+
+  formatScoreDifference(value: number | null) {
+    if (value === null) {
+      return '—';
+    }
+
+    return value > 0 ? `+${value}` : String(value);
+  },
+
+  getTierChangeText(
+    change: 'PLACED' | 'PROMOTED' | 'DEMOTED' | 'UNCHANGED' | null,
+    star: number | null,
+  ) {
+    if (change === 'PLACED' && star !== null) {
+      return `完成定级：${star} 星`;
+    }
+
+    if (change === 'PROMOTED' && star !== null) {
+      return `晋升至 ${star} 星`;
+    }
+
+    if (change === 'DEMOTED' && star !== null) {
+      return `降至 ${star} 星`;
+    }
+
+    return '';
+  },
+
   getReadableError(error: unknown) {
     if (error instanceof RequestError) {
       if (error.statusCode === 401 || error.code === 'UNAUTHORIZED') {
-        redirectToLogin(
-          `/pages/battle/result?battleId=${encodeURIComponent(this.data.battleId)}`,
-        );
+        redirectToLogin(`/pages/battle/result?battleId=${encodeURIComponent(this.data.battleId)}`);
         return '登录状态已失效，请重新登录后再查看 Battle 结果。';
       }
     }
@@ -528,13 +598,10 @@ Page<ResultPageData, ResultPageMethods>({
         fallback: 'Battle 结果获取失败，请稍后重试。',
       },
       {
-        BATTLE_NOT_PARTICIPANT:
-          '你不是这场对战的参与者，无法查看 Battle 结果。',
-        BATTLE_SETTLEMENT_DATA_INVALID:
-          '当前对战尚未生成有效结算数据，请稍后再试。',
+        BATTLE_NOT_PARTICIPANT: '你不是这场对战的参与者，无法查看 Battle 结果。',
+        BATTLE_SETTLEMENT_DATA_INVALID: '当前对战尚未生成有效结算数据，请稍后再试。',
         BATTLE_ALREADY_COMPLETED: '本场 Battle 已完成，正在同步最终结果。',
-        BATTLE_INVALID_STATUS:
-          '当前结算状态已变化，请重新同步服务端状态后再继续查看。',
+        BATTLE_INVALID_STATUS: '当前结算状态已变化，请重新同步服务端状态后再继续查看。',
       },
     );
   },

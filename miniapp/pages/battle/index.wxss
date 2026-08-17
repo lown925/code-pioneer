@@ -115,6 +115,20 @@
   display: block;
 }
 
+.leaderboard-tier-line {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 21rpx;
+  color: #ef9f4a;
+}
+
+.leaderboard-win-rate-line {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 21rpx;
+  color: #6e84a3;
+}
+
 .leaderboard-title {
   color: #17324d;
   font-size: 30rpx;

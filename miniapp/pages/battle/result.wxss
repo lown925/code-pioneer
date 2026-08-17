@@ -192,11 +192,63 @@
 }
 
 .stats-grid,
-.rating-grid {
+.rating-grid,
+.performance-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16rpx;
   margin-top: 18rpx;
+}
+
+.performance-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16rpx;
+}
+
+.score-difference-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  padding: 28rpx;
+}
+
+.score-difference-value {
+  font-size: 42rpx;
+  font-weight: 700;
+  color: #2f6bff;
+}
+
+.tier-card {
+  padding: 28rpx;
+}
+
+.tier-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.tier-title {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 26rpx;
+  color: #6e84a3;
+}
+
+.tier-star {
+  font-size: 42rpx;
+  font-weight: 700;
+  color: #ef9f4a;
+}
+
+.tier-change {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #2f6bff;
 }
 
 .stat-item,
@@ -237,7 +289,8 @@
 @media (max-width: 420px) {
   .score-grid,
   .stats-grid,
-  .rating-grid {
+  .rating-grid,
+  .performance-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

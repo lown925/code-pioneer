@@ -87,6 +87,24 @@
             <text class="stat-value">{{myUnansweredCountText}}</text>
           </view>
         </view>
+        <view class="performance-grid">
+          <view class="stat-item">
+            <text class="stat-label">已作答</text>
+            <text class="stat-value">{{answeredCountText}}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">正确率</text>
+            <text class="stat-value">{{accuracyText}}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">完成率</text>
+            <text class="stat-value">{{completionRateText}}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">最佳连击</text>
+            <text class="stat-value">{{bestComboText}}</text>
+          </view>
+        </view>
       </view>
 
       <view wx:if="{{!isTrainingMode}}" class="section-card stats-card">
@@ -105,9 +123,28 @@
             <text class="stat-value">{{opponentUnansweredCountText}}</text>
           </view>
         </view>
+        <view class="performance-grid">
+          <view class="stat-item">
+            <text class="stat-label">已作答</text>
+            <text class="stat-value">{{opponentAnsweredCountText}}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">正确率</text>
+            <text class="stat-value">{{opponentAccuracyText}}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">完成率</text>
+            <text class="stat-value">{{opponentCompletionRateText}}</text>
+          </view>
+        </view>
       </view>
 
-      <view wx:if="{{!isTrainingMode}}" class="section-card rating-card">
+      <view wx:if="{{!isTrainingMode}}" class="section-card score-difference-card">
+        <text class="section-title">最终分差</text>
+        <text class="score-difference-value">{{scoreDifferenceText}}</text>
+      </view>
+
+      <view wx:if="{{isRankedMode}}" class="section-card rating-card">
         <text class="section-title">Rating 变化</text>
         <view class="rating-grid">
           <view class="rating-item">
@@ -123,6 +160,17 @@
             <text class="rating-value">{{ratingAfterText}}</text>
           </view>
         </view>
+      </view>
+
+      <view wx:if="{{hasCompetitiveTier}}" class="section-card tier-card">
+        <view class="tier-heading">
+          <view>
+            <text class="section-title">当前段位</text>
+            <text class="tier-title">{{tierTitleText}}</text>
+          </view>
+          <text class="tier-star">{{starText}}</text>
+        </view>
+        <text wx:if="{{tierChangeText}}" class="tier-change">{{tierChangeText}}</text>
       </view>
 
       <view wx:if="{{isTrainingMode}}" class="section-card rating-card">

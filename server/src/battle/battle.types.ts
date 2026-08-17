@@ -1,5 +1,9 @@
 import type { Prisma } from '../../generated/prisma/client';
 import type { BattleResult } from '../../generated/prisma/enums';
+import type {
+  BattleCompetitiveStar,
+  BattleCompetitiveTierChange,
+} from './battle-competitive-tier';
 
 export type TextContentBlock = {
   type: 'TEXT';
@@ -223,6 +227,11 @@ export type PendingBattleResultPayload = {
   skill: string | null;
   status: string;
   completed: false;
+  totalQuestions: number;
+  myAnsweredCount: number;
+  opponentAnsweredCount: number | null;
+  mySubmitted: boolean;
+  opponentSubmitted: boolean | null;
   serverTime: Date;
 };
 
@@ -238,12 +247,25 @@ export type CompletedBattleResultPayload = {
   myCorrectCount: number;
   myWrongCount: number;
   myUnansweredCount: number;
+  answeredCount: number;
+  accuracy: number;
+  completionRate: number;
+  bestCombo: number;
   opponentCorrectCount: number | null;
   opponentWrongCount: number | null;
   opponentUnansweredCount: number | null;
+  opponentAnsweredCount: number | null;
+  opponentAccuracy: number | null;
+  opponentCompletionRate: number | null;
+  scoreDifference: number | null;
   ratingBefore: number;
   ratingDelta: number;
   ratingAfter: number;
+  star: BattleCompetitiveStar | null;
+  title: string | null;
+  beforeStar: BattleCompetitiveStar | null;
+  afterStar: BattleCompetitiveStar | null;
+  tierChange: BattleCompetitiveTierChange | null;
   opponent: BattleResultOpponentPayload | null;
   endReason: string | null;
   completedAt: Date;
@@ -251,8 +273,7 @@ export type CompletedBattleResultPayload = {
 };
 
 export type BattleResultPayload =
-  | PendingBattleResultPayload
-  | CompletedBattleResultPayload;
+  PendingBattleResultPayload | CompletedBattleResultPayload;
 
 export type FriendRoomPreviewPayload = {
   battleId: string;
@@ -299,6 +320,8 @@ export type BattleSkillProfilePayload = {
   rankedBattles: number;
   rank: number | null;
   status: 'RANKED' | 'UNRANKED';
+  star: BattleCompetitiveStar | null;
+  title: string;
 };
 
 export type BattleLeaderboardItemPayload = {
@@ -308,10 +331,13 @@ export type BattleLeaderboardItemPayload = {
   avatarUrl: string | null;
   rating: number;
   highestRating: number;
+  rankedBattles: number;
   wins: number;
   losses: number;
   draws: number;
   winRate: number;
+  star?: BattleCompetitiveStar;
+  title?: string;
 };
 
 export type BattleLeaderboardPayload = {
@@ -360,8 +386,8 @@ export type BattleHistorySummaryPayload = {
   ratingAfter: number;
 };
 
-export type BattleHistoryOpponentSummaryPayload =
-  BattleResultOpponentPayload & BattleHistorySummaryPayload;
+export type BattleHistoryOpponentSummaryPayload = BattleResultOpponentPayload &
+  BattleHistorySummaryPayload;
 
 export type BattleHistoryPayload = {
   items: BattleHistoryListItemPayload[];

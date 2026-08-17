@@ -90,7 +90,7 @@
       </view>
 
       <view class="card-summary-grid">
-        <view class="summary-item">
+        <view wx:if="{{record.mode === 'RANKED'}}" class="summary-item">
           <text class="summary-label">Rating 变化</text>
           <text class="summary-value">{{record.ratingDeltaText}}</text>
         </view>

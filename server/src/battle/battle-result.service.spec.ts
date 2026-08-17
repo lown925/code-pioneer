@@ -49,9 +49,7 @@ describe('BattleResultService', () => {
         ? new Date(now + 120000)
         : new Date(now + 240000);
     const completedAt =
-      status === BattleRoomStatus.COMPLETED
-        ? new Date(now - 1000)
-        : null;
+      status === BattleRoomStatus.COMPLETED ? new Date(now - 1000) : null;
 
     mock.users.set(USER_A_ID, {
       id: USER_A_ID,
@@ -107,10 +105,7 @@ describe('BattleResultService', () => {
       ratingBefore: 1000,
       ratingDelta: 16,
       ratingAfter: 1016,
-      completedAt:
-        status === BattleRoomStatus.COMPLETED
-          ? completedAt
-          : null,
+      completedAt: status === BattleRoomStatus.COMPLETED ? completedAt : null,
     });
     mock.battleParticipants.set('participant-b', {
       id: 'participant-b',
@@ -133,11 +128,49 @@ describe('BattleResultService', () => {
       ratingBefore: 980,
       ratingDelta: -16,
       ratingAfter: 964,
-      completedAt:
-        status === BattleRoomStatus.COMPLETED
-          ? completedAt
-          : null,
+      completedAt: status === BattleRoomStatus.COMPLETED ? completedAt : null,
     });
+
+    mock.battleQuestionSnapshots.set('snapshot-1', {
+      id: 'snapshot-1',
+      battleRoomId: 'room-1',
+      orderIndex: 0,
+    } as never);
+    mock.battleQuestionSnapshots.set('snapshot-2', {
+      id: 'snapshot-2',
+      battleRoomId: 'room-1',
+      orderIndex: 1,
+    } as never);
+    mock.battleAnswers.set('answer-a-1', {
+      id: 'answer-a-1',
+      battleRoomId: 'room-1',
+      participantId: 'participant-a',
+      battleQuestionSnapshotId: 'snapshot-1',
+      userId: USER_A_ID,
+      isCorrect: true,
+      submittedAt: new Date(now - 5000),
+      createdAt: new Date(now - 5000),
+    } as never);
+    mock.battleAnswers.set('answer-a-2', {
+      id: 'answer-a-2',
+      battleRoomId: 'room-1',
+      participantId: 'participant-a',
+      battleQuestionSnapshotId: 'snapshot-2',
+      userId: USER_A_ID,
+      isCorrect: true,
+      submittedAt: new Date(now - 4000),
+      createdAt: new Date(now - 4000),
+    } as never);
+    mock.battleAnswers.set('answer-b-1', {
+      id: 'answer-b-1',
+      battleRoomId: 'room-1',
+      participantId: 'participant-b',
+      battleQuestionSnapshotId: 'snapshot-1',
+      userId: USER_B_ID,
+      isCorrect: false,
+      submittedAt: new Date(now - 3000),
+      createdAt: new Date(now - 3000),
+    } as never);
 
     return {
       mock,
@@ -156,8 +189,21 @@ describe('BattleResultService', () => {
       status: BattleRoomStatus.IN_PROGRESS,
       completed: false,
     });
+    expect(result.data).toMatchObject({
+      totalQuestions: 2,
+      myAnsweredCount: 2,
+      opponentAnsweredCount: 1,
+      mySubmitted: false,
+      opponentSubmitted: false,
+    });
     expect(result.data).not.toHaveProperty('myScore');
     expect(result.data).not.toHaveProperty('opponentScore');
+    expect(result.data).not.toHaveProperty('myCorrectCount');
+    expect(result.data).not.toHaveProperty('myWrongCount');
+    expect(result.data).not.toHaveProperty('accuracy');
+    expect(result.data).not.toHaveProperty('isCorrect');
+    expect(result.data).not.toHaveProperty('combo');
+    expect(result.data).not.toHaveProperty('answerPayload');
   });
 
   it('returns the completed result summary after settlement', async () => {
@@ -176,10 +222,39 @@ describe('BattleResultService', () => {
       ratingBefore: 1000,
       ratingDelta: 16,
       ratingAfter: 1016,
+      answeredCount: 2,
+      accuracy: 100,
+      completionRate: 100,
+      bestCombo: 2,
+      opponentAnsweredCount: 2,
+      opponentAccuracy: 50,
+      opponentCompletionRate: 100,
+      scoreDifference: 3,
+      star: null,
+      title: null,
+      tierChange: null,
       opponent: {
         userId: USER_B_ID,
         nickname: 'Beta',
       },
+    });
+  });
+
+  it('returns only the current participant progress for pending training', async () => {
+    const { mock, service } = createService(BattleRoomStatus.IN_PROGRESS);
+    mock.battleRooms.get('room-1')!.mode = BattleMode.TRAINING;
+    mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
+    mock.battleParticipants.delete('participant-b');
+    mock.battleAnswers.delete('answer-b-1');
+
+    const result = await service.getBattleResult(USER_A_ID, 'room-1');
+
+    expect(result.data).toMatchObject({
+      completed: false,
+      totalQuestions: 2,
+      myAnsweredCount: 2,
+      opponentAnsweredCount: null,
+      opponentSubmitted: null,
     });
   });
 
@@ -212,21 +287,65 @@ describe('BattleResultService', () => {
       ratingBefore: 1000,
       ratingDelta: 0,
       ratingAfter: 1000,
+      answeredCount: 2,
+      accuracy: 100,
+      completionRate: 100,
+      bestCombo: 2,
+      opponentAnsweredCount: null,
+      opponentAccuracy: null,
+      opponentCompletionRate: null,
+      scoreDifference: null,
       opponent: null,
+    });
+  });
+
+  it('returns first-placement tier data for a completed skill-ranked battle', async () => {
+    const { mock, service } = createService(BattleRoomStatus.COMPLETED);
+    const room = mock.battleRooms.get('room-1')! as {
+      skillCode?: string | null;
+      skill?: { name: string };
+    };
+    room.skillCode = 'PYTHON';
+    room.skill = { name: 'Python' };
+    const participant = mock.battleParticipants.get('participant-a')!;
+    participant.ratingBefore = 1000;
+    participant.ratingAfter = 1080;
+    participant.ratingDelta = 80;
+    mock.battleRatingLogs.set('log-a', {
+      id: 'log-a',
+      userId: USER_A_ID,
+      battleRoomId: 'room-1',
+      participantId: 'participant-a',
+      skillCode: 'PYTHON',
+      reason: 'BATTLE_RESULT',
+      ratingBefore: 1000,
+      ratingDelta: 80,
+      ratingAfter: 1080,
+      createdAt: new Date(Date.now() - 1000),
+    } as never);
+
+    const result = await service.getBattleResult(USER_A_ID, 'room-1');
+
+    expect(result.data).toMatchObject({
+      star: 3,
+      title: 'Python 熟练者',
+      beforeStar: null,
+      afterStar: 3,
+      tierChange: 'PLACED',
     });
   });
 
   it('rejects non-participants and not-started rooms', async () => {
     const { mock, service } = createService(BattleRoomStatus.READY);
 
-    await expect(service.getBattleResult(USER_A_ID, 'room-1')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.getBattleResult(USER_A_ID, 'room-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
 
     mock.battleRooms.get('room-1')!.status = BattleRoomStatus.COMPLETED;
 
-    await expect(service.getBattleResult(USER_C_ID, 'room-1')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      service.getBattleResult(USER_C_ID, 'room-1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

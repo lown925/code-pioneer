@@ -8,6 +8,10 @@ import {
 } from './battle-ranking';
 import type { BattleProfilePayload } from './battle.types';
 import { BattleSkillService } from './battle-skill.service';
+import {
+  calculateBattleCompetitiveTier,
+  createBattleCompetitiveTitle,
+} from './battle-competitive-tier';
 
 type BattleProfileRecord = {
   userId: string;
@@ -33,12 +37,12 @@ export class BattleProfileService {
   ) {}
 
   async getBattleProfile(currentUserId: string) {
-    const profile = await this.battleDomainService.ensureBattleProfile(
-      currentUserId,
-    );
+    const profile =
+      await this.battleDomainService.ensureBattleProfile(currentUserId);
     const profiles = await this.loadProfiles();
     const sortedProfiles = [...profiles].sort(compareBattleRanking);
-    const availableSkills = await this.loadAvailableSkillProfiles(currentUserId);
+    const availableSkills =
+      await this.loadAvailableSkillProfiles(currentUserId);
 
     return {
       success: true as const,
@@ -84,9 +88,7 @@ export class BattleProfileService {
       losses: profile.losses ?? 0,
       draws: profile.draws ?? 0,
       winRate: calculateBattleWinRate(
-        (profile.wins ?? 0) +
-          (profile.losses ?? 0) +
-          (profile.draws ?? 0),
+        (profile.wins ?? 0) + (profile.losses ?? 0) + (profile.draws ?? 0),
         profile.wins ?? 0,
       ),
       currentWinStreak: profile.currentWinStreak ?? 0,
@@ -126,14 +128,17 @@ export class BattleProfileService {
 
           return left.userId.localeCompare(right.userId);
         });
-      const rating = skillRatings.find(
-        (item) => item.userId === currentUserId,
-      );
+      const rating = skillRatings.find((item) => item.userId === currentUserId);
       const rankedRatings = skillRatings.filter(
         (item) => item.rankedBattles > 0,
       );
       const rankIndex = rankedRatings.findIndex(
         (item) => item.userId === currentUserId,
+      );
+      const rankedBattles = rating?.rankedBattles ?? 0;
+      const tier = calculateBattleCompetitiveTier(
+        rating?.rating ?? 0,
+        rankedBattles,
       );
 
       return {
@@ -141,9 +146,11 @@ export class BattleProfileService {
         name: skill.name,
         rating: rating?.rating ?? null,
         highestRating: rating?.highestRating ?? null,
-        rankedBattles: rating?.rankedBattles ?? 0,
+        rankedBattles,
         rank: rankIndex >= 0 ? rankIndex + 1 : null,
-        status: rating ? ('RANKED' as const) : ('UNRANKED' as const),
+        status: tier.status,
+        star: tier.star,
+        title: createBattleCompetitiveTitle(skill.name, tier.star),
       };
     });
   }

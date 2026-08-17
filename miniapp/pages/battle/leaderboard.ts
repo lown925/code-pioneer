@@ -27,6 +27,9 @@ type LeaderboardCard = BattleLeaderboardItem & {
   rankText: string;
   rankBadgeText: string;
   avatarFallbackText: string;
+  rankedBattlesText: string;
+  starText: string;
+  titleText: string;
   isCurrentUser: boolean;
 };
 
@@ -62,14 +65,9 @@ type BattleLeaderboardPageMethods = {
   buildQuery(page: number): BattleLeaderboardQuery;
   handleRetry(): void;
   handleLoadMoreRetry(): void;
-  handleScopeChange(
-    event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>,
-  ): void;
+  handleScopeChange(event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>): void;
   mapLeaderboardItem(item: BattleLeaderboardItem): LeaderboardCard;
-  mapMySummary(
-    response: BattleLeaderboardResponse,
-    pageItems: LeaderboardCard[],
-  ): MyRankSummary;
+  mapMySummary(response: BattleLeaderboardResponse, pageItems: LeaderboardCard[]): MyRankSummary;
   getReadableError(error: unknown): {
     state: PageState;
     message: string;
@@ -175,13 +173,7 @@ Page<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     wx.stopPullDownRefresh();
   },
 
-  async fetchLeaderboard({
-    page,
-    replace,
-  }: {
-    page: number;
-    replace: boolean;
-  }) {
+  async fetchLeaderboard({ page, replace }: { page: number; replace: boolean }) {
     if (isRequesting) {
       return;
     }
@@ -278,9 +270,7 @@ Page<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     };
   },
 
-  handleScopeChange(
-    event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>,
-  ) {
+  handleScopeChange(event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>) {
     const scope = event.currentTarget.dataset.scope;
 
     if (!scope || scope === this.data.scope || isRequesting) {
@@ -291,9 +281,7 @@ Page<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
       scope,
       titleText: scope === 'PYTHON' ? 'Python 排行榜' : '总榜',
       descriptionText:
-        scope === 'PYTHON'
-          ? '按 Python Ranked 方向 Rating 排名。'
-          : '按全部方向 Rating 总和排名。',
+        scope === 'PYTHON' ? '按 Python Ranked 方向 Rating 排名。' : '按全部方向 Rating 总和排名。',
       mySummary: null,
     });
     void this.loadFirstPage();
@@ -315,6 +303,9 @@ Page<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
       nicknameText: formatBattleNickname(item.nickname),
       ratingText: formatBattleRating(item.rating),
       highestRatingText: formatBattleRating(item.highestRating),
+      rankedBattlesText: String(Math.max(0, item.rankedBattles)),
+      starText: item.star === undefined ? '' : `${item.star} 星`,
+      titleText: item.title ?? '',
       winRateText: formatBattleWinRate(item.winRate),
       recordText: formatBattleRecord(item.wins, item.losses, item.draws),
       rankText: formatBattleRank(item.rank),

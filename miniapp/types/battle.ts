@@ -74,6 +74,8 @@ export type BattleSkillProfile = {
   rankedBattles: number;
   rank: number | null;
   status: 'RANKED' | 'UNRANKED';
+  star: number | null;
+  title: string;
 };
 
 export type BattleLeaderboardItem = {
@@ -83,10 +85,13 @@ export type BattleLeaderboardItem = {
   avatarUrl: string | null;
   rating: number;
   highestRating: number;
+  rankedBattles: number;
   wins: number;
   losses: number;
   draws: number;
   winRate: number;
+  star?: number;
+  title?: string;
 };
 
 export type BattleLeaderboardResponse = {
@@ -278,6 +283,11 @@ export type PendingBattleResultResponse = {
   skill: string | null;
   status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING';
   completed: false;
+  totalQuestions: number;
+  myAnsweredCount: number;
+  opponentAnsweredCount: number | null;
+  mySubmitted: boolean;
+  opponentSubmitted: boolean | null;
   serverTime: string;
 };
 
@@ -293,12 +303,25 @@ export type CompletedBattleResultResponse = {
   myCorrectCount: number;
   myWrongCount: number;
   myUnansweredCount: number;
+  answeredCount: number;
+  accuracy: number;
+  completionRate: number;
+  bestCombo: number;
   opponentCorrectCount: number | null;
   opponentWrongCount: number | null;
   opponentUnansweredCount: number | null;
+  opponentAnsweredCount: number | null;
+  opponentAccuracy: number | null;
+  opponentCompletionRate: number | null;
+  scoreDifference: number | null;
   ratingBefore: number;
   ratingDelta: number;
   ratingAfter: number;
+  star: number | null;
+  title: string | null;
+  beforeStar: number | null;
+  afterStar: number | null;
+  tierChange: 'PLACED' | 'PROMOTED' | 'DEMOTED' | 'UNCHANGED' | null;
   opponent: {
     userId: string;
     nickname: string | null;

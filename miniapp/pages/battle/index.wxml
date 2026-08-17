@@ -91,13 +91,15 @@
               />
               <view wx:else class="avatar-fallback">{{item.avatarFallbackText}}</view>
             </view>
-            <view class="player-copy">
-              <view class="nickname-line">
-                <text class="nickname">{{item.nicknameText}}</text>
-                <text wx:if="{{item.isCurrentUser}}" class="me-badge">我</text>
+              <view class="player-copy">
+                <view class="nickname-line">
+                  <text class="nickname">{{item.nicknameText}}</text>
+                  <text wx:if="{{item.isCurrentUser}}" class="me-badge">我</text>
+                </view>
+                <text wx:if="{{leaderboardScope === 'PYTHON'}}" class="leaderboard-tier-line">{{item.starText}} · {{item.titleText}}</text>
+                <text class="leaderboard-win-rate-line">{{item.winRateText}} {{leaderboardScope === 'PYTHON' ? '排位胜率' : '总榜胜率'}}</text>
+                <text class="mobile-player-meta">{{item.rankText}} · {{item.totalBattlesText}} 场 · {{item.winRateText}} {{leaderboardScope === 'PYTHON' ? '排位胜率' : '总榜胜率'}}</text>
               </view>
-              <text class="mobile-player-meta">{{item.rankText}} · {{item.totalBattlesText}} 场</text>
-            </view>
           </view>
           <text class="rating-value">{{item.ratingText}}</text>
           <text class="battle-count">{{item.totalBattlesText}}</text>

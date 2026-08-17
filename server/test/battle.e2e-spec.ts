@@ -347,8 +347,19 @@ describe('Battle routes (e2e)', () => {
 
     const firstQuestion = questionResponse.body.data.questions[0] as {
       battleQuestionId: string;
-      options: Array<{ id: string }>;
     };
+    const firstSnapshot = mockState.battleQuestionSnapshots.get(
+      firstQuestion.battleQuestionId,
+    );
+    const firstCorrectOptionId = (
+      firstSnapshot?.correctAnswerSnapshot as
+        | { optionId?: string }
+        | undefined
+    )?.optionId;
+
+    if (!firstCorrectOptionId) {
+      throw new Error('Battle E2E fixture did not create a correct option snapshot');
+    }
 
     await request(app.getHttpServer())
       .post(`/api/v1/battles/${battleId}/answers`)
@@ -358,7 +369,7 @@ describe('Battle routes (e2e)', () => {
         clientRequestId: 'battle-submit-user-a-1',
         answerVersion: 1,
         answer: {
-          optionId: firstQuestion.options[0].id,
+          optionId: firstCorrectOptionId,
         },
       })
       .expect(201);
@@ -369,7 +380,22 @@ describe('Battle routes (e2e)', () => {
       .expect(200)
       .expect((response) => {
         expect(response.body.data.completed).toBe(false);
+        expect(response.body.data).toMatchObject({
+          totalQuestions: 20,
+          myAnsweredCount: 1,
+          opponentAnsweredCount: 0,
+          mySubmitted: false,
+          opponentSubmitted: false,
+        });
         expect(response.body.data).not.toHaveProperty('myScore');
+        expect(response.body.data).not.toHaveProperty('opponentScore');
+        expect(response.body.data).not.toHaveProperty('myCorrectCount');
+        expect(response.body.data).not.toHaveProperty('myWrongCount');
+        expect(response.body.data).not.toHaveProperty('accuracy');
+        expect(response.body.data).not.toHaveProperty('isCorrect');
+        expect(response.body.data).not.toHaveProperty('combo');
+        expect(response.body.data).not.toHaveProperty('opponentCombo');
+        expect(response.body.data).not.toHaveProperty('answerPayload');
       });
 
     await request(app.getHttpServer())
@@ -398,7 +424,7 @@ describe('Battle routes (e2e)', () => {
         clientRequestId: 'battle-submit-user-a-after-submit',
         answerVersion: 2,
         answer: {
-          optionId: firstQuestion.options[0].id,
+          optionId: firstCorrectOptionId,
         },
       })
       .expect(409);
@@ -411,7 +437,7 @@ describe('Battle routes (e2e)', () => {
         clientRequestId: 'battle-submit-user-b-1',
         answerVersion: 1,
         answer: {
-          optionId: firstQuestion.options[0].id,
+          optionId: firstCorrectOptionId,
         },
       })
       .expect(201);
@@ -432,6 +458,15 @@ describe('Battle routes (e2e)', () => {
         expect(response.body.data.completed).toBe(true);
         expect(response.body.data.status).toBe('COMPLETED');
         expect(response.body.data.ratingDelta).toBe(0);
+        expect(response.body.data).toMatchObject({
+          answeredCount: 1,
+          completionRate: 5,
+          bestCombo: 1,
+          opponentAnsweredCount: 1,
+          scoreDifference: 0,
+          star: null,
+          tierChange: null,
+        });
       });
 
     const timeoutRoom = await request(app.getHttpServer())

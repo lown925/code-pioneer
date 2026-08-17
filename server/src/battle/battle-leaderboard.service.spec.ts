@@ -47,22 +47,26 @@ describe('BattleLeaderboardService skill leaderboard', () => {
       mock.prisma as never,
       new BattleDomainService(mock.prisma as never),
       {
-        assertAvailableSkill: jest.fn(async () => ({ code: 'PYTHON' })),
+        assertAvailableSkill: jest.fn(async () => ({
+          code: 'PYTHON',
+          name: 'Python',
+        })),
       } as never,
     );
 
-    const result = await service.getLeaderboard(
-      currentUserId,
-      1,
-      20,
-      'PYTHON',
-    );
+    const result = await service.getLeaderboard(currentUserId, 1, 20, 'PYTHON');
 
     expect(result.data.skill).toBe('PYTHON');
     expect(result.data.total).toBe(1);
     expect(result.data.items).toHaveLength(1);
     expect(result.data.items[0]?.userId).toBe(currentUserId);
     expect(result.data.myRank).toBe(1);
+    expect(result.data.items[0]).toMatchObject({
+      rankedBattles: 4,
+      star: 3,
+      title: 'Python 熟练者',
+      winRate: 75,
+    });
   });
 
   it('sums all ranked skill ratings for the total leaderboard', async () => {
@@ -132,10 +136,13 @@ describe('BattleLeaderboardService skill leaderboard', () => {
         userId: userA,
         rating: 1996,
         highestRating: 2020,
+        rankedBattles: 5,
         wins: 3,
         losses: 2,
       }),
     );
+    expect(result.data.items[0]).not.toHaveProperty('star');
+    expect(result.data.items[0]).not.toHaveProperty('title');
     expect(result.data.myRating).toBe(1996);
     expect(result.data.myRank).toBe(1);
   });

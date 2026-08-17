@@ -22,6 +22,20 @@ describe('miniapp Battle live state and skill leaderboard', () => {
       "error.code === 'BATTLE_PARTICIPANT_ALREADY_SUBMITTED'",
     );
     expect(playScript).toContain("error.code === 'BATTLE_INVALID_STATUS'");
+    expect(playScript).toContain('setPendingProgress(response)');
+    expect(playScript).toContain('response.myAnsweredCount');
+    expect(playScript).toContain('response.opponentAnsweredCount');
+  });
+
+  it('renders server-owned progress and completed performance indicators', () => {
+    const playTemplate = readMiniappFile('pages/battle/play.wxml');
+    const resultScript = readMiniappFile('pages/battle/result.ts');
+
+    expect(playTemplate).toContain('作答进度');
+    expect(playTemplate).toContain('我的进度');
+    expect(playTemplate).toContain('对手进度');
+    expect(resultScript).toContain('response.bestCombo');
+    expect(resultScript).toContain('response.accuracy');
   });
 
   it('shows the total leaderboard first and switches scopes in place', () => {
@@ -35,14 +49,20 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(indexTemplate).toContain('总榜');
     expect(indexTemplate).toContain('Python 榜');
     expect(indexTemplate).toContain('bindtap="handleLeaderboardScopeChange"');
+    expect(indexTemplate).toContain("leaderboardScope === 'PYTHON' ? '排位胜率' : '总榜胜率'");
+    expect(indexTemplate).not.toContain('{{item.winRateText}} 胜率');
     expect(indexTemplate).not.toContain('全部榜单');
   });
 
   it('offers both the legacy total leaderboard and Python leaderboard', () => {
     const leaderboardScript = readMiniappFile('pages/battle/leaderboard.ts');
-    const leaderboardTemplate = readMiniappFile('pages/battle/leaderboard.wxml');
+    const leaderboardTemplate = readMiniappFile(
+      'pages/battle/leaderboard.wxml',
+    );
 
-    expect(leaderboardScript).toContain("type LeaderboardScope = 'TOTAL' | 'PYTHON'");
+    expect(leaderboardScript).toContain(
+      "type LeaderboardScope = 'TOTAL' | 'PYTHON'",
+    );
     expect(leaderboardScript).toContain(
       "this.data.scope === 'PYTHON' ? { skill: 'PYTHON' } : {}",
     );
@@ -50,6 +70,10 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(leaderboardTemplate).toContain('data-scope="PYTHON"');
     expect(leaderboardTemplate).toContain('>总榜</view>');
     expect(leaderboardTemplate).toContain('>Python 榜</view>');
+    expect(leaderboardTemplate).toContain('排位胜率');
+    expect(leaderboardScript).toContain('item.rankedBattles');
+    expect(leaderboardScript).toContain('item.star');
+    expect(leaderboardScript).toContain('item.title');
   });
 
   it('shows the skill-scoped live matching count instead of profile rating and rank', () => {
@@ -90,7 +114,9 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     const playScript = readMiniappFile('pages/battle/play.ts');
     const playTemplate = readMiniappFile('pages/battle/play.wxml');
 
-    expect(playScript).toContain("const isTrainingMode = payload.mode === 'TRAINING'");
+    expect(playScript).toContain(
+      "const isTrainingMode = payload.mode === 'TRAINING'",
+    );
     expect(playScript).toContain('this.data.isTrainingMode ||');
     expect(playTemplate).toMatch(
       /wx:if="\{\{state === 'PLAYING' \|\| state === 'COUNTDOWN'\}\}"\s+class="primary-button submit-battle-button/,
@@ -120,7 +146,13 @@ describe('miniapp Battle live state and skill leaderboard', () => {
       'wx:if="{{!isTrainingMode}}" class="section-card opponent-card"',
     );
     expect(resultTemplate).toContain(
-      'wx:if="{{!isTrainingMode}}" class="section-card rating-card"',
+      'wx:if="{{isRankedMode}}" class="section-card rating-card"',
+    );
+    expect(resultTemplate).toContain(
+      'wx:if="{{hasCompetitiveTier}}" class="section-card tier-card"',
+    );
+    expect(resultScript).toContain(
+      'isRankedMode && response.skill !== null && response.star !== null',
     );
 
     expect(historyScript).toContain("{ value: 'TRAINING', label: '训练' }");
@@ -135,7 +167,19 @@ describe('miniapp Battle live state and skill leaderboard', () => {
       'wx:if="{{!isTrainingMode}}" class="section-card opponent-card"',
     );
     expect(historyDetailTemplate).toContain(
-      'wx:if="{{!isTrainingMode}}" class="section-card rating-card"',
+      'wx:if="{{isRankedMode}}" class="section-card rating-card"',
     );
+  });
+
+  it('keeps tier display data-driven through the profile response', () => {
+    const matchmakingTemplate = readMiniappFile(
+      'pages/battle/matchmaking.wxml',
+    );
+    const indexScript = readMiniappFile('pages/battle/index.ts');
+
+    expect(matchmakingTemplate).toContain("item.status === 'UNRANKED'");
+    expect(matchmakingTemplate).toContain('item.title');
+    expect(indexScript).toContain('item.star');
+    expect(indexScript).toContain('item.title');
   });
 });

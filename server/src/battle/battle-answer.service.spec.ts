@@ -224,6 +224,7 @@ describe('BattleAnswerService', () => {
     });
 
     expect(result.data.answerVersion).toBe(2);
+    expect(result.data.mySubmittedCount).toBe(1);
     expect(mock.battleAnswers.size).toBe(1);
     expect([...mock.battleAnswers.values()][0]).toMatchObject({
       clientRequestId: 'request-2',

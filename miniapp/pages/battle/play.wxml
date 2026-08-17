@@ -35,6 +35,33 @@
       </view>
     </view>
 
+    <view wx:if="{{state !== 'LOADING' && state !== 'ERROR'}}" class="section-card progress-card">
+      <view class="progress-heading">
+        <text class="section-title">作答进度</text>
+        <text class="progress-total">共 {{totalQuestionsText}} 题</text>
+      </view>
+      <view class="progress-player">
+        <view class="progress-label-row">
+          <text class="progress-label">我的进度</text>
+          <text class="progress-value">{{myProgressText}}</text>
+        </view>
+        <view class="progress-track">
+          <view class="progress-fill progress-fill-self" style="{{myProgressStyle}}"></view>
+        </view>
+        <text class="progress-status">{{mySubmittedText}}</text>
+      </view>
+      <view wx:if="{{!isTrainingMode}}" class="progress-player">
+        <view class="progress-label-row">
+          <text class="progress-label">对手进度</text>
+          <text class="progress-value">{{opponentProgressText}}</text>
+        </view>
+        <view class="progress-track">
+          <view class="progress-fill progress-fill-opponent" style="{{opponentProgressStyle}}"></view>
+        </view>
+        <text class="progress-status">{{opponentSubmittedText}}</text>
+      </view>
+    </view>
+
     <view wx:if="{{questions.length > 0}}" class="section-card question-nav-card">
       <text class="section-title">题号导航</text>
       <view class="question-nav-grid">

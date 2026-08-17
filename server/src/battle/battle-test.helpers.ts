@@ -256,6 +256,7 @@ function toRoomView(
   rooms: Map<string, BattleRoomRecord>,
   participants: Map<string, BattleParticipantRecord>,
   users: Map<string, UserRecord>,
+  skills: Map<string, BattleSkillRecord>,
   questionSnapshots: Map<string, BattleQuestionSnapshotRecord>,
   answers: Map<string, BattleAnswerRecord>,
   roomId: string,
@@ -326,6 +327,11 @@ function toRoomView(
 
   return {
     ...room,
+    skill: room.skillCode
+      ? {
+          name: skills.get(room.skillCode)?.name ?? room.skillCode,
+        }
+      : null,
     winnerUserId: room.winnerUserId ?? null,
     updatedAt: room.updatedAt ?? room.createdAt,
     participants: roomParticipants,
@@ -348,10 +354,7 @@ export function createBattlePrismaMock() {
       },
     ],
   ]);
-  const userBattleSkillRatings = new Map<
-    string,
-    UserBattleSkillRatingRecord
-  >();
+  const userBattleSkillRatings = new Map<string, UserBattleSkillRatingRecord>();
   const battleQueues = new Map<string, BattleQueueRecord>();
   const battleRooms = new Map<string, BattleRoomRecord>();
   const battleParticipants = new Map<string, BattleParticipantRecord>();
@@ -708,6 +711,7 @@ export function createBattlePrismaMock() {
           battleRooms,
           battleParticipants,
           users,
+          battleSkills,
           battleQuestionSnapshots,
           battleAnswers,
           where.id,
@@ -724,6 +728,7 @@ export function createBattlePrismaMock() {
                 battleRooms,
                 battleParticipants,
                 users,
+                battleSkills,
                 battleQuestionSnapshots,
                 battleAnswers,
                 room.id,
@@ -747,6 +752,7 @@ export function createBattlePrismaMock() {
               battleRooms,
               battleParticipants,
               users,
+              battleSkills,
               battleQuestionSnapshots,
               battleAnswers,
               roomId,
@@ -1062,6 +1068,7 @@ export function createBattlePrismaMock() {
               battleRooms,
               battleParticipants,
               users,
+              battleSkills,
               battleQuestionSnapshots,
               battleAnswers,
               invitation.battleRoomId,
@@ -1398,10 +1405,7 @@ export function createBattlePrismaMock() {
         restoreMap(users, snapshot.users);
         restoreMap(battleProfiles, snapshot.battleProfiles);
         restoreMap(battleSkills, snapshot.battleSkills);
-        restoreMap(
-          userBattleSkillRatings,
-          snapshot.userBattleSkillRatings,
-        );
+        restoreMap(userBattleSkillRatings, snapshot.userBattleSkillRatings);
         restoreMap(battleQueues, snapshot.battleQueues);
         restoreMap(battleRooms, snapshot.battleRooms);
         restoreMap(battleParticipants, snapshot.battleParticipants);
@@ -1925,9 +1929,8 @@ function matchesQuizQuestionWhere(
     typeof where.battleDifficulty === 'object' &&
     where.battleDifficulty !== null
   ) {
-    const values = (
-      where.battleDifficulty as { in?: BattleQuestionDifficulty[] }
-    ).in ?? [];
+    const values =
+      (where.battleDifficulty as { in?: BattleQuestionDifficulty[] }).in ?? [];
 
     if (
       values.length > 0 &&

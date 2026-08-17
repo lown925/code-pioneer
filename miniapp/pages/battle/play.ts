@@ -4,6 +4,7 @@ import type {
   BattleQuestionItemResponse,
   BattleQuestionOptionSnapshotResponse,
   BattleQuestionsResponse,
+  PendingBattleResultResponse,
   BattleResultResponse,
   BattleSubmitActionResponse,
   BattleSubmittedAnswerResponse,
@@ -20,21 +21,11 @@ import { request, RequestError } from '../../utils/request';
 declare function clearTimeout(timeoutId: number): void;
 
 type PlayPageState =
-  | 'LOADING'
-  | 'COUNTDOWN'
-  | 'PLAYING'
-  | 'WAITING_SETTLEMENT'
-  | 'COMPLETED'
-  | 'ERROR';
+  'LOADING' | 'COUNTDOWN' | 'PLAYING' | 'WAITING_SETTLEMENT' | 'COMPLETED' | 'ERROR';
 
 type QuestionType = 'SINGLE_CHOICE' | 'CODE_FILL';
 type QuestionSyncState = 'idle' | 'saving' | 'error' | 'saved';
-type QuestionNavState =
-  | 'current'
-  | 'answered'
-  | 'saving'
-  | 'error'
-  | 'pending';
+type QuestionNavState = 'current' | 'answered' | 'saving' | 'error' | 'pending';
 
 type ViewBlock = BattleContentBlock & {
   blockKey: string;
@@ -92,6 +83,13 @@ type PlayPageData = {
   forfeitButtonText: string;
   isBattleActionPending: boolean;
   isTrainingMode: boolean;
+  totalQuestionsText: string;
+  myProgressText: string;
+  opponentProgressText: string;
+  myProgressStyle: string;
+  opponentProgressStyle: string;
+  mySubmittedText: string;
+  opponentSubmittedText: string;
   questions: QuestionCard[];
 };
 
@@ -113,15 +111,14 @@ type PlayPageMethods = {
   stopAllQuestionDebounceTimers(): void;
   updateTimeDisplay(): void;
   loadResultStatus(options?: { preservePlaying?: boolean }): Promise<void>;
+  setPendingProgress(response: PendingBattleResultResponse): void;
   enterWaitingSettlement(descriptionText: string, errorMessage?: string): void;
   navigateToResult(autoNavigate?: boolean): void;
   handleRetry(): void;
   handleBackRoom(): void;
   handlePrevQuestion(): void;
   handleNextQuestion(): void;
-  handleSelectQuestion(
-    event: WechatMiniprogram.BaseEvent<{ index?: number }>,
-  ): void;
+  handleSelectQuestion(event: WechatMiniprogram.BaseEvent<{ index?: number }>): void;
   handleOptionSelect(
     event: WechatMiniprogram.BaseEvent<{
       questionId?: string;
@@ -151,9 +148,7 @@ type PlayPageMethods = {
   forfeitBattle(): Promise<void>;
   scheduleQuestionSync(questionId: string, immediate?: boolean): void;
   executeQuestionSync(questionId: string): Promise<void>;
-  buildAnswerPayload(
-    question: QuestionCard,
-  ): { optionId: string } | { value: string } | null;
+  buildAnswerPayload(question: QuestionCard): { optionId: string } | { value: string } | null;
   hasAnswerDraft(question: QuestionCard): boolean;
   hasUnsyncedDraft(question: QuestionCard): boolean;
   isQuestionEditable(question: QuestionCard): boolean;
@@ -191,22 +186,14 @@ type PlayPageMethods = {
   ): OptionCard[];
   getCurrentQuestion(): QuestionCard | null;
   replaceQuestion(question: QuestionCard): void;
-  rebuildNavStatus(
-    questions: QuestionCard[],
-    currentQuestionIndex: number,
-  ): QuestionCard[];
-  updateQuestionDraft(
-    questionId: string,
-    updater: (question: QuestionCard) => QuestionCard,
-  ): void;
+  rebuildNavStatus(questions: QuestionCard[], currentQuestionIndex: number): QuestionCard[];
+  updateQuestionDraft(questionId: string, updater: (question: QuestionCard) => QuestionCard): void;
   findQuestion(questionId: string): QuestionCard | null;
   getReadableError(error: unknown, fallback: string): string;
   mapPlayState(payload: BattleQuestionsResponse): PlayPageState;
   getQuestionTypeText(type: QuestionType): string;
   getDifficultyText(difficulty: string | null): string;
-  normalizeSubmittedAnswer(
-    answer: BattleSubmittedAnswerResponse | null,
-  ): {
+  normalizeSubmittedAnswer(answer: BattleSubmittedAnswerResponse | null): {
     savedAnswerOptionId: string;
     savedAnswerValue: string;
   };
@@ -217,8 +204,7 @@ type QuestionSyncRuntime = {
   inFlight: boolean;
 };
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TIME_TICK_MS = 500;
 const COUNTDOWN_POLL_MS = 1800;
 const SETTLEMENT_POLL_MS = 1800;
@@ -326,6 +312,13 @@ Page<PlayPageData, PlayPageMethods>({
     forfeitButtonText: '认输',
     isBattleActionPending: false,
     isTrainingMode: false,
+    totalQuestionsText: '0',
+    myProgressText: '0 / 0',
+    opponentProgressText: '0 / 0',
+    myProgressStyle: 'width: 0%;',
+    opponentProgressStyle: 'width: 0%;',
+    mySubmittedText: '作答中',
+    opponentSubmittedText: '作答中',
     questions: [],
   },
 
@@ -333,8 +326,7 @@ Page<PlayPageData, PlayPageMethods>({
     isPageActive = true;
     isPageVisible = true;
     hasRedirectedToResult = false;
-    const battleId =
-      typeof options?.battleId === 'string' ? options.battleId.trim() : '';
+    const battleId = typeof options?.battleId === 'string' ? options.battleId.trim() : '';
     const isValidBattleId = UUID_PATTERN.test(battleId);
 
     this.setData({
@@ -360,10 +352,7 @@ Page<PlayPageData, PlayPageMethods>({
     isPageActive = true;
 
     if (hasLoadedOnce && this.data.isValidBattleId) {
-      if (
-        this.data.state === 'WAITING_SETTLEMENT' ||
-        this.data.state === 'COMPLETED'
-      ) {
+      if (this.data.state === 'WAITING_SETTLEMENT' || this.data.state === 'COMPLETED') {
         void this.loadResultStatus();
       } else {
         void this.loadQuestions({
@@ -397,8 +386,7 @@ Page<PlayPageData, PlayPageMethods>({
 
   onPullDownRefresh() {
     const loader =
-      this.data.state === 'WAITING_SETTLEMENT' ||
-      this.data.state === 'COMPLETED'
+      this.data.state === 'WAITING_SETTLEMENT' || this.data.state === 'COMPLETED'
         ? this.loadResultStatus()
         : this.loadQuestions({
             preservePosition: true,
@@ -415,9 +403,7 @@ Page<PlayPageData, PlayPageMethods>({
     }
 
     if (this.data.isValidBattleId) {
-      redirectToLogin(
-        `/pages/battle/play?battleId=${encodeURIComponent(this.data.battleId)}`,
-      );
+      redirectToLogin(`/pages/battle/play?battleId=${encodeURIComponent(this.data.battleId)}`);
     } else {
       redirectToLogin('/pages/battle/index');
     }
@@ -426,11 +412,7 @@ Page<PlayPageData, PlayPageMethods>({
   },
 
   async loadQuestions(options?: { preservePosition?: boolean }) {
-    if (
-      !this.data.isValidBattleId ||
-      !this.ensureAuthenticated() ||
-      isQuestionsRequesting
-    ) {
+    if (!this.data.isValidBattleId || !this.ensureAuthenticated() || isQuestionsRequesting) {
       return;
     }
 
@@ -472,10 +454,7 @@ Page<PlayPageData, PlayPageMethods>({
         state: 'ERROR',
         titleText: '题目加载失败',
         descriptionText: '你可以重新获取题目，或先回到 Battle 房间。',
-        errorMessage: this.getReadableError(
-          error,
-          'Battle 题目加载失败，请稍后重试。',
-        ),
+        errorMessage: this.getReadableError(error, 'Battle 题目加载失败，请稍后重试。'),
       });
     } finally {
       isQuestionsRequesting = false;
@@ -493,15 +472,14 @@ Page<PlayPageData, PlayPageMethods>({
 
     const currentQuestion =
       options?.preservePosition && this.data.questions.length > 0
-        ? this.data.questions[this.data.currentQuestionIndex] ?? null
+        ? (this.data.questions[this.data.currentQuestionIndex] ?? null)
         : null;
     const currentQuestionId = currentQuestion?.battleQuestionId ?? '';
     const items = Array.isArray(payload.questions) ? payload.questions : [];
     const built = this.buildQuestions(items, this.data.questions, currentQuestionId);
     const nextState = this.mapPlayState(payload);
     const isTrainingMode = payload.mode === 'TRAINING';
-    const currentQuestionCard =
-      built.questions[built.currentQuestionIndex] ?? null;
+    const currentQuestionCard = built.questions[built.currentQuestionIndex] ?? null;
 
     this.stopTimeTicker();
     this.stopCountdownPolling();
@@ -527,8 +505,7 @@ Page<PlayPageData, PlayPageMethods>({
               : '当前已停止作答，系统正在等待对手或处理结算。'
             : nextState === 'COMPLETED'
               ? '当前对局已完成，正在准备跳转结果页。'
-              : '选择答案后会自动暂存。交卷前会等待未完成的自动保存请求。'
-      ,
+              : '选择答案后会自动暂存。交卷前会等待未完成的自动保存请求。',
       errorMessage: '',
       currentQuestionIndex: built.currentQuestionIndex,
       questionCountText: currentQuestionCard
@@ -538,6 +515,16 @@ Page<PlayPageData, PlayPageMethods>({
       forfeitButtonText: '认输',
       isBattleActionPending: false,
       isTrainingMode,
+      totalQuestionsText: String(built.questions.length),
+      myProgressText: `${built.questions.filter((question) => question.answered).length} / ${built.questions.length}`,
+      myProgressStyle: `width: ${built.questions.length > 0 ? Math.round((built.questions.filter((question) => question.answered).length / built.questions.length) * 100) : 0}%;`,
+      ...(isTrainingMode
+        ? {
+            opponentProgressText: '—',
+            opponentProgressStyle: 'width: 0%;',
+            opponentSubmittedText: '—',
+          }
+        : {}),
       questions: built.questions,
     });
 
@@ -683,18 +670,12 @@ Page<PlayPageData, PlayPageMethods>({
   updateTimeDisplay() {
     const now = getServerNowMs();
     const remainingSeconds =
-      expiresAtTimestampMs > 0
-        ? Math.max(0, Math.ceil((expiresAtTimestampMs - now) / 1000))
-        : 0;
+      expiresAtTimestampMs > 0 ? Math.max(0, Math.ceil((expiresAtTimestampMs - now) / 1000)) : 0;
     const countdownSeconds =
-      startedAtTimestampMs > 0
-        ? Math.max(0, Math.ceil((startedAtTimestampMs - now) / 1000))
-        : 0;
+      startedAtTimestampMs > 0 ? Math.max(0, Math.ceil((startedAtTimestampMs - now) / 1000)) : 0;
 
     if (this.data.state === 'PLAYING' && remainingSeconds <= 0) {
-      this.enterWaitingSettlement(
-        '作答时间已结束，当前已停止修改答案，系统正在等待结算。',
-      );
+      this.enterWaitingSettlement('作答时间已结束，当前已停止修改答案，系统正在等待结算。');
       return;
     }
 
@@ -710,19 +691,12 @@ Page<PlayPageData, PlayPageMethods>({
 
     this.setData({
       remainingTimeText: formatBattleDuration(remainingSeconds),
-      countdownText:
-        this.data.state === 'COUNTDOWN'
-          ? String(Math.max(1, countdownSeconds))
-          : '',
+      countdownText: this.data.state === 'COUNTDOWN' ? String(Math.max(1, countdownSeconds)) : '',
     });
   },
 
   async loadResultStatus(options?: { preservePlaying?: boolean }) {
-    if (
-      !this.data.isValidBattleId ||
-      !this.ensureAuthenticated() ||
-      isResultRequesting
-    ) {
+    if (!this.data.isValidBattleId || !this.ensureAuthenticated() || isResultRequesting) {
       return;
     }
 
@@ -753,10 +727,9 @@ Page<PlayPageData, PlayPageMethods>({
         this.setData({
           state: 'COMPLETED',
           titleText: '本场对战已结束',
-          descriptionText:
-            opponentForfeited
-              ? '对手已认输，本场已结算，正在进入结果页。'
-              : '当前对局已经完成，正在进入结果页。',
+          descriptionText: opponentForfeited
+            ? '对手已认输，本场已结算，正在进入结果页。'
+            : '当前对局已经完成，正在进入结果页。',
           errorMessage: '',
           isBattleActionPending: false,
           submitBattleButtonText: '交卷',
@@ -771,6 +744,8 @@ Page<PlayPageData, PlayPageMethods>({
         this.navigateToResult(true);
         return;
       }
+
+      this.setPendingProgress(response);
 
       if (options?.preservePlaying && response.status === 'IN_PROGRESS') {
         this.startResultPolling();
@@ -799,10 +774,7 @@ Page<PlayPageData, PlayPageMethods>({
         state: 'ERROR',
         titleText: '结果获取失败',
         descriptionText: '当前 Battle 结果无法继续同步，你可以稍后重试。',
-        errorMessage: this.getReadableError(
-          error,
-          'Battle 结果暂时不可用，请稍后重试。',
-        ),
+        errorMessage: this.getReadableError(error, 'Battle 结果暂时不可用，请稍后重试。'),
         isBattleActionPending: false,
         submitBattleButtonText: '交卷',
         forfeitButtonText: '认输',
@@ -810,6 +782,36 @@ Page<PlayPageData, PlayPageMethods>({
     } finally {
       isResultRequesting = false;
     }
+  },
+
+  setPendingProgress(response: PendingBattleResultResponse) {
+    const totalQuestions = Math.max(0, response.totalQuestions);
+    const myAnsweredCount = Math.max(0, response.myAnsweredCount);
+    const opponentAnsweredCount =
+      response.opponentAnsweredCount === null ? null : Math.max(0, response.opponentAnsweredCount);
+    const getProgressStyle = (answeredCount: number | null) =>
+      `width: ${
+        answeredCount === null || totalQuestions === 0
+          ? 0
+          : Math.min(100, Math.round((answeredCount / totalQuestions) * 100))
+      }%;`;
+
+    this.setData({
+      totalQuestionsText: String(totalQuestions),
+      myProgressText: `${myAnsweredCount} / ${totalQuestions}`,
+      opponentProgressText:
+        opponentAnsweredCount === null ? '—' : `${opponentAnsweredCount} / ${totalQuestions}`,
+      myProgressStyle: getProgressStyle(myAnsweredCount),
+      opponentProgressStyle: getProgressStyle(opponentAnsweredCount),
+      mySubmittedText: response.mySubmitted ? '已交卷' : '作答中',
+      opponentSubmittedText:
+        response.opponentSubmitted === null
+          ? '—'
+          : response.opponentSubmitted
+            ? '已交卷'
+            : '作答中',
+      isTrainingMode: response.mode === 'TRAINING',
+    });
   },
 
   enterWaitingSettlement(descriptionText: string, errorMessage = '') {
@@ -851,10 +853,7 @@ Page<PlayPageData, PlayPageMethods>({
   },
 
   handleRetry() {
-    if (
-      this.data.state === 'WAITING_SETTLEMENT' ||
-      this.data.state === 'COMPLETED'
-    ) {
+    if (this.data.state === 'WAITING_SETTLEMENT' || this.data.state === 'COMPLETED') {
       void this.loadResultStatus();
       return;
     }
@@ -872,10 +871,7 @@ Page<PlayPageData, PlayPageMethods>({
       fail: () => {
         (
           wx as unknown as {
-            navigateBack: (options: {
-              delta?: number;
-              fail?: () => void;
-            }) => void;
+            navigateBack: (options: { delta?: number; fail?: () => void }) => void;
           }
         ).navigateBack({
           fail: () => {
@@ -895,10 +891,7 @@ Page<PlayPageData, PlayPageMethods>({
 
     this.setData({
       currentQuestionIndex: this.data.currentQuestionIndex - 1,
-      questions: this.rebuildNavStatus(
-        this.data.questions,
-        this.data.currentQuestionIndex - 1,
-      ),
+      questions: this.rebuildNavStatus(this.data.questions, this.data.currentQuestionIndex - 1),
       questionCountText: `${this.data.currentQuestionIndex} / ${this.data.questions.length}`,
     });
   },
@@ -913,24 +906,15 @@ Page<PlayPageData, PlayPageMethods>({
 
     this.setData({
       currentQuestionIndex: this.data.currentQuestionIndex + 1,
-      questions: this.rebuildNavStatus(
-        this.data.questions,
-        this.data.currentQuestionIndex + 1,
-      ),
+      questions: this.rebuildNavStatus(this.data.questions, this.data.currentQuestionIndex + 1),
       questionCountText: `${this.data.currentQuestionIndex + 2} / ${this.data.questions.length}`,
     });
   },
 
-  handleSelectQuestion(
-    event: WechatMiniprogram.BaseEvent<{ index?: number }>,
-  ) {
+  handleSelectQuestion(event: WechatMiniprogram.BaseEvent<{ index?: number }>) {
     const nextIndex = Number(event.currentTarget.dataset.index ?? -1);
 
-    if (
-      !Number.isInteger(nextIndex) ||
-      nextIndex < 0 ||
-      nextIndex >= this.data.questions.length
-    ) {
+    if (!Number.isInteger(nextIndex) || nextIndex < 0 || nextIndex >= this.data.questions.length) {
       return;
     }
 
@@ -996,10 +980,7 @@ Page<PlayPageData, PlayPageMethods>({
       return;
     }
 
-    const nextValue = String(event.detail.value ?? '').slice(
-      0,
-      CODE_FILL_MAX_LENGTH,
-    );
+    const nextValue = String(event.detail.value ?? '').slice(0, CODE_FILL_MAX_LENGTH);
 
     if (nextValue === question.draftValue && question.syncState !== 'error') {
       return;
@@ -1114,10 +1095,7 @@ Page<PlayPageData, PlayPageMethods>({
         isBattleActionPending: false,
         submitBattleButtonText: '交卷',
         forfeitButtonText: '认输',
-        errorMessage: this.getReadableError(
-          error,
-          '主动交卷失败，请稍后重试。',
-        ),
+        errorMessage: this.getReadableError(error, '主动交卷失败，请稍后重试。'),
       });
     } finally {
       isBattleActionRequesting = false;
@@ -1136,8 +1114,7 @@ Page<PlayPageData, PlayPageMethods>({
     for (let attempt = 0; attempt < 60; attempt += 1) {
       const waitingForSave = this.data.questions.some(
         (question: QuestionCard) =>
-          getQuestionRuntime(question.battleQuestionId).inFlight ||
-          this.hasUnsyncedDraft(question),
+          getQuestionRuntime(question.battleQuestionId).inFlight || this.hasUnsyncedDraft(question),
       );
 
       if (!waitingForSave) {
@@ -1148,8 +1125,7 @@ Page<PlayPageData, PlayPageMethods>({
     }
 
     const failedQuestion = this.data.questions.find(
-      (question: QuestionCard) =>
-        question.syncState === 'error' || this.hasUnsyncedDraft(question),
+      (question: QuestionCard) => question.syncState === 'error' || this.hasUnsyncedDraft(question),
     );
 
     if (failedQuestion) {
@@ -1229,10 +1205,7 @@ Page<PlayPageData, PlayPageMethods>({
         isBattleActionPending: false,
         submitBattleButtonText: '交卷',
         forfeitButtonText: '认输',
-        errorMessage: this.getReadableError(
-          error,
-          '认输失败，请稍后重试。',
-        ),
+        errorMessage: this.getReadableError(error, '认输失败，请稍后重试。'),
       });
     } finally {
       isBattleActionRequesting = false;
@@ -1283,17 +1256,13 @@ Page<PlayPageData, PlayPageMethods>({
       return;
     }
 
-    if (
-      question.savedAnswerVersion >= question.answerVersion &&
-      question.syncState !== 'error'
-    ) {
+    if (question.savedAnswerVersion >= question.answerVersion && question.syncState !== 'error') {
       return;
     }
 
     const requestVersion = question.answerVersion;
     const clientRequestId =
-      question.pendingClientRequestId &&
-      question.pendingRequestVersion === requestVersion
+      question.pendingClientRequestId && question.pendingRequestVersion === requestVersion
         ? question.pendingClientRequestId
         : generateBattleClientRequestId('battle-answer');
 
@@ -1328,10 +1297,7 @@ Page<PlayPageData, PlayPageMethods>({
       serverTimeOffsetMs = parseTimestamp(response.serverTime) - Date.now();
 
       this.updateQuestionDraft(questionId, (current) => {
-        const nextSavedVersion = Math.max(
-          current.savedAnswerVersion,
-          response.answerVersion,
-        );
+        const nextSavedVersion = Math.max(current.savedAnswerVersion, response.answerVersion);
         const requestWasApplied = response.answerVersion >= requestVersion;
         const isChoice = current.questionType === 'SINGLE_CHOICE';
 
@@ -1356,15 +1322,10 @@ Page<PlayPageData, PlayPageMethods>({
           savedAnswerVersion: nextSavedVersion,
           inFlightAnswerVersion: 0,
           pendingClientRequestId:
-            current.pendingRequestVersion === requestVersion
-              ? ''
-              : current.pendingClientRequestId,
+            current.pendingRequestVersion === requestVersion ? '' : current.pendingClientRequestId,
           pendingRequestVersion:
-            current.pendingRequestVersion === requestVersion
-              ? 0
-              : current.pendingRequestVersion,
-          syncState:
-            current.answerVersion > response.answerVersion ? 'idle' : 'saved',
+            current.pendingRequestVersion === requestVersion ? 0 : current.pendingRequestVersion,
+          syncState: current.answerVersion > response.answerVersion ? 'idle' : 'saved',
           syncErrorMessage: '',
         };
       });
@@ -1375,16 +1336,11 @@ Page<PlayPageData, PlayPageMethods>({
 
       if (error instanceof RequestError) {
         if (error.code === 'BATTLE_PARTICIPANT_ALREADY_SUBMITTED') {
-          this.enterWaitingSettlement(
-            '本场已停止作答，系统正在确认最终结果。',
-          );
+          this.enterWaitingSettlement('本场已停止作答，系统正在确认最终结果。');
           return;
         }
 
-        if (
-          error.code === 'BATTLE_EXPIRED' ||
-          error.code === 'BATTLE_SETTLEMENT_IN_PROGRESS'
-        ) {
+        if (error.code === 'BATTLE_EXPIRED' || error.code === 'BATTLE_SETTLEMENT_IN_PROGRESS') {
           this.enterWaitingSettlement(
             '作答时间已结束，当前已停止修改答案，系统正在等待结算。',
             this.getReadableError(error, '作答时间已结束。'),
@@ -1422,10 +1378,7 @@ Page<PlayPageData, PlayPageMethods>({
         syncErrorMessage:
           error instanceof Error && error.message === 'QUESTION_SYNC_PENDING'
             ? '仍有答案未同步，请重试。'
-            : this.getReadableError(
-                error,
-                '当前题目暂存失败，请点击重试同步。',
-              ),
+            : this.getReadableError(error, '当前题目暂存失败，请点击重试同步。'),
       }));
     } finally {
       runtime.inFlight = false;
@@ -1471,10 +1424,7 @@ Page<PlayPageData, PlayPageMethods>({
   },
 
   hasUnsyncedDraft(question: QuestionCard) {
-    return (
-      this.hasAnswerDraft(question) &&
-      question.answerVersion > question.savedAnswerVersion
-    );
+    return this.hasAnswerDraft(question) && question.answerVersion > question.savedAnswerVersion;
   },
 
   isQuestionEditable(question: QuestionCard) {
@@ -1546,45 +1496,30 @@ Page<PlayPageData, PlayPageMethods>({
       previousQuestions.map((question) => [question.battleQuestionId, question]),
     );
     const builtQuestions = items.map((item) =>
-      this.mapQuestion(
-        item,
-        previousMap.get(item.battleQuestionId) ?? null,
-        false,
-      ),
+      this.mapQuestion(item, previousMap.get(item.battleQuestionId) ?? null, false),
     );
 
     const nextIndex = currentQuestionId
       ? Math.max(
           0,
-          builtQuestions.findIndex(
-            (question) => question.battleQuestionId === currentQuestionId,
-          ),
+          builtQuestions.findIndex((question) => question.battleQuestionId === currentQuestionId),
         )
       : 0;
 
     return {
       questions: this.rebuildNavStatus(builtQuestions, nextIndex),
       currentQuestionIndex:
-        builtQuestions.length === 0
-          ? 0
-          : Math.min(nextIndex, builtQuestions.length - 1),
+        builtQuestions.length === 0 ? 0 : Math.min(nextIndex, builtQuestions.length - 1),
     };
   },
 
-  mapQuestion(
-    item: BattleQuestionItemResponse,
-    previous: QuestionCard | null,
-    isCurrent: boolean,
-  ) {
+  mapQuestion(item: BattleQuestionItemResponse, previous: QuestionCard | null, isCurrent: boolean) {
     const questionType = item.questionType as QuestionType;
     const normalizedSubmitted = this.normalizeSubmittedAnswer(item.submittedAnswer);
     const savedVersion = item.answerVersion ?? 0;
     const draftOptionId =
-      questionType === 'SINGLE_CHOICE'
-        ? normalizedSubmitted.savedAnswerOptionId
-        : '';
-    const draftValue =
-      questionType === 'CODE_FILL' ? normalizedSubmitted.savedAnswerValue : '';
+      questionType === 'SINGLE_CHOICE' ? normalizedSubmitted.savedAnswerOptionId : '';
+    const draftValue = questionType === 'CODE_FILL' ? normalizedSubmitted.savedAnswerValue : '';
 
     return {
       battleQuestionId: item.battleQuestionId,
@@ -1593,17 +1528,8 @@ Page<PlayPageData, PlayPageMethods>({
       questionType,
       questionTypeText: this.getQuestionTypeText(questionType),
       difficultyText: this.getDifficultyText(item.difficulty),
-      stem: this.mapBlocks(
-        item.stem,
-        `${item.battleQuestionId}-stem`,
-        previous?.stem,
-      ),
-      options: this.mapOptions(
-        item.options,
-        item.battleQuestionId,
-        draftOptionId,
-        previous,
-      ),
+      stem: this.mapBlocks(item.stem, `${item.battleQuestionId}-stem`, previous?.stem),
+      options: this.mapOptions(item.options, item.battleQuestionId, draftOptionId, previous),
       programmingLanguage: item.programmingLanguage ?? '',
       answered: item.answered,
       submittedAtText: item.answered ? formatSubmittedAtLabel(item.submittedAt) : '',
@@ -1618,24 +1544,15 @@ Page<PlayPageData, PlayPageMethods>({
       pendingRequestVersion: 0,
       syncState: item.answered ? 'saved' : 'idle',
       syncErrorMessage: '',
-      syncStatusText: item.answered
-        ? formatSubmittedAtLabel(item.submittedAt)
-        : '未作答',
+      syncStatusText: item.answered ? formatSubmittedAtLabel(item.submittedAt) : '未作答',
       navStatus: isCurrent ? 'current' : item.answered ? 'answered' : 'pending',
       navLabel: String(item.orderIndex + 1),
     };
   },
 
-  mapBlocks(
-    blocks: BattleContentBlock[],
-    keyPrefix: string,
-    previousBlocks?: ViewBlock[],
-  ) {
+  mapBlocks(blocks: BattleContentBlock[], keyPrefix: string, previousBlocks?: ViewBlock[]) {
     const previousFailedMap = new Map(
-      (previousBlocks ?? []).map((block: ViewBlock) => [
-        block.blockKey,
-        block.imageFailed,
-      ]),
+      (previousBlocks ?? []).map((block: ViewBlock) => [block.blockKey, block.imageFailed]),
     );
 
     return blocks.map((block: BattleContentBlock, index: number) => {
@@ -1676,10 +1593,7 @@ Page<PlayPageData, PlayPageMethods>({
     previousQuestion: QuestionCard | null,
   ) {
     const previousOptionMap = new Map(
-      (previousQuestion?.options ?? []).map((option: OptionCard) => [
-        option.optionId,
-        option,
-      ]),
+      (previousQuestion?.options ?? []).map((option: OptionCard) => [option.optionId, option]),
     );
 
     return options.map((option: BattleQuestionOptionSnapshotResponse, index: number) => ({
@@ -1704,10 +1618,7 @@ Page<PlayPageData, PlayPageMethods>({
     );
 
     this.setData({
-      questions: this.rebuildNavStatus(
-        nextQuestions,
-        this.data.currentQuestionIndex,
-      ),
+      questions: this.rebuildNavStatus(nextQuestions, this.data.currentQuestionIndex),
       questionCountText: `${this.data.currentQuestionIndex + 1} / ${nextQuestions.length}`,
     });
   },
@@ -1720,10 +1631,7 @@ Page<PlayPageData, PlayPageMethods>({
         navStatus = 'current';
       } else if (question.syncState === 'error') {
         navStatus = 'error';
-      } else if (
-        question.syncState === 'saving' ||
-        this.hasUnsyncedDraft(question)
-      ) {
+      } else if (question.syncState === 'saving' || this.hasUnsyncedDraft(question)) {
         navStatus = 'saving';
       } else if (this.hasAnswerDraft(question) || question.answered) {
         navStatus = 'answered';
@@ -1737,10 +1645,7 @@ Page<PlayPageData, PlayPageMethods>({
     });
   },
 
-  updateQuestionDraft(
-    questionId: string,
-    updater: (question: QuestionCard) => QuestionCard,
-  ) {
+  updateQuestionDraft(questionId: string, updater: (question: QuestionCard) => QuestionCard) {
     const currentQuestion = this.data.questions.find(
       (item) => item.battleQuestionId === questionId,
     );
@@ -1762,10 +1667,7 @@ Page<PlayPageData, PlayPageMethods>({
   },
 
   findQuestion(questionId: string) {
-    return (
-      this.data.questions.find((item) => item.battleQuestionId === questionId) ??
-      null
-    );
+    return this.data.questions.find((item) => item.battleQuestionId === questionId) ?? null;
   },
 
   getReadableError(error: unknown, fallback: string) {
@@ -1775,9 +1677,7 @@ Page<PlayPageData, PlayPageMethods>({
 
     if (error instanceof RequestError) {
       if (error.statusCode === 401 || error.code === 'UNAUTHORIZED') {
-        redirectToLogin(
-          `/pages/battle/play?battleId=${encodeURIComponent(this.data.battleId)}`,
-        );
+        redirectToLogin(`/pages/battle/play?battleId=${encodeURIComponent(this.data.battleId)}`);
         return '登录状态已失效，请重新登录后再继续答题。';
       }
     }
@@ -1790,20 +1690,14 @@ Page<PlayPageData, PlayPageMethods>({
         fallback,
       },
       {
-        BATTLE_ROOM_NOT_READY:
-          '当前房间尚未进入答题阶段，请等待倒计时结束后再试。',
-        BATTLE_COUNTDOWN_NOT_FINISHED:
-          '倒计时尚未结束，当前还不能正式提交答案。',
+        BATTLE_ROOM_NOT_READY: '当前房间尚未进入答题阶段，请等待倒计时结束后再试。',
+        BATTLE_COUNTDOWN_NOT_FINISHED: '倒计时尚未结束，当前还不能正式提交答案。',
         BATTLE_INVALID_ANSWER: '当前答案格式无效，请检查后重试。',
         BATTLE_EXPIRED: '本场对战作答时间已结束，当前已停止修改答案。',
-        BATTLE_SETTLEMENT_IN_PROGRESS:
-          '当前对战正在结算中，暂时不能继续修改答案。',
-        BATTLE_ALREADY_COMPLETED:
-          '当前对战已经完成，题目页面只保留只读展示。',
-        BATTLE_NOT_PARTICIPANT:
-          '你不是当前对局参与者，无法继续本场 Battle。',
-        BATTLE_INVALID_STATUS:
-          '当前对战状态已变化，请重新同步服务端状态后再继续操作。',
+        BATTLE_SETTLEMENT_IN_PROGRESS: '当前对战正在结算中，暂时不能继续修改答案。',
+        BATTLE_ALREADY_COMPLETED: '当前对战已经完成，题目页面只保留只读展示。',
+        BATTLE_NOT_PARTICIPANT: '你不是当前对局参与者，无法继续本场 Battle。',
+        BATTLE_INVALID_STATUS: '当前对战状态已变化，请重新同步服务端状态后再继续操作。',
       },
     );
   },
