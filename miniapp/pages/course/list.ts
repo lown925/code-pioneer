@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   CourseListData,
   CourseListItem,
@@ -36,7 +37,7 @@ let isPageActive = false;
 let loadSerial = 0;
 const selectionRequests = new Set<string>();
 
-Page({
+registerThemedPage({
   data: {
     state: 'loading',
     errorMessage: '',

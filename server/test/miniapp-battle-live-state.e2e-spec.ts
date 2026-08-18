@@ -27,15 +27,100 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(playScript).toContain('response.opponentAnsweredCount');
   });
 
-  it('renders server-owned progress and completed performance indicators', () => {
+  it('renders server-owned answered progress and completed performance indicators', () => {
+    const playScript = readMiniappFile('pages/battle/play.ts');
     const playTemplate = readMiniappFile('pages/battle/play.wxml');
     const resultScript = readMiniappFile('pages/battle/result.ts');
 
-    expect(playTemplate).toContain('作答进度');
-    expect(playTemplate).toContain('我的进度');
-    expect(playTemplate).toContain('对手进度');
+    expect(playScript).toContain('response.myAnsweredCount');
+    expect(playScript).toContain('response.opponentAnsweredCount');
+    expect(playTemplate).toContain('class="shared-progress-track"');
+    expect(playTemplate).toContain('{{myProgressText}}');
+    expect(playTemplate).toContain('{{opponentProgressText}}');
     expect(resultScript).toContain('response.bestCombo');
     expect(resultScript).toContain('response.accuracy');
+  });
+
+  it('allocates the shared progress bar by both players answered counts', () => {
+    const playScript = readMiniappFile('pages/battle/play.ts');
+
+    expect(playScript).toContain(
+      'const combinedAnsweredCount = normalizedMy + normalizedOpponent;',
+    );
+    expect(playScript).toContain(
+      '(normalizedMy / combinedAnsweredCount) * 100',
+    );
+    expect(playScript).toContain('100 - myShare');
+    expect(playScript).toContain('myShare.toFixed(2)');
+    expect(playScript).toContain('opponentShare.toFixed(2)');
+    expect((5 / (5 + 10)) * 100).toBeCloseTo(33.33, 2);
+    expect((10 / (5 + 10)) * 100).toBeCloseTo(66.67, 2);
+  });
+
+  it('loads player cards from the existing room detail and keeps Rating optional', () => {
+    const playScript = readMiniappFile('pages/battle/play.ts');
+    const playTemplate = readMiniappFile('pages/battle/play.wxml');
+
+    expect(playScript).toContain('async loadPlayerContext()');
+    expect(playScript).toContain('this.applyPlayerContext(response)');
+    expect(playScript).toContain('payload.participants');
+    expect(playScript).toContain('participant.userId === currentUserId');
+    expect(playScript).toContain("ratingText: rating === null ? ''");
+    expect(playTemplate).toContain("myPlayer ? myPlayer.nicknameText : '我'");
+    expect(playTemplate).toContain(
+      "opponentPlayer ? opponentPlayer.nicknameText : '对手'",
+    );
+    expect(playTemplate).toContain('myPlayer && myPlayer.ratingText');
+    expect(playTemplate).toContain(
+      'opponentPlayer && opponentPlayer.ratingText',
+    );
+  });
+
+  it('opens a question overview for navigation, submit, and forfeit actions', () => {
+    const playScript = readMiniappFile('pages/battle/play.ts');
+    const playTemplate = readMiniappFile('pages/battle/play.wxml');
+
+    expect(playScript).toContain('handleOpenOverview()');
+    expect(playScript).toContain('handleCloseOverview()');
+    expect(playScript).toContain('handleOverviewSelectQuestion(');
+    expect(playScript).toContain('this.handleSelectQuestion(event)');
+    expect(playScript).toContain('this.handleSubmitBattle()');
+    expect(playScript).toContain('this.handleForfeitBattle()');
+    expect(playTemplate).toContain('bindtap="handleOpenOverview"');
+    expect(playTemplate).toContain('class="overview-backdrop"');
+    expect(playTemplate).toContain('catchtap="handleOverviewPanelTap"');
+    expect(playTemplate).toContain('bindtap="handleOverviewSelectQuestion"');
+    expect(playTemplate).toContain('bindtap="handleOverviewSubmit"');
+    expect(playTemplate).toContain('bindtap="handleOverviewForfeit"');
+  });
+
+  it('uses light and dark Battle tokens without component-level color literals', () => {
+    const playConfig = readMiniappFile('pages/battle/play.json');
+    const playTemplate = readMiniappFile('pages/battle/play.wxml');
+    const playStyle = readMiniappFile('pages/battle/play.wxss');
+    const componentRules = playStyle.slice(playStyle.indexOf('.battle-page'));
+
+    expect(playConfig).toContain('"navigationStyle": "custom"');
+    expect(playTemplate).toContain('battle-theme-{{themeMode}}');
+    expect(playStyle).toContain('.battle-theme-dark');
+    expect(playStyle).toContain('.battle-theme-light');
+    expect(playStyle).toContain('--battle-success: #10b981;');
+    expect(playStyle).toContain('--battle-danger: #ef4444;');
+    expect(componentRules).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
+  });
+
+  it('does not render correctness, scores, accuracy, or live Combo during play', () => {
+    const playTemplate = readMiniappFile('pages/battle/play.wxml');
+
+    expect(playTemplate).not.toContain('correctCount');
+    expect(playTemplate).not.toContain('wrongCount');
+    expect(playTemplate).not.toContain('isCorrect');
+    expect(playTemplate).not.toContain('accuracy');
+    expect(playTemplate).not.toContain('opponentCombo');
+    expect(playTemplate).not.toContain('bestCombo');
+    expect(playTemplate).not.toContain('实时得分');
+    expect(playTemplate).not.toContain('实时正确');
+    expect(playTemplate).not.toContain('Combo');
   });
 
   it('shows the total leaderboard first and switches scopes in place', () => {
@@ -49,7 +134,9 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(indexTemplate).toContain('总榜');
     expect(indexTemplate).toContain('Python 榜');
     expect(indexTemplate).toContain('bindtap="handleLeaderboardScopeChange"');
-    expect(indexTemplate).toContain("leaderboardScope === 'PYTHON' ? '排位胜率' : '总榜胜率'");
+    expect(indexTemplate).toContain(
+      "leaderboardScope === 'PYTHON' ? '排位胜率' : '总榜胜率'",
+    );
     expect(indexTemplate).not.toContain('{{item.winRateText}} 胜率');
     expect(indexTemplate).not.toContain('全部榜单');
   });
@@ -118,11 +205,12 @@ describe('miniapp Battle live state and skill leaderboard', () => {
       "const isTrainingMode = payload.mode === 'TRAINING'",
     );
     expect(playScript).toContain('this.data.isTrainingMode ||');
-    expect(playTemplate).toMatch(
-      /wx:if="\{\{state === 'PLAYING' \|\| state === 'COUNTDOWN'\}\}"\s+class="primary-button submit-battle-button/,
-    );
-    expect(playTemplate).toMatch(
-      /wx:if="\{\{!isTrainingMode && \(state === 'PLAYING' \|\| state === 'COUNTDOWN'\)\}\}"\s+class="ghost-button forfeit-button/,
+    expect(playScript).toContain('opponentPlayer: null');
+    expect(playTemplate).toContain('bindtap="handleOverviewSubmit"');
+    expect(playTemplate).toContain('wx:if="{{!isTrainingMode}}"');
+    expect(playTemplate).toContain('bindtap="handleOverviewForfeit"');
+    expect(playTemplate).toContain(
+      "class=\"overview-actions {{isTrainingMode ? 'overview-actions-training' : ''}}\"",
     );
   });
 

@@ -1,4 +1,4 @@
-<view class="page-shell login-page">
+<view class="page-shell login-page theme-{{resolvedTheme}}">
   <view class="section-card hero-card">
     <text class="hero-eyebrow">统一认证</text>
     <text class="hero-title">微信登录</text>

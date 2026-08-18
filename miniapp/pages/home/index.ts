@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type { CourseListData, CourseListItem } from '../../types/course';
 import { formatDifficulty, formatMinutes } from '../../utils/course';
 import { request } from '../../utils/request';
@@ -15,7 +16,7 @@ type HomePageData = {
   >;
 };
 
-Page<HomePageData>({
+registerThemedPage<HomePageData>({
   data: {
     state: 'loading',
     errorMessage: '',

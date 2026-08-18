@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type { LoginResponseData } from "../../types/auth";
 import {
   finishLoginNavigation,
@@ -122,7 +123,7 @@ async function mockOpenIdLogin(mockOpenId: TestPlayerOpenId) {
   });
 }
 
-Page<LoginPageData>({
+registerThemedPage<LoginPageData>({
   data: {
     isWechatSubmitting: false,
     testSubmittingOpenId: "",

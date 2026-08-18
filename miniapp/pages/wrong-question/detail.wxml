@@ -1,4 +1,4 @@
-<view class="page-shell wrong-question-detail-page">
+<view class="page-shell wrong-question-detail-page theme-{{resolvedTheme}}">
   <view wx:if="{{state === 'loading'}}" class="section-card state-box">
     <text class="state-title">错题详情加载中</text>
     <text class="state-text">正在获取错题详情，请稍候。</text>

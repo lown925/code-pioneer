@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   PracticeAnswerResponse,
   PracticeAttemptResponse,
@@ -60,7 +61,7 @@ const QUESTION_COUNTS = [5, 10, 20];
 let isPageActive = false;
 let isSubmitting = false;
 
-Page<PracticePageData>({
+registerThemedPage<PracticePageData>({
   data: {
     state: "LOADING",
     errorMessage: "",

@@ -1,4 +1,4 @@
-<view class="page-shell profile-page">
+<view class="page-shell profile-page theme-{{resolvedTheme}}">
   <view wx:if="{{!isAuthenticated}}" class="section-card guest-card">
     <text class="guest-title">登录后查看个人主页</text>
     <text class="guest-copy">
@@ -69,4 +69,12 @@
       </button>
     </view>
   </block>
+
+  <view class="section-card settings-card" bindtap="handleSettings">
+    <view class="settings-entry-copy">
+      <text class="settings-entry-title">设置</text>
+      <text class="settings-entry-subtitle">主题模式：{{themeMode === 'system' ? '跟随系统' : themeMode === 'dark' ? '深色模式' : '浅色模式'}}</text>
+    </view>
+    <text class="settings-entry-arrow">›</text>
+  </view>
 </view>

@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type { CourseDetailData, CourseChapter } from '../../types/course';
 import type { CourseProgressResponse, LearningStatus } from '../../types/learning';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
@@ -134,7 +135,7 @@ function navigateBackOrCourseList() {
   });
 }
 
-Page<CourseDetailPageData>({
+registerThemedPage<CourseDetailPageData>({
   data: {
     state: 'loading',
     errorMessage: '',

@@ -1,4 +1,4 @@
-<view class="page-shell matchmaking-page">
+<view class="page-shell matchmaking-page theme-{{resolvedTheme}}">
   <view class="section-card hero-card">
     <text class="hero-eyebrow">随机匹配</text>
     <text class="hero-title">Battle 匹配池</text>

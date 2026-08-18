@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   BattleProfileResponse,
   BattleRoomSummaryResponse,
@@ -148,7 +149,7 @@ function getNavigationMetrics() {
   };
 }
 
-Page<FriendRoomPageData, FriendRoomPageMethods>({
+registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
   data: {
     navTopPadding: 0,
     navBarHeight: 44,

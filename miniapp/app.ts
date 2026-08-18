@@ -4,14 +4,18 @@ import {
   API_CONFIG_ERROR_MESSAGE,
   CURRENT_ENV_VERSION,
 } from './utils/config';
+import { initializeTheme, syncSystemTheme } from './utils/theme';
 
 App<IAppOption>({
   onLaunch() {
     const authState = initializeAuthState();
+    const theme = initializeTheme();
 
     this.globalData.authState = authState;
     this.globalData.envVersion = CURRENT_ENV_VERSION;
     this.globalData.apiConfigErrorMessage = API_CONFIG_ERROR_MESSAGE;
+    this.globalData.themeMode = theme.mode;
+    this.globalData.resolvedTheme = theme.resolvedTheme;
 
     if (API_CONFIG_ERROR_MESSAGE) {
       (
@@ -32,6 +36,13 @@ App<IAppOption>({
     }
   },
 
+  onShow() {
+    const theme = syncSystemTheme();
+
+    this.globalData.themeMode = theme.mode;
+    this.globalData.resolvedTheme = theme.resolvedTheme;
+  },
+
   globalData: {
     apiBaseUrl: API_BASE_URL,
     apiConfigErrorMessage: API_CONFIG_ERROR_MESSAGE,
@@ -42,5 +53,7 @@ App<IAppOption>({
       envVersion: CURRENT_ENV_VERSION,
     },
     envVersion: CURRENT_ENV_VERSION,
+    themeMode: 'system',
+    resolvedTheme: 'light',
   },
 });

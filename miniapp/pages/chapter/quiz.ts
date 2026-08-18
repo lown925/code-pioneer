@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type { BattleContentBlock } from "../../types/battle";
 import type {
   ChapterQuizData,
@@ -335,7 +336,7 @@ function mapQuestions(
     );
 }
 
-Page<ChapterQuizPageData>({
+registerThemedPage<ChapterQuizPageData>({
   data: {
     state: "loading",
     chapterId: "",

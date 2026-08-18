@@ -1,4 +1,4 @@
-<view class="page-shell result-page">
+<view class="page-shell result-page theme-{{resolvedTheme}}">
   <view class="section-card hero-card">
     <text class="hero-eyebrow">Battle 结果</text>
     <text class="hero-title">{{titleText}}</text>

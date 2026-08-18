@@ -1,4 +1,4 @@
-<view class="page-shell battle-page">
+<view class="page-shell battle-page theme-{{resolvedTheme}}">
   <view class="hero-card">
     <view class="hero-glow hero-glow-top"></view>
     <view class="hero-glow hero-glow-bottom"></view>

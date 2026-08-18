@@ -1,3 +1,5 @@
+@import "../../app.wxss";
+
 .chapter-detail-page {
   display: flex;
   flex-direction: column;
@@ -26,13 +28,13 @@
 .top-course {
   font-size: 26rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .top-position {
   margin-top: 6rpx;
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .chapter-overview-card,
@@ -47,7 +49,7 @@
   display: block;
   font-size: 22rpx;
   font-weight: 600;
-  color: #2f6bff;
+  color: var(--color-primary);
   letter-spacing: 2rpx;
 }
 
@@ -57,7 +59,7 @@
   font-size: 42rpx;
   font-weight: 700;
   line-height: 1.35;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .chapter-overview-summary {
@@ -65,7 +67,7 @@
   margin-top: 16rpx;
   font-size: 26rpx;
   line-height: 1.7;
-  color: #5f7596;
+  color: var(--color-text-secondary);
 }
 
 .chapter-overview-meta {
@@ -78,24 +80,24 @@
 .chapter-overview-pill {
   padding: 12rpx 18rpx;
   border-radius: 999rpx;
-  background: #eef4ff;
+  background: var(--color-primary-soft);
   font-size: 22rpx;
-  color: #2f6bff;
+  color: var(--color-primary);
 }
 
 .chapter-overview-pill-status.status-learning {
-  background: #ebf3ff;
-  color: #2f6bff;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
 }
 
 .chapter-overview-pill-status.status-completed {
-  background: #e8f8ef;
-  color: #159455;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .chapter-overview-pill-status.status-not-started {
-  background: #f0f4f9;
-  color: #7d8aa5;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-tertiary);
 }
 
 .content-block-list {
@@ -105,12 +107,12 @@
 }
 
 .heading-card {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  background: linear-gradient(180deg, var(--color-card) 0%, var(--color-card-elevated) 100%);
 }
 
 .heading-text {
   display: block;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .heading-level-1 {
@@ -143,18 +145,18 @@
   display: block;
   font-size: 28rpx;
   line-height: 1.8;
-  color: #31567f;
+  color: var(--color-text-primary);
   white-space: pre-wrap;
 }
 
 .callout-card {
-  border-left: 8rpx solid #2f6bff;
-  background: #f5f9ff;
+  border-left: 8rpx solid var(--color-primary);
+  background: var(--color-card-subtle);
 }
 
 .callout-warning {
-  border-left-color: #f59e0b;
-  background: #fff8e7;
+  border-left-color: var(--color-warning);
+  background: var(--color-warning-soft);
 }
 
 .callout-title,
@@ -162,7 +164,7 @@
   display: block;
   font-size: 28rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .callout-text,
@@ -176,12 +178,12 @@
 }
 
 .example-description {
-  color: #4f6788;
+  color: var(--color-text-secondary);
   font-weight: 600;
 }
 
 .code-card {
-  background: #101d35;
+  background: var(--color-code-bg);
 }
 
 .code-card-head {
@@ -202,7 +204,7 @@
   min-height: 60rpx;
   padding: 0 24rpx;
   background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  color: var(--color-text-inverse);
 }
 
 .code-caption {
@@ -231,16 +233,16 @@
   width: 100%;
   border-radius: 22rpx;
   overflow: hidden;
-  background: #eef4ff;
+  background: var(--color-primary-soft);
 }
 
 .image-alt {
-  color: #17324d;
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
 .example-card {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  background: linear-gradient(180deg, var(--color-card) 0%, var(--color-card-elevated) 100%);
 }
 
 .chapter-action-card {
@@ -251,7 +253,7 @@
   margin-top: 24rpx;
   border-radius: 999rpx;
   background: #17324d;
-  color: #ffffff;
+  color: var(--color-text-inverse);
   font-size: 28rpx;
   font-weight: 600;
   line-height: 84rpx;
@@ -276,7 +278,7 @@
   min-height: 112rpx;
   padding: 20rpx 24rpx;
   border-radius: 24rpx;
-  background: #eef4ff;
+  background: var(--color-primary-soft);
 }
 
 .nav-action-next {
@@ -289,14 +291,14 @@
 
 .nav-action-label {
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .nav-action-title {
   margin-top: 10rpx;
   font-size: 26rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .nav-position {
@@ -311,7 +313,7 @@
 
 .nav-position-text {
   font-size: 22rpx;
-  color: #ffffff;
+  color: var(--color-text-inverse);
 }
 
 .catalog-mask {
@@ -340,7 +342,7 @@
 .catalog-fab-text {
   font-size: 24rpx;
   font-weight: 700;
-  color: #2f6bff;
+  color: var(--color-primary);
 }
 
 .catalog-sheet {
@@ -349,7 +351,7 @@
   right: 24rpx;
   bottom: 24rpx;
   border-radius: 32rpx;
-  background: #ffffff;
+  background: var(--color-card);
   box-shadow: 0 24rpx 60rpx rgba(23, 50, 77, 0.18);
   max-height: 70vh;
   overflow: hidden;
@@ -365,7 +367,7 @@
   display: block;
   font-size: 32rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .catalog-sheet-subtitle,
@@ -374,7 +376,7 @@
   display: block;
   margin-top: 8rpx;
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .catalog-list {
@@ -391,19 +393,19 @@
   gap: 16rpx;
   padding: 18rpx;
   border-radius: 22rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .catalog-item-current {
-  background: #eef4ff;
+  background: var(--color-primary-soft);
 }
 
 .catalog-order {
   width: 48rpx;
   height: 48rpx;
   border-radius: 16rpx;
-  background: #2f6bff;
-  color: #ffffff;
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
   font-size: 22rpx;
   font-weight: 700;
   text-align: center;
@@ -418,6 +420,6 @@
 
 .catalog-current {
   margin-top: 0;
-  color: #2f6bff;
+  color: var(--color-primary);
   font-weight: 700;
 }

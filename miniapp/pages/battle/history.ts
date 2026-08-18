@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   BattleHistoryListItemResponse,
   BattleHistoryQuery,
@@ -103,7 +104,7 @@ let isPageActive = false;
 let isRequesting = false;
 let requestSerial = 0;
 
-Page<HistoryPageData, HistoryPageMethods>({
+registerThemedPage<HistoryPageData, HistoryPageMethods>({
   data: {
     state: 'loading',
     errorMessage: '',

@@ -7,6 +7,7 @@ import {
   redirectToLogin,
 } from '../../utils/auth';
 import { request, RequestError } from '../../utils/request';
+import { registerThemedPage } from '../../utils/theme-page';
 
 type ProfileMetricKey = 'battleHistory' | 'wrongQuestion';
 
@@ -52,6 +53,7 @@ type ProfilePageMethods = {
   ): void;
   handleLearningEntry(): void;
   handleEditProfile(): void;
+  handleSettings(): void;
   handleLogout(): Promise<void>;
   mapBattleSummary(data: BattleProfileResponse): ProfileBattleSummary;
   mapWrongQuestionSummary(
@@ -86,7 +88,7 @@ function getLogoutErrorMessage(error: unknown) {
   return '退出接口调用失败，已清理本地登录态';
 }
 
-Page<ProfilePageData, ProfilePageMethods>({
+registerThemedPage<ProfilePageData, ProfilePageMethods>({
   data: {
     isAuthenticated: false,
     user: null,
@@ -281,6 +283,12 @@ Page<ProfilePageData, ProfilePageMethods>({
 
     wx.navigateTo({
       url: '/pages/profile/edit',
+    });
+  },
+
+  handleSettings() {
+    wx.navigateTo({
+      url: '/pages/settings/index',
     });
   },
 

@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   BattleLeaderboardItem,
   BattleLeaderboardQuery,
@@ -80,7 +81,7 @@ let isPageActive = false;
 let isRequesting = false;
 let requestSerial = 0;
 
-Page<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
+registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
   data: {
     state: 'loading',
     errorMessage: '',

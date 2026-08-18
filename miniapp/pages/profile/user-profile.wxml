@@ -1,4 +1,4 @@
-<view class="page-shell user-profile-page">
+<view class="page-shell user-profile-page theme-{{resolvedTheme}}">
   <view wx:if="{{state === 'loading'}}" class="section-card state-box">
     <text class="state-title">用户主页加载中</text>
     <text class="state-text">正在获取用户信息，请稍候。</text>

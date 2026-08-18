@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type { LearningCourseItem, LearningListResponse } from '../../types/learning';
 import { redirectToLogin } from '../../utils/auth';
 import { request } from '../../utils/request';
@@ -28,7 +29,7 @@ let isPageActive = false;
 let isRequesting = false;
 let requestSerial = 0;
 
-Page<MyCoursesPageData>({
+registerThemedPage<MyCoursesPageData>({
   data: {
     state: 'loading',
     errorMessage: '',

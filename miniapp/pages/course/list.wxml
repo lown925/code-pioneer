@@ -1,4 +1,4 @@
-<view class="page-shell course-list-page">
+<view class="page-shell course-list-page theme-{{resolvedTheme}}">
   <view class="course-hero">
     <text class="hero-eyebrow">COURSE LIBRARY</text>
     <text class="hero-title">选择课程</text>

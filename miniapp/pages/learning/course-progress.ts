@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type { CourseDetailData } from '../../types/course';
 import type {
   CourseProgressChapter,
@@ -122,7 +123,7 @@ let hasLoadedOnce = false;
 let hasShownOnce = false;
 let requestSerial = 0;
 
-Page<CourseProgressPageData, CourseProgressPageMethods>({
+registerThemedPage<CourseProgressPageData, CourseProgressPageMethods>({
   data: {
     state: 'loading',
     errorTitle: '',

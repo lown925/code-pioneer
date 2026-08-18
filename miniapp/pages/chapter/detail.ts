@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   ChapterContentBlock,
   ChapterDetailData,
@@ -294,7 +295,7 @@ function isPrimaryActionDisabled(
 let isPageActive = false;
 let hasShownOnce = false;
 
-Page<ChapterDetailPageData>({
+registerThemedPage<ChapterDetailPageData>({
   data: {
     state: 'loading',
     errorMessage: '',

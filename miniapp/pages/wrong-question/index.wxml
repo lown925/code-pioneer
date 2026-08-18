@@ -1,4 +1,4 @@
-<view class="page-shell wrong-question-page">
+<view class="page-shell wrong-question-page theme-{{resolvedTheme}}">
   <view class="section-card hero-card">
     <text class="hero-eyebrow">错题中心</text>
     <text class="hero-title">统一错题中心</text>

@@ -28,12 +28,12 @@
   padding: 22rpx;
   border: 2rpx solid rgba(47, 107, 255, 0.1);
   border-radius: 22rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .skill-option-selected {
-  border-color: #2f6bff;
-  background: #eef4ff;
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
 }
 
 .skill-option-locked {
@@ -48,18 +48,18 @@
 .skill-name {
   font-size: 28rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .skill-status {
   margin-top: 8rpx;
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .skill-check,
 .locked-skill {
-  color: #2f6bff;
+  color: var(--color-primary);
   font-weight: 700;
 }
 
@@ -74,8 +74,8 @@
 }
 
 .hero-card {
-  background: linear-gradient(145deg, #17324d 0%, #2f6bff 100%);
-  color: #ffffff;
+  background: linear-gradient(145deg, #17324d 0%, var(--color-primary) 100%);
+  color: var(--color-text-inverse);
 }
 
 .hero-eyebrow {
@@ -118,7 +118,7 @@
 .timer-card {
   padding: 22rpx;
   border-radius: 22rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .rating-label,
@@ -126,7 +126,7 @@
 .matched-label {
   display: block;
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .rating-value,
@@ -135,7 +135,7 @@
   margin-top: 10rpx;
   font-size: 38rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .waiting-count-line {
@@ -145,7 +145,7 @@
 }
 
 .waiting-count-unit {
-  color: #6e84a3;
+  color: var(--color-text-secondary);
   font-size: 22rpx;
   font-weight: 600;
 }
@@ -158,7 +158,7 @@
   margin-top: 24rpx;
   padding: 22rpx;
   border-radius: 22rpx;
-  background: #eef4ff;
+  background: var(--color-primary-soft);
 }
 
 .training-offer {
@@ -166,7 +166,7 @@
   padding: 24rpx;
   border: 2rpx solid rgba(47, 107, 255, 0.16);
   border-radius: 22rpx;
-  background: linear-gradient(145deg, #f4f8ff 0%, #eef8f5 100%);
+  background: linear-gradient(145deg, #f4f8ff 0%, var(--color-success-soft) 100%);
 }
 
 .training-title,
@@ -175,14 +175,14 @@
 }
 
 .training-title {
-  color: #17324d;
+  color: var(--color-text-primary);
   font-size: 28rpx;
   font-weight: 700;
 }
 
 .training-copy {
   margin-top: 10rpx;
-  color: #5b718d;
+  color: var(--color-text-secondary);
   font-size: 24rpx;
   line-height: 1.7;
 }
@@ -199,7 +199,7 @@
   margin-top: 10rpx;
   font-size: 24rpx;
   line-height: 1.6;
-  color: #17324d;
+  color: var(--color-text-primary);
   word-break: break-all;
 }
 
@@ -208,7 +208,7 @@
   margin-top: 22rpx;
   font-size: 24rpx;
   line-height: 1.7;
-  color: #c24343;
+  color: var(--color-danger);
 }
 
 .action-row {

@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   BattleEndReason,
   BattleMode,
@@ -104,7 +105,7 @@ let requestSerial = 0;
 let pollTimer: number | null = null;
 let isResultRequesting = false;
 
-Page<ResultPageData, ResultPageMethods>({
+registerThemedPage<ResultPageData, ResultPageMethods>({
   data: {
     battleId: '',
     isValidBattleId: false,

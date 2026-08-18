@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type { CurrentUserProfile } from '../../types/user';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
@@ -36,7 +37,7 @@ type GrowthPageMethods = {
 let isPageActive = false;
 let requestSerial = 0;
 
-Page<GrowthPageData, GrowthPageMethods>({
+registerThemedPage<GrowthPageData, GrowthPageMethods>({
   data: {
     state: 'loading',
     errorMessage: '',

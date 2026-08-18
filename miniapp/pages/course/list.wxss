@@ -10,8 +10,8 @@
 .course-hero {
   padding: 28rpx;
   border-radius: 28rpx;
-  background: linear-gradient(135deg, #173f70, #2f6bff);
-  color: #fff;
+  background: linear-gradient(135deg, #173f70, var(--color-primary));
+  color: var(--color-text-inverse);
 }
 
 .hero-eyebrow {
@@ -49,15 +49,15 @@
 .filter-chip {
   padding: 14rpx 24rpx;
   border-radius: 999rpx;
-  background: #fff;
-  color: #65768d;
+  background: var(--color-card);
+  color: var(--color-text-secondary);
   font-size: 22rpx;
   box-shadow: 0 7rpx 18rpx rgba(23, 50, 77, 0.06);
 }
 
 .filter-chip-active {
-  background: #2f6bff;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
   font-weight: 700;
 }
 
@@ -70,8 +70,8 @@
 }
 
 .course-card-selected {
-  border-color: #d6e2ff;
-  background: linear-gradient(135deg, #fff, #f7f9ff);
+  border-color: var(--color-border);
+  background: linear-gradient(135deg, var(--color-card), #f7f9ff);
 }
 
 .course-cover {
@@ -83,8 +83,8 @@
   min-height: 176rpx;
   overflow: hidden;
   border-radius: 22rpx;
-  background: #e9f1ff;
-  color: #2f6bff;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   font-size: 28rpx;
   font-weight: 700;
 }
@@ -108,8 +108,8 @@
 .course-tags text {
   padding: 5rpx 10rpx;
   border-radius: 999rpx;
-  background: #edf3ff;
-  color: #2f6bff;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
   font-size: 17rpx;
 }
 
@@ -117,7 +117,7 @@
   display: block;
   margin-top: 10rpx;
   overflow: hidden;
-  color: #17324d;
+  color: var(--color-text-primary);
   font-size: 28rpx;
   font-weight: 700;
   text-overflow: ellipsis;
@@ -128,7 +128,7 @@
   display: -webkit-box;
   overflow: hidden;
   margin-top: 7rpx;
-  color: #667b95;
+  color: var(--color-text-secondary);
   font-size: 20rpx;
   line-height: 1.5;
   -webkit-box-orient: vertical;
@@ -139,12 +139,12 @@
 .course-progress {
   display: block;
   margin-top: 10rpx;
-  color: #8291a5;
+  color: var(--color-text-tertiary);
   font-size: 18rpx;
 }
 
 .course-progress {
-  color: #60758f;
+  color: var(--color-text-secondary);
 }
 
 .course-side {
@@ -162,8 +162,8 @@
   width: 138rpx;
   padding: 16rpx 8rpx;
   border-radius: 18rpx;
-  background: #2f6bff;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
   font-size: 20rpx;
   font-weight: 700;
   text-align: center;
@@ -171,9 +171,9 @@
 }
 
 .selection-button-selected {
-  border: 2rpx solid #b9c9e7;
-  background: #f1f4f9;
-  color: #5d718d;
+  border: 2rpx solid var(--color-border-strong);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
 }
 
 .selection-button-disabled {

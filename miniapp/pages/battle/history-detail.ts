@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   BattleContentBlock,
   BattleHistoryDetailResponse,
@@ -160,7 +161,7 @@ let hasLoadedOnce = false;
 let requestSerial = 0;
 let isRequesting = false;
 
-Page<DetailPageData, DetailPageMethods>({
+registerThemedPage<DetailPageData, DetailPageMethods>({
   data: {
     battleId: '',
     isValidBattleId: false,

@@ -1,4 +1,4 @@
-<view class="page-shell history-detail-page">
+<view class="page-shell history-detail-page theme-{{resolvedTheme}}">
   <view class="section-card hero-card">
     <text class="hero-eyebrow">Battle 复盘</text>
     <text class="hero-title">{{titleText}}</text>

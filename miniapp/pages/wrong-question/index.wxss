@@ -16,8 +16,8 @@
 }
 
 .hero-card {
-  background: linear-gradient(145deg, #17324d 0%, #2f6bff 100%);
-  color: #ffffff;
+  background: linear-gradient(145deg, #17324d 0%, var(--color-primary) 100%);
+  color: var(--color-text-inverse);
 }
 
 .hero-eyebrow {
@@ -81,7 +81,7 @@
 .statistics-item {
   padding: 22rpx;
   border-radius: 20rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .statistics-value {
@@ -89,7 +89,7 @@
   font-size: 34rpx;
   line-height: 1.3;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .statistics-time {
@@ -100,7 +100,7 @@
   display: block;
   margin-top: 8rpx;
   font-size: 24rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .wrong-question-list {
@@ -119,15 +119,15 @@
 .filter-chip {
   padding: 12rpx 20rpx;
   border-radius: 999rpx;
-  background: #f0f4f9;
-  color: #6e84a3;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
   font-size: 24rpx;
   font-weight: 700;
 }
 
 .filter-chip-active {
-  background: #edf3ff;
-  color: #2f6bff;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
 }
 
 .wrong-question-card {
@@ -146,31 +146,31 @@
 }
 
 .source-learning {
-  background: #ebf3ff;
-  color: #2f6bff;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
 }
 
 .source-battle {
-  background: #fff1f1;
-  color: #c24343;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 
 .source-practice {
-  background: #eaf8f3;
-  color: #178366;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .question-type {
   font-size: 22rpx;
   font-weight: 700;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .question-content {
   font-size: 30rpx;
   line-height: 1.58;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -185,21 +185,21 @@
 
 .question-meta-text {
   font-size: 24rpx;
-  color: #5f7596;
+  color: var(--color-text-secondary);
 }
 
 .question-count {
   padding: 8rpx 14rpx;
   border-radius: 999rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
   font-size: 22rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .question-time {
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .question-action-row {
@@ -210,7 +210,7 @@
 .question-link {
   font-size: 24rpx;
   font-weight: 600;
-  color: #2f6bff;
+  color: var(--color-primary);
 }
 
 .loading-more,
@@ -225,7 +225,7 @@
 .loading-more-text,
 .footer-error-text {
   font-size: 24rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .state-actions {

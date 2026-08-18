@@ -14,7 +14,7 @@
   margin: -32rpx -32rpx 0;
   padding-left: 24rpx;
   padding-right: 24rpx;
-  background: #f3f7fb;
+  background: var(--color-card-subtle);
 }
 
 .custom-nav-bar {
@@ -34,7 +34,7 @@
   transform: translateY(-50%);
   min-height: 64rpx;
   padding: 0 12rpx;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .custom-nav-back-icon {
@@ -46,7 +46,7 @@
 .custom-nav-title {
   font-size: 28rpx;
   font-weight: 600;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .hero-card,
@@ -59,7 +59,7 @@
 }
 
 .hero-card {
-  background: linear-gradient(145deg, #17324d 0%, #2f6bff 100%);
+  background: linear-gradient(145deg, #17324d 0%, var(--color-primary) 100%);
 }
 
 .hero-title {
@@ -67,7 +67,7 @@
   font-size: 40rpx;
   line-height: 1.35;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--color-text-inverse);
 }
 
 .hero-copy {
@@ -87,7 +87,7 @@
 
 .entry-card,
 .preview-card {
-  background: #ffffff;
+  background: var(--color-card);
 }
 
 .entry-title,
@@ -96,7 +96,7 @@
   display: block;
   font-size: 32rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .entry-copy,
@@ -112,7 +112,7 @@
 .entry-copy,
 .state-text,
 .preview-copy {
-  color: #5f7596;
+  color: var(--color-text-secondary);
 }
 
 .invite-input-box {
@@ -134,12 +134,12 @@
   padding: 22rpx;
   border: 2rpx solid rgba(47, 107, 255, 0.1);
   border-radius: 22rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .skill-option-selected {
-  border-color: #2f6bff;
-  background: #eef4ff;
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
 }
 
 .skill-name,
@@ -150,31 +150,31 @@
 .skill-name {
   font-size: 28rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .skill-copy {
   margin-top: 8rpx;
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .skill-check {
   font-size: 24rpx;
   font-weight: 700;
-  color: #2f6bff;
+  color: var(--color-primary);
 }
 
 .invite-input {
   min-height: 88rpx;
   padding: 0 24rpx;
   border-radius: 20rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
   border: 1rpx solid rgba(23, 50, 77, 0.08);
   font-size: 30rpx;
   font-weight: 700;
   letter-spacing: 6rpx;
-  color: #17324d;
+  color: var(--color-text-primary);
   text-transform: uppercase;
 }
 
@@ -188,13 +188,13 @@
 .preview-meta-item {
   padding: 20rpx;
   border-radius: 20rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .preview-meta-label {
   display: block;
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .preview-meta-value {
@@ -203,12 +203,12 @@
   font-size: 28rpx;
   line-height: 1.45;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
   word-break: break-word;
 }
 
 .inline-error-text {
-  color: #c24343;
+  color: var(--color-danger);
 }
 
 .action-button {

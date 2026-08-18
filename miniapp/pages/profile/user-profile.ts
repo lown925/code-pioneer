@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type { PublicUserProfileResponse } from '../../types/user';
 import { isUuid } from '../../utils/validation';
 import { fetchUserProfile, getUserErrorMessage } from '../../utils/user';
@@ -29,7 +30,7 @@ function getProfileInitial(profile: PublicUserProfileResponse | null) {
   return getDisplayName(profile).slice(0, 1) || '人';
 }
 
-Page<UserProfilePageData, UserProfilePageMethods>({
+registerThemedPage<UserProfilePageData, UserProfilePageMethods>({
   data: {
     state: 'loading',
     userId: '',

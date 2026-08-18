@@ -1,4 +1,4 @@
-<view class="page-shell home-page">
+<view class="page-shell home-page theme-{{resolvedTheme}}">
   <view class="hero section-card">
     <text class="hero-brand">码站先锋</text>
     <text class="hero-title">从一门课程开始，稳稳进入编程世界</text>

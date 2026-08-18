@@ -1,0 +1,24 @@
+<view class="page-shell settings-page theme-{{resolvedTheme}}">
+  <view class="settings-heading">
+    <text class="settings-title">主题模式</text>
+    <text class="settings-subtitle">选择后立即生效，并保存在当前设备。</text>
+  </view>
+
+  <view class="section-card theme-options-card">
+    <view
+      wx:for="{{themeOptions}}"
+      wx:key="mode"
+      class="theme-option {{item.isSelected ? 'theme-option-selected' : ''}}"
+      data-mode="{{item.mode}}"
+      bindtap="handleThemeModeChange"
+    >
+      <view class="theme-option-indicator {{item.isSelected ? 'theme-option-indicator-selected' : ''}}">
+        <view wx:if="{{item.isSelected}}" class="theme-option-indicator-dot"></view>
+      </view>
+      <view class="theme-option-copy">
+        <text class="theme-option-title">{{item.title}}</text>
+        <text class="theme-option-description">{{item.description}}</text>
+      </view>
+    </view>
+  </view>
+</view>

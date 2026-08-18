@@ -1,4 +1,4 @@
-<view class="page-shell profile-edit-page">
+<view class="page-shell profile-edit-page theme-{{resolvedTheme}}">
   <view class="intro-card">
     <text class="intro-eyebrow">个人名片</text>
     <text class="intro-title">让队友认识真实的你</text>

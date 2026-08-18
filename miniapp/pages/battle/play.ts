@@ -1,9 +1,11 @@
 import type {
   BattleAnswerSubmissionResponse,
   BattleContentBlock,
+  BattleParticipantSummary,
   BattleQuestionItemResponse,
   BattleQuestionOptionSnapshotResponse,
   BattleQuestionsResponse,
+  BattleRoomDetailResponse,
   PendingBattleResultResponse,
   BattleResultResponse,
   BattleSubmitActionResponse,
@@ -12,11 +14,15 @@ import type {
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatBattleDuration,
+  formatBattleInitial,
+  formatBattleNickname,
   generateBattleClientRequestId,
   getBattleErrorMessage,
   showBattleConfirmModal,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
+import { registerThemedPage } from '../../utils/theme-page';
+import type { ResolvedTheme, ThemeMode } from '../../utils/theme';
 
 declare function clearTimeout(timeoutId: number): void;
 
@@ -25,7 +31,14 @@ type PlayPageState =
 
 type QuestionType = 'SINGLE_CHOICE' | 'CODE_FILL';
 type QuestionSyncState = 'idle' | 'saving' | 'error' | 'saved';
-type QuestionNavState = 'current' | 'answered' | 'saving' | 'error' | 'pending';
+type QuestionOverviewState = 'current' | 'answered' | 'pending';
+
+type BattlePlayerCard = {
+  nicknameText: string;
+  avatarUrl: string;
+  avatarFallbackText: string;
+  ratingText: string;
+};
 
 type ViewBlock = BattleContentBlock & {
   blockKey: string;
@@ -43,7 +56,6 @@ type OptionCard = {
 type QuestionCard = {
   battleQuestionId: string;
   orderIndex: number;
-  questionNumberText: string;
   questionType: QuestionType;
   questionTypeText: string;
   difficultyText: string;
@@ -64,11 +76,15 @@ type QuestionCard = {
   syncState: QuestionSyncState;
   syncErrorMessage: string;
   syncStatusText: string;
-  navStatus: QuestionNavState;
+  overviewStatus: QuestionOverviewState;
   navLabel: string;
 };
 
 type PlayPageData = {
+  navTopPadding: number;
+  navBarHeight: number;
+  themeMode: ThemeMode;
+  resolvedTheme: ResolvedTheme;
   battleId: string;
   isValidBattleId: boolean;
   state: PlayPageState;
@@ -84,17 +100,26 @@ type PlayPageData = {
   isBattleActionPending: boolean;
   isTrainingMode: boolean;
   totalQuestionsText: string;
+  myAnsweredCount: number;
+  opponentAnsweredCount: number | null;
   myProgressText: string;
   opponentProgressText: string;
   myProgressStyle: string;
   opponentProgressStyle: string;
+  hasProgressActivity: boolean;
   mySubmittedText: string;
   opponentSubmittedText: string;
+  myPlayer: BattlePlayerCard | null;
+  opponentPlayer: BattlePlayerCard | null;
+  isOverviewOpen: boolean;
   questions: QuestionCard[];
 };
 
 type PlayPageMethods = {
   ensureAuthenticated(): boolean;
+  loadPlayerContext(): Promise<void>;
+  applyPlayerContext(payload: BattleRoomDetailResponse): void;
+  mapPlayer(participant: BattleParticipantSummary | null): BattlePlayerCard | null;
   loadQuestions(options?: { preservePosition?: boolean }): Promise<void>;
   applyQuestionResponse(
     payload: BattleQuestionsResponse,
@@ -119,6 +144,12 @@ type PlayPageMethods = {
   handlePrevQuestion(): void;
   handleNextQuestion(): void;
   handleSelectQuestion(event: WechatMiniprogram.BaseEvent<{ index?: number }>): void;
+  handleOpenOverview(): void;
+  handleCloseOverview(): void;
+  handleOverviewPanelTap(): void;
+  handleOverviewSelectQuestion(event: WechatMiniprogram.BaseEvent<{ index?: number }>): void;
+  handleOverviewSubmit(): void;
+  handleOverviewForfeit(): void;
   handleOptionSelect(
     event: WechatMiniprogram.BaseEvent<{
       questionId?: string;
@@ -168,11 +199,7 @@ type PlayPageMethods = {
     questions: QuestionCard[];
     currentQuestionIndex: number;
   };
-  mapQuestion(
-    item: BattleQuestionItemResponse,
-    previous: QuestionCard | null,
-    isCurrent: boolean,
-  ): QuestionCard;
+  mapQuestion(item: BattleQuestionItemResponse, previous: QuestionCard | null): QuestionCard;
   mapBlocks(
     blocks: BattleContentBlock[],
     keyPrefix: string,
@@ -186,7 +213,7 @@ type PlayPageMethods = {
   ): OptionCard[];
   getCurrentQuestion(): QuestionCard | null;
   replaceQuestion(question: QuestionCard): void;
-  rebuildNavStatus(questions: QuestionCard[], currentQuestionIndex: number): QuestionCard[];
+  rebuildQuestionStatuses(questions: QuestionCard[], currentQuestionIndex: number): QuestionCard[];
   updateQuestionDraft(questionId: string, updater: (question: QuestionCard) => QuestionCard): void;
   findQuestion(questionId: string): QuestionCard | null;
   getReadableError(error: unknown, fallback: string): string;
@@ -211,23 +238,94 @@ const SETTLEMENT_POLL_MS = 1800;
 const RESULT_POLL_MS = 1800;
 const CODE_FILL_MAX_LENGTH = 4000;
 const CODE_FILL_AUTOSAVE_DELAY_MS = 650;
+const BATTLE_NATIVE_COLOR_TOKENS = {
+  success: '#10B981',
+  danger: '#EF4444',
+} as const;
 
 let isPageActive = false;
 let isPageVisible = false;
 let hasLoadedOnce = false;
+let hasLoadedPlayerContext = false;
 let requestSerial = 0;
+let playerContextRequestSerial = 0;
 let timeTicker: number | null = null;
 let countdownPollTicker: number | null = null;
 let settlementPollTicker: number | null = null;
 let resultPollTicker: number | null = null;
 let isQuestionsRequesting = false;
 let isResultRequesting = false;
+let isPlayerContextRequesting = false;
 let isBattleActionRequesting = false;
 let serverTimeOffsetMs = 0;
 let startedAtTimestampMs = 0;
 let expiresAtTimestampMs = 0;
 let hasRedirectedToResult = false;
 const questionSyncRuntimeMap = new Map<string, QuestionSyncRuntime>();
+
+function getNavigationMetrics() {
+  const systemInfo = (
+    wx as unknown as {
+      getSystemInfoSync: () => {
+        statusBarHeight?: number;
+      };
+    }
+  ).getSystemInfoSync();
+  const statusBarHeight = systemInfo.statusBarHeight ?? 20;
+  const menuButtonGetter = (
+    wx as unknown as {
+      getMenuButtonBoundingClientRect?: () => {
+        top: number;
+        height: number;
+      };
+    }
+  ).getMenuButtonBoundingClientRect;
+  const menuButtonRect = typeof menuButtonGetter === 'function' ? menuButtonGetter() : null;
+
+  if (!menuButtonRect) {
+    return {
+      navTopPadding: statusBarHeight,
+      navBarHeight: 44,
+    };
+  }
+
+  return {
+    navTopPadding: statusBarHeight,
+    navBarHeight: Math.max(44, menuButtonRect.height + (menuButtonRect.top - statusBarHeight) * 2),
+  };
+}
+
+function calculateProgressPresentation(
+  myAnsweredCount: number,
+  opponentAnsweredCount: number | null,
+  totalQuestions: number,
+  isTrainingMode: boolean,
+) {
+  const normalizedTotal = Math.max(0, totalQuestions);
+  const normalizedMy = Math.max(0, myAnsweredCount);
+  const normalizedOpponent = Math.max(0, opponentAnsweredCount ?? 0);
+
+  if (isTrainingMode) {
+    const completionPercent =
+      normalizedTotal === 0 ? 0 : Math.min(100, (normalizedMy / normalizedTotal) * 100);
+
+    return {
+      myProgressStyle: `width: ${completionPercent.toFixed(2)}%;`,
+      opponentProgressStyle: 'width: 0%;',
+      hasProgressActivity: normalizedMy > 0,
+    };
+  }
+
+  const combinedAnsweredCount = normalizedMy + normalizedOpponent;
+  const myShare = combinedAnsweredCount === 0 ? 0 : (normalizedMy / combinedAnsweredCount) * 100;
+  const opponentShare = combinedAnsweredCount === 0 ? 0 : 100 - myShare;
+
+  return {
+    myProgressStyle: `width: ${myShare.toFixed(2)}%;`,
+    opponentProgressStyle: `width: ${opponentShare.toFixed(2)}%;`,
+    hasProgressActivity: combinedAnsweredCount > 0,
+  };
+}
 
 function parseTimestamp(value: string | null | undefined) {
   if (!value) {
@@ -296,8 +394,12 @@ function wait(delayMs: number) {
   });
 }
 
-Page<PlayPageData, PlayPageMethods>({
+registerThemedPage<PlayPageData, PlayPageMethods>({
   data: {
+    navTopPadding: 0,
+    navBarHeight: 44,
+    themeMode: 'system',
+    resolvedTheme: 'light',
     battleId: '',
     isValidBattleId: false,
     state: 'LOADING',
@@ -313,12 +415,18 @@ Page<PlayPageData, PlayPageMethods>({
     isBattleActionPending: false,
     isTrainingMode: false,
     totalQuestionsText: '0',
+    myAnsweredCount: 0,
+    opponentAnsweredCount: 0,
     myProgressText: '0 / 0',
     opponentProgressText: '0 / 0',
     myProgressStyle: 'width: 0%;',
     opponentProgressStyle: 'width: 0%;',
+    hasProgressActivity: false,
     mySubmittedText: '作答中',
     opponentSubmittedText: '作答中',
+    myPlayer: null,
+    opponentPlayer: null,
+    isOverviewOpen: false,
     questions: [],
   },
 
@@ -326,10 +434,14 @@ Page<PlayPageData, PlayPageMethods>({
     isPageActive = true;
     isPageVisible = true;
     hasRedirectedToResult = false;
+    hasLoadedPlayerContext = false;
+    const navigationMetrics = getNavigationMetrics();
+    const currentUser = getAuthStateSummary().user;
     const battleId = typeof options?.battleId === 'string' ? options.battleId.trim() : '';
     const isValidBattleId = UUID_PATTERN.test(battleId);
 
     this.setData({
+      ...navigationMetrics,
       battleId,
       isValidBattleId,
       state: isValidBattleId ? 'LOADING' : 'ERROR',
@@ -338,6 +450,14 @@ Page<PlayPageData, PlayPageMethods>({
         ? '系统正在同步 Battle 题目、已答状态和剩余时间。'
         : '当前页面没有收到合法的 Battle 标识。',
       errorMessage: '',
+      myPlayer: currentUser
+        ? {
+            nicknameText: formatBattleNickname(currentUser.nickname),
+            avatarUrl: currentUser.avatarUrl ?? '',
+            avatarFallbackText: formatBattleInitial(currentUser.nickname),
+            ratingText: '',
+          }
+        : null,
     });
 
     if (!isValidBattleId) {
@@ -364,6 +484,9 @@ Page<PlayPageData, PlayPageMethods>({
 
   onHide() {
     isPageVisible = false;
+    if (this.data.isOverviewOpen) {
+      this.setData({ isOverviewOpen: false });
+    }
     this.stopTimeTicker();
     this.stopCountdownPolling();
     this.stopSettlementPolling();
@@ -375,7 +498,9 @@ Page<PlayPageData, PlayPageMethods>({
     isPageVisible = false;
     isPageActive = false;
     hasRedirectedToResult = false;
+    hasLoadedPlayerContext = false;
     requestSerial += 1;
+    playerContextRequestSerial += 1;
     this.stopTimeTicker();
     this.stopCountdownPolling();
     this.stopSettlementPolling();
@@ -411,6 +536,80 @@ Page<PlayPageData, PlayPageMethods>({
     return false;
   },
 
+  async loadPlayerContext() {
+    if (
+      !this.data.isValidBattleId ||
+      !this.ensureAuthenticated() ||
+      hasLoadedPlayerContext ||
+      isPlayerContextRequesting
+    ) {
+      return;
+    }
+
+    const currentRequestSerial = ++playerContextRequestSerial;
+    isPlayerContextRequesting = true;
+
+    try {
+      const response = await request<BattleRoomDetailResponse>({
+        url: `/battles/${encodeURIComponent(this.data.battleId)}`,
+        method: 'GET',
+        authMode: 'required',
+      });
+
+      if (!isPageActive || currentRequestSerial !== playerContextRequestSerial) {
+        return;
+      }
+
+      this.applyPlayerContext(response);
+      hasLoadedPlayerContext = true;
+    } catch {
+      // Player metadata is optional; the question flow remains authoritative.
+    } finally {
+      isPlayerContextRequesting = false;
+    }
+  },
+
+  applyPlayerContext(payload: BattleRoomDetailResponse) {
+    const currentUserId = getAuthStateSummary().user?.id ?? '';
+    const participants = [...payload.participants].sort((left, right) => left.seat - right.seat);
+    const myParticipant =
+      participants.find((participant) => participant.userId === currentUserId) ?? null;
+    const opponentParticipant =
+      payload.mode === 'TRAINING'
+        ? null
+        : (participants.find((participant) => participant.userId !== currentUserId) ?? null);
+
+    this.setData({
+      myPlayer: this.mapPlayer(myParticipant) ?? this.data.myPlayer,
+      opponentPlayer: this.mapPlayer(opponentParticipant),
+      isTrainingMode: payload.mode === 'TRAINING',
+    });
+  },
+
+  mapPlayer(participant: BattleParticipantSummary | null) {
+    if (!participant) {
+      return null;
+    }
+
+    const extendedParticipant = participant as BattleParticipantSummary & {
+      rating?: unknown;
+      skillRating?: unknown;
+    };
+    const rating =
+      typeof extendedParticipant.skillRating === 'number'
+        ? extendedParticipant.skillRating
+        : typeof extendedParticipant.rating === 'number'
+          ? extendedParticipant.rating
+          : null;
+
+    return {
+      nicknameText: formatBattleNickname(participant.nickname),
+      avatarUrl: participant.avatarUrl ?? '',
+      avatarFallbackText: formatBattleInitial(participant.nickname),
+      ratingText: rating === null ? '' : `Rating ${rating}`,
+    };
+  },
+
   async loadQuestions(options?: { preservePosition?: boolean }) {
     if (!this.data.isValidBattleId || !this.ensureAuthenticated() || isQuestionsRequesting) {
       return;
@@ -418,6 +617,7 @@ Page<PlayPageData, PlayPageMethods>({
 
     const currentRequestSerial = ++requestSerial;
     isQuestionsRequesting = true;
+    void this.loadPlayerContext();
 
     if (this.data.questions.length === 0) {
       this.setData({
@@ -480,6 +680,18 @@ Page<PlayPageData, PlayPageMethods>({
     const nextState = this.mapPlayState(payload);
     const isTrainingMode = payload.mode === 'TRAINING';
     const currentQuestionCard = built.questions[built.currentQuestionIndex] ?? null;
+    const myAnsweredCount = built.questions.filter((question) => question.answered).length;
+    const opponentAnsweredCount = isTrainingMode
+      ? null
+      : this.data.isTrainingMode
+        ? 0
+        : this.data.opponentAnsweredCount;
+    const progressPresentation = calculateProgressPresentation(
+      myAnsweredCount,
+      opponentAnsweredCount,
+      built.questions.length,
+      isTrainingMode,
+    );
 
     this.stopTimeTicker();
     this.stopCountdownPolling();
@@ -516,15 +728,19 @@ Page<PlayPageData, PlayPageMethods>({
       isBattleActionPending: false,
       isTrainingMode,
       totalQuestionsText: String(built.questions.length),
-      myProgressText: `${built.questions.filter((question) => question.answered).length} / ${built.questions.length}`,
-      myProgressStyle: `width: ${built.questions.length > 0 ? Math.round((built.questions.filter((question) => question.answered).length / built.questions.length) * 100) : 0}%;`,
+      myAnsweredCount,
+      opponentAnsweredCount,
+      myProgressText: `${myAnsweredCount} / ${built.questions.length}`,
+      ...progressPresentation,
       ...(isTrainingMode
         ? {
             opponentProgressText: '—',
-            opponentProgressStyle: 'width: 0%;',
             opponentSubmittedText: '—',
+            opponentPlayer: null,
           }
-        : {}),
+        : {
+            opponentProgressText: `${opponentAnsweredCount ?? 0} / ${built.questions.length}`,
+          }),
       questions: built.questions,
     });
 
@@ -734,6 +950,7 @@ Page<PlayPageData, PlayPageMethods>({
           isBattleActionPending: false,
           submitBattleButtonText: '交卷',
           forfeitButtonText: '认输',
+          isOverviewOpen: false,
         });
         if (opponentForfeited) {
           wx.showToast({
@@ -789,20 +1006,22 @@ Page<PlayPageData, PlayPageMethods>({
     const myAnsweredCount = Math.max(0, response.myAnsweredCount);
     const opponentAnsweredCount =
       response.opponentAnsweredCount === null ? null : Math.max(0, response.opponentAnsweredCount);
-    const getProgressStyle = (answeredCount: number | null) =>
-      `width: ${
-        answeredCount === null || totalQuestions === 0
-          ? 0
-          : Math.min(100, Math.round((answeredCount / totalQuestions) * 100))
-      }%;`;
+    const isTrainingMode = response.mode === 'TRAINING';
+    const progressPresentation = calculateProgressPresentation(
+      myAnsweredCount,
+      opponentAnsweredCount,
+      totalQuestions,
+      isTrainingMode,
+    );
 
     this.setData({
       totalQuestionsText: String(totalQuestions),
+      myAnsweredCount,
+      opponentAnsweredCount,
       myProgressText: `${myAnsweredCount} / ${totalQuestions}`,
       opponentProgressText:
         opponentAnsweredCount === null ? '—' : `${opponentAnsweredCount} / ${totalQuestions}`,
-      myProgressStyle: getProgressStyle(myAnsweredCount),
-      opponentProgressStyle: getProgressStyle(opponentAnsweredCount),
+      ...progressPresentation,
       mySubmittedText: response.mySubmitted ? '已交卷' : '作答中',
       opponentSubmittedText:
         response.opponentSubmitted === null
@@ -810,7 +1029,8 @@ Page<PlayPageData, PlayPageMethods>({
           : response.opponentSubmitted
             ? '已交卷'
             : '作答中',
-      isTrainingMode: response.mode === 'TRAINING',
+      isTrainingMode,
+      ...(isTrainingMode ? { opponentPlayer: null } : {}),
     });
   },
 
@@ -828,6 +1048,7 @@ Page<PlayPageData, PlayPageMethods>({
       isBattleActionPending: false,
       submitBattleButtonText: '交卷',
       forfeitButtonText: '认输',
+      isOverviewOpen: false,
     });
 
     this.startSettlementPolling();
@@ -864,6 +1085,11 @@ Page<PlayPageData, PlayPageMethods>({
   },
 
   handleBackRoom() {
+    if (this.data.isOverviewOpen) {
+      this.handleCloseOverview();
+      return;
+    }
+
     const url = `/pages/battle/room?battleId=${encodeURIComponent(this.data.battleId)}`;
 
     wx.redirectTo({
@@ -891,7 +1117,10 @@ Page<PlayPageData, PlayPageMethods>({
 
     this.setData({
       currentQuestionIndex: this.data.currentQuestionIndex - 1,
-      questions: this.rebuildNavStatus(this.data.questions, this.data.currentQuestionIndex - 1),
+      questions: this.rebuildQuestionStatuses(
+        this.data.questions,
+        this.data.currentQuestionIndex - 1,
+      ),
       questionCountText: `${this.data.currentQuestionIndex} / ${this.data.questions.length}`,
     });
   },
@@ -906,7 +1135,10 @@ Page<PlayPageData, PlayPageMethods>({
 
     this.setData({
       currentQuestionIndex: this.data.currentQuestionIndex + 1,
-      questions: this.rebuildNavStatus(this.data.questions, this.data.currentQuestionIndex + 1),
+      questions: this.rebuildQuestionStatuses(
+        this.data.questions,
+        this.data.currentQuestionIndex + 1,
+      ),
       questionCountText: `${this.data.currentQuestionIndex + 2} / ${this.data.questions.length}`,
     });
   },
@@ -920,9 +1152,44 @@ Page<PlayPageData, PlayPageMethods>({
 
     this.setData({
       currentQuestionIndex: nextIndex,
-      questions: this.rebuildNavStatus(this.data.questions, nextIndex),
+      questions: this.rebuildQuestionStatuses(this.data.questions, nextIndex),
       questionCountText: `${nextIndex + 1} / ${this.data.questions.length}`,
     });
+  },
+
+  handleOpenOverview() {
+    if (this.data.questions.length === 0) {
+      return;
+    }
+
+    this.setData({ isOverviewOpen: true });
+  },
+
+  handleCloseOverview() {
+    if (!this.data.isOverviewOpen) {
+      return;
+    }
+
+    this.setData({ isOverviewOpen: false });
+  },
+
+  handleOverviewPanelTap() {
+    // catchtap keeps panel interactions from closing the backdrop.
+  },
+
+  handleOverviewSelectQuestion(event: WechatMiniprogram.BaseEvent<{ index?: number }>) {
+    this.handleSelectQuestion(event);
+    this.handleCloseOverview();
+  },
+
+  handleOverviewSubmit() {
+    this.handleCloseOverview();
+    this.handleSubmitBattle();
+  },
+
+  handleOverviewForfeit() {
+    this.handleCloseOverview();
+    this.handleForfeitBattle();
   },
 
   handleOptionSelect(
@@ -1034,6 +1301,7 @@ Page<PlayPageData, PlayPageMethods>({
       content: `当前已答 ${draftCount} 题，共 ${this.data.questions.length} 题。还有 ${unansweredCount} 题未作答，确认后会先等待自动保存完成，再提交整场。`,
       confirmText: '确认交卷',
       cancelText: '继续答题',
+      confirmColor: BATTLE_NATIVE_COLOR_TOKENS.success,
     }).then((result) => {
       if (result.confirm) {
         void this.submitBattle();
@@ -1148,7 +1416,7 @@ Page<PlayPageData, PlayPageMethods>({
       content: '认输会立即判负，并结束你当前这场 Battle。确认后将直接进入结算等待。',
       confirmText: '确认认输',
       cancelText: '继续对战',
-      confirmColor: '#c24343',
+      confirmColor: BATTLE_NATIVE_COLOR_TOKENS.danger,
     }).then((result) => {
       if (result.confirm) {
         void this.forfeitBattle();
@@ -1496,7 +1764,7 @@ Page<PlayPageData, PlayPageMethods>({
       previousQuestions.map((question) => [question.battleQuestionId, question]),
     );
     const builtQuestions = items.map((item) =>
-      this.mapQuestion(item, previousMap.get(item.battleQuestionId) ?? null, false),
+      this.mapQuestion(item, previousMap.get(item.battleQuestionId) ?? null),
     );
 
     const nextIndex = currentQuestionId
@@ -1507,13 +1775,13 @@ Page<PlayPageData, PlayPageMethods>({
       : 0;
 
     return {
-      questions: this.rebuildNavStatus(builtQuestions, nextIndex),
+      questions: this.rebuildQuestionStatuses(builtQuestions, nextIndex),
       currentQuestionIndex:
         builtQuestions.length === 0 ? 0 : Math.min(nextIndex, builtQuestions.length - 1),
     };
   },
 
-  mapQuestion(item: BattleQuestionItemResponse, previous: QuestionCard | null, isCurrent: boolean) {
+  mapQuestion(item: BattleQuestionItemResponse, previous: QuestionCard | null) {
     const questionType = item.questionType as QuestionType;
     const normalizedSubmitted = this.normalizeSubmittedAnswer(item.submittedAnswer);
     const savedVersion = item.answerVersion ?? 0;
@@ -1524,7 +1792,6 @@ Page<PlayPageData, PlayPageMethods>({
     return {
       battleQuestionId: item.battleQuestionId,
       orderIndex: item.orderIndex,
-      questionNumberText: `第 ${item.orderIndex + 1} 题`,
       questionType,
       questionTypeText: this.getQuestionTypeText(questionType),
       difficultyText: this.getDifficultyText(item.difficulty),
@@ -1545,7 +1812,7 @@ Page<PlayPageData, PlayPageMethods>({
       syncState: item.answered ? 'saved' : 'idle',
       syncErrorMessage: '',
       syncStatusText: item.answered ? formatSubmittedAtLabel(item.submittedAt) : '未作答',
-      navStatus: isCurrent ? 'current' : item.answered ? 'answered' : 'pending',
+      overviewStatus: item.answered ? 'answered' : 'pending',
       navLabel: String(item.orderIndex + 1),
     };
   },
@@ -1618,29 +1885,22 @@ Page<PlayPageData, PlayPageMethods>({
     );
 
     this.setData({
-      questions: this.rebuildNavStatus(nextQuestions, this.data.currentQuestionIndex),
+      questions: this.rebuildQuestionStatuses(nextQuestions, this.data.currentQuestionIndex),
       questionCountText: `${this.data.currentQuestionIndex + 1} / ${nextQuestions.length}`,
     });
   },
 
-  rebuildNavStatus(questions: QuestionCard[], currentQuestionIndex: number) {
+  rebuildQuestionStatuses(questions: QuestionCard[], currentQuestionIndex: number) {
     return questions.map((question: QuestionCard, index: number) => {
-      let navStatus: QuestionNavState = 'pending';
-
-      if (index === currentQuestionIndex) {
-        navStatus = 'current';
-      } else if (question.syncState === 'error') {
-        navStatus = 'error';
-      } else if (question.syncState === 'saving' || this.hasUnsyncedDraft(question)) {
-        navStatus = 'saving';
-      } else if (this.hasAnswerDraft(question) || question.answered) {
-        navStatus = 'answered';
-      }
-
       return {
         ...question,
         syncStatusText: this.getQuestionSyncLabel(question),
-        navStatus,
+        overviewStatus:
+          index === currentQuestionIndex
+            ? 'current'
+            : this.hasAnswerDraft(question) || question.answered
+              ? 'answered'
+              : 'pending',
       };
     });
   },

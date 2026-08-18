@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   WrongQuestionListItem,
   WrongQuestionListQuery,
@@ -125,7 +126,7 @@ let statisticsRequestCount = 0;
 let listRequestSerial = 0;
 let statisticsRequestSerial = 0;
 
-Page<WrongQuestionPageData, WrongQuestionPageMethods>({
+registerThemedPage<WrongQuestionPageData, WrongQuestionPageMethods>({
   data: {
     state: 'loading',
     statisticsState: 'loading',

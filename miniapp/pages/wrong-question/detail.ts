@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   WrongQuestionDetail,
   WrongQuestionDetailResponse,
@@ -152,7 +153,7 @@ let isPageActive = false;
 let requestSerial = 0;
 let requestCount = 0;
 
-Page<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
+registerThemedPage<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>({
   data: {
     state: 'loading',
     errorTitle: '',

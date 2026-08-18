@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import {
   finishLoginNavigation,
   getAuthStateSummary,
@@ -79,7 +80,7 @@ function getProfileErrorMessage(error: unknown) {
   return '资料保存失败，请稍后重试';
 }
 
-Page<ProfileEditPageData, ProfileEditPageMethods>({
+registerThemedPage<ProfileEditPageData, ProfileEditPageMethods>({
   data: {
     nickname: '',
     previewAvatarUrl: '',

@@ -52,9 +52,14 @@ type MiniProgramPageOptions<
   data: TData;
   onLoad?(query: Record<string, string>): void;
   onShow?(): void;
+  onUnload?(): void;
   onPullDownRefresh?(): void;
   [key: string]: unknown;
 } & ThisType<MiniProgramPageInstance<TData, TMethods>>;
+
+declare function Behavior<TOptions extends Record<string, unknown>>(
+  options: TOptions,
+): TOptions;
 
 declare function Page<
   TData,
@@ -67,6 +72,7 @@ declare function Page<
 type MiniProgramAppOptions<TGlobalData> = {
   globalData: TGlobalData;
   onLaunch?(): void;
+  onShow?(): void;
 } & ThisType<{ globalData: TGlobalData }>;
 
 declare function App<TApp extends { globalData: unknown }>(
@@ -170,6 +176,31 @@ declare const wx: {
   }): void;
   getStorageSync(key: string): unknown;
   setStorageSync(key: string, value: unknown): void;
+  getSystemInfoSync(): {
+    theme?: string;
+    statusBarHeight?: number;
+  };
+  onThemeChange(listener: (result: { theme?: string }) => void): void;
+  offThemeChange(listener: (result: { theme?: string }) => void): void;
+  setNavigationBarColor(options: {
+    frontColor: string;
+    backgroundColor: string;
+    animation?: {
+      duration?: number;
+      timingFunc?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
+    };
+  }): void;
+  setBackgroundColor(options: {
+    backgroundColor: string;
+    backgroundColorTop?: string;
+    backgroundColorBottom?: string;
+  }): void;
+  setTabBarStyle(options: {
+    color: string;
+    selectedColor: string;
+    backgroundColor: string;
+    borderStyle?: 'black' | 'white';
+  }): void;
   removeStorageSync(key: string): void;
   getAccountInfoSync(): {
     miniProgram: {

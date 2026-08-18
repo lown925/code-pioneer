@@ -1,4 +1,4 @@
-<view class="page-shell growth-page">
+<view class="page-shell growth-page theme-{{resolvedTheme}}">
   <view class="growth-hero">
     <text class="growth-eyebrow">GROWTH</text>
     <text class="growth-title">成长中心</text>

@@ -5,6 +5,7 @@
     "pages/growth/index",
     "pages/growth/profile",
     "pages/profile/index",
+    "pages/settings/index",
     "pages/profile/edit",
     "pages/profile/user-profile",
     "pages/course/list",

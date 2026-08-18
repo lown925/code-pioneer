@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type { LearningCourseItem, LearningListResponse } from '../../types/learning';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import { getBattleErrorMessage } from '../../utils/battle';
@@ -42,7 +43,7 @@ let isPageActive = false;
 let isRequesting = false;
 let requestSerial = 0;
 
-Page<LearningPageData, LearningPageMethods>({
+registerThemedPage<LearningPageData, LearningPageMethods>({
   data: {
     state: 'loading',
     errorMessage: '',

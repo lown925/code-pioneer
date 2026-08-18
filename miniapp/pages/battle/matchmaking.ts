@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   BattleProfileResponse,
   BattleSkillProfile,
@@ -98,7 +99,7 @@ function parseTimestamp(value: string | null) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-Page<MatchmakingPageData, MatchmakingPageMethods>({
+registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
   data: {
     state: 'IDLE',
     waitingCountText: '—',

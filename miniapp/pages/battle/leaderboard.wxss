@@ -15,8 +15,8 @@
 }
 
 .hero-card {
-  background: linear-gradient(145deg, #17324d 0%, #2f6bff 100%);
-  color: #ffffff;
+  background: linear-gradient(145deg, #17324d 0%, var(--color-primary) 100%);
+  color: var(--color-text-inverse);
 }
 
 .hero-eyebrow {
@@ -49,9 +49,9 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 6rpx;
-  border: 1rpx solid #dbe4f2;
+  border: 1rpx solid var(--color-border);
   border-radius: 14rpx;
-  background: #edf2f8;
+  background: var(--color-card-subtle);
 }
 
 .scope-option {
@@ -60,14 +60,14 @@
   justify-content: center;
   min-height: 70rpx;
   border-radius: 10rpx;
-  color: #5f7596;
+  color: var(--color-text-secondary);
   font-size: 24rpx;
   font-weight: 600;
 }
 
 .scope-option-active {
-  background: #ffffff;
-  color: #17324d;
+  background: var(--color-card);
+  color: var(--color-text-primary);
   box-shadow: 0 6rpx 16rpx rgba(23, 50, 77, 0.1);
 }
 
@@ -80,14 +80,14 @@
 .summary-item {
   padding: 22rpx;
   border-radius: 22rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .summary-label,
 .winrate-label {
   display: block;
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .summary-value,
@@ -96,14 +96,14 @@
   margin-top: 10rpx;
   font-size: 34rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .summary-copy {
   grid-column: 1 / -1;
   font-size: 24rpx;
   line-height: 1.7;
-  color: #5f7596;
+  color: var(--color-text-secondary);
 }
 
 .leaderboard-list {
@@ -119,7 +119,7 @@
 }
 
 .leaderboard-card-current {
-  border: 2rpx solid #2f6bff;
+  border: 2rpx solid var(--color-primary);
   box-shadow: 0 18rpx 40rpx rgba(47, 107, 255, 0.12);
 }
 
@@ -154,18 +154,18 @@
 }
 
 .rank-badge {
-  background: #edf3ff;
-  color: #2f6bff;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
 }
 
 .current-user-badge {
   background: #17324d;
-  color: #ffffff;
+  color: var(--color-text-inverse);
 }
 
 .rank-text {
   font-size: 24rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .avatar-frame {
@@ -174,7 +174,7 @@
   height: 96rpx;
   border-radius: 50%;
   overflow: hidden;
-  background: #edf3ff;
+  background: var(--color-primary-subtle);
 }
 
 .avatar-image,
@@ -191,7 +191,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2f6bff;
+  color: var(--color-primary);
   font-size: 32rpx;
   font-weight: 700;
 }
@@ -206,7 +206,7 @@
   font-size: 30rpx;
   font-weight: 700;
   line-height: 1.4;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .player-meta {
@@ -214,7 +214,7 @@
   margin-top: 8rpx;
   font-size: 24rpx;
   line-height: 1.6;
-  color: #5f7596;
+  color: var(--color-text-secondary);
 }
 
 .winrate-box {
@@ -222,7 +222,7 @@
   min-width: 120rpx;
   padding: 18rpx 16rpx;
   border-radius: 20rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
   text-align: center;
 }
 
@@ -238,7 +238,7 @@
 .loading-more-text,
 .footer-error-text {
   font-size: 24rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .retry-button {

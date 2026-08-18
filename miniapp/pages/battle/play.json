@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "Battle 答题"
+  "navigationBarTitleText": "Battle 答题",
+  "navigationStyle": "custom"
 }

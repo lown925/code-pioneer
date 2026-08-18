@@ -14,8 +14,8 @@
 }
 
 .hero-card {
-  background: linear-gradient(145deg, #17324d 0%, #2f6bff 100%);
-  color: #ffffff;
+  background: linear-gradient(145deg, #17324d 0%, var(--color-primary) 100%);
+  color: var(--color-text-inverse);
 }
 
 .hero-eyebrow {
@@ -48,7 +48,7 @@
   display: block;
   font-size: 24rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .filter-title + .filter-row {
@@ -68,15 +68,15 @@
 .filter-chip {
   padding: 12rpx 20rpx;
   border-radius: 999rpx;
-  background: #f0f4f9;
-  color: #6e84a3;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
   font-size: 24rpx;
   font-weight: 700;
 }
 
 .filter-chip-active {
-  background: #edf3ff;
-  color: #2f6bff;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
 }
 
 .history-card {
@@ -102,7 +102,7 @@
   height: 88rpx;
   border-radius: 50%;
   overflow: hidden;
-  background: #edf3ff;
+  background: var(--color-primary-subtle);
   flex-shrink: 0;
 }
 
@@ -116,7 +116,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2f6bff;
+  color: var(--color-primary);
   font-size: 30rpx;
   font-weight: 700;
 }
@@ -132,12 +132,12 @@
 .opponent-name {
   font-size: 30rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .opponent-time {
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .badge-row {
@@ -156,23 +156,23 @@
 }
 
 .mode-badge {
-  background: #f6f9fd;
-  color: #6e84a3;
+  background: var(--color-card-subtle);
+  color: var(--color-text-secondary);
 }
 
 .result-badge-win {
-  background: #e8f8ef;
-  color: #159455;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .result-badge-loss {
-  background: #fff1f1;
-  color: #c24343;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 
 .result-badge-draw {
-  background: #eef4ff;
-  color: #2f6bff;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 
 .card-score-row {
@@ -182,18 +182,18 @@
   gap: 14rpx;
   padding: 18rpx 20rpx;
   border-radius: 20rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .score-label {
   font-size: 24rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .score-value {
   font-size: 34rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .card-summary-grid {
@@ -205,13 +205,13 @@
 .summary-item {
   padding: 18rpx;
   border-radius: 18rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .summary-label {
   display: block;
   font-size: 22rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .summary-value {
@@ -219,13 +219,13 @@
   margin-top: 10rpx;
   font-size: 28rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .card-end-reason,
 .footer-text {
   font-size: 23rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .inline-error-card {
@@ -237,7 +237,7 @@
 .inline-error-text {
   font-size: 24rpx;
   line-height: 1.7;
-  color: #c24343;
+  color: var(--color-danger);
 }
 
 .action-button {

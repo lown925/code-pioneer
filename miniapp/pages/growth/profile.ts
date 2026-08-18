@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type { CurrentUserProfile } from '../../types/user';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
@@ -110,7 +111,7 @@ function resolveStoredSingleValue(selectedCode: string, customValue: string) {
   return selectedCode || buildCustomGrowthValue(customValue) || null;
 }
 
-Page<GrowthProfilePageData, GrowthProfilePageMethods>({
+registerThemedPage<GrowthProfilePageData, GrowthProfilePageMethods>({
   data: {
     state: 'loading',
     loadErrorMessage: '',

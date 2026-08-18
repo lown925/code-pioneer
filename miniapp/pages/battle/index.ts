@@ -1,3 +1,4 @@
+import { registerThemedPage } from '../../utils/theme-page';
 import type {
   BattleLeaderboardItem,
   BattleLeaderboardResponse,
@@ -79,7 +80,7 @@ let isPageActive = false;
 let isRequesting = false;
 let requestSerial = 0;
 
-Page<BattlePageData, BattlePageMethods>({
+registerThemedPage<BattlePageData, BattlePageMethods>({
   data: {
     state: 'guest',
     isAuthenticated: false,

@@ -13,8 +13,8 @@
 }
 
 .hero-card {
-  background: linear-gradient(145deg, #17324d 0%, #2f6bff 100%);
-  color: #ffffff;
+  background: linear-gradient(145deg, #17324d 0%, var(--color-primary) 100%);
+  color: var(--color-text-inverse);
 }
 
 .hero-top {
@@ -36,7 +36,7 @@
 .source-learning,
 .source-battle {
   background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
+  color: var(--color-text-inverse);
 }
 
 .question-type {
@@ -76,7 +76,7 @@
 
 .info-label {
   font-size: 24rpx;
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .info-value {
@@ -84,7 +84,7 @@
   min-width: 0;
   font-size: 24rpx;
   font-weight: 700;
-  color: #17324d;
+  color: var(--color-text-primary);
   text-align: right;
 }
 
@@ -94,7 +94,7 @@
   margin-top: 18rpx;
   font-size: 28rpx;
   line-height: 1.8;
-  color: #17324d;
+  color: var(--color-text-primary);
   white-space: pre-wrap;
 }
 
@@ -108,12 +108,12 @@
 .option-card {
   padding: 22rpx;
   border-radius: 20rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .option-card-correct {
   border: 2rpx solid rgba(21, 148, 85, 0.22);
-  background: #effaf4;
+  background: var(--color-success-soft);
 }
 
 .battle-option-list {
@@ -126,13 +126,13 @@
 .battle-option-card {
   padding: 22rpx;
   border-radius: 20rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
   border: 2rpx solid transparent;
 }
 
 .battle-option-card-correct {
   border-color: rgba(21, 148, 85, 0.22);
-  background: #effaf4;
+  background: var(--color-success-soft);
 }
 
 .battle-option-card-my {
@@ -154,8 +154,8 @@
   height: 44rpx;
   padding: 0 10rpx;
   border-radius: 999rpx;
-  background: #2f6bff;
-  color: #ffffff;
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
   font-size: 22rpx;
   font-weight: 700;
 }
@@ -166,11 +166,11 @@
 }
 
 .option-tag-correct {
-  color: #159455;
+  color: var(--color-success);
 }
 
 .option-tag-normal {
-  color: #6e84a3;
+  color: var(--color-text-secondary);
 }
 
 .option-tag-group {
@@ -181,7 +181,7 @@
 }
 
 .option-tag-battle {
-  color: #2f6bff;
+  color: var(--color-primary);
 }
 
 .option-content {
@@ -189,7 +189,7 @@
   margin-top: 12rpx;
   font-size: 26rpx;
   line-height: 1.7;
-  color: #17324d;
+  color: var(--color-text-primary);
 }
 
 .entry-row {
@@ -210,7 +210,7 @@
   display: block;
   padding: 18rpx;
   border-radius: 18rpx;
-  background: #0f1f33;
+  background: var(--color-code-bg);
   color: #f4f8fc;
   font-size: 24rpx;
   line-height: 1.8;
@@ -227,7 +227,7 @@
 .content-image {
   width: 100%;
   border-radius: 18rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .image-fallback {
@@ -237,8 +237,8 @@
   min-height: 180rpx;
   padding: 18rpx;
   border-radius: 18rpx;
-  background: #f6f9fd;
-  color: #6e84a3;
+  background: var(--color-card-subtle);
+  color: var(--color-text-secondary);
   font-size: 24rpx;
   text-align: center;
 }
@@ -247,7 +247,7 @@
   margin-top: 18rpx;
   padding: 22rpx;
   border-radius: 20rpx;
-  background: #f6f9fd;
+  background: var(--color-card-subtle);
 }
 
 .state-actions {

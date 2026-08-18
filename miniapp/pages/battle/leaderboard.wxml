@@ -1,4 +1,4 @@
-<view class="page-shell leaderboard-page">
+<view class="page-shell leaderboard-page theme-{{resolvedTheme}}">
   <view class="section-card hero-card">
     <text class="hero-eyebrow">排行榜</text>
     <text class="hero-title">{{titleText}}</text>
