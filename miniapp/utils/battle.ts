@@ -6,6 +6,34 @@ function normalizeNumber(value: number) {
   return Math.max(0, value);
 }
 
+export type BattleStarSlot = {
+  value: number;
+  isFilled: boolean;
+};
+
+export type BattleStarDisplay = {
+  starSlots: BattleStarSlot[];
+  starAriaLabel: string;
+};
+
+const BATTLE_STAR_COUNT = 6;
+
+export function formatBattleStarDisplay(
+  star: number | null | undefined,
+): BattleStarDisplay {
+  const normalizedStar = Number.isFinite(star)
+    ? Math.min(BATTLE_STAR_COUNT, Math.max(0, Math.floor(star ?? 0)))
+    : 0;
+
+  return {
+    starSlots: Array.from({ length: BATTLE_STAR_COUNT }, (_, index) => ({
+      value: index + 1,
+      isFilled: index < normalizedStar,
+    })),
+    starAriaLabel: normalizedStar > 0 ? `${normalizedStar} 星` : '未定级',
+  };
+}
+
 export function formatBattleNickname(nickname: string | null | undefined) {
   const trimmed = nickname?.trim();
 

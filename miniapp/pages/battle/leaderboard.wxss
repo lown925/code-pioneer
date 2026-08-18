@@ -217,6 +217,11 @@
   color: var(--color-text-secondary);
 }
 
+.leaderboard-card-stars {
+  margin-top: 8rpx;
+  font-size: 25rpx;
+}
+
 .winrate-box {
   flex: 0 0 auto;
   min-width: 120rpx;

@@ -8,6 +8,7 @@ import type {
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatBattleDuration,
+  formatBattleStarDisplay,
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
@@ -23,6 +24,9 @@ type MatchmakingPageState =
   | 'EXPIRED'
   | 'ERROR';
 
+type BattleSkillOption = BattleSkillProfile &
+  ReturnType<typeof formatBattleStarDisplay>;
+
 type MatchmakingPageData = {
   state: MatchmakingPageState;
   waitingCountText: string;
@@ -34,7 +38,7 @@ type MatchmakingPageData = {
   expiresAtMs: number;
   stateTitle: string;
   stateDescription: string;
-  availableSkills: BattleSkillProfile[];
+  availableSkills: BattleSkillOption[];
   selectedSkillCode: string;
   selectedSkillName: string;
   canStartTraining: boolean;
@@ -799,13 +803,17 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
   },
 
   updateProfileCard(profile: BattleProfileResponse) {
+    const availableSkills = profile.availableSkills.map((skill) => ({
+      ...skill,
+      ...formatBattleStarDisplay(skill.star),
+    }));
     const selectedSkill =
-      profile.availableSkills.find(
+      availableSkills.find(
         (skill) => skill.code === this.data.selectedSkillCode,
-      ) ?? profile.availableSkills[0];
+      ) ?? availableSkills[0];
 
     this.setData({
-      availableSkills: profile.availableSkills,
+      availableSkills,
       selectedSkillCode: selectedSkill?.code ?? '',
       selectedSkillName: selectedSkill?.name ?? '',
     });

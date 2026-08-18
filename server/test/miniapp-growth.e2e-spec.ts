@@ -72,20 +72,23 @@ describe('miniapp Growth product skeleton', () => {
     expect(sources).not.toMatch(/pages\/community|pages\/profile\/follow-list/);
   });
 
-  it('loads authoritative current-user data and has a safe guest state', () => {
+  it('loads the Growth overview and has a safe guest state', () => {
     const indexScript = readMiniappFile('pages/growth/index.ts');
     const indexTemplate = readMiniappFile('pages/growth/index.wxml');
 
-    expect(indexScript).toContain('fetchCurrentUserProfile()');
+    expect(indexScript).toContain('fetchGrowthOverview(this.data.range)');
     expect(indexScript).toMatch(/state:\s*["']guest["']/);
     expect(indexScript).toMatch(
       /redirectToLogin\(["']\/pages\/growth\/index["']\)/,
     );
-    expect(indexScript).toContain('profile.major && profile.grade');
-    expect(indexScript).toMatch(/profileActionText:\s*["']完善学习画像["']/);
+    expect(indexScript).toContain('profile.isCoreProfileComplete');
+    expect(indexScript).toContain('ratingTrendView');
     expect(indexTemplate).toContain('微信登录');
-    expect(indexTemplate).toContain('成长分析正在逐步建立');
-    expect(indexTemplate).not.toMatch(/推荐度|能力评分|技能等级|雷达图|星级/);
+    expect(indexTemplate).toContain('下一步建议');
+    expect(indexTemplate).toContain('学习趋势');
+    expect(indexTemplate).toContain('Python Rating 趋势');
+    expect(indexTemplate).toContain('学习表现');
+    expect(indexTemplate).not.toMatch(/雷达图|星级/);
   });
 
   it('supports all five fields, clearing, loading, and refresh-on-return', () => {
@@ -111,7 +114,7 @@ describe('miniapp Growth product skeleton', () => {
     expect(profileTemplate).toContain('loading="{{isSaving}}"');
     expect(profileTemplate).toContain('disabled="{{isSaving}}"');
     expect(indexScript).toContain('onShow()');
-    expect(indexScript).toContain('void this.loadProfile()');
+    expect(indexScript).toContain('void this.loadOverview()');
   });
 
   it('converts stable preset and custom values for display and editing', () => {

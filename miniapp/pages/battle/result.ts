@@ -11,6 +11,7 @@ import {
   formatBattleNickname,
   formatBattleRating,
   formatBattleSkill,
+  formatBattleStarDisplay,
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
@@ -51,8 +52,8 @@ type ResultPageData = {
   ratingBeforeText: string;
   ratingDeltaText: string;
   ratingAfterText: string;
-  starText: string;
-  tierTitleText: string;
+  starSlots: ReturnType<typeof formatBattleStarDisplay>['starSlots'];
+  starAriaLabel: string;
   tierChangeText: string;
   opponentNicknameText: string;
   opponentAvatarUrl: string;
@@ -138,8 +139,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
     ratingBeforeText: '0',
     ratingDeltaText: '0',
     ratingAfterText: '0',
-    starText: '未定级',
-    tierTitleText: '未定级',
+    ...formatBattleStarDisplay(null),
     tierChangeText: '',
     opponentNicknameText: '对手用户',
     opponentAvatarUrl: '',
@@ -315,8 +315,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
         ratingBeforeText: formatBattleRating(response.ratingBefore),
         ratingDeltaText: this.formatRatingDelta(response.ratingDelta),
         ratingAfterText: formatBattleRating(response.ratingAfter),
-        starText: response.star === null ? '未定级' : `${response.star} 星`,
-        tierTitleText: response.title ?? '未定级',
+        ...formatBattleStarDisplay(response.star),
         tierChangeText: this.getTierChangeText(response.tierChange, response.afterStar),
         opponentNicknameText: response.opponent
           ? formatBattleNickname(response.opponent.nickname)

@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
+const { existsSync, readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const Module = require('node:module');
 const typescript = require('../../server/node_modules/typescript');
@@ -53,6 +53,9 @@ function createThemeHarness({ storage = new Map(), systemTheme = 'light', getApp
     setTabBarStyle(options) {
       nativeCalls.push(['tabBar', options]);
     },
+    setTabBarItem(options) {
+      nativeCalls.push(['tabBarItem', options]);
+    },
   };
   global.getApp = () => {
     if (getAppThrows) {
@@ -95,7 +98,32 @@ test('defaults to system and resolves a light system theme', () => {
   });
   assert.equal(harness.app.globalData.themeMode, 'system');
   assert.equal(harness.app.globalData.resolvedTheme, 'light');
-  assert.equal(harness.nativeCalls.length, 3);
+  assert.equal(harness.nativeCalls.length, 7);
+  assert.deepEqual(
+    harness.nativeCalls.filter(([type]) => type === 'tabBarItem'),
+    [
+      ['tabBarItem', {
+        index: 0,
+        iconPath: 'assets/tab-battle-light.png',
+        selectedIconPath: 'assets/tab-battle-light-selected.png',
+      }],
+      ['tabBarItem', {
+        index: 1,
+        iconPath: 'assets/tab-learning-light.png',
+        selectedIconPath: 'assets/tab-learning-light-selected.png',
+      }],
+      ['tabBarItem', {
+        index: 2,
+        iconPath: 'assets/tab-growth-light.png',
+        selectedIconPath: 'assets/tab-growth-light-selected.png',
+      }],
+      ['tabBarItem', {
+        index: 3,
+        iconPath: 'assets/tab-profile-light.png',
+        selectedIconPath: 'assets/tab-profile-light-selected.png',
+      }],
+    ],
+  );
 });
 
 test('resolves system mode to dark when WeChat is dark', () => {
@@ -105,6 +133,14 @@ test('resolves system mode to dark when WeChat is dark', () => {
     mode: 'system',
     resolvedTheme: 'dark',
   });
+  assert.deepEqual(
+    harness.nativeCalls.filter(([type]) => type === 'tabBarItem')[0],
+    ['tabBarItem', {
+      index: 0,
+      iconPath: 'assets/tab-battle-dark.png',
+      selectedIconPath: 'assets/tab-battle-dark-selected.png',
+    }],
+  );
 });
 
 test('falls back to system when stored data is invalid', () => {
@@ -186,6 +222,14 @@ test('registers every active page and keeps Community and Follow unavailable', (
   assert.ok(appConfig.pages.includes('pages/settings/index'));
   assert.ok(appConfig.pages.every((page) => !page.startsWith('pages/community/')));
   assert.ok(appConfig.pages.every((page) => page !== 'pages/profile/follow-list'));
+
+  appConfig.tabBar.list.forEach((item) => {
+    assert.notEqual(item.iconPath, 'assets/tab-default.png');
+    assert.notEqual(item.selectedIconPath, 'assets/tab-selected.png');
+    assert.ok(existsSync(resolve(miniappRoot, item.iconPath)));
+    assert.ok(existsSync(resolve(miniappRoot, item.selectedIconPath)));
+  });
+  assert.match(readFileSync(resolve(miniappRoot, 'app.wxss'), 'utf8'), /background: transparent/);
 
   appConfig.pages.forEach((page) => {
     const script = readFileSync(resolve(miniappRoot, `${page}.ts`), 'utf8');

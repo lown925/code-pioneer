@@ -165,10 +165,20 @@
       <view wx:if="{{hasCompetitiveTier}}" class="section-card tier-card">
         <view class="tier-heading">
           <view>
-            <text class="section-title">当前段位</text>
-            <text class="tier-title">{{tierTitleText}}</text>
+            <text class="section-title">当前星级</text>
+            <text class="section-subtitle">最高六星，Rating 变化会影响当前星级。</text>
           </view>
-          <text class="tier-star">{{starText}}</text>
+          <view
+            class="battle-star-rating tier-stars"
+            aria-label="{{starAriaLabel}}"
+          >
+            <text
+              wx:for="{{starSlots}}"
+              wx:for-item="star"
+              wx:key="value"
+              class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
+            >{{star.isFilled ? '★' : '☆'}}</text>
+          </view>
         </view>
         <text wx:if="{{tierChangeText}}" class="tier-change">{{tierChangeText}}</text>
       </view>

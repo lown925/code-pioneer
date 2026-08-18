@@ -96,7 +96,18 @@
                   <text class="nickname">{{item.nicknameText}}</text>
                   <text wx:if="{{item.isCurrentUser}}" class="me-badge">我</text>
                 </view>
-                <text wx:if="{{leaderboardScope === 'PYTHON'}}" class="leaderboard-tier-line">{{item.starText}} · {{item.titleText}}</text>
+                <view
+                  wx:if="{{leaderboardScope === 'PYTHON'}}"
+                  class="battle-star-rating leaderboard-star-rating"
+                  aria-label="{{item.starAriaLabel}}"
+                >
+                  <text
+                    wx:for="{{item.starSlots}}"
+                    wx:for-item="star"
+                    wx:key="value"
+                    class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
+                  >{{star.isFilled ? '★' : '☆'}}</text>
+                </view>
                 <text class="leaderboard-win-rate-line">{{item.winRateText}} {{leaderboardScope === 'PYTHON' ? '排位胜率' : '总榜胜率'}}</text>
                 <text class="mobile-player-meta">{{item.rankText}} · {{item.totalBattlesText}} 场 · {{item.winRateText}} {{leaderboardScope === 'PYTHON' ? '排位胜率' : '总榜胜率'}}</text>
               </view>
@@ -120,6 +131,18 @@
         <view class="my-rank-copy">
           <text class="my-rank-name">{{myRank.nicknameText}}</text>
           <text class="my-rank-position">{{myRank.rankText}}</text>
+          <view
+            wx:if="{{leaderboardScope === 'PYTHON'}}"
+            class="battle-star-rating my-rank-stars"
+            aria-label="{{myRank.starAriaLabel}}"
+          >
+            <text
+              wx:for="{{myRank.starSlots}}"
+              wx:for-item="star"
+              wx:key="value"
+              class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
+            >{{star.isFilled ? '★' : '☆'}}</text>
+          </view>
         </view>
         <view class="my-rank-stat">
           <text class="my-rank-value">{{myRank.ratingText}}</text>

@@ -1,0 +1,19 @@
+<view class="growth-line-chart">
+  <canvas
+    id="growth-line-chart"
+    canvas-id="growth-line-chart"
+    class="growth-line-chart__canvas"
+    width="{{canvasWidth}}"
+    height="{{canvasHeight}}"
+  ></canvas>
+  <view class="growth-line-chart__legend">
+    <view class="growth-line-chart__legend-item">
+      <view class="growth-line-chart__legend-line growth-line-chart__legend-line--quiz"></view>
+      <text>Quiz</text>
+    </view>
+    <view class="growth-line-chart__legend-item">
+      <view class="growth-line-chart__legend-line growth-line-chart__legend-line--practice"></view>
+      <text>Practice</text>
+    </view>
+  </view>
+</view>

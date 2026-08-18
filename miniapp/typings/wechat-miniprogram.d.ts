@@ -201,6 +201,12 @@ declare const wx: {
     backgroundColor: string;
     borderStyle?: 'black' | 'white';
   }): void;
+  setTabBarItem(options: {
+    index: number;
+    iconPath: string;
+    selectedIconPath: string;
+  }): void;
+  nextTick(callback: () => void): void;
   removeStorageSync(key: string): void;
   getAccountInfoSync(): {
     miniProgram: {

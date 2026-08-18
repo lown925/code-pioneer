@@ -19,6 +19,8 @@ page {
   --color-success-soft: #e8f8ef;
   --color-warning: #d97706;
   --color-warning-soft: #fff8e7;
+  --color-star-filled: #f2b705;
+  --color-star-empty: #7d8aa5;
   --color-danger: #c24343;
   --color-danger-soft: #fff1f1;
   --color-code-bg: #0f1f33;
@@ -30,7 +32,7 @@ page {
   --color-hero-end: #43a6a1;
   --color-disabled: #a4afbc;
   min-height: 100%;
-  background: var(--color-bg);
+  background: transparent;
   color: var(--color-text-primary);
   font-size: 28rpx;
 }
@@ -56,6 +58,8 @@ page {
   --color-success-soft: #e8f8ef;
   --color-warning: #d97706;
   --color-warning-soft: #fff8e7;
+  --color-star-filled: #f2b705;
+  --color-star-empty: #7d8aa5;
   --color-danger: #c24343;
   --color-danger-soft: #fff1f1;
   --color-code-bg: #0f1f33;
@@ -89,6 +93,8 @@ page {
   --color-success-soft: #10352b;
   --color-warning: #fbbf24;
   --color-warning-soft: #3e2f11;
+  --color-star-filled: #facc15;
+  --color-star-empty: #7f91a6;
   --color-danger: #fb7185;
   --color-danger-soft: #402027;
   --color-code-bg: #080c12;
@@ -184,6 +190,27 @@ page {
   font-size: 26rpx;
   line-height: 1.6;
   color: var(--color-text-secondary);
+}
+
+.battle-star-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4rpx;
+  white-space: nowrap;
+  font-size: 24rpx;
+  line-height: 1;
+}
+
+.battle-star {
+  letter-spacing: 0;
+}
+
+.battle-star-filled {
+  color: var(--color-star-filled);
+}
+
+.battle-star-empty {
+  color: var(--color-star-empty);
 }
 
 .theme-dark input,

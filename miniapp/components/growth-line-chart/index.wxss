@@ -1,0 +1,40 @@
+.growth-line-chart {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 20rpx;
+  background: var(--color-card-subtle);
+}
+
+.growth-line-chart__canvas {
+  display: block;
+  width: 100%;
+  height: 260rpx;
+}
+
+.growth-line-chart__legend {
+  display: flex;
+  gap: 28rpx;
+  padding: 0 24rpx 22rpx;
+  color: var(--color-text-secondary);
+  font-size: 22rpx;
+}
+
+.growth-line-chart__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.growth-line-chart__legend-line {
+  width: 34rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+}
+
+.growth-line-chart__legend-line--quiz {
+  background: var(--color-primary);
+}
+
+.growth-line-chart__legend-line--practice {
+  background: var(--color-success);
+}

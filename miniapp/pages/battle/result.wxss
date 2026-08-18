@@ -230,17 +230,9 @@
   gap: 18rpx;
 }
 
-.tier-title {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 26rpx;
-  color: var(--color-text-secondary);
-}
-
-.tier-star {
-  font-size: 42rpx;
-  font-weight: 700;
-  color: #ef9f4a;
+.tier-stars {
+  flex: 0 0 auto;
+  font-size: 38rpx;
 }
 
 .tier-change {

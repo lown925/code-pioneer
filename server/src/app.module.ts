@@ -11,6 +11,7 @@ import { PracticeModule } from './practice/practice.module';
 import { QuizModule } from './quiz/quiz.module';
 import { UserModule } from './user/user.module';
 import { WrongQuestionModule } from './wrong-question/wrong-question.module';
+import { GrowthModule } from './growth/growth.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { WrongQuestionModule } from './wrong-question/wrong-question.module';
     QuizModule,
     PracticeModule,
     WrongQuestionModule,
+    GrowthModule,
     AuthModule,
   ],
   controllers: [AppController],

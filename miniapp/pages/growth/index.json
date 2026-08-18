@@ -1,4 +1,7 @@
 {
   "navigationBarTitleText": "成长",
-  "enablePullDownRefresh": true
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "growth-line-chart": "/components/growth-line-chart/index"
+  }
 }

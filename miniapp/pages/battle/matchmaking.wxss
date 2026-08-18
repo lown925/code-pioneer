@@ -52,9 +52,17 @@
 }
 
 .skill-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx;
   margin-top: 8rpx;
   font-size: 22rpx;
   color: var(--color-text-secondary);
+}
+
+.skill-star-rating {
+  font-size: 22rpx;
 }
 
 .skill-check,

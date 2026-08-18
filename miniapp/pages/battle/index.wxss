@@ -115,11 +115,9 @@
   display: block;
 }
 
-.leaderboard-tier-line {
-  display: block;
+.leaderboard-star-rating {
   margin-top: 6rpx;
   font-size: 21rpx;
-  color: var(--color-warning);
 }
 
 .leaderboard-win-rate-line {
@@ -384,6 +382,11 @@
   margin-top: 3rpx;
   color: var(--color-text-secondary);
   font-size: 19rpx;
+}
+
+.my-rank-stars {
+  margin-top: 7rpx;
+  font-size: 18rpx;
 }
 
 .my-rank-stat {

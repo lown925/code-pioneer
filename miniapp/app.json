@@ -44,26 +44,26 @@
       {
         "pagePath": "pages/battle/index",
         "text": "对战",
-        "iconPath": "assets/tab-default.png",
-        "selectedIconPath": "assets/tab-selected.png"
+        "iconPath": "assets/tab-battle-light.png",
+        "selectedIconPath": "assets/tab-battle-light-selected.png"
       },
       {
         "pagePath": "pages/learning/index",
         "text": "学习",
-        "iconPath": "assets/tab-default.png",
-        "selectedIconPath": "assets/tab-selected.png"
+        "iconPath": "assets/tab-learning-light.png",
+        "selectedIconPath": "assets/tab-learning-light-selected.png"
       },
       {
         "pagePath": "pages/growth/index",
         "text": "成长",
-        "iconPath": "assets/tab-default.png",
-        "selectedIconPath": "assets/tab-selected.png"
+        "iconPath": "assets/tab-growth-light.png",
+        "selectedIconPath": "assets/tab-growth-light-selected.png"
       },
       {
         "pagePath": "pages/profile/index",
         "text": "我的",
-        "iconPath": "assets/tab-default.png",
-        "selectedIconPath": "assets/tab-selected.png"
+        "iconPath": "assets/tab-profile-light.png",
+        "selectedIconPath": "assets/tab-profile-light-selected.png"
       }
     ]
   },

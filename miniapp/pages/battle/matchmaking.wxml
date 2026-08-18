@@ -30,7 +30,20 @@
       >
         <view>
           <text class="skill-name">{{item.name}}</text>
-          <text class="skill-status">{{item.status === 'UNRANKED' ? item.title : item.star + ' 星 · ' + item.title + ' · Rating ' + item.rating}}</text>
+          <view class="skill-status">
+            <view
+              class="battle-star-rating skill-star-rating"
+              aria-label="{{item.starAriaLabel}}"
+            >
+              <text
+                wx:for="{{item.starSlots}}"
+                wx:for-item="star"
+                wx:key="value"
+                class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
+              >{{star.isFilled ? '★' : '☆'}}</text>
+            </view>
+            <text>{{item.status === 'UNRANKED' ? '未定级' : 'Rating ' + item.rating}}</text>
+          </view>
         </view>
         <text class="skill-check">{{selectedSkillCode === item.code ? '已选择' : '选择'}}</text>
       </view>

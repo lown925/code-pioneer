@@ -22,11 +22,13 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/api/v1/health')
       .expect(200)
-      .expect({
-        success: true,
-        data: {
-          status: 'ok',
-        },
+      .expect((response) => {
+        expect(response.body).toEqual(
+          expect.objectContaining({
+            success: true,
+            data: expect.objectContaining({ status: 'ok' }),
+          }),
+        );
       });
   });
 

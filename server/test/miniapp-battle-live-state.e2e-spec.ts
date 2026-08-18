@@ -160,7 +160,9 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(leaderboardTemplate).toContain('排位胜率');
     expect(leaderboardScript).toContain('item.rankedBattles');
     expect(leaderboardScript).toContain('item.star');
-    expect(leaderboardScript).toContain('item.title');
+    expect(leaderboardScript).toContain('formatBattleStarDisplay(item.star)');
+    expect(leaderboardTemplate).toContain('item.starSlots');
+    expect(leaderboardTemplate).not.toContain('item.titleText');
   });
 
   it('shows the skill-scoped live matching count instead of profile rating and rank', () => {
@@ -259,15 +261,23 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     );
   });
 
-  it('keeps tier display data-driven through the profile response', () => {
+  it('renders six-slot stars from profile data without competitive titles', () => {
     const matchmakingTemplate = readMiniappFile(
       'pages/battle/matchmaking.wxml',
     );
     const indexScript = readMiniappFile('pages/battle/index.ts');
+    const resultTemplate = readMiniappFile('pages/battle/result.wxml');
+    const battleUtility = readMiniappFile('utils/battle.ts');
 
     expect(matchmakingTemplate).toContain("item.status === 'UNRANKED'");
-    expect(matchmakingTemplate).toContain('item.title');
+    expect(matchmakingTemplate).toContain('item.starSlots');
+    expect(matchmakingTemplate).not.toContain('item.title');
     expect(indexScript).toContain('item.star');
-    expect(indexScript).toContain('item.title');
+    expect(indexScript).not.toContain('item.title');
+    expect(resultTemplate).toContain('当前星级');
+    expect(resultTemplate).toContain('starSlots');
+    expect(resultTemplate).not.toContain('tierTitleText');
+    expect(battleUtility).toContain('const BATTLE_STAR_COUNT = 6');
+    expect(battleUtility).toContain('isFilled: index < normalizedStar');
   });
 });

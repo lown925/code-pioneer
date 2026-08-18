@@ -11,6 +11,7 @@ import {
   formatBattleRank,
   formatBattleRating,
   formatBattleRecord,
+  formatBattleStarDisplay,
   formatBattleWinRate,
   getBattleErrorMessage,
 } from '../../utils/battle';
@@ -29,8 +30,8 @@ type LeaderboardCard = BattleLeaderboardItem & {
   rankBadgeText: string;
   avatarFallbackText: string;
   rankedBattlesText: string;
-  starText: string;
-  titleText: string;
+  starSlots: ReturnType<typeof formatBattleStarDisplay>['starSlots'];
+  starAriaLabel: string;
   isCurrentUser: boolean;
 };
 
@@ -305,8 +306,7 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
       ratingText: formatBattleRating(item.rating),
       highestRatingText: formatBattleRating(item.highestRating),
       rankedBattlesText: String(Math.max(0, item.rankedBattles)),
-      starText: item.star === undefined ? '' : `${item.star} 星`,
-      titleText: item.title ?? '',
+      ...formatBattleStarDisplay(item.star),
       winRateText: formatBattleWinRate(item.winRate),
       recordText: formatBattleRecord(item.wins, item.losses, item.draws),
       rankText: formatBattleRank(item.rank),

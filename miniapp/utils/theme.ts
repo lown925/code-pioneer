@@ -1,6 +1,14 @@
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
 
+export type ThemeChartPalette = {
+  background: string;
+  grid: string;
+  label: string;
+  quiz: string;
+  practice: string;
+};
+
 export type ThemeSnapshot = {
   mode: ThemeMode;
   resolvedTheme: ResolvedTheme;
@@ -33,9 +41,68 @@ type ThemeApi = {
     backgroundColor: string;
     borderStyle?: 'black' | 'white';
   }) => void;
+  setTabBarItem?: (options: {
+    index: number;
+    iconPath: string;
+    selectedIconPath: string;
+  }) => void;
+  nextTick?: (callback: () => void) => void;
+};
+
+type TabBarIconSet = {
+  light: {
+    iconPath: string;
+    selectedIconPath: string;
+  };
+  dark: {
+    iconPath: string;
+    selectedIconPath: string;
+  };
 };
 
 const STORAGE_KEY = 'code-pioneer.theme.mode';
+const TAB_BAR_ICON_SETS: TabBarIconSet[] = [
+  {
+    light: {
+      iconPath: 'assets/tab-battle-light.png',
+      selectedIconPath: 'assets/tab-battle-light-selected.png',
+    },
+    dark: {
+      iconPath: 'assets/tab-battle-dark.png',
+      selectedIconPath: 'assets/tab-battle-dark-selected.png',
+    },
+  },
+  {
+    light: {
+      iconPath: 'assets/tab-learning-light.png',
+      selectedIconPath: 'assets/tab-learning-light-selected.png',
+    },
+    dark: {
+      iconPath: 'assets/tab-learning-dark.png',
+      selectedIconPath: 'assets/tab-learning-dark-selected.png',
+    },
+  },
+  {
+    light: {
+      iconPath: 'assets/tab-growth-light.png',
+      selectedIconPath: 'assets/tab-growth-light-selected.png',
+    },
+    dark: {
+      iconPath: 'assets/tab-growth-dark.png',
+      selectedIconPath: 'assets/tab-growth-dark-selected.png',
+    },
+  },
+  {
+    light: {
+      iconPath: 'assets/tab-profile-light.png',
+      selectedIconPath: 'assets/tab-profile-light-selected.png',
+    },
+    dark: {
+      iconPath: 'assets/tab-profile-dark.png',
+      selectedIconPath: 'assets/tab-profile-dark-selected.png',
+    },
+  },
+];
 const listeners = new Set<ThemeListener>();
 
 let initialized = false;
@@ -113,7 +180,7 @@ function notifyListeners() {
   listeners.forEach((listener) => listener(snapshot));
 }
 
-function applyNativeTheme() {
+function applyNativeThemeImmediately() {
   const api = getThemeApi();
 
   if (!api) {
@@ -140,6 +207,22 @@ function applyNativeTheme() {
     selectedColor: primaryColor,
     backgroundColor: cardColor,
     borderStyle: isDark ? 'white' : 'black',
+  });
+  TAB_BAR_ICON_SETS.forEach((iconSet, index) => {
+    const icons = isDark ? iconSet.dark : iconSet.light;
+    api.setTabBarItem?.({
+      index,
+      ...icons,
+    });
+  });
+}
+
+function applyNativeTheme() {
+  applyNativeThemeImmediately();
+
+  // Navigation can re-apply page JSON after onShow. Re-run once after render.
+  getThemeApi()?.nextTick?.(() => {
+    applyNativeThemeImmediately();
   });
 }
 
@@ -235,6 +318,24 @@ export function subscribeTheme(listener: ThemeListener) {
   return () => {
     listeners.delete(listener);
   };
+}
+
+export function getThemeChartPalette(theme: ResolvedTheme): ThemeChartPalette {
+  return theme === 'dark'
+    ? {
+        background: '#16212e',
+        grid: '#2a394a',
+        label: '#a8b8c9',
+        quiz: '#60a5fa',
+        practice: '#34d399',
+      }
+    : {
+        background: '#f6f9fd',
+        grid: '#dce6f2',
+        label: '#6e84a3',
+        quiz: '#2f6bff',
+        practice: '#159455',
+      };
 }
 
 export { STORAGE_KEY as THEME_STORAGE_KEY };

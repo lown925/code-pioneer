@@ -10,6 +10,7 @@ import {
   formatBattleNickname,
   formatBattleRank,
   formatBattleRating,
+  formatBattleStarDisplay,
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request } from '../../utils/request';
@@ -26,8 +27,8 @@ type LeaderboardRow = {
   rankText: string;
   ratingText: string;
   totalBattlesText: string;
-  starText: string;
-  titleText: string;
+  starSlots: ReturnType<typeof formatBattleStarDisplay>['starSlots'];
+  starAriaLabel: string;
   winRateText: string;
   rankClassName: string;
   isCurrentUser: boolean;
@@ -40,8 +41,8 @@ type MyRankCard = {
   rankText: string;
   ratingText: string;
   totalBattlesText: string;
-  starText: string;
-  titleText: string;
+  starSlots: ReturnType<typeof formatBattleStarDisplay>['starSlots'];
+  starAriaLabel: string;
 };
 
 type BattlePageData = {
@@ -263,8 +264,7 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
       rankText: formatBattleRank(item.rank),
       ratingText: formatBattleRating(item.rating),
       totalBattlesText: String(Math.max(0, item.rankedBattles)),
-      starText: item.star === undefined ? '' : `${item.star} 星`,
-      titleText: item.title ?? '',
+      ...formatBattleStarDisplay(item.star),
       winRateText: `${item.winRate.toFixed(1)}%`,
       rankClassName: item.rank <= 3 ? `rank-${item.rank}` : 'rank-default',
       isCurrentUser: item.userId === currentUserId,
@@ -284,6 +284,11 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
         ? (primarySkill?.rankedBattles ?? 0)
         : profile.availableSkills.reduce((sum, skill) => sum + Math.max(0, skill.rankedBattles), 0);
 
+    const star =
+      this.data.leaderboardScope === 'PYTHON'
+        ? (currentItem?.star ?? primarySkill?.star ?? null)
+        : null;
+
     return {
       avatarUrl: user?.avatarUrl ?? null,
       avatarFallbackText: formatBattleInitial(user?.nickname ?? null),
@@ -291,18 +296,7 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
       rankText: formatBattleRank(leaderboard.myRank),
       ratingText: rating === null ? '未定级' : formatBattleRating(rating),
       totalBattlesText: String(totalBattles),
-      starText:
-        this.data.leaderboardScope === 'PYTHON'
-          ? currentItem?.star !== undefined
-            ? `${currentItem.star} 星`
-            : primarySkill?.star === null || primarySkill?.star === undefined
-              ? '未定级'
-              : `${primarySkill.star} 星`
-          : '',
-      titleText:
-        this.data.leaderboardScope === 'PYTHON'
-          ? (currentItem?.title ?? primarySkill?.title ?? '未定级')
-          : '',
+      ...formatBattleStarDisplay(star),
     };
   },
 
