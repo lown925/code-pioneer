@@ -92,6 +92,54 @@ export function buildGrowthRecommendations(
   const combinedChapter = weakestCombinedChapter(context.chapters);
 
   if (
+    context.goal &&
+    context.goal.status === 'ACTIVE' &&
+    context.goal.paceStatus === 'BEHIND' &&
+    context.goal.remainingChapters > 0
+  ) {
+    const item = recommendation({
+      type: 'RULE_GOAL_BEHIND',
+      title: `追回${context.goal.courseTitle}学习进度`,
+      reason:
+        context.goal.requiredChaptersPerWeek === null
+          ? `目标已到截止日期，还剩 ${context.goal.remainingChapters} 个章节。`
+          : `按照当前目标，本周还需要完成约 ${Math.ceil(
+              context.goal.requiredChaptersPerWeek,
+            )} 个章节。`,
+      actionLabel: '继续学习',
+      targetPath: `/pages/learning/course-progress?courseId=${encodeURIComponent(
+        context.goal.courseId,
+      )}`,
+      priority: 'HIGH',
+      confidence: 4,
+      severity: 4,
+      recency: 4,
+    });
+    if (item) candidates.push(item);
+  }
+
+  if (
+    context.goal &&
+    context.goal.status === 'ACTIVE' &&
+    context.goal.paceStatus === 'AHEAD'
+  ) {
+    const item = recommendation({
+      type: 'RULE_GOAL_AHEAD',
+      title: '保持当前学习节奏',
+      reason: `你在${context.goal.courseTitle}的目标进度领先计划，可以继续完成下一章节。`,
+      actionLabel: '继续学习',
+      targetPath: `/pages/learning/course-progress?courseId=${encodeURIComponent(
+        context.goal.courseId,
+      )}`,
+      priority: 'LOW',
+      confidence: 2,
+      severity: 1,
+      recency: 2,
+    });
+    if (item) candidates.push(item);
+  }
+
+  if (
     combinedChapter &&
     (combinedChapter.quizAccuracy ?? 100) < 60 &&
     (combinedChapter.practiceAccuracy ?? 100) < 60

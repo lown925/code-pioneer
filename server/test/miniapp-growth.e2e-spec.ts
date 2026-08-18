@@ -82,13 +82,18 @@ describe('miniapp Growth product skeleton', () => {
       /redirectToLogin\(["']\/pages\/growth\/index["']\)/,
     );
     expect(indexScript).toContain('profile.isCoreProfileComplete');
-    expect(indexScript).toContain('ratingTrendView');
+    expect(indexScript).toContain('buildRatingChartPoints');
+    expect(indexScript).toContain('openGoalEditor');
     expect(indexTemplate).toContain('微信登录');
     expect(indexTemplate).toContain('下一步建议');
     expect(indexTemplate).toContain('学习趋势');
-    expect(indexTemplate).toContain('Python Rating 趋势');
+    expect(indexTemplate).toContain('rating-points=');
+    expect(indexTemplate).toContain('chart-mode="rating"');
+    expect(indexTemplate).toContain('我的学习目标');
+    expect(indexTemplate).toContain('skill-filter');
     expect(indexTemplate).toContain('学习表现');
     expect(indexTemplate).not.toMatch(/雷达图|星级/);
+    expect(indexTemplate).not.toMatch(/Python Rating/);
   });
 
   it('supports all five fields, clearing, loading, and refresh-on-return', () => {

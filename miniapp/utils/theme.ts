@@ -1,5 +1,5 @@
-export type ThemeMode = 'system' | 'light' | 'dark';
-export type ResolvedTheme = 'light' | 'dark';
+export type ThemeMode = "system" | "light" | "dark";
+export type ResolvedTheme = "light" | "dark";
 
 export type ThemeChartPalette = {
   background: string;
@@ -7,6 +7,7 @@ export type ThemeChartPalette = {
   label: string;
   quiz: string;
   practice: string;
+  rating: string;
 };
 
 export type ThemeSnapshot = {
@@ -27,7 +28,7 @@ type ThemeApi = {
     backgroundColor: string;
     animation?: {
       duration?: number;
-      timingFunc?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
+      timingFunc?: "linear" | "easeIn" | "easeOut" | "easeInOut";
     };
   }) => void;
   setBackgroundColor?: (options: {
@@ -39,7 +40,7 @@ type ThemeApi = {
     color: string;
     selectedColor: string;
     backgroundColor: string;
-    borderStyle?: 'black' | 'white';
+    borderStyle?: "black" | "white";
   }) => void;
   setTabBarItem?: (options: {
     index: number;
@@ -60,55 +61,55 @@ type TabBarIconSet = {
   };
 };
 
-const STORAGE_KEY = 'code-pioneer.theme.mode';
+const STORAGE_KEY = "code-pioneer.theme.mode";
 const TAB_BAR_ICON_SETS: TabBarIconSet[] = [
   {
     light: {
-      iconPath: 'assets/tab-battle-light.png',
-      selectedIconPath: 'assets/tab-battle-light-selected.png',
+      iconPath: "assets/tab-battle-light.png",
+      selectedIconPath: "assets/tab-battle-light-selected.png",
     },
     dark: {
-      iconPath: 'assets/tab-battle-dark.png',
-      selectedIconPath: 'assets/tab-battle-dark-selected.png',
+      iconPath: "assets/tab-battle-dark.png",
+      selectedIconPath: "assets/tab-battle-dark-selected.png",
     },
   },
   {
     light: {
-      iconPath: 'assets/tab-learning-light.png',
-      selectedIconPath: 'assets/tab-learning-light-selected.png',
+      iconPath: "assets/tab-learning-light.png",
+      selectedIconPath: "assets/tab-learning-light-selected.png",
     },
     dark: {
-      iconPath: 'assets/tab-learning-dark.png',
-      selectedIconPath: 'assets/tab-learning-dark-selected.png',
+      iconPath: "assets/tab-learning-dark.png",
+      selectedIconPath: "assets/tab-learning-dark-selected.png",
     },
   },
   {
     light: {
-      iconPath: 'assets/tab-growth-light.png',
-      selectedIconPath: 'assets/tab-growth-light-selected.png',
+      iconPath: "assets/tab-growth-light.png",
+      selectedIconPath: "assets/tab-growth-light-selected.png",
     },
     dark: {
-      iconPath: 'assets/tab-growth-dark.png',
-      selectedIconPath: 'assets/tab-growth-dark-selected.png',
+      iconPath: "assets/tab-growth-dark.png",
+      selectedIconPath: "assets/tab-growth-dark-selected.png",
     },
   },
   {
     light: {
-      iconPath: 'assets/tab-profile-light.png',
-      selectedIconPath: 'assets/tab-profile-light-selected.png',
+      iconPath: "assets/tab-profile-light.png",
+      selectedIconPath: "assets/tab-profile-light-selected.png",
     },
     dark: {
-      iconPath: 'assets/tab-profile-dark.png',
-      selectedIconPath: 'assets/tab-profile-dark-selected.png',
+      iconPath: "assets/tab-profile-dark.png",
+      selectedIconPath: "assets/tab-profile-dark-selected.png",
     },
   },
 ];
 const listeners = new Set<ThemeListener>();
 
 let initialized = false;
-let themeMode: ThemeMode = 'system';
-let systemTheme: ResolvedTheme = 'light';
-let resolvedTheme: ResolvedTheme = 'light';
+let themeMode: ThemeMode = "system";
+let systemTheme: ResolvedTheme = "light";
+let resolvedTheme: ResolvedTheme = "light";
 let systemThemeListener: ((result: { theme?: string }) => void) | null = null;
 
 function getThemeApi(): ThemeApi | null {
@@ -116,20 +117,20 @@ function getThemeApi(): ThemeApi | null {
 }
 
 function normalizeThemeMode(value: unknown): ThemeMode {
-  return value === 'light' || value === 'dark' || value === 'system'
+  return value === "light" || value === "dark" || value === "system"
     ? value
-    : 'system';
+    : "system";
 }
 
 export function normalizeResolvedTheme(value: unknown): ResolvedTheme {
-  return value === 'dark' ? 'dark' : 'light';
+  return value === "dark" ? "dark" : "light";
 }
 
 function readSystemTheme(): ResolvedTheme {
   try {
     return normalizeResolvedTheme(getThemeApi()?.getSystemInfoSync?.().theme);
   } catch {
-    return 'light';
+    return "light";
   }
 }
 
@@ -137,7 +138,7 @@ function readStoredThemeMode(): ThemeMode {
   try {
     return normalizeThemeMode(getThemeApi()?.getStorageSync?.(STORAGE_KEY));
   } catch {
-    return 'system';
+    return "system";
   }
 }
 
@@ -187,14 +188,14 @@ function applyNativeThemeImmediately() {
     return;
   }
 
-  const isDark = resolvedTheme === 'dark';
-  const backgroundColor = isDark ? '#0B1118' : '#F4F8FC';
-  const cardColor = isDark ? '#121A24' : '#FFFFFF';
-  const secondaryTextColor = isDark ? '#A8B8C9' : '#7D8AA5';
-  const primaryColor = isDark ? '#60A5FA' : '#2F6BFF';
+  const isDark = resolvedTheme === "dark";
+  const backgroundColor = isDark ? "#0B1118" : "#F4F8FC";
+  const cardColor = isDark ? "#121A24" : "#FFFFFF";
+  const secondaryTextColor = isDark ? "#A8B8C9" : "#7D8AA5";
+  const primaryColor = isDark ? "#60A5FA" : "#2F6BFF";
 
   api.setNavigationBarColor?.({
-    frontColor: isDark ? '#FFFFFF' : '#000000',
+    frontColor: isDark ? "#FFFFFF" : "#000000",
     backgroundColor,
   });
   api.setBackgroundColor?.({
@@ -206,7 +207,7 @@ function applyNativeThemeImmediately() {
     color: secondaryTextColor,
     selectedColor: primaryColor,
     backgroundColor: cardColor,
-    borderStyle: isDark ? 'white' : 'black',
+    borderStyle: isDark ? "white" : "black",
   });
   TAB_BAR_ICON_SETS.forEach((iconSet, index) => {
     const icons = isDark ? iconSet.dark : iconSet.light;
@@ -227,7 +228,7 @@ function applyNativeTheme() {
 }
 
 function recalculateTheme(notify = true) {
-  const nextResolvedTheme = themeMode === 'system' ? systemTheme : themeMode;
+  const nextResolvedTheme = themeMode === "system" ? systemTheme : themeMode;
   const changed = resolvedTheme !== nextResolvedTheme;
   resolvedTheme = nextResolvedTheme;
   applyNativeTheme();
@@ -253,7 +254,7 @@ function registerSystemThemeWatcher() {
   systemThemeListener = (result) => {
     systemTheme = normalizeResolvedTheme(result.theme);
 
-    if (themeMode === 'system') {
+    if (themeMode === "system") {
       recalculateTheme(true);
     }
   };
@@ -265,7 +266,7 @@ export function initializeTheme(): ThemeSnapshot {
     initialized = true;
     themeMode = readStoredThemeMode();
     systemTheme = readSystemTheme();
-    resolvedTheme = themeMode === 'system' ? systemTheme : themeMode;
+    resolvedTheme = themeMode === "system" ? systemTheme : themeMode;
     registerSystemThemeWatcher();
     applyNativeTheme();
     updateAppGlobalData(getSnapshot());
@@ -277,7 +278,7 @@ export function initializeTheme(): ThemeSnapshot {
 export function syncSystemTheme(): ThemeSnapshot {
   initializeTheme();
   systemTheme = readSystemTheme();
-  recalculateTheme(themeMode === 'system');
+  recalculateTheme(themeMode === "system");
   return getSnapshot();
 }
 
@@ -321,20 +322,22 @@ export function subscribeTheme(listener: ThemeListener) {
 }
 
 export function getThemeChartPalette(theme: ResolvedTheme): ThemeChartPalette {
-  return theme === 'dark'
+  return theme === "dark"
     ? {
-        background: '#16212e',
-        grid: '#2a394a',
-        label: '#a8b8c9',
-        quiz: '#60a5fa',
-        practice: '#34d399',
+        background: "#16212e",
+        grid: "#2a394a",
+        label: "#a8b8c9",
+        quiz: "#60a5fa",
+        practice: "#34d399",
+        rating: "#fbbf24",
       }
     : {
-        background: '#f6f9fd',
-        grid: '#dce6f2',
-        label: '#6e84a3',
-        quiz: '#2f6bff',
-        practice: '#159455',
+        background: "#f6f9fd",
+        grid: "#dce6f2",
+        label: "#6e84a3",
+        quiz: "#2f6bff",
+        practice: "#159455",
+        rating: "#d97706",
       };
 }
 

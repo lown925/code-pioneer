@@ -48,8 +48,11 @@ function createContext(
       totalWrongAttempts: 0,
       repeatedWrongQuestions: 0,
       topWeakAreas: [],
+      areas: [],
     },
     battle: {
+      skills: [],
+      defaultSkillCode: null,
       rankedBattles: 0,
       trainingBattles: 0,
       friendBattles: 0,
@@ -161,5 +164,44 @@ describe('growth recommendations', () => {
     expect(recommendations.some((item) => item.type === 'EXPLORE_GROWTH')).toBe(
       true,
     );
+  });
+
+  it('prioritizes a behind active goal and suppresses completed-goal actions', () => {
+    const goal = {
+      id: 'goal-1',
+      userId: 'user-1',
+      courseId: 'course-1',
+      courseTitle: 'Python',
+      targetDate: '2026-08-31',
+      status: 'ACTIVE' as const,
+      startedAt: '2026-08-01T00:00:00.000Z',
+      completedAt: null,
+      totalChapters: 15,
+      completedChapters: 2,
+      remainingChapters: 13,
+      remainingDays: 13,
+      requiredChaptersPerDay: 1,
+      requiredChaptersPerWeek: 7,
+      progressPercent: 13.33,
+      plannedProgressPercent: 50,
+      paceStatus: 'BEHIND' as const,
+    };
+
+    const behind = buildGrowthRecommendations(createContext({ goal }));
+    expect(behind[0]).toMatchObject({
+      type: 'RULE_GOAL_BEHIND',
+      priority: 'HIGH',
+    });
+
+    const completed = buildGrowthRecommendations(
+      createContext({
+        goal: { ...goal, status: 'COMPLETED', paceStatus: 'AHEAD' },
+      }),
+    );
+    expect(
+      completed.some((item) =>
+        ['RULE_GOAL_BEHIND', 'RULE_GOAL_AHEAD'].includes(item.type),
+      ),
+    ).toBe(false);
   });
 });

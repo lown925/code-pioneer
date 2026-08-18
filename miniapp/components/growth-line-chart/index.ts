@@ -34,6 +34,8 @@ type GrowthLineChartData = {
 
 type GrowthLineChartProperties = {
   points: GrowthTrendPoint[];
+  ratingPoints: Array<{ label: string; value: number | null }>;
+  chartMode: "learning" | "rating";
   resolvedTheme: "light" | "dark";
 };
 
@@ -48,6 +50,20 @@ Component({
     points: {
       type: Array,
       value: [],
+      observer(this: GrowthLineChartInstance) {
+        this.drawChart();
+      },
+    },
+    ratingPoints: {
+      type: Array,
+      value: [],
+      observer(this: GrowthLineChartInstance) {
+        this.drawChart();
+      },
+    },
+    chartMode: {
+      type: String,
+      value: "learning",
       observer(this: GrowthLineChartInstance) {
         this.drawChart();
       },
@@ -101,7 +117,6 @@ Component({
       const bottom = 28;
       const plotWidth = Math.max(1, width - left - right);
       const plotHeight = Math.max(1, height - top - bottom);
-      const points = this.data.points ?? [];
 
       context.clearRect(0, 0, width, height);
       context.setFillStyle(palette.background);
@@ -109,16 +124,77 @@ Component({
       context.setFontSize(10);
       context.setFillStyle(palette.label);
 
-      for (const level of [0, 50, 100]) {
-        const y = top + ((100 - level) / 100) * plotHeight;
-        context.setStrokeStyle(palette.grid);
-        context.setLineWidth(1);
-        context.beginPath();
-        context.moveTo(left, y);
-        context.lineTo(width - right, y);
-        context.stroke();
-        context.fillText(`${level}`, 6, y + 3);
+      const drawGrid = (levels: number[], maximum: number, span: number) => {
+        for (const level of levels) {
+          const y = top + ((maximum - level) / span) * plotHeight;
+          context.setStrokeStyle(palette.grid);
+          context.setLineWidth(1);
+          context.beginPath();
+          context.moveTo(left, y);
+          context.lineTo(width - right, y);
+          context.stroke();
+          context.fillText(`${Math.round(level)}`, 6, y + 3);
+        }
+      };
+
+      if (this.data.chartMode === "rating") {
+        const ratingPoints = this.data.ratingPoints ?? [];
+        const values = ratingPoints
+          .map((point) => point.value)
+          .filter((value): value is number => value !== null);
+        const ratingMin = values.length
+          ? Math.floor((Math.min(...values) - 10) / 10) * 10
+          : 0;
+        const ratingMax = values.length
+          ? Math.ceil((Math.max(...values) + 10) / 10) * 10
+          : 100;
+        const ratingSpan = Math.max(20, ratingMax - ratingMin);
+        drawGrid(
+          [ratingMin, ratingMin + ratingSpan / 2, ratingMax],
+          ratingMax,
+          ratingSpan,
+        );
+
+        let previous: { x: number; y: number } | null = null;
+        context.setStrokeStyle(palette.rating);
+        context.setFillStyle(palette.rating);
+        context.setLineWidth(2);
+        ratingPoints.forEach((point, index) => {
+          if (point.value === null) {
+            previous = null;
+            return;
+          }
+          const x =
+            ratingPoints.length <= 1
+              ? left + plotWidth / 2
+              : left + (index / (ratingPoints.length - 1)) * plotWidth;
+          const y = top + ((ratingMax - point.value) / ratingSpan) * plotHeight;
+          if (previous) {
+            context.beginPath();
+            context.moveTo(previous.x, previous.y);
+            context.lineTo(x, y);
+            context.stroke();
+          }
+          context.beginPath();
+          context.arc(x, y, 3, 0, Math.PI * 2);
+          context.fill();
+          previous = { x, y };
+        });
+        if (ratingPoints.length > 0) {
+          context.setFillStyle(palette.label);
+          context.fillText(ratingPoints[0]?.label ?? "", left, height - 8);
+          context.fillText(
+            ratingPoints[ratingPoints.length - 1]?.label ?? "",
+            Math.max(left, width - right - 20),
+            height - 8,
+          );
+        }
+        context.draw();
+        return;
       }
+
+      const points = this.data.points ?? [];
+      drawGrid([0, 50, 100], 100, 100);
 
       const drawSeries = (
         key: "quizAccuracy" | "practiceAccuracy",

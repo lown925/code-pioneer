@@ -6,7 +6,7 @@
     width="{{canvasWidth}}"
     height="{{canvasHeight}}"
   ></canvas>
-  <view class="growth-line-chart__legend">
+  <view class="growth-line-chart__legend" wx:if="{{chartMode === 'learning'}}">
     <view class="growth-line-chart__legend-item">
       <view class="growth-line-chart__legend-line growth-line-chart__legend-line--quiz"></view>
       <text>Quiz</text>
@@ -14,6 +14,12 @@
     <view class="growth-line-chart__legend-item">
       <view class="growth-line-chart__legend-line growth-line-chart__legend-line--practice"></view>
       <text>Practice</text>
+    </view>
+  </view>
+  <view class="growth-line-chart__legend" wx:else>
+    <view class="growth-line-chart__legend-item">
+      <view class="growth-line-chart__legend-line growth-line-chart__legend-line--quiz"></view>
+      <text>Rating（最近对局）</text>
     </view>
   </view>
 </view>

@@ -1,4 +1,9 @@
-import type { GrowthOverviewResponse, GrowthRange } from "../types/growth";
+import type { CourseListData } from "../types/course";
+import type {
+  GrowthLearningGoal,
+  GrowthOverviewResponse,
+  GrowthRange,
+} from "../types/growth";
 import { request } from "./request";
 
 export function fetchGrowthOverview(range: GrowthRange = "7d") {
@@ -7,6 +12,54 @@ export function fetchGrowthOverview(range: GrowthRange = "7d") {
     method: "GET",
     authMode: "required",
     data: { range },
+  });
+}
+
+export type GrowthGoalInput = {
+  courseId: string;
+  targetDate: string;
+};
+
+export function fetchCurrentGrowthGoal() {
+  return request<{ goal: GrowthLearningGoal | null }>({
+    url: "/growth/goals/current",
+    method: "GET",
+    authMode: "required",
+  });
+}
+
+export function createGrowthGoal(input: GrowthGoalInput) {
+  return request<{ goal: GrowthLearningGoal }>({
+    url: "/growth/goals",
+    method: "POST",
+    authMode: "required",
+    data: input,
+  });
+}
+
+export function updateGrowthGoal(input: Partial<GrowthGoalInput>) {
+  return request<{ goal: GrowthLearningGoal }>({
+    url: "/growth/goals/current",
+    method: "PATCH",
+    authMode: "required",
+    data: input,
+  });
+}
+
+export function cancelGrowthGoal() {
+  return request<{ goal: null }>({
+    url: "/growth/goals/current",
+    method: "DELETE",
+    authMode: "required",
+  });
+}
+
+export function fetchGrowthCourses() {
+  return request<CourseListData>({
+    url: "/courses",
+    method: "GET",
+    authMode: "auto",
+    data: { page: 1, pageSize: 100 },
   });
 }
 

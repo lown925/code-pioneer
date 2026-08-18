@@ -7,6 +7,29 @@ export type GrowthDimensionStatus =
 
 export type GrowthConfidence = "NONE" | "TENTATIVE" | "STABLE";
 
+export type GrowthLearningGoalStatus = "ACTIVE" | "COMPLETED" | "CANCELLED";
+export type GrowthGoalPaceStatus = "AHEAD" | "ON_TRACK" | "BEHIND";
+
+export type GrowthLearningGoal = {
+  id: string;
+  userId: string;
+  courseId: string;
+  courseTitle: string;
+  targetDate: string;
+  status: GrowthLearningGoalStatus;
+  startedAt: string;
+  completedAt: string | null;
+  totalChapters: number;
+  completedChapters: number;
+  remainingChapters: number;
+  remainingDays: number;
+  requiredChaptersPerDay: number | null;
+  requiredChaptersPerWeek: number | null;
+  progressPercent: number;
+  plannedProgressPercent: number;
+  paceStatus: GrowthGoalPaceStatus;
+};
+
 export type GrowthPerformanceSummary = {
   attemptCount: number;
   completedAttemptCount: number;
@@ -77,8 +100,11 @@ export type GrowthContinueLearning = {
 } | null;
 
 export type GrowthWrongArea = {
+  courseId: string | null;
+  courseTitle: string;
   chapterId: string | null;
   chapterTitle: string;
+  wrongCount: number;
   wrongAttempts: number;
   uniqueWrongQuestions: number;
 };
@@ -88,6 +114,7 @@ export type GrowthWrongQuestionSummary = {
   totalWrongAttempts: number;
   repeatedWrongQuestions: number;
   topWeakAreas: GrowthWrongArea[];
+  areas: GrowthWrongArea[];
 };
 
 export type GrowthRatingTrendPoint = {
@@ -98,14 +125,30 @@ export type GrowthRatingTrendPoint = {
   skillCode: string;
 };
 
-export type GrowthBattleSummary = {
+export type GrowthBattleSkillSummary = {
+  code: string;
+  name: string;
+  isEnabled: boolean;
+  rating: number | null;
+  highestRating: number | null;
   rankedBattles: number;
   trainingBattles: number;
   friendBattles: number;
   ranked: GrowthPerformanceSummary;
   training: GrowthPerformanceSummary;
   friend: GrowthPerformanceSummary;
-  currentPythonRating: number | null;
+  ratingTrend: GrowthRatingTrendPoint[];
+};
+
+export type GrowthBattleSummary = {
+  skills: GrowthBattleSkillSummary[];
+  defaultSkillCode: string | null;
+  rankedBattles: number;
+  trainingBattles: number;
+  friendBattles: number;
+  ranked: GrowthPerformanceSummary;
+  training: GrowthPerformanceSummary;
+  friend: GrowthPerformanceSummary;
   ratingTrend: GrowthRatingTrendPoint[];
 };
 
@@ -137,6 +180,7 @@ export type GrowthOverviewResponse = {
     chapters: GrowthChapterPerformance[];
   };
   wrongQuestions: GrowthWrongQuestionSummary;
+  goal: GrowthLearningGoal | null;
   battle: GrowthBattleSummary;
   recommendations: GrowthRecommendation[];
 };

@@ -1,6 +1,7 @@
 import {
   BattleMode,
   BattleRoomStatus,
+  LearningGoalStatus,
   PracticeAttemptStatus,
 } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,8 +17,18 @@ function createMockPrisma() {
     practiceAttempt: { findMany: jest.fn() },
     battleParticipant: { findMany: jest.fn() },
     battleProfile: { findUnique: jest.fn() },
-    userBattleSkillRating: { findUnique: jest.fn() },
+    userBattleSkillRating: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+    },
+    battleSkill: { findMany: jest.fn() },
     battleRatingLog: { findMany: jest.fn() },
+    userLearningGoal: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    course: { findFirst: jest.fn() },
   };
 }
 
@@ -37,7 +48,40 @@ function seedEmpty(prisma: ReturnType<typeof createMockPrisma>) {
   prisma.battleParticipant.findMany.mockResolvedValue([]);
   prisma.battleProfile.findUnique.mockResolvedValue(null);
   prisma.userBattleSkillRating.findUnique.mockResolvedValue(null);
+  prisma.userBattleSkillRating.findMany.mockResolvedValue([]);
+  prisma.battleSkill.findMany.mockResolvedValue([]);
   prisma.battleRatingLog.findMany.mockResolvedValue([]);
+  prisma.userLearningGoal.findFirst.mockResolvedValue(null);
+}
+
+function createGoalRecord(
+  overrides: Partial<{
+    id: string;
+    userId: string;
+    courseId: string;
+    targetDate: Date;
+    status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+    startedAt: Date;
+    completedAt: Date | null;
+    course: { id: string; title: string };
+  }> = {},
+) {
+  return {
+    id: 'goal-1',
+    userId: 'user-1',
+    courseId: 'course-1',
+    targetDate: new Date('2026-08-31T00:00:00.000Z'),
+    status: 'ACTIVE' as const,
+    startedAt: new Date('2026-08-01T00:00:00.000Z'),
+    completedAt: null,
+    course: { id: 'course-1', title: 'Python' },
+    ...overrides,
+  };
+}
+
+function seedGoalResolution(prisma: ReturnType<typeof createMockPrisma>) {
+  prisma.courseChapter.findMany.mockResolvedValue([{ id: 'chapter-1' }]);
+  prisma.chapterLearningRecord.findMany.mockResolvedValue([]);
 }
 
 describe('GrowthService', () => {
@@ -240,5 +284,416 @@ describe('GrowthService', () => {
         (item) => item.skillCode === 'PYTHON',
       ),
     ).toBe(true);
+  });
+
+  it('groups Battle counts and Rating trends by real skill data', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2026-08-18T04:00:00.000Z');
+    seedEmpty(prisma);
+    prisma.battleSkill.findMany.mockResolvedValue([
+      { code: 'PYTHON', name: 'Python', isEnabled: true },
+      { code: 'JAVASCRIPT', name: 'JavaScript', isEnabled: false },
+    ]);
+    prisma.userBattleSkillRating.findMany.mockResolvedValue([
+      {
+        skillCode: 'PYTHON',
+        rating: 1080,
+        highestRating: 1110,
+        rankedBattles: 2,
+      },
+    ]);
+    prisma.userBattleSkillRating.findUnique.mockResolvedValue({ rating: 1080 });
+    prisma.battleParticipant.findMany.mockResolvedValue([
+      {
+        battleRoom: {
+          id: 'python-ranked',
+          mode: BattleMode.RANKED,
+          skillCode: 'PYTHON',
+          status: BattleRoomStatus.COMPLETED,
+          completedAt: now,
+        },
+        answers: [],
+      },
+      {
+        battleRoom: {
+          id: 'python-training',
+          mode: BattleMode.TRAINING,
+          skillCode: 'PYTHON',
+          status: BattleRoomStatus.COMPLETED,
+          completedAt: now,
+        },
+        answers: [],
+      },
+      {
+        battleRoom: {
+          id: 'javascript-friend',
+          mode: BattleMode.FRIEND,
+          skillCode: 'JAVASCRIPT',
+          status: BattleRoomStatus.COMPLETED,
+          completedAt: now,
+        },
+        answers: [],
+      },
+    ]);
+    prisma.battleRatingLog.findMany.mockResolvedValue([
+      {
+        ratingBefore: 1060,
+        ratingAfter: 1080,
+        ratingDelta: 20,
+        createdAt: now,
+        skillCode: 'PYTHON',
+      },
+    ]);
+    const service = new GrowthService(prisma as unknown as PrismaService);
+
+    const result = await service.getOverview('user-1', '7d', now);
+    const python = result.data.battle.skills.find(
+      (skill) => skill.code === 'PYTHON',
+    );
+    const javascript = result.data.battle.skills.find(
+      (skill) => skill.code === 'JAVASCRIPT',
+    );
+
+    expect(python).toMatchObject({
+      rating: 1080,
+      highestRating: 1110,
+      rankedBattles: 2,
+      trainingBattles: 1,
+      friendBattles: 0,
+    });
+    expect(python?.ratingTrend).toHaveLength(1);
+    expect(javascript).toMatchObject({
+      rating: null,
+      rankedBattles: 0,
+      trainingBattles: 0,
+      friendBattles: 1,
+    });
+    expect(javascript?.ratingTrend).toEqual([]);
+  });
+
+  it('keeps up to twenty Rating points for every skill', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2026-08-18T04:00:00.000Z');
+    seedEmpty(prisma);
+    prisma.battleSkill.findMany.mockResolvedValue([
+      { code: 'PYTHON', name: 'Python', isEnabled: true },
+      { code: 'JAVASCRIPT', name: 'JavaScript', isEnabled: false },
+    ]);
+    prisma.userBattleSkillRating.findMany.mockResolvedValue([
+      {
+        skillCode: 'PYTHON',
+        rating: 1200,
+        highestRating: 1200,
+        rankedBattles: 25,
+      },
+      {
+        skillCode: 'JAVASCRIPT',
+        rating: 1100,
+        highestRating: 1100,
+        rankedBattles: 25,
+      },
+    ]);
+    prisma.userBattleSkillRating.findUnique.mockResolvedValue({ rating: 1200 });
+    prisma.battleRatingLog.findMany.mockResolvedValue(
+      Array.from({ length: 50 }, (_, index) => ({
+        ratingBefore: 1000 + index,
+        ratingAfter: 1010 + index,
+        ratingDelta: 10,
+        createdAt: new Date(now.getTime() - index * 60 * 60 * 1000),
+        skillCode: index % 2 === 0 ? 'PYTHON' : 'JAVASCRIPT',
+      })),
+    );
+    const service = new GrowthService(prisma as unknown as PrismaService);
+
+    const result = await service.getOverview('user-1', '7d', now);
+    const python = result.data.battle.skills.find(
+      (skill) => skill.code === 'PYTHON',
+    );
+    const javascript = result.data.battle.skills.find(
+      (skill) => skill.code === 'JAVASCRIPT',
+    );
+
+    expect(python?.ratingTrend).toHaveLength(20);
+    expect(javascript?.ratingTrend).toHaveLength(20);
+    expect(python?.ratingTrend[0]?.ratingAfter).toBe(1010 + 38);
+    expect(javascript?.ratingTrend[0]?.ratingAfter).toBe(1010 + 39);
+  });
+
+  it('keeps legacy null-skill battles out of skill-specific summaries', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2026-08-18T04:00:00.000Z');
+    seedEmpty(prisma);
+    prisma.battleSkill.findMany.mockResolvedValue([
+      { code: 'PYTHON', name: 'Python', isEnabled: true },
+    ]);
+    prisma.battleParticipant.findMany.mockResolvedValue([
+      {
+        battleRoom: {
+          id: 'legacy-room',
+          mode: BattleMode.RANKED,
+          skillCode: null,
+          status: BattleRoomStatus.COMPLETED,
+          completedAt: now,
+        },
+        answers: [],
+      },
+    ]);
+    prisma.battleRatingLog.findMany.mockResolvedValue([]);
+    const service = new GrowthService(prisma as unknown as PrismaService);
+
+    const result = await service.getOverview('user-1', '7d', now);
+    const python = result.data.battle.skills.find(
+      (skill) => skill.code === 'PYTHON',
+    );
+
+    expect(result.data.battle.rankedBattles).toBe(1);
+    expect(python?.rankedBattles).toBe(0);
+    expect(python?.ratingTrend).toEqual([]);
+  });
+
+  it('creates goals for the authenticated user and resolves live chapter metrics', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2026-08-18T04:00:00.000Z');
+    const goal = createGoalRecord();
+    prisma.course.findFirst.mockResolvedValue({
+      id: 'course-1',
+      title: 'Python',
+    });
+    prisma.userLearningGoal.findFirst.mockResolvedValue(null);
+    prisma.userLearningGoal.create.mockResolvedValue(goal);
+    seedGoalResolution(prisma);
+    const service = new GrowthService(prisma as unknown as PrismaService);
+
+    const result = await service.createGoal(
+      'user-1',
+      {
+        courseId: 'course-1',
+        targetDate: '2026-08-31',
+        userId: 'other-user',
+      } as never,
+      now,
+    );
+
+    expect(result.data.goal).toMatchObject({
+      userId: 'user-1',
+      courseId: 'course-1',
+      totalChapters: 1,
+      completedChapters: 0,
+    });
+    expect(prisma.course.findFirst).toHaveBeenCalledWith({
+      where: { id: 'course-1', status: 'PUBLISHED', deletedAt: null },
+      select: { id: true, title: true },
+    });
+    expect(prisma.userLearningGoal.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: 'user-1' }),
+      }),
+    );
+  });
+
+  it('rejects an invalid course, duplicate active goal, and a unique-race P2002', async () => {
+    const now = new Date('2026-08-18T04:00:00.000Z');
+
+    const invalidCoursePrisma = createMockPrisma();
+    invalidCoursePrisma.course.findFirst.mockResolvedValue(null);
+    const invalidCourseService = new GrowthService(
+      invalidCoursePrisma as unknown as PrismaService,
+    );
+    await expect(
+      invalidCourseService.createGoal(
+        'user-1',
+        { courseId: 'course-1', targetDate: '2026-08-31' },
+        now,
+      ),
+    ).rejects.toThrow('LEARNABLE_COURSE_NOT_FOUND');
+
+    const duplicatePrisma = createMockPrisma();
+    duplicatePrisma.course.findFirst.mockResolvedValue({
+      id: 'course-1',
+      title: 'Python',
+    });
+    duplicatePrisma.userLearningGoal.findFirst.mockResolvedValue({
+      id: 'goal-1',
+    });
+    const duplicateService = new GrowthService(
+      duplicatePrisma as unknown as PrismaService,
+    );
+    await expect(
+      duplicateService.createGoal(
+        'user-1',
+        { courseId: 'course-1', targetDate: '2026-08-31' },
+        now,
+      ),
+    ).rejects.toThrow('ACTIVE_LEARNING_GOAL_EXISTS');
+
+    const racePrisma = createMockPrisma();
+    racePrisma.course.findFirst.mockResolvedValue({
+      id: 'course-1',
+      title: 'Python',
+    });
+    racePrisma.userLearningGoal.findFirst.mockResolvedValue(null);
+    racePrisma.userLearningGoal.create.mockRejectedValue({ code: 'P2002' });
+    const raceService = new GrowthService(
+      racePrisma as unknown as PrismaService,
+    );
+    await expect(
+      raceService.createGoal(
+        'user-1',
+        { courseId: 'course-1', targetDate: '2026-08-31' },
+        now,
+      ),
+    ).rejects.toThrow('ACTIVE_LEARNING_GOAL_EXISTS');
+  });
+
+  it('updates and cancels only the authenticated user active goal', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2026-08-18T04:00:00.000Z');
+    const current = createGoalRecord();
+    const updated = createGoalRecord({
+      courseId: 'course-2',
+      course: { id: 'course-2', title: 'JavaScript' },
+      targetDate: new Date('2026-09-10T00:00:00.000Z'),
+    });
+    prisma.userLearningGoal.findFirst.mockResolvedValue(current);
+    prisma.course.findFirst.mockResolvedValue({
+      id: 'course-2',
+      title: 'JavaScript',
+    });
+    prisma.userLearningGoal.update.mockResolvedValue(updated);
+    seedGoalResolution(prisma);
+    const service = new GrowthService(prisma as unknown as PrismaService);
+
+    const updateResult = await service.updateCurrentGoal(
+      'user-1',
+      { courseId: 'course-2', targetDate: '2026-09-10' },
+      now,
+    );
+
+    expect(updateResult.data.goal.courseId).toBe('course-2');
+    expect(prisma.userLearningGoal.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'user-1', status: LearningGoalStatus.ACTIVE },
+      }),
+    );
+    expect(prisma.userLearningGoal.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'goal-1' },
+        data: expect.objectContaining({
+          courseId: 'course-2',
+          status: 'ACTIVE',
+        }),
+      }),
+    );
+
+    prisma.userLearningGoal.findFirst.mockResolvedValue({ id: 'goal-1' });
+    const cancelResult = await service.cancelCurrentGoal('user-1');
+    expect(cancelResult.data.goal).toBeNull();
+    expect(prisma.userLearningGoal.update).toHaveBeenLastCalledWith({
+      where: { id: 'goal-1' },
+      data: { status: 'CANCELLED' },
+    });
+  });
+
+  it('marks a fully completed goal dynamically and suppresses goal recommendations', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2026-08-18T04:00:00.000Z');
+    seedEmpty(prisma);
+    prisma.courseChapter.findMany.mockResolvedValue([
+      {
+        id: 'chapter-1',
+        title: 'Basics',
+        courseId: 'course-1',
+        course: { id: 'course-1', title: 'Python' },
+      },
+      {
+        id: 'chapter-2',
+        title: 'Functions',
+        courseId: 'course-1',
+        course: { id: 'course-1', title: 'Python' },
+      },
+    ]);
+    prisma.chapterLearningRecord.findMany.mockResolvedValue([
+      {
+        chapterId: 'chapter-1',
+        status: 'COMPLETED',
+        lastLearnedAt: now,
+        completedAt: now,
+      },
+      {
+        chapterId: 'chapter-2',
+        status: 'COMPLETED',
+        lastLearnedAt: now,
+        completedAt: now,
+      },
+    ]);
+    prisma.userLearningGoal.findFirst.mockResolvedValue(
+      createGoalRecord({
+        targetDate: new Date('2026-08-31T00:00:00.000Z'),
+      }),
+    );
+    const service = new GrowthService(prisma as unknown as PrismaService);
+
+    const result = await service.getOverview('user-1', '7d', now);
+
+    expect(result.data.goal?.status).toBe('COMPLETED');
+    expect(
+      result.data.recommendations.some((item) =>
+        ['RULE_GOAL_BEHIND', 'RULE_GOAL_AHEAD'].includes(item.type),
+      ),
+    ).toBe(false);
+  });
+
+  it('returns course-aware wrong areas and limits the default view to Top 5', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2026-08-18T04:00:00.000Z');
+    seedEmpty(prisma);
+    const chapters = Array.from({ length: 6 }, (_, index) => ({
+      id: `chapter-${index + 1}`,
+      title: `Chapter ${index + 1}`,
+      courseId: index < 3 ? 'course-python' : 'course-javascript',
+      course: {
+        id: index < 3 ? 'course-python' : 'course-javascript',
+        title: index < 3 ? 'Python' : 'JavaScript',
+      },
+    }));
+    prisma.courseChapter.findMany.mockResolvedValue(chapters);
+    prisma.quizAttempt.findMany.mockResolvedValue(
+      chapters.flatMap((chapter, chapterIndex) =>
+        Array.from(
+          { length: chapterIndex === 0 ? 3 : chapterIndex === 1 ? 2 : 1 },
+          (_, attemptIndex) => ({
+            submittedAt: now,
+            quiz: { chapter },
+            answers: [
+              {
+                questionId: `question-${chapterIndex}-${attemptIndex}`,
+                isCorrect: false,
+                createdAt: now,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    const service = new GrowthService(prisma as unknown as PrismaService);
+
+    const result = await service.getOverview('user-1', '7d', now);
+    const areas = result.data.wrongQuestions.areas ?? [];
+
+    expect(result.data.wrongQuestions.topWeakAreas).toHaveLength(5);
+    expect(areas).toHaveLength(6);
+    expect(areas[0]).toMatchObject({
+      chapterId: 'chapter-1',
+      courseId: 'course-python',
+      wrongCount: 3,
+    });
+    expect(
+      result.data.wrongQuestions.topWeakAreas.some(
+        (area) => area.chapterId === 'chapter-6',
+      ),
+    ).toBe(false);
+    expect(areas.some((area) => area.courseId === 'course-javascript')).toBe(
+      true,
+    );
   });
 });

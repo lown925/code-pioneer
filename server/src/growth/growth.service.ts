@@ -1,7 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   BattleMode,
   BattleRoomStatus,
+  LearningGoalStatus,
   PracticeAttemptStatus,
 } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,11 +21,20 @@ import {
   SHANGHAI_TIMEZONE,
 } from './growth-metrics';
 import { buildGrowthRecommendations } from './growth-recommendations';
+import {
+  calculateGoalMetrics,
+  compareGoalDates,
+  parseGoalDate,
+} from './growth-goal';
+import { CreateGrowthGoalDto } from './dto/create-growth-goal.dto';
+import { UpdateGrowthGoalDto } from './dto/update-growth-goal.dto';
 import type {
   GrowthActivitySummary,
   GrowthBattleSummary,
+  GrowthBattleSkillSummary,
   GrowthChapterPerformance,
   GrowthContinueLearning,
+  GrowthLearningGoal,
   GrowthOverviewResponse,
   GrowthPerformanceSummary,
   GrowthProfileSummary,
@@ -63,6 +78,8 @@ type TrendAccumulator = {
 
 type WrongAccumulator = {
   key: string;
+  courseId: string | null;
+  courseTitle: string;
   chapterId: string | null;
   chapterTitle: string;
   wrongCount: number;
@@ -70,15 +87,223 @@ type WrongAccumulator = {
 };
 
 type AreaAccumulator = {
+  courseId: string | null;
+  courseTitle: string;
   chapterId: string | null;
   chapterTitle: string;
   wrongAttempts: number;
   questionKeys: Set<string>;
 };
 
+type SkillAccumulator = {
+  counts: Map<BattleMode, number>;
+  metrics: Map<BattleMode, AnswerMetric>;
+};
+
+type GoalRecord = {
+  id: string;
+  userId: string;
+  courseId: string;
+  targetDate: Date;
+  status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  startedAt: Date;
+  completedAt: Date | null;
+  course: { id: string; title: string };
+};
+
 @Injectable()
 export class GrowthService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getCurrentGoal(
+    userId: string,
+    now = new Date(),
+  ): Promise<{ success: true; data: { goal: GrowthLearningGoal | null } }> {
+    const goal = await this.prisma.userLearningGoal.findFirst({
+      where: { userId, status: LearningGoalStatus.ACTIVE },
+      select: {
+        id: true,
+        userId: true,
+        courseId: true,
+        targetDate: true,
+        status: true,
+        startedAt: true,
+        completedAt: true,
+        course: { select: { id: true, title: true } },
+      },
+    });
+
+    return {
+      success: true,
+      data: { goal: goal ? await this.resolveGoalView(goal, now) : null },
+    };
+  }
+
+  async createGoal(
+    userId: string,
+    input: CreateGrowthGoalDto,
+    now = new Date(),
+  ) {
+    this.assertFutureTargetDate(input.targetDate, now);
+    const course = await this.findLearnableCourse(input.courseId);
+    const activeGoal = await this.prisma.userLearningGoal.findFirst({
+      where: { userId, status: LearningGoalStatus.ACTIVE },
+      select: { id: true },
+    });
+    if (activeGoal) {
+      throw new ConflictException('ACTIVE_LEARNING_GOAL_EXISTS');
+    }
+
+    let goal;
+    try {
+      goal = await this.prisma.userLearningGoal.create({
+        data: {
+          userId,
+          courseId: course.id,
+          targetDate: parseGoalDate(input.targetDate),
+          status: LearningGoalStatus.ACTIVE,
+          startedAt: now,
+        },
+        select: {
+          id: true,
+          userId: true,
+          courseId: true,
+          targetDate: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+          course: { select: { id: true, title: true } },
+        },
+      });
+    } catch (error) {
+      if ((error as { code?: unknown }).code === 'P2002') {
+        throw new ConflictException('ACTIVE_LEARNING_GOAL_EXISTS');
+      }
+      throw error;
+    }
+
+    return {
+      success: true as const,
+      data: { goal: await this.resolveGoalView(goal, now) },
+    };
+  }
+
+  async updateCurrentGoal(
+    userId: string,
+    input: UpdateGrowthGoalDto,
+    now = new Date(),
+  ) {
+    if (!input.courseId && !input.targetDate) {
+      throw new BadRequestException('LEARNING_GOAL_UPDATE_EMPTY');
+    }
+
+    const current = await this.prisma.userLearningGoal.findFirst({
+      where: { userId, status: LearningGoalStatus.ACTIVE },
+      select: {
+        id: true,
+        userId: true,
+        courseId: true,
+        targetDate: true,
+        status: true,
+        startedAt: true,
+        completedAt: true,
+        course: { select: { id: true, title: true } },
+      },
+    });
+    if (!current) {
+      throw new NotFoundException('LEARNING_GOAL_NOT_FOUND');
+    }
+
+    const nextTargetDate = input.targetDate ?? current.targetDate;
+    this.assertFutureTargetDate(nextTargetDate, now);
+    const course = input.courseId
+      ? await this.findLearnableCourse(input.courseId)
+      : current.course;
+    const courseChanged = course.id !== current.courseId;
+    const goal = await this.prisma.userLearningGoal.update({
+      where: { id: current.id },
+      data: {
+        courseId: course.id,
+        targetDate: parseGoalDate(nextTargetDate),
+        startedAt: courseChanged ? now : current.startedAt,
+        completedAt: null,
+        status: LearningGoalStatus.ACTIVE,
+      },
+      select: {
+        id: true,
+        userId: true,
+        courseId: true,
+        targetDate: true,
+        status: true,
+        startedAt: true,
+        completedAt: true,
+        course: { select: { id: true, title: true } },
+      },
+    });
+
+    return {
+      success: true as const,
+      data: { goal: await this.resolveGoalView(goal, now) },
+    };
+  }
+
+  async cancelCurrentGoal(userId: string) {
+    const current = await this.prisma.userLearningGoal.findFirst({
+      where: { userId, status: LearningGoalStatus.ACTIVE },
+      select: { id: true },
+    });
+    if (!current) {
+      return { success: true as const, data: { goal: null } };
+    }
+
+    await this.prisma.userLearningGoal.update({
+      where: { id: current.id },
+      data: { status: LearningGoalStatus.CANCELLED },
+    });
+    return { success: true as const, data: { goal: null } };
+  }
+
+  private assertFutureTargetDate(value: string | Date, now: Date) {
+    if (compareGoalDates(value, this.toDateKey(now)) <= 0) {
+      throw new BadRequestException('TARGET_DATE_MUST_BE_FUTURE');
+    }
+  }
+
+  private async findLearnableCourse(courseId: string) {
+    const course = await this.prisma.course.findFirst({
+      where: { id: courseId, status: 'PUBLISHED', deletedAt: null },
+      select: { id: true, title: true },
+    });
+    if (!course) {
+      throw new NotFoundException('LEARNABLE_COURSE_NOT_FOUND');
+    }
+    return course;
+  }
+
+  private async resolveGoalView(
+    goal: GoalRecord,
+    now: Date,
+  ): Promise<GrowthLearningGoal> {
+    const [courseChapters, chapterRecords] = await Promise.all([
+      this.prisma.courseChapter.findMany({
+        where: {
+          courseId: goal.courseId,
+          status: 'PUBLISHED',
+          deletedAt: null,
+        },
+        select: { id: true },
+      }),
+      this.prisma.chapterLearningRecord.findMany({
+        where: {
+          userId: goal.userId,
+          courseId: goal.courseId,
+          chapter: { status: 'PUBLISHED', deletedAt: null },
+        },
+        select: { chapterId: true, status: true },
+      }),
+    ]);
+    return this.buildGoalView(goal, courseChapters, chapterRecords, now);
+  }
 
   async getOverview(
     userId: string,
@@ -126,6 +351,7 @@ export class GrowthService {
       [BattleMode.TRAINING, 0],
       [BattleMode.FRIEND, 0],
     ]);
+    const skillMetrics = new Map<string, SkillAccumulator>();
     let completedChapters = 0;
     let selectedRangeQuizAttempts = 0;
     let selectedRangePracticeAttempts = 0;
@@ -143,8 +369,10 @@ export class GrowthService {
       practiceAttempts,
       battleParticipants,
       battleProfile,
-      pythonSkillRating,
-      ratingLogs,
+      activeGoal,
+      battleSkills,
+      skillRatings,
+      legacyPythonSkillRating,
     ] = await Promise.all([
       this.prisma.user.findFirst({
         where: { id: userId, deletedAt: null },
@@ -294,6 +522,8 @@ export class GrowthService {
                   id: true,
                   sourceQuizQuestionId: true,
                   chapterIdSnapshot: true,
+                  courseIdSnapshot: true,
+                  skillCodeSnapshot: true,
                 },
               },
             },
@@ -309,22 +539,36 @@ export class GrowthService {
           friendBattles: true,
         },
       }),
-      this.prisma.userBattleSkillRating.findUnique({
+      this.prisma.userLearningGoal?.findFirst?.({
+        where: { userId, status: LearningGoalStatus.ACTIVE },
+        select: {
+          id: true,
+          userId: true,
+          courseId: true,
+          targetDate: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+          course: { select: { id: true, title: true } },
+        },
+      }) ?? Promise.resolve(null),
+      this.prisma.battleSkill?.findMany?.({
+        orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+        select: { code: true, name: true, isEnabled: true },
+      }) ?? Promise.resolve([]),
+      this.prisma.userBattleSkillRating?.findMany?.({
+        where: { userId },
+        select: {
+          skillCode: true,
+          rating: true,
+          highestRating: true,
+          rankedBattles: true,
+        },
+      }) ?? Promise.resolve([]),
+      this.prisma.userBattleSkillRating?.findUnique?.({
         where: { userId_skillCode: { userId, skillCode: 'PYTHON' } },
         select: { rating: true },
-      }),
-      this.prisma.battleRatingLog.findMany({
-        where: { userId, skillCode: 'PYTHON' },
-        orderBy: [{ createdAt: 'desc' }],
-        take: RATING_TREND_LIMIT,
-        select: {
-          ratingBefore: true,
-          ratingAfter: true,
-          ratingDelta: true,
-          createdAt: true,
-          skillCode: true,
-        },
-      }),
+      }) ?? Promise.resolve(null),
     ]);
 
     if (!user) {
@@ -443,6 +687,8 @@ export class GrowthService {
             wrongQuestions,
             weakAreas,
             answer.questionId,
+            chapter.courseId,
+            chapter.courseTitle,
             chapter.chapterId,
             chapter.chapterTitle,
             attempt.submittedAt,
@@ -488,6 +734,8 @@ export class GrowthService {
             wrongQuestions,
             weakAreas,
             answer.questionId,
+            chapter.course.id,
+            chapter.course.title,
             chapter.id,
             chapter.title,
             answer.answeredAt,
@@ -517,9 +765,35 @@ export class GrowthService {
       }
 
       battleCounts.set(mode, (battleCounts.get(mode) ?? 0) + 1);
+      const skillCode = room.skillCode ?? null;
+      let skillAccumulator: SkillAccumulator | null = null;
+      if (skillCode) {
+        skillAccumulator = skillMetrics.get(skillCode) ?? {
+          counts: new Map<BattleMode, number>([
+            [BattleMode.RANKED, 0],
+            [BattleMode.TRAINING, 0],
+            [BattleMode.FRIEND, 0],
+          ]),
+          metrics: new Map<BattleMode, AnswerMetric>([
+            [BattleMode.RANKED, { answeredCount: 0, correctCount: 0 }],
+            [BattleMode.TRAINING, { answeredCount: 0, correctCount: 0 }],
+            [BattleMode.FRIEND, { answeredCount: 0, correctCount: 0 }],
+          ]),
+        };
+        skillMetrics.set(skillCode, skillAccumulator);
+        skillAccumulator.counts.set(
+          mode,
+          (skillAccumulator.counts.get(mode) ?? 0) + 1,
+        );
+      }
       for (const answer of participant.answers) {
         modeMetric.answeredCount += 1;
         modeMetric.correctCount += answer.isCorrect ? 1 : 0;
+        const skillModeMetric = skillAccumulator?.metrics.get(mode);
+        if (skillModeMetric) {
+          skillModeMetric.answeredCount += 1;
+          skillModeMetric.correctCount += answer.isCorrect ? 1 : 0;
+        }
 
         if (!answer.isCorrect) {
           const snapshotChapter = answer.battleQuestionSnapshot
@@ -531,6 +805,10 @@ export class GrowthService {
             weakAreas,
             answer.battleQuestionSnapshot.sourceQuizQuestionId ??
               `battle:${answer.battleQuestionSnapshot.id}`,
+            answer.battleQuestionSnapshot.courseIdSnapshot ??
+              snapshotChapter?.courseId ??
+              null,
+            snapshotChapter?.courseTitle ?? '未归类课程',
             answer.battleQuestionSnapshot.chapterIdSnapshot,
             snapshotChapter?.chapterTitle ?? null,
             answer.submittedAt,
@@ -553,6 +831,20 @@ export class GrowthService {
         }
       }
     }
+
+    // Fetch the user's skill history without a global limit. The response
+    // caps each skill independently so one active skill cannot starve another.
+    const ratingLogs = await this.prisma.battleRatingLog.findMany({
+      where: { userId, skillCode: { not: null } },
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        ratingBefore: true,
+        ratingAfter: true,
+        ratingDelta: true,
+        createdAt: true,
+        skillCode: true,
+      },
+    });
 
     const profile: GrowthProfileSummary = {
       major: user.major,
@@ -621,7 +913,10 @@ export class GrowthService {
       battleCounts,
       battleMetrics,
       battleProfile,
-      pythonSkillRating?.rating ?? null,
+      battleSkills,
+      skillRatings,
+      skillMetrics,
+      legacyPythonSkillRating?.rating ?? null,
       ratingLogs,
     );
     const wrongQuestionSummary = this.buildWrongSummary(
@@ -629,6 +924,22 @@ export class GrowthService {
       weakAreas,
     );
     const continueLearning = this.findContinueLearning(courseLearningRecords);
+    const goal = activeGoal
+      ? this.buildGoalView(
+          activeGoal,
+          publishedChapters.filter(
+            (chapter) => chapter.courseId === activeGoal.courseId,
+          ),
+          chapterLearningRecords.filter((record) =>
+            publishedChapters.some(
+              (chapter) =>
+                chapter.courseId === activeGoal.courseId &&
+                chapter.id === record.chapterId,
+            ),
+          ),
+          now,
+        )
+      : null;
     const dataState = resolveGrowthDataState(
       chapterLearningRecords.length > 0 ||
         courseLearningRecords.length > 0 ||
@@ -644,6 +955,7 @@ export class GrowthService {
       practice,
       chapters: chapterPerformance,
       wrongQuestions: wrongQuestionSummary,
+      goal,
       battle,
       continueLearning,
     });
@@ -667,6 +979,7 @@ export class GrowthService {
         },
         competency: { chapters: chapterPerformance },
         wrongQuestions: wrongQuestionSummary,
+        goal,
         battle,
         recommendations,
       },
@@ -759,7 +1072,19 @@ export class GrowthService {
       trainingBattles: number;
       friendBattles: number;
     } | null,
-    currentPythonRating: number | null,
+    battleSkills: Array<{
+      code: string;
+      name: string;
+      isEnabled: boolean;
+    }>,
+    skillRatings: Array<{
+      skillCode: string;
+      rating: number;
+      highestRating: number;
+      rankedBattles: number;
+    }>,
+    skillMetrics: Map<string, SkillAccumulator>,
+    legacyPythonRating: number | null,
     ratingLogs: Array<{
       ratingBefore: number;
       ratingAfter: number;
@@ -781,39 +1106,173 @@ export class GrowthService {
         getMetric(mode),
       );
 
+    const ratingBySkill = new Map(
+      (skillRatings ?? []).map((rating) => [rating.skillCode, rating]),
+    );
+    const logsBySkill = new Map<string, typeof ratingLogs>();
+    for (const log of ratingLogs) {
+      if (!log.skillCode) {
+        continue;
+      }
+
+      const logs = logsBySkill.get(log.skillCode) ?? [];
+      if (logs.length < RATING_TREND_LIMIT) {
+        logs.push(log);
+      }
+      logsBySkill.set(log.skillCode, logs);
+    }
+
+    const skillDefinitions = new Map(
+      (battleSkills ?? []).map((skill) => [skill.code, skill]),
+    );
+    for (const code of skillMetrics.keys()) {
+      if (!skillDefinitions.has(code)) {
+        skillDefinitions.set(code, {
+          code,
+          name: code,
+          isEnabled: true,
+        });
+      }
+    }
+    for (const rating of skillRatings) {
+      if (!skillDefinitions.has(rating.skillCode)) {
+        skillDefinitions.set(rating.skillCode, {
+          code: rating.skillCode,
+          name: rating.skillCode,
+          isEnabled: true,
+        });
+      }
+    }
+    for (const log of ratingLogs) {
+      if (log.skillCode && !skillDefinitions.has(log.skillCode)) {
+        skillDefinitions.set(log.skillCode, {
+          code: log.skillCode,
+          name: log.skillCode,
+          isEnabled: true,
+        });
+      }
+    }
+    if (legacyPythonRating !== null && !skillDefinitions.has('PYTHON')) {
+      skillDefinitions.set('PYTHON', {
+        code: 'PYTHON',
+        name: 'Python',
+        isEnabled: true,
+      });
+    }
+
+    const buildSkillSummary = (definition: {
+      code: string;
+      name: string;
+      isEnabled: boolean;
+    }): GrowthBattleSkillSummary => {
+      const accumulator = skillMetrics.get(definition.code);
+      const skillRating = ratingBySkill.get(definition.code);
+      const getSkillCount = (mode: BattleMode) =>
+        accumulator?.counts.get(mode) ?? 0;
+      const getSkillMetric = (mode: BattleMode) =>
+        accumulator?.metrics.get(mode) ?? {
+          answeredCount: 0,
+          correctCount: 0,
+        };
+      const buildSkillModePerformance = (mode: BattleMode) =>
+        this.buildPerformanceSummary(
+          getSkillCount(mode),
+          getSkillCount(mode),
+          getSkillMetric(mode),
+        );
+      const skillTrend: GrowthRatingTrendPoint[] = [
+        ...(logsBySkill.get(definition.code) ?? []),
+      ]
+        .reverse()
+        .map((log) => ({
+          ratingBefore: log.ratingBefore,
+          ratingAfter: log.ratingAfter,
+          ratingDelta: log.ratingDelta,
+          createdAt: log.createdAt.toISOString(),
+          skillCode: definition.code,
+        }));
+
+      return {
+        code: definition.code,
+        name: definition.name,
+        isEnabled: definition.isEnabled,
+        rating: skillRating?.rating ?? null,
+        highestRating: skillRating?.highestRating ?? null,
+        rankedBattles:
+          skillRating?.rankedBattles ?? getSkillCount(BattleMode.RANKED),
+        trainingBattles: getSkillCount(BattleMode.TRAINING),
+        friendBattles: getSkillCount(BattleMode.FRIEND),
+        ranked: buildSkillModePerformance(BattleMode.RANKED),
+        training: buildSkillModePerformance(BattleMode.TRAINING),
+        friend: buildSkillModePerformance(BattleMode.FRIEND),
+        ratingTrend: skillTrend,
+      };
+    };
+
+    const skills = [...skillDefinitions.values()].map(buildSkillSummary);
+    const defaultSkill =
+      skills.find(
+        (skill) => skill.rankedBattles > 0 || skill.rating !== null,
+      ) ??
+      skills[0] ??
+      null;
     const rankedBattles = profile?.rankedBattles ?? getCount(BattleMode.RANKED);
     const trainingBattles =
       profile?.trainingBattles ?? getCount(BattleMode.TRAINING);
     const friendBattles = profile?.friendBattles ?? getCount(BattleMode.FRIEND);
-    const ratingTrend: GrowthRatingTrendPoint[] = [...ratingLogs]
-      .reverse()
-      .filter((log): log is typeof log & { skillCode: string } =>
-        Boolean(log.skillCode),
-      )
-      .map((log) => ({
-        ratingBefore: log.ratingBefore,
-        ratingAfter: log.ratingAfter,
-        ratingDelta: log.ratingDelta,
-        createdAt: log.createdAt.toISOString(),
-        skillCode: log.skillCode,
-      }));
+    const ratingTrend = defaultSkill?.ratingTrend ?? [];
 
     return {
+      skills,
+      defaultSkillCode: defaultSkill?.code ?? null,
       rankedBattles,
       trainingBattles,
       friendBattles,
       ranked: buildModePerformance(BattleMode.RANKED),
       training: buildModePerformance(BattleMode.TRAINING),
       friend: buildModePerformance(BattleMode.FRIEND),
-      currentPythonRating,
+      currentPythonRating:
+        skills.find((skill) => skill.code === 'PYTHON')?.rating ??
+        legacyPythonRating,
       ratingTrend,
     };
+  }
+
+  private buildGoalView(
+    goal: GoalRecord,
+    courseChapters: Array<{ id: string }>,
+    chapterRecords: Array<{ chapterId: string; status: string }>,
+    now: Date,
+  ): GrowthLearningGoal {
+    const completedChapterIds = new Set(
+      chapterRecords
+        .filter((record) => record.status === 'COMPLETED')
+        .map((record) => record.chapterId),
+    );
+
+    return calculateGoalMetrics({
+      id: goal.id,
+      userId: goal.userId,
+      courseId: goal.courseId,
+      courseTitle: goal.course.title,
+      targetDate: goal.targetDate,
+      persistedStatus: goal.status,
+      startedAt: goal.startedAt,
+      completedAt: goal.completedAt,
+      totalChapters: courseChapters.length,
+      completedChapters: courseChapters.filter((chapter) =>
+        completedChapterIds.has(chapter.id),
+      ).length,
+      now,
+    });
   }
 
   private addWrongQuestion(
     questions: Map<string, WrongAccumulator>,
     areas: Map<string, AreaAccumulator>,
     key: string,
+    courseId: string | null,
+    courseTitle: string,
     chapterId: string | null,
     chapterTitle: string | null,
     wrongAt: Date,
@@ -829,6 +1288,8 @@ export class GrowthService {
     } else {
       questions.set(key, {
         key,
+        courseId,
+        courseTitle,
         chapterId,
         chapterTitle: normalizedChapterTitle,
         wrongCount: 1,
@@ -838,6 +1299,8 @@ export class GrowthService {
 
     const areaKey = chapterId ?? 'unknown';
     const area = areas.get(areaKey) ?? {
+      courseId,
+      courseTitle,
       chapterId,
       chapterTitle: normalizedChapterTitle,
       wrongAttempts: 0,
@@ -855,16 +1318,18 @@ export class GrowthService {
     const orderedQuestions = [...questions.values()].sort(
       (left, right) => right.latestWrongAt - left.latestWrongAt,
     );
-    const topWeakAreas: GrowthWrongArea[] = [...areas.values()]
+    const allWeakAreas: GrowthWrongArea[] = [...areas.values()]
       .sort(
         (left, right) =>
           right.wrongAttempts - left.wrongAttempts ||
           right.questionKeys.size - left.questionKeys.size,
       )
-      .slice(0, MAX_WEAK_AREAS)
       .map((area) => ({
+        courseId: area.courseId,
+        courseTitle: area.courseTitle,
         chapterId: area.chapterId,
         chapterTitle: area.chapterTitle,
+        wrongCount: area.wrongAttempts,
         wrongAttempts: area.wrongAttempts,
         uniqueWrongQuestions: area.questionKeys.size,
       }));
@@ -878,7 +1343,8 @@ export class GrowthService {
       repeatedWrongQuestions: orderedQuestions.filter(
         (question) => question.wrongCount >= 2,
       ).length,
-      topWeakAreas,
+      topWeakAreas: allWeakAreas.slice(0, MAX_WEAK_AREAS),
+      areas: allWeakAreas,
     };
   }
 
