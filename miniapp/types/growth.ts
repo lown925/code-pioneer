@@ -47,6 +47,13 @@ export type GrowthProfileSummary = {
   isCoreProfileComplete: boolean;
 };
 
+export type GrowthCourseRecommendation = {
+  courseId: string;
+  courseTitle: string;
+  reason: string;
+  targetPath: string;
+};
+
 export type GrowthActivitySummary = {
   activeDays: number;
   recent7ActiveDays: number;

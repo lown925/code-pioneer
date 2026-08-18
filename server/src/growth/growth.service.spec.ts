@@ -1,5 +1,6 @@
 import {
   BattleMode,
+  BattleRatingReason,
   BattleRoomStatus,
   LearningGoalStatus,
   PracticeAttemptStatus,
@@ -272,6 +273,16 @@ describe('GrowthService', () => {
 
     const result = await service.getOverview('user-1', '7d', now);
 
+    expect(prisma.battleRatingLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'user-1',
+          skillCode: { not: null },
+          reason: BattleRatingReason.BATTLE_RESULT,
+        },
+      }),
+    );
+
     expect(result.data.battle.currentPythonRating).toBe(1080);
     expect(result.data.battle.rankedBattles).toBe(2);
     expect(result.data.battle.trainingBattles).toBe(1);
@@ -284,6 +295,59 @@ describe('GrowthService', () => {
         (item) => item.skillCode === 'PYTHON',
       ),
     ).toBe(true);
+  });
+
+  it('keeps administrative and initialization logs out of Rating trends', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2026-08-18T04:00:00.000Z');
+    seedEmpty(prisma);
+    prisma.battleSkill.findMany.mockResolvedValue([
+      { code: 'PYTHON', name: 'Python', isEnabled: true },
+    ]);
+    prisma.battleRatingLog.findMany.mockImplementation(
+      ({ where }: { where: { reason: BattleRatingReason } }) =>
+        Promise.resolve(
+          [
+            {
+              reason: BattleRatingReason.BATTLE_RESULT,
+              ratingBefore: 1000,
+              ratingAfter: 1020,
+              ratingDelta: 20,
+              createdAt: now,
+              skillCode: 'PYTHON',
+            },
+            {
+              reason: BattleRatingReason.ADMIN_ADJUSTMENT,
+              ratingBefore: 1020,
+              ratingAfter: 1200,
+              ratingDelta: 180,
+              createdAt: now,
+              skillCode: 'PYTHON',
+            },
+            {
+              reason: BattleRatingReason.INITIALIZATION,
+              ratingBefore: 0,
+              ratingAfter: 1000,
+              ratingDelta: 1000,
+              createdAt: now,
+              skillCode: 'PYTHON',
+            },
+          ].filter((log) => log.reason === where.reason),
+        ),
+    );
+    const service = new GrowthService(prisma as unknown as PrismaService);
+
+    const result = await service.getOverview('user-1', '7d', now);
+    const python = result.data.battle.skills.find(
+      (skill) => skill.code === 'PYTHON',
+    );
+
+    expect(python?.ratingTrend).toHaveLength(1);
+    expect(python?.ratingTrend[0]).toMatchObject({
+      ratingBefore: 1000,
+      ratingAfter: 1020,
+      ratingDelta: 20,
+    });
   });
 
   it('groups Battle counts and Rating trends by real skill data', async () => {

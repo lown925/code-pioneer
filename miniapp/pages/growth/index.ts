@@ -2,6 +2,7 @@ import { registerThemedPage } from "../../utils/theme-page";
 import type {
   GrowthBattleSkillSummary,
   GrowthChapterPerformance,
+  GrowthCourseRecommendation,
   GrowthLearningGoal,
   GrowthOverviewResponse,
   GrowthProfileSummary,
@@ -21,6 +22,7 @@ import {
 } from "../../utils/growth-profile";
 import {
   fetchGrowthOverview,
+  buildGrowthCourseRecommendations,
   cancelGrowthGoal,
   createGrowthGoal,
   fetchGrowthCourses,
@@ -33,18 +35,11 @@ import { getUserErrorMessage } from "../../utils/user";
 
 type GrowthPageState = "guest" | "loading" | "success" | "error";
 
-type GrowthActivityItem = {
-  label: string;
-  value: string;
-  detail: string;
-};
-
 type GrowthChapterView = GrowthChapterPerformance & {
   scoreText: string;
   sampleText: string;
   statusText: string;
   barWidth: string;
-  isBarEmpty: boolean;
 };
 
 type GrowthRecommendationView = GrowthRecommendation & {
@@ -67,13 +62,15 @@ type GrowthPageData = {
   range: GrowthRange;
   rangeText: string;
   isRefreshing: boolean;
-  dataStateText: string;
-  activityItems: GrowthActivityItem[];
   chapterItems: GrowthChapterView[];
   trend: GrowthTrendPoint[];
   recommendations: GrowthRecommendationView[];
   hasRecommendations: boolean;
-  hasActivityData: boolean;
+  courseRecommendations: GrowthCourseRecommendation[];
+  hasCourseRecommendations: boolean;
+  courseRecommendationFallbackText: string;
+  courseRecommendationActionText: string;
+  courseRecommendationActionPath: string;
   hasPerformanceData: boolean;
   hasQuizData: boolean;
   hasPracticeData: boolean;
@@ -87,7 +84,6 @@ type GrowthPageData = {
   profileDirectionText: string;
   profileInterestTexts: string[];
   profileCareerText: string;
-  profileActionText: string;
   quizAttemptText: string;
   quizAnsweredText: string;
   quizCorrectText: string;
@@ -185,19 +181,6 @@ function statusText(status: GrowthChapterPerformance["status"]) {
   }
 }
 
-function dataStateText(state: GrowthOverviewResponse["dataState"]) {
-  switch (state) {
-    case "READY":
-      return "分析已建立";
-    case "PARTIAL":
-      return "数据正在积累";
-    case "NO_DATA":
-      return "等待学习数据";
-    default:
-      return "等待学习数据";
-  }
-}
-
 function priorityText(priority: GrowthRecommendation["priority"]) {
   switch (priority) {
     case "HIGH":
@@ -213,7 +196,6 @@ function priorityText(priority: GrowthRecommendation["priority"]) {
 
 function chapterView(chapter: GrowthChapterPerformance): GrowthChapterView {
   const score = chapter.masteryScore ?? chapter.accuracy;
-  const isBarEmpty = score === null || chapter.status !== "ASSESSED";
 
   return {
     ...chapter,
@@ -221,7 +203,6 @@ function chapterView(chapter: GrowthChapterPerformance): GrowthChapterView {
     sampleText: `${chapter.answeredCount} 题`,
     statusText: statusText(chapter.status),
     barWidth: score === null ? "0%" : `${Math.max(4, Math.min(100, score))}%`,
-    isBarEmpty,
   };
 }
 
@@ -239,10 +220,10 @@ function buildGoalDateText(goal: GrowthLearningGoal | null) {
 
 function buildGoalStatusText(goal: GrowthLearningGoal | null) {
   if (!goal) return "";
-  if (goal.status === "COMPLETED") return "已完成";
-  if (goal.paceStatus === "BEHIND") return "需要追回";
+  if (goal.status === "COMPLETED") return "目标已完成";
+  if (goal.paceStatus === "BEHIND") return "需要加快进度";
   if (goal.paceStatus === "AHEAD") return "进度领先";
-  return "按计划进行";
+  return "进度正常";
 }
 
 function buildGoalPaceText(goal: GrowthLearningGoal | null) {
@@ -296,13 +277,16 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     range: "7d",
     rangeText: RANGE_LABELS["7d"],
     isRefreshing: false,
-    dataStateText: "等待学习数据",
-    activityItems: [],
     chapterItems: [],
     trend: [],
     recommendations: [],
     hasRecommendations: false,
-    hasActivityData: false,
+    courseRecommendations: [],
+    hasCourseRecommendations: false,
+    courseRecommendationFallbackText:
+      "完善学习画像后，我们会根据明确的技术兴趣推荐课程。",
+    courseRecommendationActionText: "完善画像",
+    courseRecommendationActionPath: "/pages/growth/profile",
     hasPerformanceData: false,
     hasQuizData: false,
     hasPracticeData: false,
@@ -316,7 +300,6 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     profileDirectionText: "未设置",
     profileInterestTexts: [],
     profileCareerText: "未设置",
-    profileActionText: "完善学习画像",
     quizAttemptText: "0 次",
     quizAnsweredText: "0 题",
     quizCorrectText: "0 题正确",
@@ -393,13 +376,32 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     });
 
     try {
-      const overview = await fetchGrowthOverview(this.data.range);
+      const [overview, courseResult] = await Promise.all([
+        fetchGrowthOverview(this.data.range),
+        fetchGrowthCourses().catch(() => null),
+      ]);
 
       if (!isPageActive || currentSerial !== requestSerial) {
         return;
       }
 
       this.applyOverview(overview);
+      const courseRecommendations = courseResult
+        ? buildGrowthCourseRecommendations(overview.profile, courseResult.items)
+        : [];
+      this.setData({
+        courseRecommendations,
+        hasCourseRecommendations: courseRecommendations.length > 0,
+        courseRecommendationFallbackText: overview.profile.isCoreProfileComplete
+          ? "暂时没有与你的学习画像高度匹配的课程，可以先浏览全部课程。"
+          : "完善学习画像后，我们会根据明确的技术兴趣推荐课程。",
+        courseRecommendationActionText: overview.profile.isCoreProfileComplete
+          ? "浏览课程"
+          : "完善画像",
+        courseRecommendationActionPath: overview.profile.isCoreProfileComplete
+          ? "/pages/course/list"
+          : "/pages/growth/profile",
+      });
     } catch (error) {
       if (!isPageActive || currentSerial !== requestSerial) {
         return;
@@ -621,8 +623,10 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
 
   applyOverview(overview: GrowthOverviewResponse) {
     const profile = overview.profile;
-    const chapterItems = overview.competency.chapters.map(chapterView);
-    const activity = overview.activity;
+    const chapterItems = overview.competency.chapters
+      .filter((chapter) => chapter.status === "ASSESSED")
+      .slice(0, 5)
+      .map(chapterView);
     const quiz = overview.learning.quiz;
     const practice = overview.learning.practice;
     const wrongQuestions = overview.wrongQuestions;
@@ -652,43 +656,10 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     )
       ? this.data.selectedWrongCourseId
       : "ALL";
-    const activityItems = [
-      activity.activeDays > 0
-        ? {
-            label: "活跃天数",
-            value: String(activity.activeDays),
-            detail: this.data.range === "7d" ? "/ 7 天" : "/ 30 天",
-          }
-        : null,
-      activity.completedChapters > 0
-        ? {
-            label: "完成章节",
-            value: String(activity.completedChapters),
-            detail: "个章节",
-          }
-        : null,
-      activity.quizAttempts > 0
-        ? {
-            label: "Quiz",
-            value: String(activity.quizAttempts),
-            detail: "次提交",
-          }
-        : null,
-      activity.practiceAttempts > 0
-        ? {
-            label: "Practice",
-            value: String(activity.practiceAttempts),
-            detail: "次练习",
-          }
-        : null,
-      activity.battleCount > 0
-        ? {
-            label: "Battle",
-            value: String(activity.battleCount),
-            detail: "场完成",
-          }
-        : null,
-    ].filter((item): item is GrowthActivityItem => item !== null);
+    const validTrendPointCount = overview.learning.trend.filter(
+      (item: GrowthTrendPoint) =>
+        item.quizAccuracy !== null || item.practiceAccuracy !== null,
+    ).length;
 
     this.setData({
       state: "success",
@@ -697,8 +668,6 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
       overview,
       profile,
       goal: overview.goal ?? null,
-      dataStateText: dataStateText(overview.dataState),
-      activityItems,
       chapterItems,
       trend: overview.learning.trend,
       recommendations: overview.recommendations.map(
@@ -708,12 +677,6 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
         }),
       ),
       hasRecommendations: overview.recommendations.length > 0,
-      hasActivityData:
-        activity.activeDays > 0 ||
-        activity.completedChapters > 0 ||
-        activity.quizAttempts > 0 ||
-        activity.practiceAttempts > 0 ||
-        activity.battleCount > 0,
       hasPerformanceData:
         quiz.attemptCount > 0 ||
         practice.attemptCount > 0 ||
@@ -721,12 +684,7 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
       hasQuizData: quiz.attemptCount > 0 || quiz.answeredCount > 0,
       hasPracticeData: practice.attemptCount > 0 || practice.answeredCount > 0,
       hasChapterData: chapterItems.length > 0,
-      hasTrendData: overview.learning.trend.some(
-        (item: GrowthTrendPoint) =>
-          item.quizAccuracy !== null ||
-          item.practiceAccuracy !== null ||
-          item.activityCount > 0,
-      ),
+      hasTrendData: validTrendPointCount >= 3,
       hasWrongData: wrongQuestions.totalWrongAttempts > 0,
       hasBattleData: skills.length > 0,
       profileMajorText: getGrowthValueLabel(profile.major, MAJOR_OPTIONS),
@@ -743,9 +701,6 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
         profile.careerDirection,
         CAREER_DIRECTION_OPTIONS,
       ),
-      profileActionText: profile.isCoreProfileComplete
-        ? "编辑学习画像"
-        : "完善学习画像",
       quizAttemptText: `${quiz.attemptCount} 次`,
       quizAnsweredText: `${quiz.answeredCount} 题`,
       quizCorrectText: `${quiz.correctCount} 题正确`,

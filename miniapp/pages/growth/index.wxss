@@ -1,24 +1,22 @@
 @import "../../app.wxss";
 
 .growth-page { display: flex; flex-direction: column; gap: 24rpx; padding-bottom: calc(48rpx + env(safe-area-inset-bottom)); }
-.growth-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24rpx; padding: 10rpx 4rpx 4rpx; }
+.growth-header { padding: 10rpx 4rpx 4rpx; }
 .growth-eyebrow { display: block; color: var(--color-primary); font-size: 21rpx; font-weight: 700; letter-spacing: 5rpx; }
 .growth-title { display: block; margin-top: 10rpx; color: var(--color-text-primary); font-size: 48rpx; font-weight: 700; line-height: 1.25; }
 .growth-copy { display: block; margin-top: 10rpx; color: var(--color-text-secondary); font-size: 25rpx; line-height: 1.6; }
-.data-state { flex: 0 0 auto; padding: 10rpx 16rpx; border: 1rpx solid var(--color-border); border-radius: 999rpx; color: var(--color-text-secondary); font-size: 21rpx; }
 .state-action { margin-top: 8rpx; }
-.growth-empty-state { order: 8; margin-top: 0; }
-.profile-panel { order: 9; padding: 30rpx; }
+.profile-panel { padding: 26rpx 30rpx; }
 .panel-heading, .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20rpx; }
-.profile-status, .recommendation-priority { flex: 0 0 auto; padding: 8rpx 14rpx; border-radius: 999rpx; background: var(--color-primary-soft); color: var(--color-primary); font-size: 20rpx; font-weight: 600; }
-.profile-list { margin-top: 24rpx; border-top: 1rpx solid var(--color-border); }
-.profile-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24rpx; padding: 20rpx 0; border-bottom: 1rpx solid var(--color-border); }
-.profile-row-stack { flex-direction: column; gap: 14rpx; }
-.profile-label { flex: 0 0 auto; color: var(--color-text-secondary); font-size: 24rpx; }
-.profile-value { min-width: 0; color: var(--color-text-primary); font-size: 25rpx; font-weight: 600; line-height: 1.6; text-align: right; }
-.interest-tags { display: flex; flex-wrap: wrap; gap: 10rpx; }
+.recommendation-priority { flex: 0 0 auto; padding: 8rpx 14rpx; border-radius: 999rpx; background: var(--color-primary-soft); color: var(--color-primary); font-size: 20rpx; font-weight: 600; }
+.profile-summary { display: flex; flex-direction: column; gap: 14rpx; margin-top: 20rpx; }
+.profile-summary-primary { color: var(--color-text-primary); font-size: 28rpx; font-weight: 700; }
+.profile-summary-focus { display: flex; align-items: center; flex-wrap: wrap; gap: 10rpx; }
+.profile-summary-direction { color: var(--color-text-secondary); font-size: 23rpx; }
+.profile-summary-career, .profile-incomplete-copy { color: var(--color-text-secondary); font-size: 23rpx; line-height: 1.6; }
+.profile-incomplete-copy { display: block; margin-top: 14rpx; }
 .interest-tag { padding: 8rpx 14rpx; border-radius: 999rpx; background: var(--color-primary-soft); color: var(--color-primary); font-size: 21rpx; }
-.profile-action { display: flex; margin-top: 24rpx; }
+.profile-action { display: flex; margin-top: 20rpx; }
 .goal-section { border-color: var(--color-primary); }
 .goal-status { flex: 0 0 auto; padding: 8rpx 14rpx; border-radius: 999rpx; background: var(--color-primary-soft); color: var(--color-primary); font-size: 20rpx; font-weight: 600; }
 .goal-status-BEHIND { background: var(--color-danger-soft); color: var(--color-danger); }
@@ -44,13 +42,13 @@
 .goal-field text:last-child { color: var(--color-primary); }
 .goal-save { width: 100%; margin-top: 24rpx; }
 .growth-section { padding: 28rpx 30rpx; border: 1rpx solid var(--color-border); border-radius: 24rpx; background: var(--color-card); }
-.recommendation-section { order: 2; border-color: var(--color-primary); }
-.goal-section { order: 1; }
-.performance-section { order: 3; }
-.wrong-section { order: 4; }
-.battle-section { order: 5; }
-.trend-section { order: 6; }
-.activity-section { order: 7; }
+.course-recommendation-section, .recommendation-section { border-color: var(--color-primary); }
+.course-recommendation-list { display: flex; flex-direction: column; gap: 12rpx; margin-top: 20rpx; }
+.course-recommendation-row, .course-recommendation-empty { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; padding: 20rpx; border-radius: 18rpx; background: var(--color-card-subtle); }
+.course-recommendation-copy { min-width: 0; }
+.course-recommendation-title { display: block; color: var(--color-text-primary); font-size: 26rpx; font-weight: 700; }
+.course-recommendation-reason, .course-recommendation-empty { color: var(--color-text-secondary); font-size: 22rpx; line-height: 1.55; }
+.course-recommendation-reason { display: block; margin-top: 7rpx; }
 .recommendation-list { display: flex; flex-direction: column; gap: 12rpx; margin-top: 22rpx; }
 .recommendation-row { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; padding: 20rpx; border-radius: 18rpx; background: var(--color-card-subtle); }
 .recommendation-copy { min-width: 0; }
@@ -63,12 +61,10 @@
 .range-switcher { display: flex; padding: 4rpx; border-radius: 999rpx; background: var(--color-card-subtle); }
 .range-option { padding: 8rpx 16rpx; border-radius: 999rpx; color: var(--color-text-secondary); font-size: 21rpx; }
 .range-option.is-active { background: var(--color-primary); color: var(--color-text-inverse); }
-.activity-grid, .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120rpx, 1fr)); gap: 10rpx; margin-top: 24rpx; }
-.summary-grid { grid-template-columns: repeat(3, 1fr); }
-.activity-item, .summary-item { min-width: 0; padding: 16rpx 8rpx; border-radius: 16rpx; background: var(--color-card-subtle); text-align: center; }
-.activity-value, .summary-value { display: block; color: var(--color-text-primary); font-size: 31rpx; font-weight: 700; }
-.activity-label, .summary-label { display: block; margin-top: 6rpx; color: var(--color-text-secondary); font-size: 21rpx; }
-.activity-detail { display: block; margin-top: 4rpx; color: var(--color-text-tertiary); font-size: 18rpx; }
+.summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10rpx; margin-top: 24rpx; }
+.summary-item { min-width: 0; padding: 16rpx 8rpx; border-radius: 16rpx; background: var(--color-card-subtle); text-align: center; }
+.summary-value { display: block; color: var(--color-text-primary); font-size: 31rpx; font-weight: 700; }
+.summary-label { display: block; margin-top: 6rpx; color: var(--color-text-secondary); font-size: 21rpx; }
 .chapter-list { display: flex; flex-direction: column; gap: 20rpx; margin-top: 24rpx; }
 .chapter-row { min-width: 0; }
 .chapter-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 18rpx; }
@@ -110,7 +106,5 @@
 .rating-trend { margin-top: 24rpx; padding-top: 20rpx; border-top: 1rpx solid var(--color-border); }
 .rating-trend-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-bottom: 8rpx; }
 .rating-trend-title { color: var(--color-text-primary); font-size: 23rpx; font-weight: 700; }
-
-@media (max-width: 360px) {
-  .activity-grid { grid-template-columns: repeat(3, 1fr); }
-}
+.learning-trend { margin-top: 26rpx; padding-top: 22rpx; border-top: 1rpx solid var(--color-border); }
+.learning-trend-title { display: block; margin-bottom: 8rpx; color: var(--color-text-primary); font-size: 23rpx; font-weight: 700; }

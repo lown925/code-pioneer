@@ -17,6 +17,21 @@ const PRIORITY_ORDER: Record<GrowthPriority, number> = {
   LOW: 1,
 };
 
+const ACTION_ORDER: Record<string, number> = {
+  REVIEW_WRONG_QUESTIONS: 1,
+  RULE_GOAL_BEHIND: 2,
+  REVIEW_CHAPTER: 3,
+  PRACTICE_WEAK_CHAPTER: 3,
+  CONTINUE_COURSE: 4,
+  RETURN_TO_LEARNING: 4,
+  RULE_GOAL_AHEAD: 4,
+  START_PRACTICE: 5,
+  THEORY_TO_PRACTICE_GAP: 6,
+  REVIEW_BATTLE_PERFORMANCE: 6,
+  COMPLETE_PROFILE: 7,
+  EXPLORE_GROWTH: 8,
+};
+
 const UUID_OR_ID = '[^&?#]+';
 
 export function isAllowedGrowthTargetPath(path: string): boolean {
@@ -26,9 +41,11 @@ export function isAllowedGrowthTargetPath(path: string): boolean {
     path === '/pages/wrong-question/index' ||
     path === '/pages/battle/index' ||
     path === '/pages/growth/profile' ||
+    path === '/pages/course/list' ||
     new RegExp(`^/pages/chapter/detail\\?chapterId=${UUID_OR_ID}$`).test(
       path,
     ) ||
+    new RegExp(`^/pages/course/detail\\?courseId=${UUID_OR_ID}$`).test(path) ||
     new RegExp(
       `^/pages/learning/course-progress\\?courseId=${UUID_OR_ID}$`,
     ).test(path)
@@ -51,6 +68,7 @@ function chapterPath(chapter: GrowthChapterPerformance): string {
 
 function prioritySort(left: Candidate, right: Candidate) {
   return (
+    (ACTION_ORDER[left.type] ?? 99) - (ACTION_ORDER[right.type] ?? 99) ||
     PRIORITY_ORDER[right.priority] - PRIORITY_ORDER[left.priority] ||
     right.confidence - left.confidence ||
     right.severity - left.severity ||
@@ -333,7 +351,11 @@ export function buildGrowthRecommendations(
     .sort(prioritySort)
     .filter(
       (item, index, items) =>
-        items.findIndex((candidate) => candidate.type === item.type) === index,
+        items.findIndex(
+          (candidate) =>
+            candidate.type === item.type ||
+            candidate.targetPath === item.targetPath,
+        ) === index,
     )
     .slice(0, 3)
     .map(

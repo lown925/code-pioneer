@@ -204,4 +204,65 @@ describe('growth recommendations', () => {
       ),
     ).toBe(false);
   });
+
+  it('deduplicates recommendations that resolve to the same action target', () => {
+    const recommendations = buildGrowthRecommendations(
+      createContext({
+        goal: {
+          id: 'goal-1',
+          userId: 'user-1',
+          courseId: 'course-1',
+          courseTitle: 'Python',
+          targetDate: '2026-08-31',
+          status: 'ACTIVE' as const,
+          startedAt: '2026-08-01T00:00:00.000Z',
+          completedAt: null,
+          totalChapters: 15,
+          completedChapters: 10,
+          remainingChapters: 5,
+          remainingDays: 13,
+          requiredChaptersPerDay: 0.4,
+          requiredChaptersPerWeek: 3,
+          progressPercent: 66.67,
+          plannedProgressPercent: 50,
+          paceStatus: 'AHEAD' as const,
+        },
+        continueLearning: {
+          courseId: 'course-1',
+          courseTitle: 'Python',
+          chapterId: 'chapter-1',
+          chapterTitle: 'Functions',
+          progressPercent: 66.67,
+        },
+      }),
+    );
+
+    expect(
+      recommendations.filter((item) =>
+        item.targetPath.includes('courseId=course-1'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('does not add filler recommendations when fewer than three actions are useful', () => {
+    const recommendations = buildGrowthRecommendations(
+      createContext({
+        activity: {
+          activeDays: 3,
+          recent7ActiveDays: 3,
+          previous23ActiveDays: 0,
+          completedChapters: 1,
+          quizAttempts: 1,
+          practiceAttempts: 1,
+          battleCount: 0,
+          rankedBattles: 0,
+          trainingBattles: 0,
+          friendBattles: 0,
+        },
+      }),
+    );
+
+    expect(recommendations).toHaveLength(1);
+    expect(recommendations[0]?.type).toBe('EXPLORE_GROWTH');
+  });
 });

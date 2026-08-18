@@ -5,7 +5,6 @@
       <text class="growth-title">成长中心</text>
       <text class="growth-copy">用真实学习记录，决定下一步怎么学。</text>
     </view>
-    <text class="data-state">{{dataStateText}}</text>
   </view>
 
   <view wx:if="{{state === 'guest'}}" class="section-card state-box">
@@ -27,25 +26,41 @@
 
   <block wx:elif="{{state === 'success'}}">
     <view class="section-card profile-panel">
-      <view class="panel-heading">
-        <view>
+      <block wx:if="{{profile && profile.isCoreProfileComplete}}">
+        <view class="panel-heading">
           <text class="section-title">学习画像</text>
-          <text class="section-subtitle">用于理解你的目标，不代表能力评分</text>
+          <text class="section-link" bindtap="handleEditProfile">编辑 ›</text>
         </view>
-        <text class="profile-status">{{profile && profile.isCoreProfileComplete ? '已完善' : '待完善'}}</text>
-      </view>
-      <view class="profile-list">
-        <view class="profile-row"><text class="profile-label">专业</text><text class="profile-value">{{profileMajorText}}</text></view>
-        <view class="profile-row"><text class="profile-label">年级</text><text class="profile-value">{{profileGradeText}}</text></view>
-        <view class="profile-row"><text class="profile-label">学习方向</text><text class="profile-value">{{profileDirectionText}}</text></view>
-        <view class="profile-row profile-row-stack">
-          <text class="profile-label">技术兴趣</text>
-          <view wx:if="{{profileInterestTexts.length}}" class="interest-tags"><text wx:for="{{profileInterestTexts}}" wx:key="*this" class="interest-tag">{{item}}</text></view>
-          <text wx:else class="profile-value">未设置</text>
+        <view class="profile-summary">
+          <text class="profile-summary-primary">{{profileMajorText}} · {{profileGradeText}}</text>
+          <view class="profile-summary-focus">
+            <text class="profile-summary-direction">{{profileDirectionText}}</text>
+            <text wx:for="{{profileInterestTexts}}" wx:key="*this" class="interest-tag">{{item}}</text>
+          </view>
+          <text class="profile-summary-career">职业方向：{{profileCareerText}}</text>
         </view>
-        <view class="profile-row"><text class="profile-label">职业方向</text><text class="profile-value">{{profileCareerText}}</text></view>
+      </block>
+      <block wx:else>
+        <text class="section-title">完善学习画像</text>
+        <text class="profile-incomplete-copy">告诉我们你的专业、学习方向和职业目标，为你推荐更适合的课程。</text>
+        <view class="primary-button profile-action" bindtap="handleEditProfile">完善画像</view>
+      </block>
+    </view>
+
+    <view class="growth-section course-recommendation-section">
+      <view class="section-heading">
+        <view><text class="section-title">推荐学习</text><text class="section-subtitle">根据明确的技术兴趣与课程信息匹配</text></view>
       </view>
-      <view class="primary-button profile-action" bindtap="handleEditProfile">{{profileActionText}}</view>
+      <view wx:if="{{hasCourseRecommendations}}" class="course-recommendation-list">
+        <view wx:for="{{courseRecommendations}}" wx:key="courseId" class="course-recommendation-row" data-path="{{item.targetPath}}" bindtap="handleRecommendationTap">
+          <view class="course-recommendation-copy"><text class="course-recommendation-title">{{item.courseTitle}}</text><text class="course-recommendation-reason">{{item.reason}}</text></view>
+          <text class="section-link">查看课程 ›</text>
+        </view>
+      </view>
+      <view wx:else class="course-recommendation-empty">
+        <text>{{courseRecommendationFallbackText}}</text>
+        <text class="section-link" data-path="{{courseRecommendationActionPath}}" bindtap="handleRecommendationTap">{{courseRecommendationActionText}} ›</text>
+      </view>
     </view>
 
     <view class="growth-section goal-section">
@@ -77,21 +92,11 @@
       </view>
     </view>
 
-    <view wx:if="{{!hasActivityData}}" class="section-card state-box growth-empty-state">
-      <text class="state-title">成长数据还在等待第一次记录</text>
-      <text class="state-text">完成课程、Quiz、Practice 或 Battle 后，这里会逐步形成你的成长分析。</text>
-    </view>
-
-    <view wx:if="{{hasActivityData}}" class="growth-section activity-section">
+    <view wx:if="{{hasPerformanceData}}" class="growth-section performance-section">
       <view class="section-heading">
-        <view><text class="section-title">学习概览</text><text class="section-subtitle">{{rangeText}} · 活跃天数按天去重</text></view>
+        <view><text class="section-title">学习表现</text><text class="section-subtitle">{{rangeText}} · 按章节合并 Quiz 与已完成 Practice</text></view>
         <view class="range-switcher"><view class="range-option {{range === '7d' ? 'is-active' : ''}}" data-range="7d" bindtap="handleRangeChange">7 天</view><view class="range-option {{range === '30d' ? 'is-active' : ''}}" data-range="30d" bindtap="handleRangeChange">30 天</view></view>
       </view>
-      <view class="activity-grid"><view wx:for="{{activityItems}}" wx:key="label" class="activity-item"><text class="activity-value">{{item.value}}</text><text class="activity-label">{{item.label}}</text><text class="activity-detail">{{item.detail}}</text></view></view>
-    </view>
-
-    <view wx:if="{{hasPerformanceData}}" class="growth-section performance-section">
-      <view class="section-heading"><view><text class="section-title">学习表现</text><text class="section-subtitle">按章节合并 Quiz 与已完成 Practice</text></view></view>
       <view class="performance-grid">
         <view wx:if="{{hasQuizData}}" class="performance-card">
           <view class="performance-card-heading"><text class="performance-card-title">Quiz</text><text class="performance-card-score">{{quizAccuracyText}}</text></view>
@@ -107,16 +112,15 @@
       <view wx:if="{{hasChapterData}}" class="chapter-list">
         <view wx:for="{{chapterItems}}" wx:key="chapterId" class="chapter-row">
           <view class="chapter-meta"><view class="chapter-name-wrap"><text class="chapter-name">{{item.chapterTitle}}</text><text class="chapter-course">{{item.courseTitle}}</text></view><view class="chapter-score-wrap"><text class="chapter-score">{{item.scoreText}}</text><text class="chapter-status">{{item.statusText}} · {{item.sampleText}}</text></view></view>
-          <view class="chapter-bar"><view wx:if="{{!item.isBarEmpty}}" class="chapter-bar-fill" style="width: {{item.barWidth}};"></view></view>
+          <view class="chapter-bar"><view class="chapter-bar-fill" style="width: {{item.barWidth}};"></view></view>
         </view>
       </view>
-      <view wx:else class="inline-empty">完成章节 Quiz 或 Practice 后，这里会显示章节表现。</view>
-    </view>
-
-    <view wx:if="{{hasQuizData || hasPracticeData}}" class="growth-section trend-section">
-      <view class="section-heading"><view><text class="section-title">学习趋势</text><text class="section-subtitle">无答题样本的日期不会被画成 0%</text></view></view>
-      <growth-line-chart wx:if="{{hasTrendData}}" points="{{trend}}" resolved-theme="{{resolvedTheme}}" />
-      <view wx:else class="inline-empty">完成一次 Quiz 或 Practice 后，这里会形成趋势。</view>
+      <view wx:else class="inline-empty">完成足够的章节 Quiz 或 Practice 后，这里会显示章节表现。</view>
+      <view wx:if="{{hasQuizData || hasPracticeData}}" class="learning-trend">
+        <text class="learning-trend-title">学习趋势</text>
+        <growth-line-chart wx:if="{{hasTrendData}}" points="{{trend}}" chart-mode="learning" resolved-theme="{{resolvedTheme}}" />
+        <view wx:else class="inline-empty">继续完成一些 Quiz / Practice 后，这里会显示学习趋势。</view>
+      </view>
     </view>
 
     <view wx:if="{{hasWrongData}}" class="growth-section wrong-section">

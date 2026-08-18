@@ -7,6 +7,7 @@ import {
 import {
   BattleMode,
   BattleRoomStatus,
+  BattleRatingReason,
   LearningGoalStatus,
   PracticeAttemptStatus,
 } from '../../generated/prisma/enums';
@@ -835,7 +836,11 @@ export class GrowthService {
     // Fetch the user's skill history without a global limit. The response
     // caps each skill independently so one active skill cannot starve another.
     const ratingLogs = await this.prisma.battleRatingLog.findMany({
-      where: { userId, skillCode: { not: null } },
+      where: {
+        userId,
+        skillCode: { not: null },
+        reason: BattleRatingReason.BATTLE_RESULT,
+      },
       orderBy: [{ createdAt: 'desc' }],
       select: {
         ratingBefore: true,
