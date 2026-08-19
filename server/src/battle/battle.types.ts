@@ -218,6 +218,35 @@ export type BattleTrainingStartPayload = {
   serverTime: Date;
 };
 
+export type BattleAiPlanQuestion = {
+  battleQuestionSnapshotId: string;
+  orderIndex: number;
+  plannedCompletedOffsetMs: number;
+  plannedCorrect: boolean;
+};
+
+export type BattleAiAnswerPlan = {
+  strategyVersion: string;
+  questions: BattleAiPlanQuestion[];
+};
+
+export type BattleAiProgress = {
+  answeredCount: number;
+  submitted: boolean;
+  elapsedMs: number;
+};
+
+export type BattleAiStartPayload = {
+  battleId: string;
+  mode: 'AI';
+  skill: string;
+  status: 'WAITING';
+  opponent: {
+    displayName: string;
+  };
+  serverTime: Date;
+};
+
 export type BattleResultOpponentPayload = {
   userId: string;
   nickname: string | null;

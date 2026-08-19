@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { BattleAiService } from './battle-ai.service';
 import { BattleController } from './battle.controller';
 import { BattleAnswerService } from './battle-answer.service';
 import { BattleDomainService } from './battle-domain.service';
@@ -30,6 +31,7 @@ import { BattleTokenService } from './battle-token.service';
     BattleRatingService,
     BattleDomainService,
     BattleTokenService,
+    BattleAiService,
     BattleSettlementService,
     BattleRoomService,
     BattleNormalizationService,

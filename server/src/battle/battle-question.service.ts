@@ -247,6 +247,25 @@ export class BattleQuestionService {
       skillCode: string | null;
     },
   ) {
+    const snapshots = await this.createQuestionSnapshots(tx, input);
+    const timing = await this.startCountdown(tx, input);
+
+    return {
+      ...timing,
+      snapshots,
+    };
+  }
+
+  async createQuestionSnapshots(
+    tx: BattleTransactionClient,
+    input: {
+      battleId: string;
+      questionCount: number;
+      durationSeconds: number;
+      now: Date;
+      skillCode: string | null;
+    },
+  ) {
     const candidates = await this.loadBattleQuestionCandidates(
       tx,
       input.skillCode,
@@ -275,6 +294,23 @@ export class BattleQuestionService {
       data: snapshots,
     });
 
+    return snapshots.map((snapshot) => ({
+      id: snapshot.id,
+      orderIndex: snapshot.orderIndex,
+      difficulty: snapshot.difficulty,
+    }));
+  }
+
+  async startCountdown(
+    tx: BattleTransactionClient,
+    input: {
+      battleId: string;
+      questionCount: number;
+      durationSeconds: number;
+      now: Date;
+      skillCode: string | null;
+    },
+  ) {
     const startedAt = new Date(
       input.now.getTime() + BATTLE_COUNTDOWN_SECONDS * 1000,
     );
@@ -502,6 +538,7 @@ export class BattleQuestionService {
     orderIndex: number,
   ) {
     const base = {
+      id: randomUUID(),
       battleRoomId: battleId,
       sourceQuizQuestionId: question.id,
       orderIndex,

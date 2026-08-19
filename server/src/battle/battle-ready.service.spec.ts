@@ -1,8 +1,10 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import {
+  BattleMode,
   BattleParticipantStatus,
   BattleQuestionDifficulty,
   BattleQuestionPresentation,
+  BattleQuestionType,
   BattleRoomStatus,
   QuestionType,
 } from '../../generated/prisma/enums';
@@ -219,6 +221,76 @@ describe('BattleReadyService', () => {
     );
     expect(mock.battleQuestionSnapshots.size).toBe(0);
     expect(mock.battleRatingLogs.size).toBe(0);
+  });
+
+  it('treats the persisted AI opponent as ready and reuses its snapshots', async () => {
+    const { mock, service } = createService();
+    const room = mock.battleRooms.get('room-1')!;
+    room.mode = BattleMode.AI;
+    mock.battleRooms.set(room.id, room);
+    mock.battleParticipants.delete('participant-b');
+    mock.quizQuestions.clear();
+
+    for (let index = 0; index < room.questionCount; index += 1) {
+      mock.battleQuestionSnapshots.set(`ai-snapshot-${index + 1}`, {
+        id: `ai-snapshot-${index + 1}`,
+        battleRoomId: room.id,
+        sourceQuizQuestionId: `question-${index + 1}`,
+        orderIndex: index,
+        questionType: BattleQuestionType.SINGLE_CHOICE,
+        presentation: BattleQuestionPresentation.TEXT_CHOICE,
+        difficulty: BattleQuestionDifficulty.MEDIUM,
+        stemSnapshot: [{ type: 'TEXT', text: `Question ${index + 1}` }],
+        optionsSnapshot: [],
+        correctAnswerSnapshot: {
+          type: 'SINGLE_CHOICE',
+          optionId: 'option-a',
+        },
+        explanationSnapshot: null,
+        acceptedAnswersSnapshot: null,
+        answerNormalizationSnapshot: null,
+        knowledgeTagsSnapshot: null,
+        programmingLanguage: null,
+        skillCodeSnapshot: 'PYTHON',
+        courseIdSnapshot: 'course-1',
+        chapterIdSnapshot: 'chapter-1',
+        createdAt: new Date(),
+      });
+    }
+
+    const findAiOpponent = jest.fn(async () => ({
+      strategyVersion: 'normal-v1',
+      answerPlan: {
+        strategyVersion: 'normal-v1',
+        questions: [...mock.battleQuestionSnapshots.values()].map(
+          (snapshot, index) => ({
+            battleQuestionSnapshotId: snapshot.id,
+            orderIndex: snapshot.orderIndex,
+            plannedCompletedOffsetMs: (index + 1) * 5_000,
+            plannedCorrect: index % 3 !== 0,
+          }),
+        ),
+      },
+      plannedSubmittedOffsetMs: 20_000,
+    }));
+    (
+      mock.tx as typeof mock.tx & {
+        battleAiOpponent: {
+          findUnique: typeof findAiOpponent;
+        };
+      }
+    ).battleAiOpponent = {
+      findUnique: findAiOpponent,
+    };
+
+    const first = await service.readyBattle(USER_A, room.id);
+    const second = await service.readyBattle(USER_A, room.id);
+
+    expect(first.data.status).toBe(BattleRoomStatus.COUNTDOWN);
+    expect(second.data.status).toBe(BattleRoomStatus.COUNTDOWN);
+    expect(mock.battleParticipants.size).toBe(1);
+    expect(mock.battleQuestionSnapshots.size).toBe(room.questionCount);
+    expect(findAiOpponent).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import {
   BattleEndReason,
   BattleMode,
@@ -13,6 +14,7 @@ import { BattleRatingService } from './battle-rating.service';
 import { BattleScoreService } from './battle-score.service';
 import { BattleSettlementService } from './battle-settlement.service';
 import { createBattlePrismaMock } from './battle-test.helpers';
+import { BATTLE_ERROR_CODES } from './battle.errors';
 
 const USER_A_ID = '11111111-1111-4111-8111-111111111111';
 const USER_B_ID = '22222222-2222-4222-8222-222222222222';
@@ -221,6 +223,29 @@ describe('BattleSettlementService', () => {
     expect(mock.battleRatingLogs.size).toBe(2);
   });
 
+  it('explicitly rejects AI settlement before P7-3 without rating side effects', async () => {
+    const { mock, service } = createService(BattleMode.AI);
+    mock.battleParticipants.delete('participant-b');
+
+    await expect(
+      service.normalizeBattleState(
+        'room-1',
+        new Date('2026-07-25T10:03:30.000Z'),
+      ),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<ConflictException>>({
+        message: BATTLE_ERROR_CODES.BATTLE_AI_SETTLEMENT_NOT_IMPLEMENTED,
+      }),
+    );
+
+    expect(mock.battleRooms.get('room-1')?.status).toBe(
+      BattleRoomStatus.IN_PROGRESS,
+    );
+    expect(mock.battleProfiles.size).toBe(0);
+    expect(mock.userBattleSkillRatings.size).toBe(0);
+    expect(mock.battleRatingLogs.size).toBe(0);
+  });
+
   it('auto-submits timeout participants and settles friend battle without rating change or logs', async () => {
     const { mock, service } = createService(BattleMode.FRIEND);
     const expiresAt = new Date('2026-07-25T10:04:00.000Z');
@@ -421,9 +446,7 @@ describe('BattleSettlementService', () => {
       rankedBattles: 1,
       draws: 1,
     });
-    expect(
-      mock.userBattleSkillRatings.get(`${USER_A_ID}:PYTHON`),
-    ).toMatchObject({
+    expect(mock.userBattleSkillRatings.get(`${USER_A_ID}:PYTHON`)).toMatchObject({
       rankedBattles: 4,
       highestRating: 1300,
     });
@@ -494,7 +517,9 @@ describe('BattleSettlementService', () => {
       draws: 0,
       currentWinStreak: 0,
     });
-    expect(mock.userBattleSkillRatings.get(`${USER_A_ID}:PYTHON`)).toMatchObject({
+    expect(
+      mock.userBattleSkillRatings.get(`${USER_A_ID}:PYTHON`),
+    ).toMatchObject({
       rating: 1280,
       rankedBattles: 4,
       currentWinStreak: 2,

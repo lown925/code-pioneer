@@ -100,6 +100,7 @@ enum BattleMode {
   RANKED
   FRIEND
   TRAINING
+  AI
 }
 
 enum BattleRoomStatus {
@@ -648,6 +649,7 @@ model BattleRoom {
   invitation        BattleInvitation?
   ratingLogs        BattleRatingLog[]
   matchedQueues     BattleMatchQueue[]
+  aiOpponent        BattleAiOpponent?
   skill             BattleSkill?             @relation(fields: [skillCode], references: [code], onDelete: Restrict)
 
   @@index([status])
@@ -656,6 +658,22 @@ model BattleRoom {
   @@index([createdAt])
   @@index([expiresAt])
   @@map("battle_rooms")
+}
+
+model BattleAiOpponent {
+  id                       String     @id @default(uuid()) @db.Uuid
+  battleRoomId             String     @unique @map("battle_room_id") @db.Uuid
+  displayName              String     @map("display_name")
+  strategyVersion          String     @map("strategy_version")
+  seed                     String
+  answerPlan               Json       @map("answer_plan")
+  plannedSubmittedOffsetMs Int        @map("planned_submitted_offset_ms")
+  createdAt                DateTime   @default(now()) @map("created_at")
+  updatedAt                DateTime   @updatedAt @map("updated_at")
+  battleRoom               BattleRoom @relation(fields: [battleRoomId], references: [id], onDelete: Cascade)
+
+  @@index([strategyVersion])
+  @@map("battle_ai_opponents")
 }
 
 model BattleParticipant {

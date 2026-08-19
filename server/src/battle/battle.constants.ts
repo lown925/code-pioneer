@@ -29,6 +29,23 @@ export const RANKED_MATCH_READY_TTL_SECONDS = 45;
 export const TRAINING_UNLOCK_SECONDS = 60;
 export const TRAINING_SKILL_CODE = 'PYTHON';
 
+export const AI_DISPLAY_NAME = 'AI Challenger';
+export const AI_STRATEGY_VERSION = 'normal-v1';
+export const AI_MEDIUM_CORRECT_PROBABILITY = 0.72;
+export const AI_HARD_CORRECT_PROBABILITY = 0.55;
+export const AI_MEDIUM_ANSWER_TIME_MS = {
+  min: 5_000,
+  max: 7_500,
+} as const;
+export const AI_HARD_ANSWER_TIME_MS = {
+  min: 7_000,
+  max: 10_000,
+} as const;
+export const AI_SUBMISSION_DELAY_MS = {
+  min: 2_000,
+  max: 5_000,
+} as const;
+
 export const FRIEND_INVITATION_TTL_MINUTES = 10;
 export const INVITATION_TOKEN_BYTES = 18;
 export const INVITE_CODE_LENGTH = 6;

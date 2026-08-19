@@ -179,6 +179,18 @@ export class BattleSettlementService {
       return room;
     }
 
+    // AI settlement is intentionally deferred to P7-3. Never let a one-user
+    // AI room enter the existing two-participant rating and rating-log path.
+    if (room.mode === BattleMode.AI) {
+      if (this.shouldAttemptAiSettlement(room, now)) {
+        throw new ConflictException(
+          BATTLE_ERROR_CODES.BATTLE_AI_SETTLEMENT_NOT_IMPLEMENTED,
+        );
+      }
+
+      return room;
+    }
+
     if (this.isTimeoutCandidate(room, now)) {
       const openStatuses: BattleParticipantStatus[] = [
         BattleParticipantStatus.JOINED,
@@ -798,6 +810,31 @@ export class BattleSettlementService {
     if (
       room.participants.some(
         (participant) => participant.status === BattleParticipantStatus.FORFEITED,
+      )
+    ) {
+      return true;
+    }
+
+    return room.participants.every((participant) =>
+      (
+        [
+          BattleParticipantStatus.SUBMITTED,
+          BattleParticipantStatus.FORFEITED,
+          BattleParticipantStatus.COMPLETED,
+        ] as BattleParticipantStatus[]
+      ).includes(participant.status),
+    );
+  }
+
+  private shouldAttemptAiSettlement(room: RoomRecord, now: Date) {
+    if (this.isTimeoutCandidate(room, now)) {
+      return true;
+    }
+
+    if (
+      room.participants.some(
+        (participant) =>
+          participant.status === BattleParticipantStatus.FORFEITED,
       )
     ) {
       return true;

@@ -4,6 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import {
+  BattleMode,
   BattleParticipantStatus,
   BattleRoomStatus,
 } from '../../generated/prisma/enums';
@@ -13,6 +14,7 @@ import { BattleDomainService } from './battle-domain.service';
 import { BATTLE_ERROR_CODES } from './battle.errors';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { isBattleAiPlanValid } from './battle-ai-plan';
 
 @Injectable()
 export class BattleReadyService {
@@ -48,6 +50,7 @@ export class BattleReadyService {
         },
         select: {
           id: true,
+          mode: true,
           status: true,
           skillCode: true,
           questionCount: true,
@@ -63,6 +66,7 @@ export class BattleReadyService {
           questionSnapshots: {
             select: {
               id: true,
+              orderIndex: true,
             },
           },
         },
@@ -111,10 +115,41 @@ export class BattleReadyService {
         throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_INVALID_STATUS);
       }
 
-      if (room.participants.length < 2) {
+      const isAiBattle = room.mode === BattleMode.AI;
+
+      if (
+        (isAiBattle && room.participants.length !== 1) ||
+        (!isAiBattle && room.participants.length < 2)
+      ) {
         throw new ConflictException(
           BATTLE_ERROR_CODES.BATTLE_PARTICIPANTS_INCOMPLETE,
         );
+      }
+
+      if (isAiBattle) {
+        const aiOpponent = await tx.battleAiOpponent.findUnique({
+          where: { battleRoomId: battleId },
+          select: {
+            strategyVersion: true,
+            answerPlan: true,
+            plannedSubmittedOffsetMs: true,
+          },
+        });
+
+        if (
+          !aiOpponent ||
+          !isBattleAiPlanValid({
+            value: aiOpponent.answerPlan,
+            strategyVersion: aiOpponent.strategyVersion,
+            plannedSubmittedOffsetMs: aiOpponent.plannedSubmittedOffsetMs,
+            durationSeconds: room.durationSeconds,
+            snapshots: room.questionSnapshots,
+          })
+        ) {
+          throw new ConflictException(
+            BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID,
+          );
+        }
       }
 
       const participant = room.participants.find(
@@ -166,7 +201,7 @@ export class BattleReadyService {
       });
 
       const allReady =
-        refreshedParticipants.length === 2 &&
+        refreshedParticipants.length === (isAiBattle ? 1 : 2) &&
         refreshedParticipants.every(
           (item) => item.status === BattleParticipantStatus.READY,
         );
@@ -204,22 +239,32 @@ export class BattleReadyService {
         });
 
         if (claimed.count === 1) {
-          if (room.questionSnapshots.length > 0) {
+          if (!isAiBattle && room.questionSnapshots.length > 0) {
             throw new ConflictException(
               BATTLE_ERROR_CODES.BATTLE_ALREADY_STARTED,
             );
           }
 
-          await this.battleQuestionService.createQuestionSnapshotsAndStartCountdown(
-            tx,
-            {
+          if (isAiBattle) {
+            await this.battleQuestionService.startCountdown(tx, {
               battleId,
               skillCode: room.skillCode,
               questionCount: room.questionCount,
               durationSeconds: room.durationSeconds,
               now,
-            },
-          );
+            });
+          } else {
+            await this.battleQuestionService.createQuestionSnapshotsAndStartCountdown(
+              tx,
+              {
+                battleId,
+                skillCode: room.skillCode,
+                questionCount: room.questionCount,
+                durationSeconds: room.durationSeconds,
+                now,
+              },
+            );
+          }
         }
       }
 
