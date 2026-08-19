@@ -125,6 +125,27 @@ describe('seed content parser', () => {
     ]);
   });
 
+  it('requires every CODE_FILL question to expose a visible blank and code context', () => {
+    const { questions } = countQuestions('python-basic');
+    const codeFillQuestions = questions.filter(
+      (question) => question.type === 'CODE_FILL',
+    );
+
+    expect(codeFillQuestions.length).toBeGreaterThan(0);
+    expect(
+      codeFillQuestions.every(
+        (question) =>
+          question.stemBlocks?.some(
+            (block) =>
+              block.type === 'CODE' &&
+              block.code.trim().length > 0 &&
+              block.code.includes('____'),
+          ) === true &&
+          question.acceptedAnswers.length > 0,
+      ),
+    ).toBe(true);
+  });
+
   it('loads the JavaScript and BattleSkill seed contracts', () => {
     const { course, questions, battleQuestions } = countQuestions(
       'javascript-starter',

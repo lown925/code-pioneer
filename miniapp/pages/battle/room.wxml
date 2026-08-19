@@ -21,7 +21,7 @@
     <text class="invite-label">好友邀请码</text>
     <text class="invite-code">{{inviteCode}}</text>
     <text class="invite-copy">
-      {{showInviteTools ? '复制邀请码或直接邀请好友，好友加入后即可准备开始。' : '当前好友房的邀请码以服务端状态为准。'}}
+      {{showInviteTools ? '复制邀请码或直接邀请好友，好友加入后即可准备开始。' : '请以当前显示的好友房状态为准。'}}
     </text>
 
     <view wx:if="{{showInviteTools}}" class="invite-actions">
@@ -79,7 +79,7 @@
       <text class="countdown-title">即将开始答题</text>
       <text class="countdown-value">{{countdownText || '3'}}</text>
       <text class="countdown-copy">
-        倒计时完全以服务端 startedAt 和 serverTime 为准，页面会持续校准。
+        倒计时由系统统一控制，页面会自动更新。
       </text>
     </view>
 

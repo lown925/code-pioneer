@@ -133,7 +133,7 @@
     </view>
 
     <view wx:if="{{hasBattleData}}" class="growth-section battle-section">
-      <view class="section-heading"><view><text class="section-title">Battle</text><text class="section-subtitle">竞技、训练和好友房分开统计</text></view><text class="section-link" data-path="/pages/battle/index" bindtap="handleRecommendationTap">进入 Battle ›</text></view>
+      <view class="section-heading"><view><text class="section-title">Battle</text><text class="section-subtitle">竞技、训练和好友房分开统计</text></view><text class="section-link" data-path="/pages/battle/index" bindtap="handleRecommendationTap">进入对战 ›</text></view>
       <view class="battle-summary">
         <scroll-view wx:if="{{skillItems.length}}" scroll-x class="skill-filter"><view wx:for="{{skillItems}}" wx:key="code" class="skill-filter-item {{item.code === selectedSkillCode ? 'is-active' : ''}}" data-code="{{item.code}}" bindtap="handleSkillChange">{{item.name}}</view></scroll-view>
         <view wx:if="{{selectedSkill}}" class="battle-primary"><view><text class="battle-rating-label">{{selectedSkill.name}} Rating</text><text class="battle-rating-value">{{currentRatingText}}</text></view><text class="battle-rating-high">最高 {{highestRatingText}}</text></view>

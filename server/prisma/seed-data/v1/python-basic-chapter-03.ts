@@ -280,7 +280,14 @@ function parseQuestion(
     /^是否用于 Battle：(是|否)$/m,
     `question ${questionNumber} Battle flag`,
   ) === '是';
-  const stemCode = segment.match(/```python\n([\s\S]*?)\n```/)?.[1]?.trim();
+  const stemCode =
+    segment.match(/```python\r?\n([\s\S]*?)\r?\n```/)?.[1]?.trim() ??
+    segment
+      .match(/\[代码 language=python\]\r?\n([\s\S]*?)\r?\n\[\/代码\]/)?.[1]
+      ?.trim();
+  if (type === 'CODE_FILL' && !stemCode) {
+    throw new Error(`CODE_FILL question ${questionNumber} must include a code context`);
+  }
   const stemBlocks = stemCode
     ? [
         { type: 'TEXT' as const, text: title },

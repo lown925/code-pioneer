@@ -72,6 +72,6 @@
 
   <view class="privacy-note">
     <text class="privacy-title">隐私说明</text>
-    <text class="privacy-copy">小程序不会自动读取你的微信头像或昵称。只有你主动选择并点击保存后，资料才会上传到码站先锋服务端。</text>
+    <text class="privacy-copy">小程序不会自动读取你的微信头像或昵称。只有你主动选择并点击保存后，资料才会提交到码站先锋。</text>
   </view>
 </view>

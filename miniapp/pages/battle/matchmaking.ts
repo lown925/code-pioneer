@@ -46,36 +46,42 @@ let unsubscribeMatchmaking: (() => void) | null = null;
 
 function getStateCopy(snapshot: BattleMatchmakingSnapshot) {
   if (snapshot.status === 'SEARCHING_COMPUTER_AVAILABLE') {
-    return { title: '正在搜索真人对手', description: '暂时没有合适的真人对手，可进入电脑对战或继续等待。' };
+    return { title: '正在匹配对手', description: '暂时没有合适的对手，可进入电脑对战或继续等待。' };
   }
   if (snapshot.status === 'SEARCHING') {
-    return { title: '正在搜索真人对手', description: '可以离开本页继续使用小程序，前台会持续同步匹配状态。' };
+    return { title: '正在匹配对手', description: '可以离开本页继续使用小程序，匹配状态会持续同步。' };
   }
   if (snapshot.status === 'MATCHED') {
-    return { title: '已找到真人对手', description: '请尽快进入 Battle 房间并完成准备。' };
+    return { title: '匹配成功', description: '正在打开对战房间，请完成准备。' };
   }
   if (snapshot.status === 'CANCELLED') {
     return { title: '该次匹配已失效', description: '房间未能在准备时间内开始，可以重新匹配。' };
   }
   if (snapshot.status === 'EXPIRED') {
-    return { title: '真人匹配已结束', description: snapshot.computerAvailable ? '30 分钟搜索已结束，仍可进入电脑对战或重新匹配。' : '本轮搜索已结束，可以重新开始匹配。' };
+    return { title: '匹配已结束', description: snapshot.computerAvailable ? '30 分钟搜索已结束，仍可进入电脑对战或重新匹配。' : '本轮搜索已结束，可以重新开始匹配。' };
   }
   if (snapshot.status === 'ERROR') {
-    return { title: '正在重新连接', description: '服务端 queue 不会被客户端取消，请重新同步最新状态。' };
+    return { title: '正在重新连接', description: '匹配状态会继续保留，请重新同步最新状态。' };
   }
-  return { title: '准备开始随机匹配', description: '选择对战方向后进入真人匹配池。' };
+  return { title: '准备开始随机匹配', description: '选择对战语言后开始匹配。' };
+}
+
+function formatWaitingCount(waitingCount: number) {
+  return waitingCount > 1
+    ? `当前有 ${waitingCount} 位玩家正在匹配`
+    : '正在寻找合适的对手';
 }
 
 registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
   data: {
     state: 'IDLE',
-    waitingCountText: '当前 0 人活跃匹配',
+    waitingCountText: '正在寻找合适的对手',
     battleId: '',
     errorMessage: '',
     waitedText: '00:00',
     remainingText: '00:00',
     stateTitle: '准备开始随机匹配',
-    stateDescription: '选择对战方向后进入真人匹配池。',
+    stateDescription: '选择对战语言后开始匹配。',
     availableSkills: [],
     selectedSkillCode: 'PYTHON',
     selectedSkillName: 'Python',
@@ -127,7 +133,7 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
     const selectedSkill = this.data.availableSkills.find((skill) => skill.code === snapshot.skillCode);
     this.setData({
       state: snapshot.isJoining ? 'JOINING' : snapshot.status,
-      waitingCountText: `当前 ${snapshot.waitingCount} 人活跃匹配`,
+      waitingCountText: formatWaitingCount(snapshot.waitingCount),
       battleId: snapshot.battleId,
       errorMessage: snapshot.lastError,
       waitedText: formatBattleDuration(snapshot.elapsedMs / 1000),
@@ -150,7 +156,7 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
 
   handleStartMatchmaking() {
     if (!this.data.selectedSkillCode) {
-      wx.showToast({ title: '请先选择对战方向', icon: 'none' });
+      wx.showToast({ title: '请先选择对战语言', icon: 'none' });
       return;
     }
     void getBattleMatchmakingManager().join(this.data.selectedSkillCode);

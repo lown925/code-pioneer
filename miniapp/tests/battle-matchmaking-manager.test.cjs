@@ -83,6 +83,7 @@ function createHarness(responses = []) {
   const requests = [];
   const navigations = [];
   const redirects = [];
+  const prompts = [];
   const timers = new Map();
   let nextTimerId = 1;
   let now = Date.parse('2026-08-19T00:00:00.000Z');
@@ -122,6 +123,9 @@ function createHarness(responses = []) {
     clearTimeout(id) {
       timers.delete(id);
     },
+    showComputerPrompt(options) {
+      prompts.push(options);
+    },
   };
   const manager = new BattleMatchmakingManager(dependencies);
 
@@ -130,6 +134,7 @@ function createHarness(responses = []) {
     requests,
     navigations,
     redirects,
+    prompts,
     timers,
     setNow(value) {
       now = value;
@@ -184,11 +189,10 @@ test('keeps one poller and pauses it without cancelling on app hide', async () =
   assert.equal(harness.requests.some((item) => item.method === 'DELETE'), false);
 });
 
-test('recovers SEARCHING, computer available, and MATCHED from server state', async () => {
+test('recovers SEARCHING and computer available from server state', async () => {
   for (const expected of [
     [status({ status: 'SEARCHING' }), 'SEARCHING'],
     [status({ status: 'SEARCHING', aiAvailable: true, elapsedMs: 130_000 }), 'SEARCHING_COMPUTER_AVAILABLE'],
-    [status({ status: 'MATCHED', battleId: 'battle-human' }), 'MATCHED'],
   ]) {
     const harness = createHarness([expected[0]]);
     await harness.manager.onAppShow();
@@ -196,12 +200,36 @@ test('recovers SEARCHING, computer available, and MATCHED from server state', as
   }
 });
 
-test('does not auto-navigate when a human match is found', async () => {
-  const harness = createHarness([status({ status: 'MATCHED', battleId: 'battle-human' })]);
+test('auto-navigates a human match exactly once without a page subscriber click', async () => {
+  const harness = createHarness([
+    status({ status: 'MATCHED', battleId: 'battle-human' }),
+    status({ status: 'MATCHED', battleId: 'battle-human' }),
+  ]);
   await harness.manager.onAppShow();
-  assert.deepEqual(harness.navigations, []);
+  await harness.manager.onAppShow();
   harness.manager.enterMatchedBattle();
   assert.deepEqual(harness.navigations, ['/pages/battle/room?battleId=battle-human']);
+});
+
+test('shows the computer prompt once on first server availability and keeps the button after cancel', async () => {
+  const harness = createHarness([
+    status({ status: 'SEARCHING', elapsedMs: 119_000, aiAvailable: false }),
+    status({ status: 'SEARCHING', elapsedMs: 120_000, aiAvailable: true }),
+    status({ status: 'SEARCHING', elapsedMs: 130_000, aiAvailable: true }),
+  ]);
+
+  await harness.manager.onAppShow();
+  assert.equal(harness.prompts.length, 0);
+  await harness.manager.sync({ force: true });
+  assert.equal(harness.prompts.length, 1);
+  assert.equal(harness.prompts[0].title, '还没有匹配到对手');
+  assert.equal(harness.prompts[0].confirmText, '电脑对战');
+  harness.prompts[0].success({ confirm: false, cancel: true });
+  harness.manager.setCollapsed(true);
+  await harness.manager.sync({ force: true });
+  assert.equal(harness.prompts.length, 1);
+  assert.equal(harness.manager.getSnapshot().computerAvailable, true);
+  assert.equal(harness.manager.getSnapshot().collapsed, true);
 });
 
 test('handles AI and HUMAN computer-switch resolutions and prevents duplicate clicks', async () => {

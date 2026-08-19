@@ -274,12 +274,12 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
         state: 'SUCCESS',
         titleText: resultMeta.resultText,
         descriptionText: isTrainingMode
-          ? '本场单人训练已完成，答题记录会进入 Battle 历史，且不会改变 Rating。'
+          ? '本场单人训练已完成，答题记录会进入对战历史，且不会改变 Rating。'
           : isRankedMode
-            ? '本场排位的分数、胜负和 Rating 变化均以服务端结算结果为准。'
+            ? '本场排位的分数、胜负和 Rating 变化已经确认。'
             : isAiMode
-              ? '电脑对战结果由服务端计划与结算生成，不修改正式 Rating。'
-              : '本场好友对战已完成，分数与胜负以服务端结算结果为准，不计 Rating。',
+              ? '本场电脑对战已完成，不修改正式 Rating。'
+              : '本场好友对战已完成，不计 Rating。',
         errorMessage: '',
         modeText: this.getModeText(response.mode),
         skillText: formatBattleSkill(response.skill),
@@ -353,7 +353,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
       this.setData({
         state: 'ERROR',
         titleText: '结果获取失败',
-        descriptionText: '你可以重新查询服务端结算结果，或先返回 Battle 首页。',
+        descriptionText: '你可以重新查询本场结果，或先返回 Battle 首页。',
         errorMessage: this.getReadableError(error),
       });
     } finally {
@@ -431,7 +431,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
       return '当前对战还在进行中，结果会在交卷、认输或超时结算后自动展示。';
     }
 
-    return '服务端正在整理本场结算结果，完成后会自动刷新当前页面。';
+    return '正在整理本场结果，完成后会自动刷新当前页面。';
   },
 
   getStatusText(
@@ -604,7 +604,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
         BATTLE_NOT_PARTICIPANT: '你不是这场对战的参与者，无法查看 Battle 结果。',
         BATTLE_SETTLEMENT_DATA_INVALID: '当前对战尚未生成有效结算数据，请稍后再试。',
         BATTLE_ALREADY_COMPLETED: '本场 Battle 已完成，正在同步最终结果。',
-        BATTLE_INVALID_STATUS: '当前结算状态已变化，请重新同步服务端状态后再继续查看。',
+        BATTLE_INVALID_STATUS: '当前结果状态已变化，请刷新后再继续查看。',
       },
     );
   },

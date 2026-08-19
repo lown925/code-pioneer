@@ -160,7 +160,7 @@ Battle 展示类型：综合项目题
 #### 题目 3
 
 题型：CODE_FILL
-题干：补全用户数据中的 Battle 记录字段。
+题干：请补全下面代码中的字典字段。这里需要填写完整的字段语句，不是只填写字段值。
 
 难度：MEDIUM
 分值：10
@@ -168,6 +168,14 @@ Battle 展示类型：综合项目题
 是否用于 Battle：是
 Battle 难度：MEDIUM
 Battle 展示类型：综合项目题
+
+
+[代码 language=python]
+user = {
+    "nickname": "新手玩家",
+    ____
+}
+[/代码]
 
 
 可接受答案：
@@ -307,7 +315,7 @@ Battle 展示类型：综合项目题
 #### 题目 6
 
 题型：CODE_FILL
-题干：补全 add_battle_record() 中加入列表的语句。
+题干：请补全下面函数中的完整语句，把 record 加入 battle_records 列表。
 
 难度：MEDIUM
 分值：10
@@ -315,6 +323,16 @@ Battle 展示类型：综合项目题
 是否用于 Battle：是
 Battle 难度：MEDIUM
 Battle 展示类型：综合项目题
+
+
+[代码 language=python]
+class UserProfile:
+    def __init__(self):
+        self.battle_records = []
+
+    def add_battle_record(self, record):
+        ____
+[/代码]
 
 
 可接受答案：
@@ -460,7 +478,7 @@ Battle 展示类型：综合项目题
 #### 题目 9
 
 题型：CODE_FILL
-题干：补全平均进度计算表达式。
+题干：请补全下面 return 语句中的表达式，不要填写 return 关键字。
 
 难度：MEDIUM
 分值：10
@@ -468,6 +486,14 @@ Battle 展示类型：综合项目题
 是否用于 Battle：是
 Battle 难度：MEDIUM
 Battle 展示类型：综合项目题
+
+
+[代码 language=python]
+def calculate_average_progress(user, total_progress):
+    if not user.learning_records:
+        return 0
+    return ____
+[/代码]
 
 
 可接受答案：
@@ -609,7 +635,7 @@ WIN、LOSS、DRAW 分别表示胜、负、平。
 #### 题目 12
 
 题型：CODE_FILL
-题干：补全胜率计算表达式。
+题干：请补全下面 return 语句中的表达式，不要填写 return 关键字。
 
 难度：MEDIUM
 分值：10
@@ -617,6 +643,14 @@ WIN、LOSS、DRAW 分别表示胜、负、平。
 是否用于 Battle：是
 Battle 难度：MEDIUM
 Battle 展示类型：综合项目题
+
+
+[代码 language=python]
+def calculate_win_rate(user, total_battles):
+    if total_battles == 0:
+        return 0
+    return ____
+[/代码]
 
 
 可接受答案：
@@ -763,7 +797,7 @@ to_dict() 是常见序列化辅助方法名。
 #### 题目 15
 
 题型：CODE_FILL
-题干：补全 json.dump() 的第一个参数，使用户对象可保存。
+题干：请补全下面调用中的第一个参数。这里需要填写一个表达式，不要填写整条 json.dump() 语句。
 
 难度：MEDIUM
 分值：10
@@ -771,6 +805,17 @@ to_dict() 是常见序列化辅助方法名。
 是否用于 Battle：是
 Battle 难度：MEDIUM
 Battle 展示类型：综合项目题
+
+
+[代码 language=python]
+def save_user(user, file):
+    json.dump(
+        ____,
+        file,
+        ensure_ascii=False,
+        indent=2
+    )
+[/代码]
 
 
 可接受答案：
@@ -930,7 +975,7 @@ Battle 展示类型：综合项目题
 #### 题目 18
 
 题型：CODE_FILL
-题干：用户选择 0 后需要退出菜单循环，请补全语句。
+题干：用户选择 0 后需要退出菜单循环，请补全下面 if 代码块中的完整语句。
 
 难度：MEDIUM
 分值：10
@@ -938,6 +983,14 @@ Battle 展示类型：综合项目题
 是否用于 Battle：是
 Battle 难度：MEDIUM
 Battle 展示类型：综合项目题
+
+
+[代码 language=python]
+while True:
+    choice = input("请选择：")
+    if choice == "0":
+        ____
+[/代码]
 
 
 可接受答案：

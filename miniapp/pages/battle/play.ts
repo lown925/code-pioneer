@@ -98,6 +98,8 @@ type PlayPageData = {
   submitBattleButtonText: string;
   forfeitButtonText: string;
   isBattleActionPending: boolean;
+  participantStatus: string | null;
+  isParticipantLocked: boolean;
   isTrainingMode: boolean;
   totalQuestionsText: string;
   myAnsweredCount: number;
@@ -413,6 +415,8 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
     submitBattleButtonText: '交卷',
     forfeitButtonText: '认输',
     isBattleActionPending: false,
+    participantStatus: null,
+    isParticipantLocked: false,
     isTrainingMode: false,
     totalQuestionsText: '0',
     myAnsweredCount: 0,
@@ -561,6 +565,20 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       }
 
       this.applyPlayerContext(response);
+      if (
+        response.status === 'COMPLETED' ||
+        response.currentParticipantStatus === 'COMPLETED'
+      ) {
+        this.setData({
+          state: 'COMPLETED',
+          titleText: '本场对战已结束',
+          descriptionText: '当前对局已经完成，正在进入结果页。',
+          participantStatus: 'COMPLETED',
+          isParticipantLocked: true,
+        });
+        this.navigateToResult(true);
+        return;
+      }
       hasLoadedPlayerContext = true;
     } catch {
       // Player metadata is optional; the question flow remains authoritative.
@@ -592,6 +610,11 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       myPlayer: this.mapPlayer(myParticipant) ?? this.data.myPlayer,
       opponentPlayer: aiOpponent ?? this.mapPlayer(opponentParticipant),
       isTrainingMode: payload.mode === 'TRAINING',
+      participantStatus: payload.currentParticipantStatus,
+      isParticipantLocked:
+        payload.currentParticipantStatus === 'SUBMITTED' ||
+        payload.currentParticipantStatus === 'FORFEITED' ||
+        payload.currentParticipantStatus === 'COMPLETED',
     });
   },
 
@@ -626,7 +649,13 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
 
     const currentRequestSerial = ++requestSerial;
     isQuestionsRequesting = true;
-    void this.loadPlayerContext();
+    await this.loadPlayerContext();
+
+    if (!isPageActive || this.data.state === 'COMPLETED') {
+      isQuestionsRequesting = false;
+      hasLoadedOnce = true;
+      return;
+    }
 
     if (this.data.questions.length === 0) {
       this.setData({
@@ -686,7 +715,16 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
     const currentQuestionId = currentQuestion?.battleQuestionId ?? '';
     const items = Array.isArray(payload.questions) ? payload.questions : [];
     const built = this.buildQuestions(items, this.data.questions, currentQuestionId);
-    const nextState = this.mapPlayState(payload);
+    const serverState = this.mapPlayState(payload);
+    const participantLocked =
+      this.data.isParticipantLocked ||
+      this.data.participantStatus === 'SUBMITTED' ||
+      this.data.participantStatus === 'FORFEITED' ||
+      this.data.participantStatus === 'COMPLETED';
+    const nextState =
+      participantLocked && payload.status !== 'COMPLETED'
+        ? 'WAITING_SETTLEMENT'
+        : serverState;
     const isTrainingMode = payload.mode === 'TRAINING';
     const currentQuestionCard = built.questions[built.currentQuestionIndex] ?? null;
     const myAnsweredCount = built.questions.filter((question) => question.answered).length;
@@ -719,7 +757,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
               : 'Battle 答题中',
       descriptionText:
         nextState === 'COUNTDOWN'
-          ? '服务端倒计时尚未结束，到达 startedAt 后会自动进入作答状态。'
+          ? '倒计时尚未结束，结束后会自动进入作答状态。'
           : nextState === 'WAITING_SETTLEMENT'
             ? isTrainingMode
               ? '当前已停止作答，系统正在整理单人训练结果。'
@@ -735,6 +773,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       submitBattleButtonText: '交卷',
       forfeitButtonText: '认输',
       isBattleActionPending: false,
+      isParticipantLocked: participantLocked,
       isTrainingMode,
       totalQuestionsText: String(built.questions.length),
       myAnsweredCount,
@@ -957,6 +996,8 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
             : '当前对局已经完成，正在进入结果页。',
           errorMessage: '',
           isBattleActionPending: false,
+          participantStatus: 'COMPLETED',
+          isParticipantLocked: true,
           submitBattleButtonText: '交卷',
           forfeitButtonText: '认输',
           isOverviewOpen: false,
@@ -983,7 +1024,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
           ? '对战倒计时尚未结束，结果会在整场答题结束后生成。'
           : response.status === 'IN_PROGRESS'
             ? '当前对战仍在进行中，结果会在整场答题结束后生成。'
-            : '服务端正在处理本场结算，请稍候。';
+            : '正在处理本场结果，请稍候。';
 
       this.enterWaitingSettlement(waitingMessage);
     } catch (error) {
@@ -1039,6 +1080,9 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
             ? '已交卷'
             : '作答中',
       isTrainingMode,
+      ...(response.mySubmitted
+        ? { participantStatus: 'SUBMITTED', isParticipantLocked: true }
+        : {}),
       ...(isTrainingMode ? { opponentPlayer: null } : {}),
     });
   },
@@ -1055,6 +1099,8 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       descriptionText,
       errorMessage,
       isBattleActionPending: false,
+      participantStatus: this.data.participantStatus ?? 'SUBMITTED',
+      isParticipantLocked: true,
       submitBattleButtonText: '交卷',
       forfeitButtonText: '认输',
       isOverviewOpen: false,
@@ -1295,6 +1341,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
     if (
       this.data.isBattleActionPending ||
       isBattleActionRequesting ||
+      this.data.isParticipantLocked ||
       (this.data.state !== 'PLAYING' && this.data.state !== 'COUNTDOWN')
     ) {
       return;
@@ -1324,6 +1371,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       !this.data.isValidBattleId ||
       isBattleActionRequesting ||
       this.data.isBattleActionPending ||
+      this.data.isParticipantLocked ||
       (this.data.state !== 'PLAYING' && this.data.state !== 'COUNTDOWN')
     ) {
       return;
@@ -1354,14 +1402,23 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       serverTimeOffsetMs = parseTimestamp(response.serverTime) - Date.now();
 
       if (response.completed || response.roomStatus === 'COMPLETED') {
+        this.setData({
+          participantStatus: 'COMPLETED',
+          isParticipantLocked: true,
+        });
         this.navigateToResult(true);
         return;
       }
 
+      this.setData({
+        participantStatus: response.participantStatus ?? 'SUBMITTED',
+        isParticipantLocked: true,
+      });
+
       this.enterWaitingSettlement(
         response.waitingForOpponent
           ? '你已主动交卷，正在等待对手完成作答并进入结算。'
-          : '整场作答已提交，服务端正在整理本场结果。',
+          : '整场作答已提交，正在整理本场结果。',
       );
     } catch (error) {
       if (!isPageActive) {
@@ -1414,6 +1471,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
     if (
       this.data.isBattleActionPending ||
       isBattleActionRequesting ||
+      this.data.isParticipantLocked ||
       this.data.isTrainingMode ||
       (this.data.state !== 'COUNTDOWN' && this.data.state !== 'PLAYING')
     ) {
@@ -1439,6 +1497,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       !this.data.isValidBattleId ||
       isBattleActionRequesting ||
       this.data.isBattleActionPending ||
+      this.data.isParticipantLocked ||
       this.data.isTrainingMode ||
       (this.data.state !== 'COUNTDOWN' && this.data.state !== 'PLAYING')
     ) {
@@ -1468,11 +1527,20 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       serverTimeOffsetMs = parseTimestamp(response.serverTime) - Date.now();
 
       if (response.completed || response.roomStatus === 'COMPLETED') {
+        this.setData({
+          participantStatus: 'COMPLETED',
+          isParticipantLocked: true,
+        });
         this.navigateToResult(true);
         return;
       }
 
-      this.enterWaitingSettlement('已发起认输，服务端正在处理本场结算。');
+      this.setData({
+        participantStatus: response.participantStatus ?? 'FORFEITED',
+        isParticipantLocked: true,
+      });
+
+      this.enterWaitingSettlement('已发起认输，正在处理本场结果。');
     } catch (error) {
       if (!isPageActive) {
         return;
@@ -1705,7 +1773,14 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
   },
 
   isQuestionEditable(question: QuestionCard) {
-    return this.data.state === 'PLAYING' && !this.data.isBattleActionPending;
+    return (
+      this.data.state === 'PLAYING' &&
+      !this.data.isBattleActionPending &&
+      !this.data.isParticipantLocked &&
+      this.data.participantStatus !== 'SUBMITTED' &&
+      this.data.participantStatus !== 'FORFEITED' &&
+      this.data.participantStatus !== 'COMPLETED'
+    );
   },
 
   getQuestionSyncLabel(question: QuestionCard) {
@@ -1966,7 +2041,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
         BATTLE_SETTLEMENT_IN_PROGRESS: '当前对战正在结算中，暂时不能继续修改答案。',
         BATTLE_ALREADY_COMPLETED: '当前对战已经完成，题目页面只保留只读展示。',
         BATTLE_NOT_PARTICIPANT: '你不是当前对局参与者，无法继续本场 Battle。',
-        BATTLE_INVALID_STATUS: '当前对战状态已变化，请重新同步服务端状态后再继续操作。',
+        BATTLE_INVALID_STATUS: '当前对战状态已变化，请刷新后再继续操作。',
       },
     );
   },

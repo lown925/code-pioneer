@@ -115,6 +115,7 @@ export type WrongQuestionDetail = {
   optionSnapshots: BattleQuestionOptionSnapshotResponse[] | null;
   latestWrongAnswer: WrongQuestionSubmittedAnswer | null;
   sourceQuizQuestionId: string | null;
+  knowledgeTags: string[];
   battle: WrongQuestionBattleReference;
 };
 

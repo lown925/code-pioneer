@@ -102,7 +102,7 @@
         </view>
         <view class="preview-meta-item">
           <text class="preview-meta-label">有效期</text>
-          <text class="preview-meta-value">{{expiresAtText || '以服务端状态为准'}}</text>
+          <text class="preview-meta-value">{{expiresAtText || '以当前房间状态为准'}}</text>
         </view>
       </view>
     </view>

@@ -30,11 +30,11 @@
     </view>
 
     <view class="section-card info-card">
-      <view class="info-row">
+      <view wx:if="{{detail.courseTitle}}" class="info-row">
         <text class="info-label">所属课程</text>
         <text class="info-value">{{detail.courseTitle}}</text>
       </view>
-      <view class="info-row">
+      <view wx:if="{{detail.chapterTitle}}" class="info-row">
         <text class="info-label">所属章节</text>
         <text class="info-value">{{detail.chapterTitle}}</text>
       </view>
@@ -187,7 +187,7 @@
         </view>
       </view>
 
-      <view class="section-card content-card">
+      <view wx:if="{{detail.hasBattleCorrectAnswer}}" class="section-card content-card">
         <text class="section-title">{{detail.battleCorrectAnswerLabel}}</text>
         <text class="answer-text">{{detail.battleCorrectAnswerText}}</text>
         <view wx:if="{{detail.battleCorrectAnswerBlocks.length > 0}}" class="content-block-list">
@@ -233,13 +233,13 @@
         <text wx:else class="answer-text">暂无解析</text>
       </view>
 
-      <view class="section-card content-card">
+      <view wx:if="{{detail.hasBattleKnowledge}}" class="section-card content-card">
         <text class="section-title">知识点</text>
         <text class="answer-text">{{detail.battleKnowledgeHintText}}</text>
       </view>
     </block>
 
-    <view class="section-card content-card">
+    <view wx:if="{{detail.hasCourseEntry || detail.hasChapterEntry}}" class="section-card content-card">
       <text class="section-title">相关入口</text>
       <view class="entry-row">
         <view wx:if="{{detail.hasCourseEntry}}" class="ghost-button mini-button" bindtap="handleOpenCourseDetail">

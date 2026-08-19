@@ -102,7 +102,7 @@ function formatExpiry(value: string) {
   const expiresAt = Date.parse(value);
 
   if (!Number.isFinite(expiresAt)) {
-    return '以服务端状态为准';
+    return '以当前房间状态为准';
   }
 
   const remainingSeconds = Math.max(
@@ -584,7 +584,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     const state = this.getPreviewState(payload);
 
     let stateTitle = '好友房状态';
-    let stateDescription = '当前房间状态以服务端返回为准。';
+    let stateDescription = '正在获取当前房间状态。';
     let errorMessage = '';
     let canJoin = payload.canJoin && !isCreator;
 

@@ -64,6 +64,14 @@ type MatchmakingDependencies = {
   now(): number;
   setTimeout(handler: () => void, timeout: number): number;
   clearTimeout(timeoutId: number): void;
+  showComputerPrompt?(options: {
+    title: string;
+    content: string;
+    showCancel: boolean;
+    confirmText: string;
+    cancelText: string;
+    success?: (result: { confirm: boolean; cancel: boolean }) => void;
+  }): void;
 };
 
 const POLL_INTERVAL_MS = 1800;
@@ -99,7 +107,7 @@ function isUnauthorized(error: unknown) {
 
 function toErrorMessage(error: unknown) {
   if (error instanceof RequestError && error.code === 'BATTLE_AI_NOT_AVAILABLE') {
-    return '电脑对战暂不可用，已重新同步真人匹配状态。';
+    return '电脑对战暂不可用，已刷新匹配状态。';
   }
 
   if (error instanceof RequestError && error.message) {
@@ -124,6 +132,8 @@ export class BattleMatchmakingManager {
   private consecutiveFailures = 0;
   private lastServerSyncLocalMs = 0;
   private previousTrustedStatus: BattleMatchmakingManagerStatus = 'IDLE';
+  private computerPromptShown = false;
+  private enteredBattleId = '';
 
   constructor(private readonly dependencies: MatchmakingDependencies) {}
 
@@ -230,6 +240,8 @@ export class BattleMatchmakingManager {
       skillCode,
       skillName: formatBattleSkill(skillCode),
     });
+    this.computerPromptShown = false;
+    this.enteredBattleId = '';
 
     try {
       const payload = await this.dependencies.request<MatchmakingStatusResponse>({
@@ -240,7 +252,7 @@ export class BattleMatchmakingManager {
       });
       this.applyServerStatus(payload);
     } catch (error) {
-      this.handleActionFailure(error, '加入真人匹配失败，请稍后重试。');
+      this.handleActionFailure(error, '加入随机匹配失败，请稍后重试。');
     } finally {
       this.patch({ isJoining: false });
       this.scheduleForCurrentState();
@@ -340,6 +352,8 @@ export class BattleMatchmakingManager {
     this.consecutiveFailures = 0;
     this.previousTrustedStatus = 'IDLE';
     this.lastServerSyncLocalMs = 0;
+    this.computerPromptShown = false;
+    this.enteredBattleId = '';
     this.snapshot = { ...INITIAL_SNAPSHOT };
     this.notify();
   }
@@ -364,6 +378,18 @@ export class BattleMatchmakingManager {
       status = 'IDLE';
     }
 
+    const previousStatus = this.previousTrustedStatus;
+    const wasComputerAvailable = this.snapshot.computerAvailable;
+    const shouldShowComputerPrompt =
+      status === 'SEARCHING_COMPUTER_AVAILABLE' &&
+      !wasComputerAvailable &&
+      !this.computerPromptShown;
+    const shouldEnterMatchedBattle =
+      status === 'MATCHED' &&
+      Boolean(payload.battleId) &&
+      previousStatus !== 'MATCHED' &&
+      payload.battleId !== this.enteredBattleId;
+
     this.previousTrustedStatus = status;
     this.snapshot = {
       ...this.snapshot,
@@ -384,6 +410,26 @@ export class BattleMatchmakingManager {
       reconnecting: false,
     };
     this.notify();
+
+    if (shouldShowComputerPrompt) {
+      this.computerPromptShown = true;
+      this.dependencies.showComputerPrompt?.({
+        title: '还没有匹配到对手',
+        content: '你可以继续等待，也可以开始电脑对战。',
+        showCancel: true,
+        confirmText: '电脑对战',
+        cancelText: '继续等待',
+        success: (result) => {
+          if (result.confirm) {
+            void this.startComputerBattle();
+          }
+        },
+      });
+    }
+
+    if (shouldEnterMatchedBattle) {
+      this.enterBattle(payload.battleId!);
+    }
   }
 
   private handleSyncFailure(error: unknown) {
@@ -424,6 +470,11 @@ export class BattleMatchmakingManager {
       return;
     }
 
+    if (battleId === this.enteredBattleId) {
+      return;
+    }
+
+    this.enteredBattleId = battleId;
     this.stopPoller();
     this.stopDisplayTicker();
     this.previousTrustedStatus = 'ENTERING_BATTLE';
@@ -432,8 +483,10 @@ export class BattleMatchmakingManager {
       url: `/pages/battle/room?battleId=${encodeURIComponent(battleId)}`,
       success: () => this.resetToIdle(),
       fail: () => {
-        this.patch({ lastError: '无法打开 Battle 房间，请重新进入。' });
-        void this.sync({ force: true });
+        this.enteredBattleId = '';
+        this.previousTrustedStatus = 'MATCHED';
+        this.patch({ status: 'MATCHED' });
+        this.patch({ lastError: '无法打开对战房间，请重新进入。' });
       },
     });
   }
@@ -534,6 +587,7 @@ export class BattleMatchmakingManager {
     this.consecutiveFailures = 0;
     this.previousTrustedStatus = 'IDLE';
     this.lastServerSyncLocalMs = 0;
+    this.computerPromptShown = false;
     this.snapshot = { ...INITIAL_SNAPSHOT, collapsed };
     this.notify();
   }
@@ -558,6 +612,7 @@ const manager = new BattleMatchmakingManager({
   now: () => Date.now(),
   setTimeout: (handler, timeout) => setTimeout(handler, timeout),
   clearTimeout: (timeoutId) => clearTimeout(timeoutId),
+  showComputerPrompt: (options) => wx.showModal(options),
 });
 
 export function initializeBattleMatchmakingManager() {

@@ -80,9 +80,19 @@ describe('BattleHistoryService', () => {
             optionId: 'option-1',
           },
           explanationSnapshot: [{ type: 'TEXT', text: 'Explanation' }],
+          acceptedAnswersSnapshot: [],
+          knowledgeTagsSnapshot: ['topic:loops', 'functions'],
           programmingLanguage: null,
           courseIdSnapshot: 'course-1',
           chapterIdSnapshot: 'chapter-1',
+          sourceQuizQuestion: {
+            quiz: {
+              chapter: {
+                title: 'Loops',
+                course: { title: 'Python Basics' },
+              },
+            },
+          },
         },
       ],
       answers: [
@@ -167,6 +177,9 @@ describe('BattleHistoryService', () => {
         source: 'BATTLE',
         isCorrect: false,
         scoreDelta: -1,
+        knowledgeTags: ['topic:loops', 'functions'],
+        courseTitle: 'Python Basics',
+        chapterTitle: 'Loops',
         myAnswer: expect.objectContaining({
           answer: {
             type: 'SINGLE_CHOICE',
@@ -175,6 +188,23 @@ describe('BattleHistoryService', () => {
         }),
       }),
     ]);
+  });
+
+  it('returns accepted answers for CODE_FILL history questions', async () => {
+    const { service, room } = createService();
+    Object.assign(room.questionSnapshots[0]!, {
+      questionType: BattleQuestionType.CODE_FILL,
+      presentation: BattleQuestionPresentation.INPUT_CODE_FILL,
+      correctAnswerSnapshot: { type: 'CODE_FILL' },
+      acceptedAnswersSnapshot: ['total / count', 'sum(values) / len(values)'],
+    });
+
+    const result = await service.getHistoryDetail(USER_ID, room.id);
+
+    expect(result.data.questions[0]?.correctAnswer).toEqual({
+      type: 'CODE_FILL',
+      acceptedAnswers: ['total / count', 'sum(values) / len(values)'],
+    });
   });
 
   it('lists and returns AI history without requiring a second participant', async () => {

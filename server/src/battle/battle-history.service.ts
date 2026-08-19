@@ -70,9 +70,19 @@ type BattleHistorySnapshotRecord = {
   optionsSnapshot: unknown;
   correctAnswerSnapshot: unknown;
   explanationSnapshot: unknown;
+  acceptedAnswersSnapshot: unknown;
+  knowledgeTagsSnapshot: unknown;
   programmingLanguage: string | null;
   courseIdSnapshot: string | null;
   chapterIdSnapshot: string | null;
+  sourceQuizQuestion: {
+    quiz: {
+      chapter: {
+        title: string;
+        course: { title: string };
+      };
+    };
+  } | null;
 };
 
 type BattleHistoryAnswerRecord = {
@@ -423,8 +433,13 @@ export class BattleHistoryService {
     answersBySnapshotId: Map<string, BattleHistoryAnswerRecord>,
   ): BattleHistoryQuestionPayload {
     const answer = answersBySnapshotId.get(snapshot.id) ?? null;
-    const correctAnswer =
+    const snapshotCorrectAnswer =
       snapshot.correctAnswerSnapshot as BattleHistoryQuestionPayload['correctAnswer'];
+    const acceptedAnswers = this.asStringArray(snapshot.acceptedAnswersSnapshot);
+    const correctAnswer =
+      snapshotCorrectAnswer.type === 'CODE_FILL' && acceptedAnswers.length > 0
+        ? { ...snapshotCorrectAnswer, acceptedAnswers }
+        : snapshotCorrectAnswer;
     const options = this.asOptionSnapshots(snapshot.optionsSnapshot);
     const correctOptionId =
       correctAnswer.type === 'SINGLE_CHOICE' ? correctAnswer.optionId : null;
@@ -451,10 +466,11 @@ export class BattleHistoryService {
       isCorrect: answer ? answer.isCorrect : null,
       scoreDelta: answer ? answer.scoreDelta : room.unansweredScore,
       explanation: this.asMaybeContentBlocks(snapshot.explanationSnapshot),
+      knowledgeTags: this.asStringArray(snapshot.knowledgeTagsSnapshot),
       courseId: snapshot.courseIdSnapshot,
-      courseTitle: null,
+      courseTitle: snapshot.sourceQuizQuestion?.quiz.chapter.course.title ?? null,
       chapterId: snapshot.chapterIdSnapshot,
-      chapterTitle: null,
+      chapterTitle: snapshot.sourceQuizQuestion?.quiz.chapter.title ?? null,
       orderIndex: snapshot.orderIndex,
     };
   }
@@ -617,6 +633,17 @@ export class BattleHistoryService {
     return value as BattleQuestionOptionSnapshot[];
   }
 
+  private asStringArray(value: unknown) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
   private readonly roomSelect = {
     id: true,
     mode: true,
@@ -669,9 +696,25 @@ export class BattleHistoryService {
         optionsSnapshot: true,
         correctAnswerSnapshot: true,
         explanationSnapshot: true,
+        acceptedAnswersSnapshot: true,
+        knowledgeTagsSnapshot: true,
         programmingLanguage: true,
         courseIdSnapshot: true,
         chapterIdSnapshot: true,
+        sourceQuizQuestion: {
+          select: {
+            quiz: {
+              select: {
+                chapter: {
+                  select: {
+                    title: true,
+                    course: { select: { title: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: {
         orderIndex: 'asc' as const,

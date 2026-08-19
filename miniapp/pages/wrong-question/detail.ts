@@ -78,8 +78,10 @@ type WrongQuestionDetailCard = WrongQuestionDetail & {
   battleCorrectAnswerLabel: string;
   battleCorrectAnswerText: string;
   battleCorrectAnswerBlocks: ViewBlock[];
+  hasBattleCorrectAnswer: boolean;
   battleExplanationBlocks: ViewBlock[];
   hasBattleExplanation: boolean;
+  hasBattleKnowledge: boolean;
   battleKnowledgeHintText: string;
 };
 
@@ -459,6 +461,7 @@ registerThemedPage<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>(
     let battleCorrectAnswerLabel = '正确答案';
     let battleCorrectAnswerText = '';
     let battleCorrectAnswerBlocks: ViewBlock[] = [];
+    let hasBattleCorrectAnswer = false;
 
     if (isBattleSource && data.correctAnswer?.type === 'SINGLE_CHOICE') {
       const optionLabel = this.getBattleOptionLabel(
@@ -468,6 +471,7 @@ registerThemedPage<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>(
       battleCorrectAnswerText = optionLabel
         ? `正确选项：${optionLabel}`
         : '正确单选答案';
+      hasBattleCorrectAnswer = true;
       battleCorrectAnswerBlocks = this.mapBlocks(
         this.getBattleOptionBlocks(
           data.optionSnapshots,
@@ -477,13 +481,24 @@ registerThemedPage<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>(
       );
     } else if (isBattleSource) {
       battleCorrectAnswerLabel = '代码填空标准答案';
-      battleCorrectAnswerText = '当前正式接口未返回代码填空标准答案文本';
+      const acceptedAnswers = data.correctAnswer?.type === 'CODE_FILL'
+        ? data.correctAnswer.acceptedAnswers ?? []
+        : [];
+      battleCorrectAnswerText = acceptedAnswers.join(' / ');
+      hasBattleCorrectAnswer = acceptedAnswers.length > 0;
+      battleCorrectAnswerBlocks = this.mapBlocks(
+        acceptedAnswers.map((code) => ({ type: 'CODE' as const, code })),
+        `${data.questionId}-correct-answer`,
+      );
     }
 
     const battleExplanationBlocks =
       isBattleSource && Array.isArray(data.explanation)
         ? this.mapBlocks(data.explanation, `${data.questionId}-explanation`)
         : [];
+    const battleKnowledgeTags = (data.knowledgeTags ?? [])
+      .map((tag) => tag.trim().replace(/^topic:/, ''))
+      .filter(Boolean);
     const isLearningTextQuestion =
       !isBattleSource &&
       (data.questionType === 'FILL_BLANK' || data.questionType === 'CODE_FILL');
@@ -520,8 +535,10 @@ registerThemedPage<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>(
       isLearningTextQuestion,
       isLearningCodeFill: !isBattleSource && data.questionType === 'CODE_FILL',
       options: learningOptions,
-      hasCourseEntry: isNonEmptyString(data.courseId),
-      hasChapterEntry: isNonEmptyString(data.chapterId),
+      hasCourseEntry:
+        isNonEmptyString(data.courseId) && isNonEmptyString(data.courseTitle),
+      hasChapterEntry:
+        isNonEmptyString(data.chapterId) && isNonEmptyString(data.chapterTitle),
       answerUnavailableText: learningMyAnswerText,
       isBattleSource,
       battleCompletedAtText: data.battle?.completedAt
@@ -537,9 +554,11 @@ registerThemedPage<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>(
       battleCorrectAnswerLabel,
       battleCorrectAnswerText,
       battleCorrectAnswerBlocks,
+      hasBattleCorrectAnswer,
       battleExplanationBlocks,
       hasBattleExplanation: battleExplanationBlocks.length > 0,
-      battleKnowledgeHintText: '当前正式接口未返回知识点信息',
+      hasBattleKnowledge: battleKnowledgeTags.length > 0,
+      battleKnowledgeHintText: battleKnowledgeTags.join('、'),
     };
   },
 

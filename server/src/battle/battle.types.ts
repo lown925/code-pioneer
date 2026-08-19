@@ -112,6 +112,7 @@ export type BattleSingleChoiceCorrectAnswerSnapshot = {
 
 export type BattleCodeFillCorrectAnswerSnapshot = {
   type: 'CODE_FILL';
+  acceptedAnswers?: string[];
 };
 
 export type BattleCorrectAnswerSnapshot =
@@ -491,6 +492,7 @@ export type BattleHistoryQuestionPayload = {
   isCorrect: boolean | null;
   scoreDelta: number;
   explanation: ContentBlock[] | null;
+  knowledgeTags: string[];
   courseId: string | null;
   courseTitle: string | null;
   chapterId: string | null;

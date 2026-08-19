@@ -96,6 +96,7 @@ type RoomPageMethods = {
   handleCopyInviteCode(): void;
   handleNavBack(): Promise<void>;
   navigateToPlay(autoNavigate?: boolean): void;
+  navigateToResult(autoNavigate?: boolean): void;
   navigateHome(): void;
   canCreatorCancelFriendRoom(status?: RoomPageState): boolean;
   mapRoomState(payload: BattleRoomDetailResponse): RoomPageState;
@@ -135,6 +136,7 @@ let isCancelRequesting = false;
 let serverTimeOffsetMs = 0;
 let startedAtTimestampMs = 0;
 let lastAutoNavigatedBattleId = '';
+let lastAutoNavigatedResultId = '';
 
 function parseTimestamp(value: string | null | undefined) {
   if (!value) {
@@ -583,6 +585,10 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
       lastAutoNavigatedBattleId = '';
     }
 
+    if (state !== 'COMPLETED') {
+      lastAutoNavigatedResultId = '';
+    }
+
     this.setData({
       state,
       roomModeText:
@@ -629,6 +635,11 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
 
     if (state === 'IN_PROGRESS') {
       this.navigateToPlay(options?.autoNavigate);
+      return;
+    }
+
+    if (state === 'COMPLETED') {
+      this.navigateToResult(options?.autoNavigate);
     }
   },
 
@@ -799,7 +810,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
         await showBattleConfirmModal({
           title: '当前不能直接离开',
           content:
-            '你已经加入该好友房。当前阶段如果直接离开，服务端不会自动释放你的对战状态。请等待房主取消房间，或继续准备开始对战。',
+            '你已经加入该好友房。当前阶段请等待房主取消房间，或继续准备开始对战。',
           confirmText: '我知道了',
           cancelText: '继续停留',
           confirmColor: '#2f6bff',
@@ -829,6 +840,24 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
 
     wx.navigateTo({
       url: `/pages/battle/play?battleId=${encodeURIComponent(this.data.battleId)}`,
+    });
+  },
+
+  navigateToResult(autoNavigate = false) {
+    if (!this.data.isValidBattleId) {
+      return;
+    }
+
+    if (autoNavigate && lastAutoNavigatedResultId === this.data.battleId) {
+      return;
+    }
+
+    if (autoNavigate) {
+      lastAutoNavigatedResultId = this.data.battleId;
+    }
+
+    wx.redirectTo({
+      url: `/pages/battle/result?battleId=${encodeURIComponent(this.data.battleId)}`,
     });
   },
 
@@ -912,7 +941,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
       return {
         titleText: '双方已准备完成',
         descriptionText:
-          '服务端倒计时已经开始，到达 startedAt 后会自动进入答题页。',
+          '倒计时已经开始，结束后会自动进入答题页。',
         roomStatusText: '倒计时中',
         primaryActionText: '即将开始',
         primaryActionEnabled: false,
@@ -922,6 +951,21 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
     }
 
     if (payload.status === 'IN_PROGRESS') {
+      if (
+        currentParticipantStatus === 'SUBMITTED' ||
+        currentParticipantStatus === 'FORFEITED'
+      ) {
+        return {
+          titleText: '等待本场结果',
+          descriptionText: '你的作答已经结束，可以查看只读进度并等待结算。',
+          roomStatusText: '等待结算',
+          primaryActionText: '查看等待状态',
+          primaryActionEnabled: true,
+          canOpenPlay: true,
+          friendStatusNotice: friendJoinedNotice,
+        };
+      }
+
       return {
         titleText: '对战已开始',
         descriptionText: '对战已进入答题阶段，正在为你打开答题页。',
@@ -1000,7 +1044,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
     if (isAiMode) {
       return {
         titleText: '电脑对手已就位',
-        descriptionText: '点击准备后由服务端开始倒计时，电脑对战不会修改正式 Rating。',
+        descriptionText: '点击准备后开始倒计时，电脑对战不会修改正式 Rating。',
         roomStatusText: '等待准备',
         primaryActionText: '准备电脑对战',
         primaryActionEnabled: true,

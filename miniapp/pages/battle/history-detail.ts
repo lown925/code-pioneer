@@ -58,6 +58,10 @@ type QuestionReviewCard = {
   chapterTitle: string;
   canOpenCourse: boolean;
   canOpenChapter: boolean;
+  hasCorrectAnswer: boolean;
+  hasKnowledgePoint: boolean;
+  hasCourseRelation: boolean;
+  hasChapterRelation: boolean;
   knowledgeHintText: string;
 };
 
@@ -166,7 +170,7 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
     isValidBattleId: false,
     state: 'LOADING',
     titleText: '正在加载复盘详情',
-    descriptionText: '系统正在同步本场 Battle 的题目快照、你的作答和服务端结算结果。',
+    descriptionText: '正在获取本场对战的题目、作答和结果。',
     errorMessage: '',
     modeText: '',
     skillText: '',
@@ -205,10 +209,10 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
       battleId,
       isValidBattleId,
       state: isValidBattleId ? 'LOADING' : 'ERROR',
-      titleText: isValidBattleId ? '正在加载复盘详情' : 'battleId 无效',
+      titleText: isValidBattleId ? '正在加载复盘详情' : '对战信息无效',
       descriptionText: isValidBattleId
-        ? '系统正在同步本场 Battle 的题目快照、你的作答和服务端结算结果。'
-        : '当前页面没有收到合法的 Battle 标识。',
+        ? '正在获取本场对战的题目、作答和结果。'
+        : '当前页面缺少有效的对战信息。',
       errorMessage: '',
     });
 
@@ -266,7 +270,7 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
       this.setData({
         state: 'LOADING',
         titleText: '正在加载复盘详情',
-        descriptionText: '系统正在同步本场 Battle 的题目快照、你的作答和服务端结算结果。',
+        descriptionText: '正在获取本场对战的题目、作答和结果。',
         errorMessage: '',
       });
     }
@@ -485,17 +489,30 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
     const correctAnswerBlocks: BattleContentBlock[] = [];
     let correctAnswerLabel = '正确答案';
     let correctAnswerText = '';
+    let hasCorrectAnswer = false;
 
     if (question.correctAnswer.type === 'SINGLE_CHOICE') {
       const optionLabel = this.findOptionLabel(question.options, question.correctAnswer.optionId);
       correctAnswerText = optionLabel ? `正确选项 ${optionLabel}` : '正确单选答案';
+      hasCorrectAnswer = true;
       correctAnswerBlocks.push(
         ...this.findOptionBlocks(question.options, question.correctAnswer.optionId),
       );
     } else {
       correctAnswerLabel = '代码填空标准答案';
-      correctAnswerText = '当前正式接口未返回代码填空标准答案文本';
+      const acceptedAnswers = question.correctAnswer.acceptedAnswers ?? [];
+      correctAnswerText = acceptedAnswers.join(' / ');
+      hasCorrectAnswer = acceptedAnswers.length > 0;
+      acceptedAnswers.forEach((answer) => {
+        correctAnswerBlocks.push({ type: 'CODE', code: answer });
+      });
     }
+
+    const knowledgeTags = question.knowledgeTags
+      .map((tag) => tag.trim().replace(/^topic:/, ''))
+      .filter(Boolean);
+    const courseTitle = question.courseTitle?.trim() ?? '';
+    const chapterTitle = question.chapterTitle?.trim() ?? '';
 
     return {
       battleQuestionSnapshotId: questionId,
@@ -515,15 +532,19 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
       correctAnswerLabel,
       correctAnswerText,
       correctAnswerBlocks: this.mapBlocks(correctAnswerBlocks, `${questionId}-correct-answer`),
+      hasCorrectAnswer,
       explanation: this.mapBlocks(question.explanation ?? [], `${questionId}-explanation`),
       hasExplanation: Array.isArray(question.explanation) && question.explanation.length > 0,
       courseId: question.courseId ?? '',
-      courseTitle: question.courseTitle ?? '',
+      courseTitle,
       chapterId: question.chapterId ?? '',
-      chapterTitle: question.chapterTitle ?? '',
-      canOpenCourse: UUID_PATTERN.test(question.courseId ?? ''),
-      canOpenChapter: UUID_PATTERN.test(question.chapterId ?? ''),
-      knowledgeHintText: '当前正式接口未返回知识点信息',
+      chapterTitle,
+      canOpenCourse: UUID_PATTERN.test(question.courseId ?? '') && courseTitle.length > 0,
+      canOpenChapter: UUID_PATTERN.test(question.chapterId ?? '') && chapterTitle.length > 0,
+      hasKnowledgePoint: knowledgeTags.length > 0,
+      hasCourseRelation: courseTitle.length > 0,
+      hasChapterRelation: chapterTitle.length > 0,
+      knowledgeHintText: knowledgeTags.join('、'),
     };
   },
 

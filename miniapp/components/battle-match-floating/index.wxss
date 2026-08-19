@@ -1,11 +1,13 @@
 @import "../../app.wxss";
 
 .battle-match-floating {
-  position: sticky;
-  top: 16rpx;
-  z-index: 20;
+  position: fixed;
+  left: 24rpx;
+  right: 24rpx;
+  top: calc(16rpx + env(safe-area-inset-top));
+  z-index: 1000;
   display: block;
-  margin-bottom: 20rpx;
+  margin: 0;
   border: 2rpx solid var(--floating-border);
   border-radius: 16rpx;
   background: var(--floating-background);

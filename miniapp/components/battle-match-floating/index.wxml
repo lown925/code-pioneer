@@ -40,7 +40,8 @@
       </block>
 
       <block wx:elif="{{status === 'MATCHED'}}">
-        <button class="floating-button floating-button-success" bindtap="handleEnterBattle">进入对战</button>
+        <text wx:if="{{!lastError}}" class="floating-network-note">正在进入对战</text>
+        <button wx:else class="floating-button floating-button-success" bindtap="handleEnterBattle">重新进入对战</button>
       </block>
 
       <block wx:elif="{{status === 'EXPIRED'}}">

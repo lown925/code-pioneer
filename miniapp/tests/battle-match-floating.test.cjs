@@ -43,6 +43,10 @@ test('supports collapse, compact-only question pages, light, and dark themes', (
   assert.match(componentStyle, /theme-dark/);
   assert.match(read('pages/chapter/quiz.wxml'), /battle-match-floating compact-only/);
   assert.match(read('pages/practice/index.wxml'), /battle-match-floating compact-only/);
+  assert.match(componentStyle, /position:\s*fixed/);
+  assert.doesNotMatch(componentStyle, /position:\s*sticky/);
+  assert.match(componentStyle, /z-index:\s*1000/);
+  assert.match(componentStyle, /top:\s*calc\(16rpx \+ env\(safe-area-inset-top\)\)/);
 });
 
 test('covers primary pages but stays absent from Room, Play, and Result', () => {
@@ -66,7 +70,8 @@ test('migrates matchmaking page to manager and removes old Training fallback', (
   assert.doesNotMatch(matchmakingTemplate, /单人训练|Training fallback/);
   assert.match(matchmakingTemplate, /电脑对战/);
   assert.match(matchmakingTemplate, /\{\{waitingCountText\}\}/);
-  assert.match(matchmakingScript, /当前 \$\{snapshot\.waitingCount\} 人活跃匹配/);
+  assert.match(matchmakingScript, /当前有 \$\{waitingCount\} 位玩家正在匹配/);
+  assert.match(matchmakingScript, /正在寻找合适的对手/);
 });
 
 test('uses App lifecycle without cancelling on hide', () => {

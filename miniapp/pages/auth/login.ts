@@ -37,7 +37,7 @@ function getReadableLoginError(error: unknown) {
       WECHAT_DOMAIN_NOT_ALLOWED:
         "当前 API 域名未加入微信小程序 request 合法域名。",
       WECHAT_LOGIN_CONFIGURATION_INVALID:
-        "服务端微信登录配置不完整，请联系管理员检查 AppID 与 AppSecret。",
+        "微信登录配置异常，请联系管理员。",
       WECHAT_LOGIN_CODE_INVALID: "微信临时登录凭证无效，请重新点击登录。",
       WECHAT_LOGIN_UPSTREAM_FAILED: "微信登录服务暂时不可用，请稍后重试。",
       ENVIRONMENT_MISMATCH:
@@ -53,7 +53,7 @@ function getReadableLoginError(error: unknown) {
     }
 
     if (error.statusCode >= 500) {
-      return "服务端内部错误，请稍后重试。";
+      return "系统暂时无法完成登录，请稍后重试。";
     }
 
     return "登录失败，请稍后重试";

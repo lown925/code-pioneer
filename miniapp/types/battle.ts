@@ -407,6 +407,7 @@ export type BattleCorrectAnswerResponse =
     }
   | {
       type: 'CODE_FILL';
+      acceptedAnswers?: string[];
     };
 
 export type BattleHistoryMyAnswerResponse = {
@@ -431,6 +432,7 @@ export type BattleHistoryQuestionResponse = {
   isCorrect: boolean | null;
   scoreDelta: number;
   explanation: BattleContentBlock[] | null;
+  knowledgeTags: string[];
   courseId: string | null;
   courseTitle: string | null;
   chapterId: string | null;

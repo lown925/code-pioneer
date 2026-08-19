@@ -118,8 +118,8 @@
         <text class="question-content">{{item.questionContentText}}</text>
 
           <view class="question-meta">
-            <text class="question-meta-text">{{item.courseTagText}}</text>
-            <text class="question-meta-text">{{item.chapterTagText}}</text>
+            <text wx:if="{{item.courseTagText}}" class="question-meta-text">{{item.courseTagText}}</text>
+            <text wx:if="{{item.chapterTagText}}" class="question-meta-text">{{item.chapterTagText}}</text>
             <text wx:if="{{item.battleMetaText}}" class="question-meta-text">{{item.battleMetaText}}</text>
           </view>
 

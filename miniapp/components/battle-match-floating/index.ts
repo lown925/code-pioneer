@@ -47,19 +47,19 @@ function getPresentation(snapshot: BattleMatchmakingSnapshot) {
   if (snapshot.status === 'MATCHED') {
     return {
       toneClassName: 'floating-matched',
-      compactTitle: `${snapshot.skillName} 已找到真人对手`,
-      titleText: '已找到真人对手',
-      descriptionText: '已找到对手，请尽快进入。房间失效时会自动同步最新状态。',
+      compactTitle: `${snapshot.skillName} 匹配成功`,
+      titleText: '匹配成功',
+      descriptionText: '正在打开对战房间，请完成准备。',
     };
   }
 
   if (snapshot.status === 'EXPIRED') {
     return {
       toneClassName: 'floating-expired',
-      compactTitle: `${snapshot.skillName} 真人匹配已结束`,
-      titleText: '真人匹配已结束',
+      compactTitle: `${snapshot.skillName} 匹配已结束`,
+      titleText: '匹配已结束',
       descriptionText: snapshot.computerAvailable
-        ? '本轮真人搜索已结束，仍可进入电脑对战或重新匹配。'
+        ? '本轮搜索已结束，仍可进入电脑对战或重新匹配。'
         : '本轮真人搜索已结束，可以重新开始匹配。',
     };
   }
@@ -78,25 +78,31 @@ function getPresentation(snapshot: BattleMatchmakingSnapshot) {
       toneClassName: 'floating-error',
       compactTitle: `${snapshot.skillName} 正在重新连接`,
       titleText: '匹配状态暂时不可用',
-      descriptionText: '保留最近一次可信状态，不会在客户端取消服务端匹配。',
+      descriptionText: '正在保留最近一次匹配状态，请稍候重试。',
     };
   }
 
   if (snapshot.status === 'SEARCHING_COMPUTER_AVAILABLE') {
     return {
       toneClassName: 'floating-computer',
-      compactTitle: `${snapshot.skillName} 真人匹配中 · ${formatBattleDuration(snapshot.elapsedMs / 1000)}`,
-      titleText: `${snapshot.skillName} 真人匹配中`,
-      descriptionText: '暂时没有合适的真人对手，可进入电脑对战或继续等待。',
+      compactTitle: `${snapshot.skillName} 匹配中 · ${formatBattleDuration(snapshot.elapsedMs / 1000)}`,
+      titleText: `${snapshot.skillName} 匹配中`,
+      descriptionText: '暂时没有合适的对手，可进入电脑对战或继续等待。',
     };
   }
 
   return {
     toneClassName: 'floating-searching',
-    compactTitle: `${snapshot.skillName} 真人匹配中 · ${formatBattleDuration(snapshot.elapsedMs / 1000)}`,
-    titleText: `${snapshot.skillName} 真人匹配中`,
+    compactTitle: `${snapshot.skillName} 匹配中 · ${formatBattleDuration(snapshot.elapsedMs / 1000)}`,
+    titleText: `${snapshot.skillName} 匹配中`,
     descriptionText: '可以继续使用小程序，匹配会在前台持续同步。',
   };
+}
+
+function formatWaitingCount(waitingCount: number) {
+  return waitingCount > 1
+    ? `当前有 ${waitingCount} 位玩家正在匹配`
+    : '正在寻找合适的对手';
 }
 
 Component({
@@ -116,7 +122,7 @@ Component({
     battleId: '',
     waitedText: '00:00',
     remainingText: '00:00',
-    waitingCountText: '当前 0 人活跃匹配',
+    waitingCountText: '正在寻找合适的对手',
     computerAvailable: false,
     reconnecting: false,
     lastError: '',
@@ -164,7 +170,7 @@ Component({
         battleId: snapshot.battleId,
         waitedText: formatBattleDuration(snapshot.elapsedMs / 1000),
         remainingText: formatBattleDuration(snapshot.remainingSearchMs / 1000),
-        waitingCountText: `当前 ${snapshot.waitingCount} 人活跃匹配`,
+        waitingCountText: formatWaitingCount(snapshot.waitingCount),
         computerAvailable: snapshot.computerAvailable,
         reconnecting: snapshot.reconnecting,
         lastError: snapshot.lastError,

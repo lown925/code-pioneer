@@ -7,7 +7,7 @@
 
   <view wx:if="{{state === 'LOADING'}}" class="section-card state-box">
     <text class="state-title">正在加载复盘详情</text>
-    <text class="state-text">系统正在获取本场 Battle 的题目快照、我的作答和服务端结算结果。</text>
+    <text class="state-text">正在获取本场对战的题目、作答和结果。</text>
   </view>
 
   <view wx:elif="{{state === 'ERROR'}}" class="section-card state-box">
@@ -235,7 +235,7 @@
         </view>
       </view>
 
-      <view class="section-subcard">
+      <view wx:if="{{question.hasCorrectAnswer}}" class="section-subcard">
         <text class="section-subtitle">{{question.correctAnswerLabel}}</text>
         <text class="answer-summary">{{question.correctAnswerText}}</text>
         <view wx:if="{{question.correctAnswerBlocks.length > 0}}" class="content-block-list">
@@ -283,19 +283,19 @@
         <text wx:else class="answer-summary">暂无解析</text>
       </view>
 
-      <view class="section-subcard">
+      <view wx:if="{{question.hasKnowledgePoint}}" class="section-subcard">
         <text class="section-subtitle">知识点</text>
         <text class="answer-summary">{{question.knowledgeHintText}}</text>
       </view>
 
-      <view class="section-subcard">
+      <view wx:if="{{question.hasCourseRelation || question.hasChapterRelation}}" class="section-subcard">
         <text class="section-subtitle">课程与章节关联</text>
-        <view class="relation-row">
+        <view wx:if="{{question.hasCourseRelation}}" class="relation-row">
           <text class="relation-label">课程标题：</text>
           <text class="relation-value">{{question.courseTitle}}</text>
         </view>
         <view wx:if="{{question.canOpenCourse}}" class="ghost-button small-button" data-course-id="{{question.courseId}}" bindtap="handleCourseTap">查看课程详情</view>
-        <view class="relation-row">
+        <view wx:if="{{question.hasChapterRelation}}" class="relation-row">
           <text class="relation-label">章节标题：</text>
           <text class="relation-value">{{question.chapterTitle}}</text>
         </view>

@@ -539,8 +539,8 @@ registerThemedPage<WrongQuestionPageData, WrongQuestionPageMethods>({
       questionContentText: item.questionContent.trim() || '题干内容暂缺',
       wrongCountText: formatWrongQuestionCount(item.wrongCount),
       lastWrongAtText: formatLearningTimestamp(item.lastWrongAt),
-      courseTagText: item.courseTitle?.trim() || '课程标题暂缺',
-      chapterTagText: item.chapterTitle?.trim() || '章节标题暂缺',
+      courseTagText: item.courseTitle?.trim() || '',
+      chapterTagText: item.chapterTitle?.trim() || '',
       recentTimeLabel: source === 'BATTLE' ? '最近对战' : '最近错误',
       recentTimeText:
         source === 'BATTLE'

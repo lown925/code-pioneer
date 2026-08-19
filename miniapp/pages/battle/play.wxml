@@ -175,7 +175,7 @@
                 wx:for="{{question.options}}"
                 wx:key="optionId"
                 wx:for-item="option"
-                class="option-card {{option.isSelected ? 'option-card-selected' : ''}} {{state !== 'PLAYING' || isBattleActionPending ? 'option-card-locked' : ''}}"
+                class="option-card {{option.isSelected ? 'option-card-selected' : ''}} {{state !== 'PLAYING' || isBattleActionPending || isParticipantLocked ? 'option-card-locked' : ''}}"
                 data-question-id="{{question.battleQuestionId}}"
                 data-option-id="{{option.optionId}}"
                 bindtap="handleOptionSelect"
@@ -213,7 +213,7 @@
                 value="{{question.draftValue}}"
                 maxlength="4000"
                 auto-height
-                disabled="{{state !== 'PLAYING' || isBattleActionPending}}"
+                disabled="{{state !== 'PLAYING' || isBattleActionPending || isParticipantLocked}}"
                 placeholder="请输入代码填空答案"
                 placeholder-class="code-fill-placeholder"
                 data-question-id="{{question.battleQuestionId}}"

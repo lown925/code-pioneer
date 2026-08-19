@@ -240,19 +240,28 @@ describe('WrongQuestionService', () => {
                   battleRoomId: 'training-room',
                   sourceQuizQuestionId: 'question-training-1',
                   orderIndex: 0,
-                  questionType: 'SINGLE_CHOICE',
-                  presentation: 'TEXT_CHOICE',
+                  questionType: 'CODE_FILL',
+                  presentation: 'INPUT_CODE_FILL',
                   difficulty: 'MEDIUM',
                   stemSnapshot: [{ type: 'TEXT', text: '训练错题' }],
                   optionsSnapshot: [],
                   correctAnswerSnapshot: {
-                    type: 'SINGLE_CHOICE',
-                    optionId: 'correct-option',
+                    type: 'CODE_FILL',
                   },
                   explanationSnapshot: null,
+                  acceptedAnswersSnapshot: ['print(value)'],
+                  knowledgeTagsSnapshot: ['topic:output', 'functions'],
                   programmingLanguage: 'python',
                   courseIdSnapshot: 'course-1',
                   chapterIdSnapshot: 'chapter-1',
+                  sourceQuizQuestion: {
+                    quiz: {
+                      chapter: {
+                        title: 'Output Basics',
+                        course: { title: 'Python Basics' },
+                      },
+                    },
+                  },
                 },
               ],
               answers: [
@@ -261,8 +270,8 @@ describe('WrongQuestionService', () => {
                   participantId: 'training-participant',
                   battleQuestionSnapshotId: 'snapshot-training-1',
                   answerPayload: {
-                    type: 'SINGLE_CHOICE',
-                    optionId: 'wrong-option',
+                    type: 'CODE_FILL',
+                    value: 'echo(value)',
                   },
                   submittedAt,
                   timeSpentMs: 1000,
@@ -291,6 +300,23 @@ describe('WrongQuestionService', () => {
           }),
         }),
       ]);
+
+      const detail = await service.getDetail(
+        CURRENT_USER,
+        'question-training-1',
+        'BATTLE',
+      );
+      expect(detail.data).toEqual(
+        expect.objectContaining({
+          correctAnswer: {
+            type: 'CODE_FILL',
+            acceptedAnswers: ['print(value)'],
+          },
+          knowledgeTags: ['topic:output', 'functions'],
+          courseTitle: 'Python Basics',
+          chapterTitle: 'Output Basics',
+        }),
+      );
     },
   );
 
@@ -341,6 +367,7 @@ describe('WrongQuestionService', () => {
           optionId: 'opt-false',
         },
         explanation: 'A const binding cannot be reassigned.',
+        knowledgeTags: [],
       }),
     );
   });
@@ -490,6 +517,7 @@ describe('WrongQuestionService', () => {
         wrongCount: 2,
         lastWrongAt,
         latestWrongAt: lastWrongAt,
+        knowledgeTags: [],
         battle: null,
       }),
     });

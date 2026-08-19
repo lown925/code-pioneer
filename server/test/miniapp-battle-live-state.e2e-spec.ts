@@ -25,6 +25,21 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(playScript).toContain('setPendingProgress(response)');
     expect(playScript).toContain('response.myAnsweredCount');
     expect(playScript).toContain('response.opponentAnsweredCount');
+    expect(playScript).toContain('await this.loadPlayerContext()');
+    expect(playScript).toContain('this.startSettlementPolling()');
+  });
+
+  it('locks submitted Play controls and sends completed re-entry to Result', () => {
+    const playScript = readMiniappFile('pages/battle/play.ts');
+    const playTemplate = readMiniappFile('pages/battle/play.wxml');
+    const roomScript = readMiniappFile('pages/battle/room.ts');
+
+    expect(playScript).toContain('participantStatus: response.participantStatus ?? \'SUBMITTED\'');
+    expect(playScript).toContain('isParticipantLocked: true');
+    expect(playScript).toContain('!this.data.isParticipantLocked');
+    expect(playTemplate).toContain('isParticipantLocked ? \'option-card-locked\'');
+    expect(playTemplate).toContain('disabled="{{state !== \'PLAYING\' || isBattleActionPending || isParticipantLocked}}"');
+    expect(roomScript).toContain('navigateToResult(options?.autoNavigate)');
   });
 
   it('renders server-owned answered progress and completed performance indicators', () => {
@@ -172,10 +187,29 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     );
 
     expect(matchmakingScript).toContain('snapshot.waitingCount');
-    expect(matchmakingScript).toContain('waitingCountText: `当前 ${snapshot.waitingCount} 人活跃匹配`');
+    expect(matchmakingScript).toContain('waitingCountText: formatWaitingCount(snapshot.waitingCount)');
     expect(matchmakingTemplate).toContain('{{waitingCountText}}');
     expect(matchmakingTemplate).toContain("state === 'SEARCHING_COMPUTER_AVAILABLE'");
     expect(matchmakingScript).toContain('getBattleMatchmakingManager');
+  });
+
+  it('hides unavailable Battle review data instead of rendering internal placeholders', () => {
+    const historyScript = readMiniappFile('pages/battle/history-detail.ts');
+    const historyTemplate = readMiniappFile('pages/battle/history-detail.wxml');
+    const wrongScript = readMiniappFile('pages/wrong-question/detail.ts');
+    const wrongTemplate = readMiniappFile('pages/wrong-question/detail.wxml');
+
+    expect(historyScript).toContain('hasCorrectAnswer');
+    expect(historyScript).toContain('hasKnowledgePoint');
+    expect(historyScript).toContain('hasCourseRelation');
+    expect(historyTemplate).toContain('wx:if="{{question.hasKnowledgePoint}}"');
+    expect(historyTemplate).toContain('wx:if="{{question.hasCourseRelation || question.hasChapterRelation}}"');
+    expect(wrongScript).toContain('acceptedAnswers ?? []');
+    expect(wrongScript).toContain('hasBattleKnowledge');
+    expect(wrongTemplate).toContain('wx:if="{{detail.hasBattleCorrectAnswer}}"');
+    expect(wrongTemplate).toContain('wx:if="{{detail.hasBattleKnowledge}}"');
+    expect(historyScript).not.toContain('当前正式接口未返回');
+    expect(wrongScript).not.toContain('当前正式接口未返回');
   });
 
   it('offers computer battle when the server unlocks it', () => {

@@ -108,9 +108,19 @@ type BattleRoomRecord = {
     optionsSnapshot: unknown;
     correctAnswerSnapshot: unknown;
     explanationSnapshot: unknown;
+    acceptedAnswersSnapshot: unknown;
+    knowledgeTagsSnapshot: unknown;
     programmingLanguage: string | null;
     courseIdSnapshot: string | null;
     chapterIdSnapshot: string | null;
+    sourceQuizQuestion: {
+      quiz: {
+        chapter: {
+          title: string;
+          course: { title: string };
+        };
+      };
+    } | null;
   }>;
   answers: Array<{
     battleRoomId: string;
@@ -162,6 +172,7 @@ type UnifiedWrongQuestionItem = {
       avatarUrl: string | null;
     } | null;
   } | null;
+  knowledgeTags?: string[];
 };
 
 @Injectable()
@@ -433,6 +444,7 @@ export class WrongQuestionService {
               }
             : null,
         sourceQuizQuestionId: question.id,
+        knowledgeTags: [],
         battle: null,
       } satisfies UnifiedWrongQuestionItem;
     });
@@ -568,6 +580,7 @@ export class WrongQuestionService {
               }
             : null,
         sourceQuizQuestionId: null,
+        knowledgeTags: [],
         battle: null,
       } satisfies UnifiedWrongQuestionItem;
     });
@@ -626,9 +639,25 @@ export class WrongQuestionService {
             optionsSnapshot: true,
             correctAnswerSnapshot: true,
             explanationSnapshot: true,
+            acceptedAnswersSnapshot: true,
+            knowledgeTagsSnapshot: true,
             programmingLanguage: true,
             courseIdSnapshot: true,
             chapterIdSnapshot: true,
+            sourceQuizQuestion: {
+              select: {
+                quiz: {
+                  select: {
+                    chapter: {
+                      select: {
+                        title: true,
+                        course: { select: { title: true } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
           orderBy: {
             orderIndex: 'asc' as const,
@@ -754,6 +783,7 @@ export class WrongQuestionService {
     questionId: string,
   ): UnifiedWrongQuestionItem {
     const correctAnswer = snapshot.correctAnswerSnapshot;
+    const acceptedAnswers = this.asStringArray(snapshot.acceptedAnswersSnapshot);
     const correctOptionId =
       typeof correctAnswer === 'object' &&
       correctAnswer !== null &&
@@ -770,6 +800,14 @@ export class WrongQuestionService {
       order: option.orderIndex,
     }));
 
+    const resolvedCorrectAnswer =
+      typeof correctAnswer === 'object' &&
+      correctAnswer !== null &&
+      'type' in correctAnswer &&
+      (correctAnswer as { type?: string }).type === 'CODE_FILL'
+        ? { ...(correctAnswer as object), acceptedAnswers }
+        : correctAnswer;
+
     return {
       source: 'BATTLE',
       questionId,
@@ -778,9 +816,9 @@ export class WrongQuestionService {
       questionContent: this.previewBlocks(stem),
       content: this.previewBlocks(stem),
       courseId: snapshot.courseIdSnapshot,
-      courseTitle: null,
+      courseTitle: snapshot.sourceQuizQuestion?.quiz.chapter.course.title ?? null,
       chapterId: snapshot.chapterIdSnapshot,
-      chapterTitle: null,
+      chapterTitle: snapshot.sourceQuizQuestion?.quiz.chapter.title ?? null,
       wrongCount: 1,
       lastWrongAt: answer.submittedAt,
       latestWrongAt: answer.submittedAt,
@@ -791,10 +829,11 @@ export class WrongQuestionService {
       options,
       optionSnapshots,
       correctOptionId,
-      correctAnswer,
+      correctAnswer: resolvedCorrectAnswer,
       explanation: this.asMaybeContentBlocks(snapshot.explanationSnapshot),
       latestWrongAnswer: answer.answerPayload as BattleAnswerPayload,
       sourceQuizQuestionId: snapshot.sourceQuizQuestionId,
+      knowledgeTags: this.asStringArray(snapshot.knowledgeTagsSnapshot),
       battle: {
         battleId: room.id,
         completedAt: room.completedAt,
@@ -857,6 +896,7 @@ export class WrongQuestionService {
         optionSnapshots: item.optionSnapshots,
         latestWrongAnswer: item.latestWrongAnswer,
         sourceQuizQuestionId: item.sourceQuizQuestionId,
+        knowledgeTags: item.knowledgeTags ?? [],
         battle: item.battle,
       };
     }
@@ -886,6 +926,7 @@ export class WrongQuestionService {
       optionSnapshots: item.optionSnapshots,
       latestWrongAnswer: item.latestWrongAnswer,
       sourceQuizQuestionId: item.sourceQuizQuestionId,
+      knowledgeTags: item.knowledgeTags ?? [],
       battle: item.battle,
     };
   }
@@ -1010,6 +1051,17 @@ export class WrongQuestionService {
     }
 
     return value as BattleQuestionOptionSnapshot[];
+  }
+
+  private asStringArray(value: unknown) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 
   private toNumber(value: number | bigint) {
