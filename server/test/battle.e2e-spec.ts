@@ -140,6 +140,10 @@ describe('Battle routes (e2e)', () => {
 
     expect(queueJoin.body.success).toBe(true);
     expect(queueJoin.body.data.status).toBe('SEARCHING');
+    expect(queueJoin.body.data.serverTime).toEqual(expect.any(String));
+    expect(queueJoin.body.data.elapsedMs).toEqual(expect.any(Number));
+    expect(queueJoin.body.data.remainingSearchMs).toBeGreaterThan(0);
+    expect(queueJoin.body.data.aiAvailable).toBe(false);
 
     await request(app.getHttpServer())
       .get('/api/v1/battles/matchmaking/status')
@@ -147,6 +151,10 @@ describe('Battle routes (e2e)', () => {
       .expect(200)
       .expect((response) => {
         expect(response.body.data.status).toBe('SEARCHING');
+        expect(response.body.data.serverTime).toEqual(expect.any(String));
+        expect(response.body.data.elapsedMs).toBeGreaterThanOrEqual(0);
+        expect(response.body.data.remainingSearchMs).toBeGreaterThan(0);
+        expect(response.body.data.aiAvailable).toBe(false);
       });
 
     await request(app.getHttpServer())
@@ -352,13 +360,13 @@ describe('Battle routes (e2e)', () => {
       firstQuestion.battleQuestionId,
     );
     const firstCorrectOptionId = (
-      firstSnapshot?.correctAnswerSnapshot as
-        | { optionId?: string }
-        | undefined
+      firstSnapshot?.correctAnswerSnapshot as { optionId?: string } | undefined
     )?.optionId;
 
     if (!firstCorrectOptionId) {
-      throw new Error('Battle E2E fixture did not create a correct option snapshot');
+      throw new Error(
+        'Battle E2E fixture did not create a correct option snapshot',
+      );
     }
 
     await request(app.getHttpServer())
@@ -609,6 +617,64 @@ describe('Battle routes (e2e)', () => {
       .expect(201);
 
     expect(secondJoin.body.data.status).toBe('SEARCHING');
+  });
+
+  it('keeps stale-heartbeat queues matchable and expires ranked rooms that miss the ready deadline', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/battles/matchmaking/join')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
+      .expect(201);
+
+    const userAQueue = mockState.battleQueues.get(USER_A.id)!;
+    userAQueue.searchStartedAt = new Date(Date.now() - 125000);
+    userAQueue.updatedAt = new Date(Date.now() - 5 * 60 * 1000);
+    mockState.battleQueues.set(USER_A.id, userAQueue);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/battles/matchmaking/status?skill=PYTHON')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.status).toBe('SEARCHING');
+        expect(response.body.data.elapsedMs).toBeGreaterThanOrEqual(120000);
+        expect(response.body.data.aiAvailable).toBe(true);
+      });
+
+    mockState.battleQueues.get(USER_A.id)!.updatedAt = new Date(
+      Date.now() - 5 * 60 * 1000,
+    );
+
+    const matched = await request(app.getHttpServer())
+      .post('/api/v1/battles/matchmaking/join')
+      .set('Authorization', `Bearer ${USER_B_TOKEN}`)
+      .send({ skill: 'PYTHON' })
+      .expect(201);
+
+    expect(matched.body.data.status).toBe('MATCHED');
+    const battleId = matched.body.data.battleId as string;
+    const room = mockState.battleRooms.get(battleId)!;
+    expect(room.status).toBe(BattleRoomStatus.WAITING);
+    expect(room.expiresAt).toBeInstanceOf(Date);
+
+    room.expiresAt = new Date(Date.now() - 1000);
+    mockState.battleRooms.set(room.id, room);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/battles/matchmaking/status?skill=PYTHON')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.status).toBe('CANCELLED');
+      });
+
+    expect(mockState.battleRooms.get(battleId)?.status).toBe(
+      BattleRoomStatus.EXPIRED,
+    );
+    expect(mockState.battleQueues.get(USER_A.id)?.status).toBe('CANCELLED');
+    expect(mockState.battleQueues.get(USER_B.id)?.status).toBe('CANCELLED');
+    expect(mockState.battleRatingLogs.size).toBe(0);
+    expect(mockState.battleProfiles.size).toBe(0);
   });
 
   it('allows joining matchmaking after cancelling a waiting friend room', async () => {

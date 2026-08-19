@@ -27,10 +27,7 @@ describe('BattleRoomService', () => {
   function createService() {
     const mock = createBattlePrismaMock();
     const domainService = new BattleDomainService(mock.prisma as never);
-    const service = new BattleRoomService(
-      mock.prisma as never,
-      domainService,
-    );
+    const service = new BattleRoomService(mock.prisma as never, domainService);
 
     mock.users.set(USER_A.id, {
       id: USER_A.id,
@@ -124,10 +121,7 @@ describe('BattleRoomService', () => {
   it('normalizes an expired friend room during room polling', async () => {
     const { mock } = createService();
     const domainService = new BattleDomainService(mock.prisma as never);
-    const service = new BattleRoomService(
-      mock.prisma as never,
-      domainService,
-    );
+    const service = new BattleRoomService(mock.prisma as never, domainService);
 
     const room = mock.battleRooms.get('room-1')!;
     room.expiresAt = new Date(Date.now() - 1000);
@@ -139,5 +133,21 @@ describe('BattleRoomService', () => {
     expect(mock.battleRooms.get('room-1')?.status).toBe(
       BattleRoomStatus.EXPIRED,
     );
+  });
+
+  it('normalizes an expired ranked ready room during room polling', async () => {
+    const { mock, service } = createService();
+    const room = mock.battleRooms.get('room-1')!;
+    room.mode = BattleMode.RANKED;
+    room.status = BattleRoomStatus.READY;
+    room.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(room.id, room);
+
+    const result = await service.getBattleRoom(USER_A, 'room-1');
+
+    expect(result.data.status).toBe(BattleRoomStatus.EXPIRED);
+    expect(mock.battleRooms.get('room-1')?.endReason).toBe('EXPIRED');
+    expect(mock.battleQuestionSnapshots.size).toBe(0);
+    expect(mock.battleRatingLogs.size).toBe(0);
   });
 });

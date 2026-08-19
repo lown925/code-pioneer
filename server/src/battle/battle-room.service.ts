@@ -57,6 +57,11 @@ export class BattleRoomService {
         now,
         tx,
       );
+      await this.battleDomainService.normalizeExpiredRankedMatchRoom(
+        battleId,
+        now,
+        tx,
+      );
       await this.advanceRoomStateIfNeeded(battleId, now, tx);
       await this.battleSettlementService?.normalizeBattleState(
         battleId,

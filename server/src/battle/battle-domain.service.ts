@@ -29,10 +29,7 @@ export class BattleDomainService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Serialize entry points that can create or claim a battle for one user. */
-  async acquireUserBattleLock(
-    userId: string,
-    tx: BattleTransactionClient,
-  ) {
+  async acquireUserBattleLock(userId: string, tx: BattleTransactionClient) {
     await tx.$queryRaw(
       Prisma.sql`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${`battle:user:${userId}`}, 0))`,
     );
@@ -47,10 +44,7 @@ export class BattleDomainService {
     );
   }
 
-  async tryAcquireUserBattleLock(
-    userId: string,
-    tx: BattleTransactionClient,
-  ) {
+  async tryAcquireUserBattleLock(userId: string, tx: BattleTransactionClient) {
     const rows = await tx.$queryRaw<Array<{ locked: boolean }>>(
       Prisma.sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${`battle:user:${userId}`}, 0)) AS locked`,
     );
@@ -122,7 +116,81 @@ export class BattleDomainService {
     for (const participant of participants) {
       await this.acquireBattleRoomLock(participant.battleRoomId, tx);
       if (
-        await this.normalizeExpiredFriendRoom(
+        await this.normalizeExpiredFriendRoom(participant.battleRoomId, now, tx)
+      ) {
+        normalizedCount += 1;
+      }
+    }
+
+    return normalizedCount;
+  }
+
+  async normalizeExpiredRankedMatchRoom(
+    battleRoomId: string,
+    now: Date,
+    tx: BattleTransactionClient,
+  ) {
+    const roomUpdate = await tx.battleRoom.updateMany({
+      where: {
+        id: battleRoomId,
+        mode: BattleMode.RANKED,
+        status: {
+          in: [BattleRoomStatus.WAITING, BattleRoomStatus.READY],
+        },
+        expiresAt: { lte: now },
+        startedAt: null,
+      },
+      data: {
+        status: BattleRoomStatus.EXPIRED,
+        endReason: BattleEndReason.EXPIRED,
+      },
+    });
+
+    if (roomUpdate.count !== 1) {
+      return false;
+    }
+
+    await tx.battleMatchQueue.updateMany({
+      where: {
+        status: BattleMatchQueueStatus.MATCHED,
+        matchedBattleRoomId: battleRoomId,
+      },
+      data: {
+        status: BattleMatchQueueStatus.CANCELLED,
+        matchedBattleRoomId: null,
+        matchedAt: null,
+        cancelledAt: now,
+      },
+    });
+
+    return true;
+  }
+
+  async normalizeExpiredRankedMatchRoomsForUser(
+    userId: string,
+    now: Date,
+    tx: BattleTransactionClient,
+  ) {
+    const participants = await tx.battleParticipant.findMany({
+      where: {
+        userId,
+        battleRoom: {
+          mode: BattleMode.RANKED,
+          status: {
+            in: [BattleRoomStatus.WAITING, BattleRoomStatus.READY],
+          },
+          expiresAt: { lte: now },
+          startedAt: null,
+        },
+      },
+      select: { battleRoomId: true },
+    });
+
+    let normalizedCount = 0;
+    for (const participant of participants) {
+      await this.acquireBattleRoomLock(participant.battleRoomId, tx);
+      if (
+        await this.normalizeExpiredRankedMatchRoom(
           participant.battleRoomId,
           now,
           tx,

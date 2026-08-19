@@ -32,6 +32,11 @@ export class BattleReadyService {
         now,
         tx,
       );
+      await this.battleDomainService.normalizeExpiredRankedMatchRoom(
+        battleId,
+        now,
+        tx,
+      );
       const room = await tx.battleRoom.findFirst({
         where: {
           id: battleId,

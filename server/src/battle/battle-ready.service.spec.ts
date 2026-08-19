@@ -203,6 +203,23 @@ describe('BattleReadyService', () => {
       BattleRoomStatus.EXPIRED,
     );
   });
+
+  it('expires a stale RANKED matched room before ready can advance it', async () => {
+    const { mock, service } = createService();
+    const room = mock.battleRooms.get('room-1')!;
+    room.status = BattleRoomStatus.READY;
+    room.expiresAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set(room.id, room);
+
+    await expect(service.readyBattle(USER_B, 'room-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(mock.battleRooms.get('room-1')?.status).toBe(
+      BattleRoomStatus.EXPIRED,
+    );
+    expect(mock.battleQuestionSnapshots.size).toBe(0);
+    expect(mock.battleRatingLogs.size).toBe(0);
+  });
 });
 
 function seedBattleQuestions(

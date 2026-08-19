@@ -12,10 +12,12 @@ import {
   BATTLE_WRONG_SCORE,
   DEFAULT_BATTLE_QUESTION_COUNT,
   INITIAL_MATCH_RATING_RANGE,
+  AI_UNLOCK_SECONDS,
   MATCHMAKING_HEARTBEAT_TTL_SECONDS,
   MATCHMAKING_TTL_SECONDS,
   MATCH_RANGE_EXPANSION,
   MATCH_RANGE_EXPANSION_INTERVAL_SECONDS,
+  RANKED_MATCH_READY_TTL_SECONDS,
 } from './battle.constants';
 import { BattleDomainService } from './battle-domain.service';
 import { BATTLE_ERROR_CODES } from './battle.errors';
@@ -67,6 +69,11 @@ export class BattleMatchmakingService {
       );
 
       await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
+        currentUser.id,
+        now,
+        tx,
+      );
+      await this.battleDomainService.normalizeExpiredRankedMatchRoomsForUser(
         currentUser.id,
         now,
         tx,
@@ -197,6 +204,11 @@ export class BattleMatchmakingService {
         now,
         tx,
       );
+      await this.battleDomainService.normalizeExpiredRankedMatchRoomsForUser(
+        currentUser.id,
+        now,
+        tx,
+      );
       let queue = await this.findQueueByUserId(tx, currentUser.id);
 
       if (!queue) {
@@ -276,6 +288,11 @@ export class BattleMatchmakingService {
       const now = new Date();
       await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
       await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
+        currentUser.id,
+        now,
+        tx,
+      );
+      await this.battleDomainService.normalizeExpiredRankedMatchRoomsForUser(
         currentUser.id,
         now,
         tx,
@@ -409,9 +426,6 @@ export class BattleMatchmakingService {
         expiresAt: {
           gt: now,
         },
-        updatedAt: {
-          gt: this.getHeartbeatCutoff(now),
-        },
       },
       select: {
         userId: true,
@@ -503,9 +517,6 @@ export class BattleMatchmakingService {
           expiresAt: {
             gt: now,
           },
-          updatedAt: {
-            gt: this.getHeartbeatCutoff(now),
-          },
         },
         data: {
           status: 'MATCHED',
@@ -524,9 +535,6 @@ export class BattleMatchmakingService {
           status: 'SEARCHING',
           expiresAt: {
             gt: now,
-          },
-          updatedAt: {
-            gt: this.getHeartbeatCutoff(now),
           },
         },
         data: {
@@ -556,6 +564,9 @@ export class BattleMatchmakingService {
           correctScore: BATTLE_CORRECT_SCORE,
           wrongScore: BATTLE_WRONG_SCORE,
           unansweredScore: BATTLE_UNANSWERED_SCORE,
+          expiresAt: new Date(
+            now.getTime() + RANKED_MATCH_READY_TTL_SECONDS * 1000,
+          ),
           createdByUserId: currentUserId,
         },
         select: {
@@ -682,12 +693,6 @@ export class BattleMatchmakingService {
     return new Date(now.getTime() + MATCHMAKING_TTL_SECONDS * 1000);
   }
 
-  private getHeartbeatCutoff(now: Date) {
-    return new Date(
-      now.getTime() - MATCHMAKING_HEARTBEAT_TTL_SECONDS * 1000,
-    );
-  }
-
   private async touchQueueHeartbeat(
     tx: BattleTransactionClient,
     userId: string,
@@ -742,14 +747,26 @@ export class BattleMatchmakingService {
     status: MatchmakingViewStatus,
     input: Partial<MatchmakingStatusPayload> & { serverTime: Date },
   ): MatchmakingStatusPayload {
+    const searchStartedAt = input.searchStartedAt ?? null;
+    const expiresAt = input.expiresAt ?? null;
+    const elapsedMs = searchStartedAt
+      ? Math.max(0, input.serverTime.getTime() - searchStartedAt.getTime())
+      : 0;
+    const remainingSearchMs = expiresAt
+      ? Math.max(0, expiresAt.getTime() - input.serverTime.getTime())
+      : 0;
+
     return {
       status,
       battleId: input.battleId ?? null,
-      searchStartedAt: input.searchStartedAt ?? null,
-      expiresAt: input.expiresAt ?? null,
+      searchStartedAt,
+      expiresAt,
       serverTime: input.serverTime,
       skill: input.skill ?? null,
       waitingCount: input.waitingCount ?? 0,
+      elapsedMs,
+      remainingSearchMs,
+      aiAvailable: elapsedMs >= AI_UNLOCK_SECONDS * 1000,
     };
   }
 
@@ -766,7 +783,9 @@ export class BattleMatchmakingService {
           gt: now,
         },
         updatedAt: {
-          gt: this.getHeartbeatCutoff(now),
+          gt: new Date(
+            now.getTime() - MATCHMAKING_HEARTBEAT_TTL_SECONDS * 1000,
+          ),
         },
       },
     });

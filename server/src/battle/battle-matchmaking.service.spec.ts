@@ -6,6 +6,11 @@ import {
   BattleRoomStatus,
 } from '../../generated/prisma/enums';
 import { BattleDomainService } from './battle-domain.service';
+import {
+  AI_UNLOCK_SECONDS,
+  MATCHMAKING_TTL_SECONDS,
+  RANKED_MATCH_READY_TTL_SECONDS,
+} from './battle.constants';
 import { createBattlePrismaMock } from './battle-test.helpers';
 import { BattleMatchmakingService } from './battle-matchmaking.service';
 
@@ -80,7 +85,41 @@ describe('BattleMatchmakingService', () => {
     });
     expect(mock.battleQueues.get(USER_A.id)?.status).toBe('SEARCHING');
     expect(mock.battleQueues.get(USER_A.id)?.skillCode).toBe('PYTHON');
+    const queue = mock.battleQueues.get(USER_A.id)!;
+    expect(queue.expiresAt!.getTime() - queue.searchStartedAt!.getTime()).toBe(
+      MATCHMAKING_TTL_SECONDS * 1000,
+    );
+    expect(result.data.elapsedMs).toBeGreaterThanOrEqual(0);
+    expect(result.data.remainingSearchMs).toBeGreaterThan(0);
+    expect(result.data.aiAvailable).toBe(false);
     expect(skillService.ensureUserSkillRating).toHaveBeenCalledTimes(1);
+  });
+
+  it('unlocks AI from server time after two minutes without expiring the queue', async () => {
+    const { mock, service } = createService();
+    const now = Date.now();
+    mock.battleQueues.set(USER_A.id, {
+      id: 'queue-a',
+      userId: USER_A.id,
+      skillCode: 'PYTHON',
+      status: 'SEARCHING',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(now - AI_UNLOCK_SECONDS * 1000 - 5000),
+      matchedAt: null,
+      cancelledAt: null,
+      expiresAt: new Date(now + 10 * 60 * 1000),
+      updatedAt: new Date(now - 30000),
+    });
+
+    const result = await service.getMatchmakingStatus(USER_A, 'PYTHON');
+
+    expect(result.data.status).toBe('SEARCHING');
+    expect(result.data.elapsedMs).toBeGreaterThanOrEqual(
+      AI_UNLOCK_SECONDS * 1000,
+    );
+    expect(result.data.remainingSearchMs).toBeGreaterThan(0);
+    expect(result.data.aiAvailable).toBe(true);
   });
 
   it('returns SEARCHING idempotently for repeated join', async () => {
@@ -279,7 +318,37 @@ describe('BattleMatchmakingService', () => {
     expect(createdRoom.mode).toBe(BattleMode.RANKED);
     expect(createdRoom.skillCode).toBe('PYTHON');
     expect(createdRoom.status).toBe(BattleRoomStatus.WAITING);
+    expect(createdRoom.expiresAt).toBeInstanceOf(Date);
+    expect(
+      createdRoom.expiresAt!.getTime() - createdRoom.createdAt.getTime(),
+    ).toBeLessThanOrEqual(RANKED_MATCH_READY_TTL_SECONDS * 1000);
+    expect(createdRoom.expiresAt!.getTime()).toBeGreaterThan(
+      createdRoom.createdAt.getTime(),
+    );
     expect(mock.battleQueues.get(USER_A.id)?.status).toBe('MATCHED');
+    expect(mock.battleQueues.get(USER_B.id)?.status).toBe('MATCHED');
+  });
+
+  it('matches an eligible queue even when its heartbeat is stale', async () => {
+    const { mock, service } = createService();
+    const now = Date.now();
+    mock.battleQueues.set(USER_B.id, {
+      id: 'queue-b',
+      userId: USER_B.id,
+      skillCode: 'PYTHON',
+      status: 'SEARCHING',
+      ratingSnapshot: 1040,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(now - 30000),
+      matchedAt: null,
+      cancelledAt: null,
+      expiresAt: new Date(now + 10 * 60 * 1000),
+      updatedAt: new Date(now - 5 * 60 * 1000),
+    });
+
+    const result = await service.joinMatchmaking(USER_A, 'PYTHON');
+
+    expect(result.data.status).toBe('MATCHED');
     expect(mock.battleQueues.get(USER_B.id)?.status).toBe('MATCHED');
   });
 
@@ -315,7 +384,7 @@ describe('BattleMatchmakingService', () => {
     expect(result.data.status).toBe('IDLE');
   });
 
-  it('counts only active SEARCHING queues as waiting users', async () => {
+  it('counts only fresh unexpired SEARCHING queues', async () => {
     const { mock, service } = createService();
     const now = Date.now();
     mock.battleQueues.set(USER_B.id, {
@@ -448,9 +517,9 @@ describe('BattleMatchmakingService', () => {
     expect(second.data.status).toBe('SEARCHING');
     expect(second.data.waitingCount).toBe(1);
     expect(mock.battleQueues.size).toBe(1);
-    expect(mock.battleQueues.get(USER_A.id)?.updatedAt?.getTime()).toBeGreaterThan(
-      staleHeartbeat.getTime(),
-    );
+    expect(
+      mock.battleQueues.get(USER_A.id)?.updatedAt?.getTime(),
+    ).toBeGreaterThan(staleHeartbeat.getTime());
   });
 
   it('expires stale SEARCHING queues lazily through the status endpoint', async () => {
@@ -472,6 +541,77 @@ describe('BattleMatchmakingService', () => {
 
     expect(result.data.status).toBe('EXPIRED');
     expect(mock.battleQueues.get(USER_A.id)?.status).toBe('EXPIRED');
+    expect(result.data.remainingSearchMs).toBe(0);
+    expect(result.data.aiAvailable).toBe(true);
+  });
+
+  it('expires an unmatched ranked room after the ready deadline and releases both queues', async () => {
+    const { mock, service } = createService();
+    const expiredAt = new Date(Date.now() - 1000);
+    mock.battleRooms.set('ranked-ready-expired', {
+      id: 'ranked-ready-expired',
+      mode: BattleMode.RANKED,
+      skillCode: 'PYTHON',
+      status: BattleRoomStatus.READY,
+      questionCount: 20,
+      durationSeconds: 180,
+      correctScore: 2,
+      wrongScore: -1,
+      unansweredScore: 0,
+      createdByUserId: USER_A.id,
+      expiresAt: expiredAt,
+      endReason: null,
+      createdAt: new Date(expiredAt.getTime() - 45000),
+      startedAt: null,
+    });
+    mock.battleParticipants.set('participant-a', {
+      id: 'participant-a',
+      battleRoomId: 'ranked-ready-expired',
+      userId: USER_A.id,
+      seat: 1,
+      status: BattleParticipantStatus.READY,
+      result: 'NONE',
+      joinedAt: new Date(),
+    });
+    mock.battleParticipants.set('participant-b', {
+      id: 'participant-b',
+      battleRoomId: 'ranked-ready-expired',
+      userId: USER_B.id,
+      seat: 2,
+      status: BattleParticipantStatus.JOINED,
+      result: 'NONE',
+      joinedAt: new Date(),
+    });
+    for (const user of [USER_A, USER_B]) {
+      mock.battleQueues.set(user.id, {
+        id: `queue-${user.id}`,
+        userId: user.id,
+        skillCode: 'PYTHON',
+        status: 'MATCHED',
+        ratingSnapshot: 1000,
+        matchedBattleRoomId: 'ranked-ready-expired',
+        searchStartedAt: new Date(Date.now() - 60000),
+        matchedAt: new Date(Date.now() - 46000),
+        cancelledAt: null,
+        expiresAt: new Date(Date.now() + 20 * 60 * 1000),
+      });
+    }
+
+    const result = await service.getMatchmakingStatus(USER_A, 'PYTHON');
+
+    expect(result.data.status).toBe('CANCELLED');
+    expect(mock.battleRooms.get('ranked-ready-expired')?.status).toBe(
+      BattleRoomStatus.EXPIRED,
+    );
+    expect(mock.battleRooms.get('ranked-ready-expired')?.endReason).toBe(
+      'EXPIRED',
+    );
+    expect(mock.battleQueues.get(USER_A.id)?.status).toBe('CANCELLED');
+    expect(mock.battleQueues.get(USER_B.id)?.status).toBe('CANCELLED');
+    expect(mock.battleQueues.get(USER_A.id)?.matchedBattleRoomId).toBeNull();
+    expect(mock.battleQueues.get(USER_B.id)?.matchedBattleRoomId).toBeNull();
+    expect(mock.battleProfiles.size).toBe(0);
+    expect(mock.battleRatingLogs.size).toBe(0);
   });
 
   it('cancels SEARCHING queues successfully and remains idempotent on repeated cancel', async () => {

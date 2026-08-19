@@ -128,6 +128,9 @@ export type MatchmakingStatusPayload = {
   serverTime: Date;
   skill: string | null;
   waitingCount: number;
+  elapsedMs: number;
+  remainingSearchMs: number;
+  aiAvailable: boolean;
 };
 
 export type BattleParticipantSummary = {
