@@ -1,4 +1,4 @@
-export type BattleMode = 'RANKED' | 'FRIEND' | 'TRAINING';
+export type BattleMode = 'RANKED' | 'FRIEND' | 'TRAINING' | 'AI';
 
 export type BattleRoomStatus =
   | 'WAITING'
@@ -127,7 +127,39 @@ export type MatchmakingStatusResponse = {
   serverTime: string;
   skill: string | null;
   waitingCount: number;
+  elapsedMs: number;
+  remainingSearchMs: number;
+  aiAvailable: boolean;
 };
+
+export type BattleAiMatchmakingResolutionResponse = {
+  resolvedTo: 'AI' | 'HUMAN';
+  battleId: string;
+  serverTime: string;
+};
+
+export type BattleAiLiveOpponentResponse = {
+  type: 'AI';
+  displayName: string;
+  answeredCount: number;
+  submitted: boolean;
+};
+
+export type BattleHumanOpponentResponse = {
+  type: 'HUMAN';
+  userId: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+};
+
+export type BattleAiCompletedOpponentResponse = {
+  type: 'AI';
+  displayName: string;
+};
+
+export type BattleCompletedOpponentResponse =
+  | BattleHumanOpponentResponse
+  | BattleAiCompletedOpponentResponse;
 
 export type BattleParticipantSummary = {
   userId: string;
@@ -149,6 +181,7 @@ export type BattleRoomSummaryResponse = {
   expiresAt: string | null;
   serverTime: string;
   participants: BattleParticipantSummary[];
+  opponent: BattleAiLiveOpponentResponse | null;
 };
 
 export type BattleRoomDetailResponse = BattleRoomSummaryResponse & {
@@ -288,6 +321,7 @@ export type PendingBattleResultResponse = {
   opponentAnsweredCount: number | null;
   mySubmitted: boolean;
   opponentSubmitted: boolean | null;
+  opponent: BattleHumanOpponentResponse | BattleAiLiveOpponentResponse | null;
   serverTime: string;
 };
 
@@ -322,11 +356,7 @@ export type CompletedBattleResultResponse = {
   beforeStar: number | null;
   afterStar: number | null;
   tierChange: 'PLACED' | 'PROMOTED' | 'DEMOTED' | 'UNCHANGED' | null;
-  opponent: {
-    userId: string;
-    nickname: string | null;
-    avatarUrl: string | null;
-  } | null;
+  opponent: BattleCompletedOpponentResponse | null;
   endReason: BattleEndReason | null;
   completedAt: string;
   serverTime: string;
@@ -348,11 +378,7 @@ export type BattleHistoryListItemResponse = {
   mode: BattleMode;
   skill: string | null;
   result: BattleResult;
-  opponent: {
-    userId: string;
-    nickname: string | null;
-    avatarUrl: string | null;
-  } | null;
+  opponent: BattleCompletedOpponentResponse | null;
   myScore: number;
   opponentScore: number | null;
   myCorrectCount: number;
@@ -441,17 +467,12 @@ export type BattleHistoryDetailResponse = {
   ratingBefore: number;
   ratingDelta: number;
   ratingAfter: number;
-  opponent: {
-    userId: string;
-    nickname: string | null;
-    avatarUrl: string | null;
-  } | null;
+  opponent: BattleCompletedOpponentResponse | null;
   mySummary: BattleHistorySummaryResponse;
-  opponentSummary: (BattleHistorySummaryResponse & {
-    userId: string;
-    nickname: string | null;
-    avatarUrl: string | null;
-  }) | null;
+  opponentSummary:
+    | (BattleHistorySummaryResponse & BattleHumanOpponentResponse)
+    | (BattleHistorySummaryResponse & BattleAiCompletedOpponentResponse)
+    | null;
   endReason: BattleEndReason | null;
   completedAt: string;
   serverTime: string;

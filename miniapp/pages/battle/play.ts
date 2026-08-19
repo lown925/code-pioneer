@@ -578,10 +578,19 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       payload.mode === 'TRAINING'
         ? null
         : (participants.find((participant) => participant.userId !== currentUserId) ?? null);
+    const aiOpponent =
+      payload.mode === 'AI' && payload.opponent
+        ? {
+            nicknameText: payload.opponent.displayName,
+            avatarUrl: '',
+            avatarFallbackText: '电',
+            ratingText: '电脑对手',
+          }
+        : null;
 
     this.setData({
       myPlayer: this.mapPlayer(myParticipant) ?? this.data.myPlayer,
-      opponentPlayer: this.mapPlayer(opponentParticipant),
+      opponentPlayer: aiOpponent ?? this.mapPlayer(opponentParticipant),
       isTrainingMode: payload.mode === 'TRAINING',
     });
   },

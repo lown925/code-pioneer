@@ -1,4 +1,5 @@
 <view class="page-shell growth-page theme-{{resolvedTheme}}">
+  <battle-match-floating />
   <view class="growth-header">
     <view>
       <text class="growth-eyebrow">GROWTH</text>

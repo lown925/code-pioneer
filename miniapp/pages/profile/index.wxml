@@ -1,4 +1,5 @@
 <view class="page-shell profile-page theme-{{resolvedTheme}}">
+  <battle-match-floating />
   <view wx:if="{{!isAuthenticated}}" class="section-card guest-card">
     <text class="guest-title">登录后查看个人主页</text>
     <text class="guest-copy">

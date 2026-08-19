@@ -1,4 +1,5 @@
 <view class="page-shell battle-page theme-{{resolvedTheme}}">
+  <battle-match-floating />
   <view class="hero-card">
     <view class="hero-glow hero-glow-top"></view>
     <view class="hero-glow hero-glow-bottom"></view>

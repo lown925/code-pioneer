@@ -5,11 +5,17 @@ import {
   CURRENT_ENV_VERSION,
 } from './utils/config';
 import { initializeTheme, syncSystemTheme } from './utils/theme';
+import {
+  initializeBattleMatchmakingManager,
+  pauseBattleMatchmaking,
+  recoverBattleMatchmaking,
+} from './utils/battle-matchmaking-state';
 
 App<IAppOption>({
   onLaunch() {
     const authState = initializeAuthState();
     const theme = initializeTheme();
+    initializeBattleMatchmakingManager();
 
     this.globalData.authState = authState;
     this.globalData.envVersion = CURRENT_ENV_VERSION;
@@ -41,6 +47,11 @@ App<IAppOption>({
 
     this.globalData.themeMode = theme.mode;
     this.globalData.resolvedTheme = theme.resolvedTheme;
+    void recoverBattleMatchmaking();
+  },
+
+  onHide() {
+    pauseBattleMatchmaking();
   },
 
   globalData: {

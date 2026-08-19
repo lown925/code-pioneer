@@ -73,6 +73,7 @@ type MiniProgramAppOptions<TGlobalData> = {
   globalData: TGlobalData;
   onLaunch?(): void;
   onShow?(): void;
+  onHide?(): void;
 } & ThisType<{ globalData: TGlobalData }>;
 
 declare function App<TApp extends { globalData: unknown }>(
@@ -125,6 +126,7 @@ declare const wx: {
   stopPullDownRefresh(): void;
   navigateTo(options: {
     url: string;
+    success?(): void;
     fail?(): void;
     complete?(): void;
   }): void;

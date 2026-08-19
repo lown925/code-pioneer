@@ -6,8 +6,7 @@ import type {
 } from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
-  formatBattleInitial,
-  formatBattleNickname,
+  formatBattleOpponentIdentity,
   formatBattleSkill,
   formatBattleRating,
   getBattleErrorMessage,
@@ -367,16 +366,13 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
 
   mapHistoryItem(item: BattleHistoryListItemResponse): HistoryCard {
     const resultMeta = this.getResultMeta(item.result);
+    const opponent = formatBattleOpponentIdentity(item.opponent);
 
     return {
       ...item,
-      opponentNicknameText: item.opponent
-        ? formatBattleNickname(item.opponent.nickname)
-        : '单人训练',
-      opponentAvatarFallbackText: item.opponent
-        ? formatBattleInitial(item.opponent.nickname)
-        : '练',
-      opponentAvatarUrl: item.opponent?.avatarUrl ?? '',
+      opponentNicknameText: opponent.nicknameText,
+      opponentAvatarFallbackText: opponent.avatarFallbackText,
+      opponentAvatarUrl: opponent.avatarUrl,
       modeText: this.getModeText(item.mode),
       skillText: formatBattleSkill(item.skill),
       resultText: resultMeta.resultText,
@@ -387,7 +383,7 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
           : `${item.myScore} : ${item.opponentScore}`,
       scoreLabelText: item.mode === 'TRAINING' ? '训练得分' : '比分',
       ratingDeltaText:
-        item.mode === 'TRAINING'
+        item.mode === 'TRAINING' || item.mode === 'AI'
           ? '不计 Rating'
           : this.formatRatingDelta(item.ratingDelta),
       completedAtText: this.formatCompletedAt(item.completedAt),
@@ -406,6 +402,10 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
 
     if (mode === 'TRAINING') {
       return '单人训练';
+    }
+
+    if (mode === 'AI') {
+      return '电脑对战';
     }
 
     return '未知模式';

@@ -549,6 +549,19 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
       sortedParticipants.find((item) => item.userId === currentUserId) ?? null;
     const opponentParticipant =
       sortedParticipants.find((item) => item.userId !== currentUserId) ?? null;
+    const aiOpponentParticipant =
+      payload.mode === 'AI' && payload.opponent
+        ? {
+            userId: 'AI',
+            seatText: '电脑对手',
+            nicknameText: payload.opponent.displayName,
+            avatarUrl: '',
+            avatarFallbackText: '电',
+            statusText: '已就位',
+            statusClassName: 'status-ready',
+            isCurrentUser: false,
+          }
+        : null;
     const state = this.mapRoomState(payload);
     const meta = this.getRoomMeta(payload);
     const isFriendMode = payload.mode === 'FRIEND';
@@ -572,7 +585,12 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
 
     this.setData({
       state,
-      roomModeText: isFriendMode ? '好友对战' : '随机匹配',
+      roomModeText:
+        payload.mode === 'AI'
+          ? '电脑对战'
+          : isFriendMode
+            ? '好友对战'
+            : '随机匹配',
       skillText: formatBattleSkill(payload.skill),
       roomStatusText: meta.roomStatusText,
       titleText: meta.titleText,
@@ -591,7 +609,9 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
       showInviteCode,
       friendStatusNotice: meta.friendStatusNotice,
       myParticipant: this.mapParticipant(myParticipant, currentUserId),
-      opponentParticipant: this.mapParticipant(opponentParticipant, currentUserId),
+      opponentParticipant:
+        aiOpponentParticipant ??
+        this.mapParticipant(opponentParticipant, currentUserId),
     });
     this.syncLeaveAlert();
 
@@ -880,7 +900,8 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
 
   getRoomMeta(payload: BattleRoomDetailResponse) {
     const currentParticipantStatus = payload.currentParticipantStatus ?? '';
-    const participantCount = payload.participants.length;
+    const isAiMode = payload.mode === 'AI';
+    const participantCount = payload.participants.length + (isAiMode ? 1 : 0);
     const isFriendMode = payload.mode === 'FRIEND';
     const friendJoinedNotice =
       isFriendMode && participantCount >= 2
@@ -973,6 +994,18 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
         primaryActionEnabled: false,
         canOpenPlay: false,
         friendStatusNotice: friendJoinedNotice,
+      };
+    }
+
+    if (isAiMode) {
+      return {
+        titleText: '电脑对手已就位',
+        descriptionText: '点击准备后由服务端开始倒计时，电脑对战不会修改正式 Rating。',
+        roomStatusText: '等待准备',
+        primaryActionText: '准备电脑对战',
+        primaryActionEnabled: true,
+        canOpenPlay: false,
+        friendStatusNotice: '',
       };
     }
 

@@ -9,8 +9,7 @@ import type {
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatBattleDuration,
-  formatBattleInitial,
-  formatBattleNickname,
+  formatBattleOpponentIdentity,
   formatBattleRating,
   formatBattleSkill,
   getBattleErrorMessage,
@@ -285,6 +284,7 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
 
       const resultMeta = this.getResultMeta(response.result);
       const isTrainingMode = response.mode === 'TRAINING';
+      const opponent = formatBattleOpponentIdentity(response.opponent, '');
       this.setData({
         state: 'SUCCESS',
         titleText: 'Battle 复盘详情',
@@ -317,13 +317,9 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
         ratingBeforeText: formatBattleRating(response.ratingBefore),
         ratingDeltaText: this.formatRatingDelta(response.ratingDelta),
         ratingAfterText: formatBattleRating(response.ratingAfter),
-        opponentNicknameText: response.opponent
-          ? formatBattleNickname(response.opponent.nickname)
-          : '',
-        opponentAvatarUrl: response.opponent?.avatarUrl ?? '',
-        opponentAvatarFallbackText: response.opponent
-          ? formatBattleInitial(response.opponent.nickname)
-          : '',
+        opponentNicknameText: opponent.nicknameText,
+        opponentAvatarUrl: opponent.avatarUrl,
+        opponentAvatarFallbackText: opponent.avatarFallbackText,
         questions: response.questions.map((question) => this.mapQuestion(question)),
         isTrainingMode,
         isRankedMode: response.mode === 'RANKED',
@@ -616,6 +612,10 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
 
     if (mode === 'TRAINING') {
       return '单人训练';
+    }
+
+    if (mode === 'AI') {
+      return '电脑对战';
     }
 
     return '未知模式';

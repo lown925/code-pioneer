@@ -1,0 +1,198 @@
+@import "../../app.wxss";
+
+.battle-match-floating {
+  position: sticky;
+  top: 16rpx;
+  z-index: 20;
+  display: block;
+  margin-bottom: 20rpx;
+  border: 2rpx solid var(--floating-border);
+  border-radius: 16rpx;
+  background: var(--floating-background);
+  box-shadow: 0 12rpx 28rpx rgba(17, 34, 59, 0.14);
+  color: var(--color-text-primary);
+  overflow: hidden;
+}
+
+.floating-searching {
+  --floating-accent: var(--color-primary);
+  --floating-border: rgba(47, 107, 255, 0.24);
+  --floating-background: var(--color-card);
+}
+
+.floating-computer {
+  --floating-accent: #c98212;
+  --floating-border: rgba(201, 130, 18, 0.32);
+  --floating-background: var(--color-card);
+}
+
+.floating-matched {
+  --floating-accent: var(--color-success);
+  --floating-border: rgba(21, 148, 85, 0.32);
+  --floating-background: var(--color-card);
+}
+
+.floating-expired,
+.floating-error {
+  --floating-accent: var(--color-danger);
+  --floating-border: rgba(194, 67, 67, 0.28);
+  --floating-background: var(--color-card);
+}
+
+.floating-compact {
+  display: flex;
+  align-items: center;
+  min-height: 76rpx;
+  gap: 14rpx;
+  padding: 0 22rpx;
+}
+
+.floating-status-mark {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: var(--floating-accent);
+  box-shadow: 0 0 0 8rpx rgba(47, 107, 255, 0.1);
+  flex: 0 0 auto;
+}
+
+.floating-compact-title {
+  min-width: 0;
+  flex: 1;
+  color: var(--color-text-primary);
+  font-size: 25rpx;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.floating-chevron,
+.floating-collapse {
+  color: var(--color-text-secondary);
+  font-size: 30rpx;
+  line-height: 1;
+}
+
+.floating-reconnect {
+  color: var(--color-text-secondary);
+  font-size: 21rpx;
+}
+
+.floating-panel {
+  padding: 24rpx;
+  border-left: 8rpx solid var(--floating-accent);
+}
+
+.floating-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 18rpx;
+}
+
+.floating-heading-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.floating-title,
+.floating-description,
+.floating-network-note,
+.floating-error-copy {
+  display: block;
+}
+
+.floating-title {
+  color: var(--color-text-primary);
+  font-size: 29rpx;
+  font-weight: 700;
+}
+
+.floating-description {
+  margin-top: 8rpx;
+  color: var(--color-text-secondary);
+  font-size: 23rpx;
+  line-height: 1.6;
+}
+
+.floating-collapse {
+  padding: 6rpx;
+}
+
+.floating-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx 18rpx;
+  margin-top: 18rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 10rpx;
+  background: var(--color-card-subtle);
+  color: var(--color-text-secondary);
+  font-size: 22rpx;
+}
+
+.floating-network-note,
+.floating-error-copy {
+  margin-top: 14rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
+.floating-network-note {
+  color: #b7791f;
+}
+
+.floating-error-copy {
+  color: var(--color-danger);
+}
+
+.floating-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.floating-button {
+  min-width: 150rpx;
+  min-height: 64rpx;
+  margin: 0;
+  padding: 0 22rpx;
+  border: 0;
+  border-radius: 8rpx;
+  background: var(--color-card-subtle);
+  color: var(--color-text-primary);
+  font-size: 23rpx;
+  font-weight: 700;
+  line-height: 64rpx;
+}
+
+.floating-button::after {
+  border: 0;
+}
+
+.floating-button-primary {
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.floating-button-computer {
+  background: #c98212;
+  color: #ffffff;
+}
+
+.floating-button-success {
+  background: var(--color-success);
+  color: #ffffff;
+}
+
+.floating-button-danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.theme-dark.floating-computer {
+  --floating-accent: #f0b44d;
+}
+
+.theme-dark .floating-button-computer {
+  background: #a9650b;
+}

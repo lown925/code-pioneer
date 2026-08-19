@@ -7,8 +7,7 @@ import type {
 } from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
-  formatBattleInitial,
-  formatBattleNickname,
+  formatBattleOpponentIdentity,
   formatBattleRating,
   formatBattleSkill,
   formatBattleStarDisplay,
@@ -266,6 +265,8 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
       const resultMeta = this.getResultMeta(response.result);
       const isTrainingMode = response.mode === 'TRAINING';
       const isRankedMode = response.mode === 'RANKED';
+      const isAiMode = response.mode === 'AI';
+      const opponent = formatBattleOpponentIdentity(response.opponent, '');
       const hasCompetitiveTier =
         isRankedMode && response.skill !== null && response.star !== null;
 
@@ -276,7 +277,9 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
           ? '本场单人训练已完成，答题记录会进入 Battle 历史，且不会改变 Rating。'
           : isRankedMode
             ? '本场排位的分数、胜负和 Rating 变化均以服务端结算结果为准。'
-            : '本场好友对战已完成，分数与胜负以服务端结算结果为准，不计 Rating。',
+            : isAiMode
+              ? '电脑对战结果由服务端计划与结算生成，不修改正式 Rating。'
+              : '本场好友对战已完成，分数与胜负以服务端结算结果为准，不计 Rating。',
         errorMessage: '',
         modeText: this.getModeText(response.mode),
         skillText: formatBattleSkill(response.skill),
@@ -317,13 +320,9 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
         ratingAfterText: formatBattleRating(response.ratingAfter),
         ...formatBattleStarDisplay(response.star),
         tierChangeText: this.getTierChangeText(response.tierChange, response.afterStar),
-        opponentNicknameText: response.opponent
-          ? formatBattleNickname(response.opponent.nickname)
-          : '',
-        opponentAvatarUrl: response.opponent?.avatarUrl ?? '',
-        opponentAvatarFallbackText: response.opponent
-          ? formatBattleInitial(response.opponent.nickname)
-          : '',
+        opponentNicknameText: opponent.nicknameText,
+        opponentAvatarUrl: opponent.avatarUrl,
+        opponentAvatarFallbackText: opponent.avatarFallbackText,
         completedAtText: this.formatCompletedAt(response.completedAt),
         endReasonText: this.getEndReasonText(response.endReason),
         isTrainingMode,
@@ -469,6 +468,10 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
 
     if (mode === 'TRAINING') {
       return '单人训练';
+    }
+
+    if (mode === 'AI') {
+      return '电脑对战';
     }
 
     return '未知模式';

@@ -1,47 +1,26 @@
 <view class="page-shell matchmaking-page theme-{{resolvedTheme}}">
   <view class="section-card hero-card">
-    <text class="hero-eyebrow">随机匹配</text>
-    <text class="hero-title">Battle 匹配池</text>
-    <text class="hero-copy">
-      当前页面通过轮询服务端匹配状态推进流程，不使用 WebSocket。离开页面会停止轮询，恢复后会重新同步状态。
-    </text>
+    <text class="hero-eyebrow">RANKED MATCHMAKING</text>
+    <text class="hero-title">真人随机匹配</text>
+    <text class="hero-copy">离开本页后匹配仍会继续。找到对手时只会提示，由你主动进入对战。</text>
   </view>
 
   <view class="section-card rating-card">
     <view class="rating-item">
-      <text class="rating-label">当前 {{selectedSkillName || 'Python'}} 在线匹配人数</text>
-      <view class="waiting-count-line">
-        <text class="rating-value">{{waitingCountText}}</text>
-        <text class="waiting-count-unit">人</text>
-      </view>
+      <text class="rating-label">{{selectedSkillName || 'Python'}} 活跃匹配</text>
+      <text class="rating-value">{{waitingCountText}}</text>
     </view>
   </view>
 
   <view class="section-card skill-card">
     <text class="section-title">对战方向</text>
-    <text class="section-subtitle">匹配开始后方向将锁定，本局只会出现该方向题目。</text>
+    <text class="section-subtitle">匹配开始后方向锁定，本局只使用该方向题目。</text>
     <view class="skill-list">
-      <view
-        wx:for="{{availableSkills}}"
-        wx:key="code"
-        class="skill-option {{selectedSkillCode === item.code ? 'skill-option-selected' : ''}} {{state === 'SEARCHING' || state === 'MATCHED' ? 'skill-option-locked' : ''}}"
-        data-skill="{{item.code}}"
-        bindtap="handleSelectSkill"
-      >
+      <view wx:for="{{availableSkills}}" wx:key="code" class="skill-option {{selectedSkillCode === item.code ? 'skill-option-selected' : ''}} {{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE' || state === 'MATCHED' || state === 'JOINING' ? 'skill-option-locked' : ''}}" data-skill="{{item.code}}" bindtap="handleSelectSkill">
         <view>
           <text class="skill-name">{{item.name}}</text>
           <view class="skill-status">
-            <view
-              class="battle-star-rating skill-star-rating"
-              aria-label="{{item.starAriaLabel}}"
-            >
-              <text
-                wx:for="{{item.starSlots}}"
-                wx:for-item="star"
-                wx:key="value"
-                class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
-              >{{star.isFilled ? '★' : '☆'}}</text>
-            </view>
+            <view class="battle-star-rating skill-star-rating" aria-label="{{item.starAriaLabel}}"><text wx:for="{{item.starSlots}}" wx:for-item="star" wx:key="value" class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}">{{star.isFilled ? '★' : '☆'}}</text></view>
             <text>{{item.status === 'UNRANKED' ? '未定级' : 'Rating ' + item.rating}}</text>
           </view>
         </view>
@@ -55,68 +34,28 @@
     <text class="section-subtitle">{{stateDescription}}</text>
     <text wx:if="{{selectedSkillName}}" class="locked-skill">本局方向：{{selectedSkillName}}</text>
 
-    <view wx:if="{{state === 'SEARCHING'}}" class="timer-grid">
-      <view class="timer-card">
-        <text class="timer-label">已等待时间</text>
-        <text class="timer-value">{{waitedText}}</text>
-      </view>
-      <view class="timer-card">
-        <text class="timer-label">剩余匹配时间</text>
-        <text class="timer-value">{{remainingText}}</text>
-      </view>
+    <view wx:if="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="timer-grid">
+      <view class="timer-card"><text class="timer-label">已等待时间</text><text class="timer-value">{{waitedText}}</text></view>
+      <view class="timer-card"><text class="timer-label">剩余搜索时间</text><text class="timer-value">{{remainingText}}</text></view>
     </view>
 
-    <view wx:if="{{state === 'SEARCHING' && canStartTraining}}" class="training-offer">
-      <text class="training-title">暂无合适对手</text>
-      <text class="training-copy">你可以继续等待真人，或进入不计 Rating 的 Python 单人训练。</text>
-      <view class="training-actions">
-        <view class="ghost-button action-button" bindtap="handleContinueWaiting">继续等待</view>
-        <view
-          class="primary-button action-button {{isStartingTraining ? 'disabled-button' : ''}}"
-          bindtap="handleStartTraining"
-        >
-          {{isStartingTraining ? '正在创建训练' : '开始单人训练'}}
-        </view>
-      </view>
+    <view wx:if="{{state === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="computer-offer">
+      <text class="computer-title">暂时没有合适的真人对手</text>
+      <text class="computer-copy">电脑对战不修改正式 Rating。入口会持续保留，继续等待不会重新锁定。</text>
+      <view class="computer-actions"><button class="primary-button action-button" loading="{{isStartingComputer}}" disabled="{{isStartingComputer}}" bindtap="handleStartComputer">电脑对战</button><button class="ghost-button action-button" bindtap="handleContinueWaiting">继续等待</button></view>
     </view>
 
-    <view wx:if="{{state === 'MATCHED' && battleId}}" class="matched-box">
-      <text class="matched-label">当前 battleId</text>
-      <text class="matched-value">{{battleId}}</text>
-    </view>
-
-    <text wx:if="{{state === 'ERROR' && errorMessage}}" class="error-copy">
-      {{errorMessage}}
-    </text>
+    <view wx:if="{{state === 'MATCHED' && battleId}}" class="matched-box"><text class="matched-label">已找到对手，请尽快进入</text><text class="matched-value">准备房间已创建，未在服务端期限内进入会自动失效。</text></view>
+    <text wx:if="{{errorMessage}}" class="error-copy">{{errorMessage}}</text>
 
     <view class="action-row">
-      <view wx:if="{{state === 'IDLE'}}" class="primary-button action-button" bindtap="handleStartMatchmaking">
-        开始匹配
-      </view>
-
-      <view wx:elif="{{state === 'JOINING'}}" class="ghost-button action-button disabled-button">
-        正在加入匹配池
-      </view>
-
-      <block wx:elif="{{state === 'SEARCHING'}}">
-        <view class="primary-button action-button disabled-button">匹配进行中</view>
-        <view class="ghost-button action-button" bindtap="handleCancelMatchmaking">取消匹配</view>
-      </block>
-
-      <block wx:elif="{{state === 'MATCHED'}}">
-        <view class="primary-button action-button" bindtap="handleEnterRoom">进入房间</view>
-        <view class="ghost-button action-button" bindtap="handleBackHome">返回首页</view>
-      </block>
-
-      <block wx:elif="{{state === 'CANCELLED' || state === 'EXPIRED'}}">
-        <view class="primary-button action-button" bindtap="handleStartMatchmaking">重新开始匹配</view>
-        <view class="ghost-button action-button" bindtap="handleBackHome">返回首页</view>
-      </block>
-
-      <block wx:elif="{{state === 'ERROR'}}">
-        <view class="primary-button action-button" bindtap="handleRetry">重新查询状态</view>
-        <view class="ghost-button action-button" bindtap="handleBackHome">返回首页</view>
-      </block>
+      <button wx:if="{{state === 'IDLE'}}" class="primary-button action-button" bindtap="handleStartMatchmaking">开始真人匹配</button>
+      <button wx:elif="{{state === 'JOINING'}}" class="ghost-button action-button" loading disabled>正在加入匹配池</button>
+      <block wx:elif="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}"><button class="ghost-button action-button" bindtap="handleContinueWaiting">离开页面继续等待</button><button class="danger-button action-button" loading="{{isCancelling}}" disabled="{{isCancelling}}" bindtap="handleCancelMatchmaking">取消匹配</button></block>
+      <block wx:elif="{{state === 'MATCHED'}}"><button class="primary-button action-button" bindtap="handleEnterRoom">进入对战</button><button class="ghost-button action-button" bindtap="handleBackHome">返回首页</button></block>
+      <block wx:elif="{{state === 'CANCELLED'}}"><button class="primary-button action-button" bindtap="handleRetry">重新匹配</button><button class="ghost-button action-button" bindtap="handleBackHome">返回首页</button></block>
+      <block wx:elif="{{state === 'EXPIRED'}}"><button wx:if="{{computerAvailable}}" class="primary-button action-button" loading="{{isStartingComputer}}" disabled="{{isStartingComputer}}" bindtap="handleStartComputer">电脑对战</button><button class="ghost-button action-button" bindtap="handleRetry">重新匹配</button><button class="ghost-button action-button" bindtap="handleBackHome">返回首页</button></block>
+      <block wx:elif="{{state === 'ERROR'}}"><button class="primary-button action-button" bindtap="handleRetry">重新连接</button><button class="ghost-button action-button" bindtap="handleBackHome">返回首页</button></block>
     </view>
   </view>
 </view>

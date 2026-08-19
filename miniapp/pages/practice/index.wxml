@@ -1,4 +1,5 @@
 <view class="page-shell practice-page theme-{{resolvedTheme}}">
+  <battle-match-floating compact-only="{{true}}" />
   <view class="practice-hero">
     <text class="hero-eyebrow">PRACTICE ROOM</text>
     <text class="hero-title">练习室</text>

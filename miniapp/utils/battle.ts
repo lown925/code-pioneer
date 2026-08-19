@@ -44,6 +44,47 @@ export function formatBattleInitial(nickname: string | null | undefined) {
   return formatBattleNickname(nickname).slice(0, 1);
 }
 
+type BattleOpponentIdentity =
+  | {
+      type: 'HUMAN';
+      nickname: string | null;
+      avatarUrl: string | null;
+    }
+  | {
+      type: 'AI';
+      displayName: string;
+    }
+  | null;
+
+export function formatBattleOpponentIdentity(
+  opponent: BattleOpponentIdentity,
+  fallbackName = '单人训练',
+) {
+  if (!opponent) {
+    return {
+      nicknameText: fallbackName,
+      avatarUrl: '',
+      avatarFallbackText: fallbackName.slice(0, 1),
+    };
+  }
+
+  if (opponent.type === 'AI') {
+    const displayName = opponent.displayName.trim() || '电脑对手';
+
+    return {
+      nicknameText: displayName,
+      avatarUrl: '',
+      avatarFallbackText: '电',
+    };
+  }
+
+  return {
+    nicknameText: formatBattleNickname(opponent.nickname),
+    avatarUrl: opponent.avatarUrl ?? '',
+    avatarFallbackText: formatBattleInitial(opponent.nickname),
+  };
+}
+
 export function formatBattleRating(rating: number | null | undefined) {
   return String(Math.round(normalizeNumber(rating ?? 0)));
 }

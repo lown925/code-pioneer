@@ -1,4 +1,7 @@
 {
   "navigationBarTitleText": "课程列表",
-  "enablePullDownRefresh": true
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "battle-match-floating": "/components/battle-match-floating/index"
+  }
 }

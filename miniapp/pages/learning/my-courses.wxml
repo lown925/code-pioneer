@@ -1,4 +1,5 @@
 <view class="page-shell my-courses-page theme-{{resolvedTheme}}">
+  <battle-match-floating />
   <view class="section-card page-heading"><text class="section-title">我的课程</text><text class="section-subtitle">这里展示当前账号已经选择和开始学习的全部课程。</text></view>
   <view wx:if="{{state === 'loading'}}" class="section-card state-box"><text class="state-title">正在加载我的课程</text></view>
   <view wx:elif="{{state === 'error'}}" class="section-card state-box"><text class="state-title">加载失败</text><text class="state-text">{{errorMessage}}</text><view class="primary-button" bindtap="handleRetry">重试</view></view>

@@ -1,4 +1,5 @@
 <view class="page-shell learning-page theme-{{resolvedTheme}}">
+  <battle-match-floating />
   <view class="learning-hero">
     <view class="hero-orb hero-orb-one"></view>
     <view class="hero-orb hero-orb-two"></view>

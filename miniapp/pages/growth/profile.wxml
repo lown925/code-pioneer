@@ -1,4 +1,5 @@
 <view class="page-shell growth-profile-page theme-{{resolvedTheme}}">
+  <battle-match-floating />
   <view class="profile-hero">
     <text class="profile-hero-eyebrow">LEARNING PROFILE</text>
     <text class="profile-hero-title">完善学习画像</text>

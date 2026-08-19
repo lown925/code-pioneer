@@ -171,32 +171,29 @@ describe('miniapp Battle live state and skill leaderboard', () => {
       'pages/battle/matchmaking.wxml',
     );
 
-    expect(matchmakingScript).toContain('payload.waitingCount');
-    expect(matchmakingTemplate).toContain(
-      "当前 {{selectedSkillName || 'Python'}} 在线匹配人数",
-    );
+    expect(matchmakingScript).toContain('snapshot.waitingCount');
+    expect(matchmakingScript).toContain('waitingCountText: `当前 ${snapshot.waitingCount} 人活跃匹配`');
     expect(matchmakingTemplate).toContain('{{waitingCountText}}');
-    expect(matchmakingTemplate).not.toContain('当前等待匹配人数');
-    expect(matchmakingTemplate).not.toContain('当前评分');
-    expect(matchmakingTemplate).not.toContain('当前排名');
+    expect(matchmakingTemplate).toContain("state === 'SEARCHING_COMPUTER_AVAILABLE'");
+    expect(matchmakingScript).toContain('getBattleMatchmakingManager');
   });
 
-  it('offers confirmed single-player training after sixty seconds', () => {
+  it('offers computer battle when the server unlocks it', () => {
     const matchmakingScript = readMiniappFile('pages/battle/matchmaking.ts');
     const matchmakingTemplate = readMiniappFile(
       'pages/battle/matchmaking.wxml',
     );
 
-    expect(matchmakingScript).toContain('const TRAINING_UNLOCK_MS = 60_000;');
-    expect(matchmakingScript).toContain("url: '/battles/training'");
-    expect(matchmakingScript).toContain('wx.showModal({');
-    expect(matchmakingScript).toContain("confirmText: '单人训练'");
-    expect(matchmakingScript).toContain("cancelText: '继续等待'");
-    expect(matchmakingTemplate).toContain(
-      "state === 'SEARCHING' && canStartTraining",
+    expect(matchmakingScript).toContain('handleStartComputer()');
+    expect(matchmakingScript).toContain(
+      'getBattleMatchmakingManager().startComputerBattle()',
     );
-    expect(matchmakingTemplate).toContain('开始单人训练');
-    expect(matchmakingTemplate).toContain('继续等待');
+    expect(matchmakingTemplate).toContain(
+      "state === 'SEARCHING_COMPUTER_AVAILABLE'",
+    );
+    expect(matchmakingTemplate).toContain('class="computer-offer"');
+    expect(matchmakingTemplate).toContain('bindtap="handleStartComputer"');
+    expect(matchmakingTemplate).toContain('bindtap="handleContinueWaiting"');
   });
 
   it('keeps submit available while hiding forfeit in training mode', () => {
@@ -246,7 +243,7 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     );
 
     expect(historyScript).toContain("{ value: 'TRAINING', label: '训练' }");
-    expect(historyScript).toContain(": '单人训练'");
+    expect(historyScript).toContain("return '单人训练';");
     expect(historyDetailTemplate).toMatch(
       /<view class="section-card score-card">\s*<text class="score-label">我的分数<\/text>/,
     );

@@ -169,7 +169,7 @@
   background: var(--color-primary-soft);
 }
 
-.training-offer {
+.computer-offer {
   margin-top: 24rpx;
   padding: 24rpx;
   border: 2rpx solid rgba(47, 107, 255, 0.16);
@@ -177,25 +177,25 @@
   background: linear-gradient(145deg, #f4f8ff 0%, var(--color-success-soft) 100%);
 }
 
-.training-title,
-.training-copy {
+.computer-title,
+.computer-copy {
   display: block;
 }
 
-.training-title {
+.computer-title {
   color: var(--color-text-primary);
   font-size: 28rpx;
   font-weight: 700;
 }
 
-.training-copy {
+.computer-copy {
   margin-top: 10rpx;
   color: var(--color-text-secondary);
   font-size: 24rpx;
   line-height: 1.7;
 }
 
-.training-actions {
+.computer-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 16rpx;
@@ -232,6 +232,11 @@
 
 .disabled-button {
   opacity: 0.78;
+}
+
+.danger-button {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 
 @media (max-width: 420px) {

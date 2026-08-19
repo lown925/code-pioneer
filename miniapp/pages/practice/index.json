@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "练习室"
+  "navigationBarTitleText": "练习室",
+  "usingComponents": {
+    "battle-match-floating": "/components/battle-match-floating/index"
+  }
 }

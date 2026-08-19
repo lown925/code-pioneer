@@ -1,0 +1,63 @@
+<view
+  wx:if="{{visible}}"
+  class="battle-match-floating theme-{{resolvedTheme}} {{toneClassName}} {{expanded ? 'floating-expanded' : 'floating-collapsed'}}"
+>
+  <view wx:if="{{!expanded}}" class="floating-compact" bindtap="handleToggle">
+    <view class="floating-status-mark"></view>
+    <text class="floating-compact-title">{{compactTitle}}</text>
+    <text wx:if="{{reconnecting}}" class="floating-reconnect">正在重新连接</text>
+    <text wx:if="{{!compactOnly}}" class="floating-chevron">⌄</text>
+  </view>
+
+  <view wx:else class="floating-panel">
+    <view class="floating-heading">
+      <view class="floating-heading-copy">
+        <text class="floating-title">{{titleText}}</text>
+        <text class="floating-description">{{descriptionText}}</text>
+      </view>
+      <view class="floating-collapse" bindtap="handleContinueUsing">⌃</view>
+    </view>
+
+    <view wx:if="{{status === 'SEARCHING' || status === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="floating-metrics">
+      <text>已等待 {{waitedText}}</text>
+      <text>{{waitingCountText}}</text>
+      <text>剩余搜索时间 {{remainingText}}</text>
+    </view>
+
+    <text wx:if="{{reconnecting}}" class="floating-network-note">正在重新连接，最近一次匹配状态已保留</text>
+    <text wx:if="{{lastError && status === 'ERROR'}}" class="floating-error-copy">{{lastError}}</text>
+
+    <view class="floating-actions">
+      <block wx:if="{{status === 'SEARCHING'}}">
+        <button class="floating-button floating-button-primary" bindtap="handleContinueUsing">继续使用小程序</button>
+        <button class="floating-button floating-button-danger" loading="{{isCancelling}}" disabled="{{isCancelling}}" bindtap="handleCancel">取消匹配</button>
+      </block>
+
+      <block wx:elif="{{status === 'SEARCHING_COMPUTER_AVAILABLE'}}">
+        <button class="floating-button floating-button-computer" loading="{{isStartingComputer}}" disabled="{{isStartingComputer}}" bindtap="handleComputerBattle">电脑对战</button>
+        <button class="floating-button floating-button-primary" bindtap="handleContinueUsing">继续等待</button>
+        <button class="floating-button floating-button-danger" loading="{{isCancelling}}" disabled="{{isCancelling}}" bindtap="handleCancel">取消匹配</button>
+      </block>
+
+      <block wx:elif="{{status === 'MATCHED'}}">
+        <button class="floating-button floating-button-success" bindtap="handleEnterBattle">进入对战</button>
+      </block>
+
+      <block wx:elif="{{status === 'EXPIRED'}}">
+        <button wx:if="{{computerAvailable}}" class="floating-button floating-button-computer" loading="{{isStartingComputer}}" disabled="{{isStartingComputer}}" bindtap="handleComputerBattle">电脑对战</button>
+        <button class="floating-button floating-button-primary" bindtap="handleRestart">重新匹配</button>
+        <button class="floating-button" bindtap="handleClose">关闭</button>
+      </block>
+
+      <block wx:elif="{{status === 'CANCELLED'}}">
+        <button class="floating-button floating-button-primary" bindtap="handleRestart">重新匹配</button>
+        <button class="floating-button" bindtap="handleClose">关闭</button>
+      </block>
+
+      <block wx:elif="{{status === 'ERROR'}}">
+        <button class="floating-button floating-button-primary" bindtap="handleRetry">重新连接</button>
+        <button class="floating-button" bindtap="handleClose">关闭</button>
+      </block>
+    </view>
+  </view>
+</view>

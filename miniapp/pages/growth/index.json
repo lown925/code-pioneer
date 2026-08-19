@@ -2,6 +2,7 @@
   "navigationBarTitleText": "成长",
   "enablePullDownRefresh": true,
   "usingComponents": {
-    "growth-line-chart": "/components/growth-line-chart/index"
+    "growth-line-chart": "/components/growth-line-chart/index",
+    "battle-match-floating": "/components/battle-match-floating/index"
   }
 }

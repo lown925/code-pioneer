@@ -1,4 +1,5 @@
 <view class="page-shell chapter-detail-page theme-{{resolvedTheme}}">
+  <battle-match-floating />
   <view wx:if="{{state === 'loading'}}" class="section-card state-box">
     <text class="state-title">章节内容加载中</text>
     <text class="state-text">正在读取章节正文与目录，请稍候。</text>
