@@ -258,8 +258,12 @@ describe('BattleReadyService', () => {
       });
     }
 
-    const findAiOpponent = jest.fn(async () => ({
+    const aiOpponent = {
+      id: 'ai-opponent-1',
+      battleRoomId: room.id,
+      displayName: '电脑对手',
       strategyVersion: 'normal-v1',
+      seed: 'seed',
       answerPlan: {
         strategyVersion: 'normal-v1',
         questions: [...mock.battleQuestionSnapshots.values()].map(
@@ -272,16 +276,10 @@ describe('BattleReadyService', () => {
         ),
       },
       plannedSubmittedOffsetMs: 20_000,
-    }));
-    (
-      mock.tx as typeof mock.tx & {
-        battleAiOpponent: {
-          findUnique: typeof findAiOpponent;
-        };
-      }
-    ).battleAiOpponent = {
-      findUnique: findAiOpponent,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
+    mock.battleAiOpponents.set(aiOpponent.id, aiOpponent);
 
     const first = await service.readyBattle(USER_A, room.id);
     const second = await service.readyBattle(USER_A, room.id);
@@ -290,7 +288,7 @@ describe('BattleReadyService', () => {
     expect(second.data.status).toBe(BattleRoomStatus.COUNTDOWN);
     expect(mock.battleParticipants.size).toBe(1);
     expect(mock.battleQuestionSnapshots.size).toBe(room.questionCount);
-    expect(findAiOpponent).toHaveBeenCalledTimes(1);
+    expect(mock.tx.battleAiOpponent.findUnique).toHaveBeenCalledTimes(1);
   });
 });
 

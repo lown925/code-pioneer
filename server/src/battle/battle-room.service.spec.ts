@@ -100,6 +100,50 @@ describe('BattleRoomService', () => {
         status: BattleParticipantStatus.JOINED,
       },
     ]);
+    expect(result.data.opponent).toBeNull();
+  });
+
+  it('projects a live AI opponent without adding a fake participant', async () => {
+    const { mock, service } = createService();
+    const room = mock.battleRooms.get('room-1')!;
+    room.mode = BattleMode.AI;
+    room.status = BattleRoomStatus.IN_PROGRESS;
+    room.startedAt = new Date(Date.now() - 6_000);
+    room.expiresAt = new Date(Date.now() + 174_000);
+    mock.battleParticipants.delete('participant-b');
+    mock.battleAiOpponents.set('ai-opponent-1', {
+      id: 'ai-opponent-1',
+      battleRoomId: room.id,
+      displayName: '电脑对手',
+      strategyVersion: 'normal-v1',
+      seed: 'seed',
+      answerPlan: {
+        strategyVersion: 'normal-v1',
+        questions: [
+          {
+            battleQuestionSnapshotId: 'snapshot-1',
+            orderIndex: 0,
+            plannedCompletedOffsetMs: 5_000,
+            plannedCorrect: true,
+          },
+        ],
+      },
+      plannedSubmittedOffsetMs: 10_000,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const result = await service.getBattleRoom(USER_A, room.id);
+
+    expect(result.data.participants).toHaveLength(1);
+    expect(result.data.opponent).toEqual({
+      type: 'AI',
+      displayName: '电脑对手',
+      answeredCount: 1,
+      submitted: false,
+    });
+    expect(result.data.opponent).not.toHaveProperty('correctCount');
+    expect(result.data.opponent).not.toHaveProperty('plannedSubmittedOffsetMs');
   });
 
   it('rejects non-participants', async () => {

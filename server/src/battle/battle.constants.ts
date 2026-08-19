@@ -29,7 +29,7 @@ export const RANKED_MATCH_READY_TTL_SECONDS = 45;
 export const TRAINING_UNLOCK_SECONDS = 60;
 export const TRAINING_SKILL_CODE = 'PYTHON';
 
-export const AI_DISPLAY_NAME = 'AI Challenger';
+export const AI_DISPLAY_NAME = '电脑对手';
 export const AI_STRATEGY_VERSION = 'normal-v1';
 export const AI_MEDIUM_CORRECT_PROBABILITY = 0.72;
 export const AI_HARD_CORRECT_PROBABILITY = 0.55;

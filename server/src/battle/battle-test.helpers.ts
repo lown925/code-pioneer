@@ -117,6 +117,18 @@ type BattleParticipantRecord = {
   updatedAt?: Date;
 };
 
+type BattleAiOpponentRecord = {
+  id: string;
+  battleRoomId: string;
+  displayName: string;
+  strategyVersion: string;
+  seed: string;
+  answerPlan: unknown;
+  plannedSubmittedOffsetMs: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 type BattleInvitationRecord = {
   id: string;
   battleRoomId: string;
@@ -254,6 +266,7 @@ function normalizeParticipant(record: Partial<BattleParticipantRecord>) {
 
 function toRoomView(
   rooms: Map<string, BattleRoomRecord>,
+  aiOpponents: Map<string, BattleAiOpponentRecord>,
   participants: Map<string, BattleParticipantRecord>,
   users: Map<string, UserRecord>,
   skills: Map<string, BattleSkillRecord>,
@@ -335,6 +348,10 @@ function toRoomView(
     winnerUserId: room.winnerUserId ?? null,
     updatedAt: room.updatedAt ?? room.createdAt,
     participants: roomParticipants,
+    aiOpponent:
+      [...aiOpponents.values()].find(
+        (opponent) => opponent.battleRoomId === roomId,
+      ) ?? null,
     questionSnapshots: snapshots,
     answers: roomAnswers,
   };
@@ -357,6 +374,7 @@ export function createBattlePrismaMock() {
   const userBattleSkillRatings = new Map<string, UserBattleSkillRatingRecord>();
   const battleQueues = new Map<string, BattleQueueRecord>();
   const battleRooms = new Map<string, BattleRoomRecord>();
+  const battleAiOpponents = new Map<string, BattleAiOpponentRecord>();
   const battleParticipants = new Map<string, BattleParticipantRecord>();
   const battleInvitations = new Map<string, BattleInvitationRecord>();
   const battleRatingLogs = new Map<string, BattleRatingLogRecord>();
@@ -682,7 +700,7 @@ export function createBattlePrismaMock() {
     },
     battleRoom: {
       create: jest.fn(async ({ data }: { data: Partial<BattleRoomRecord> }) => {
-          const record: BattleRoomRecord = {
+        const record: BattleRoomRecord = {
           id: data.id ?? nextId(),
           mode: data.mode ?? BattleMode.RANKED,
           skillCode: data.skillCode ?? null,
@@ -709,6 +727,7 @@ export function createBattlePrismaMock() {
       findUnique: jest.fn(async ({ where }: { where: { id: string } }) => {
         return toRoomView(
           battleRooms,
+          battleAiOpponents,
           battleParticipants,
           users,
           battleSkills,
@@ -726,6 +745,7 @@ export function createBattlePrismaMock() {
             .map((room) =>
               toRoomView(
                 battleRooms,
+                battleAiOpponents,
                 battleParticipants,
                 users,
                 battleSkills,
@@ -750,6 +770,7 @@ export function createBattlePrismaMock() {
           for (const roomId of candidateIds) {
             const room = toRoomView(
               battleRooms,
+              battleAiOpponents,
               battleParticipants,
               users,
               battleSkills,
@@ -997,6 +1018,43 @@ export function createBattlePrismaMock() {
         },
       ),
     },
+    battleAiOpponent: {
+      create: jest.fn(
+        async ({ data }: { data: Partial<BattleAiOpponentRecord> }) => {
+          const existing = [...battleAiOpponents.values()].find(
+            (opponent) => opponent.battleRoomId === data.battleRoomId,
+          );
+
+          if (existing) {
+            const error = Object.assign(new Error('Unique constraint failed'), {
+              code: 'P2002',
+            });
+            throw error;
+          }
+
+          const record: BattleAiOpponentRecord = {
+            id: data.id ?? nextId(),
+            battleRoomId: data.battleRoomId!,
+            displayName: data.displayName ?? '电脑对手',
+            strategyVersion: data.strategyVersion ?? 'normal-v1',
+            seed: data.seed ?? 'test-seed',
+            answerPlan: data.answerPlan ?? null,
+            plannedSubmittedOffsetMs: data.plannedSubmittedOffsetMs ?? 0,
+            createdAt: data.createdAt ?? new Date(),
+            updatedAt: data.updatedAt ?? new Date(),
+          };
+
+          battleAiOpponents.set(record.id, record);
+          return record;
+        },
+      ),
+      findUnique: jest.fn(
+        async ({ where }: { where: { battleRoomId: string } }) =>
+          [...battleAiOpponents.values()].find(
+            (opponent) => opponent.battleRoomId === where.battleRoomId,
+          ) ?? null,
+      ),
+    },
     battleInvitation: {
       create: jest.fn(
         async ({ data }: { data: Partial<BattleInvitationRecord> }) => {
@@ -1066,6 +1124,7 @@ export function createBattlePrismaMock() {
             },
             battleRoom: toRoomView(
               battleRooms,
+              battleAiOpponents,
               battleParticipants,
               users,
               battleSkills,
@@ -1389,6 +1448,7 @@ export function createBattlePrismaMock() {
         ]),
         battleQueues: structuredClone([...battleQueues.entries()]),
         battleRooms: structuredClone([...battleRooms.entries()]),
+        battleAiOpponents: structuredClone([...battleAiOpponents.entries()]),
         battleParticipants: structuredClone([...battleParticipants.entries()]),
         battleInvitations: structuredClone([...battleInvitations.entries()]),
         battleRatingLogs: structuredClone([...battleRatingLogs.entries()]),
@@ -1408,6 +1468,7 @@ export function createBattlePrismaMock() {
         restoreMap(userBattleSkillRatings, snapshot.userBattleSkillRatings);
         restoreMap(battleQueues, snapshot.battleQueues);
         restoreMap(battleRooms, snapshot.battleRooms);
+        restoreMap(battleAiOpponents, snapshot.battleAiOpponents);
         restoreMap(battleParticipants, snapshot.battleParticipants);
         restoreMap(battleInvitations, snapshot.battleInvitations);
         restoreMap(battleRatingLogs, snapshot.battleRatingLogs);
@@ -1428,6 +1489,7 @@ export function createBattlePrismaMock() {
     userBattleSkillRatings,
     battleQueues,
     battleRooms,
+    battleAiOpponents,
     battleParticipants,
     battleInvitations,
     battleRatingLogs,

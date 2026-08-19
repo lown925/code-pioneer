@@ -1,5 +1,10 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
 import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
+import {
+  BattleMode,
   BattleParticipantStatus,
   BattleRoomStatus,
 } from '../../generated/prisma/enums';
@@ -8,6 +13,10 @@ import { BattleDomainService } from './battle-domain.service';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { BattleSettlementService } from './battle-settlement.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  parseBattleAiAnswerPlan,
+  projectBattleAiProgress,
+} from './battle-ai-plan';
 import type {
   BattleParticipantSummary,
   BattleRoomDetailPayload,
@@ -38,6 +47,11 @@ type RoomRecord = {
       avatarUrl: string | null;
     };
   }>;
+  aiOpponent: {
+    displayName: string;
+    answerPlan: unknown;
+    plannedSubmittedOffsetMs: number;
+  } | null;
 };
 
 @Injectable()
@@ -237,6 +251,37 @@ export class BattleRoomService {
       expiresAt: room.expiresAt,
       serverTime,
       participants,
+      opponent: this.toAiLiveOpponent(room, serverTime),
+    };
+  }
+
+  private toAiLiveOpponent(room: RoomRecord, serverTime: Date) {
+    if (room.mode !== BattleMode.AI) {
+      return null;
+    }
+
+    if (!room.aiOpponent) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    const answerPlan = parseBattleAiAnswerPlan(room.aiOpponent.answerPlan);
+
+    if (!answerPlan) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    const progress = projectBattleAiProgress({
+      startedAt: room.startedAt,
+      serverTime,
+      answerPlan,
+      plannedSubmittedOffsetMs: room.aiOpponent.plannedSubmittedOffsetMs,
+    });
+
+    return {
+      type: 'AI' as const,
+      displayName: room.aiOpponent.displayName,
+      answeredCount: progress.answeredCount,
+      submitted: progress.submitted,
     };
   }
 
@@ -279,6 +324,13 @@ export class BattleRoomService {
             avatarUrl: true,
           },
         },
+      },
+    },
+    aiOpponent: {
+      select: {
+        displayName: true,
+        answerPlan: true,
+        plannedSubmittedOffsetMs: true,
       },
     },
   } as const;

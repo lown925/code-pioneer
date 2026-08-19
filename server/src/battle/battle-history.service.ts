@@ -13,9 +13,14 @@ import {
 } from '../../generated/prisma/enums';
 import { BATTLE_ERROR_CODES } from './battle.errors';
 import { PrismaService } from '../prisma/prisma.service';
-import type { BattleHistoryDetailPayload, BattleHistoryPayload } from './battle.types';
+import type {
+  BattleHistoryDetailPayload,
+  BattleHistoryPayload,
+} from './battle.types';
 import type { BattleHistoryQueryDto } from './dto/battle-history-query.dto';
 import type {
+  BattleAiCompletedOpponentPayload,
+  BattleAiResultReason,
   BattleAnswerPayload,
   BattleHistoryQuestionPayload,
   BattleHistorySummaryPayload,
@@ -23,6 +28,13 @@ import type {
   BattleQuestionOptionSnapshot,
   ContentBlock,
 } from './battle.types';
+import {
+  calculateBattleAiFinalStats,
+  isBattleAiPlanValid,
+  parseBattleAiAnswerPlan,
+  resolveBattleAiOutcome,
+} from './battle-ai-plan';
+import { calculateBattleScore } from './battle-score.service';
 
 type BattleHistoryParticipantRecord = {
   id: string;
@@ -37,6 +49,8 @@ type BattleHistoryParticipantRecord = {
   ratingBefore: number | null;
   ratingDelta: number;
   ratingAfter: number | null;
+  submittedAt: Date | null;
+  forfeitedAt: Date | null;
   user: {
     id: string;
     nickname: string | null;
@@ -82,20 +96,26 @@ type BattleHistoryRoomRecord = {
   completedAt: Date | null;
   endReason: BattleEndReason | null;
   durationSeconds: number;
+  questionCount: number;
+  correctScore: number;
+  wrongScore: number;
   unansweredScore: number;
   participants: BattleHistoryParticipantRecord[];
   questionSnapshots: BattleHistorySnapshotRecord[];
   answers: BattleHistoryAnswerRecord[];
+  aiOpponent: {
+    displayName: string;
+    strategyVersion: string;
+    answerPlan: unknown;
+    plannedSubmittedOffsetMs: number;
+  } | null;
 };
 
 @Injectable()
 export class BattleHistoryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getHistory(
-    currentUserId: string,
-    query: BattleHistoryQueryDto,
-  ) {
+  async getHistory(currentUserId: string, query: BattleHistoryQueryDto) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const rooms = await this.loadCompletedRooms(currentUserId);
@@ -153,11 +173,18 @@ export class BattleHistoryService {
       (participant) => participant.userId !== currentUserId,
     );
     const isTraining = room.mode === BattleMode.TRAINING;
+    const isAi = room.mode === BattleMode.AI;
 
     if (
       (isTraining &&
-        (opponentParticipant || currentParticipant.result !== BattleResult.NONE)) ||
+        (opponentParticipant ||
+          currentParticipant.result !== BattleResult.NONE)) ||
+      (isAi &&
+        (opponentParticipant ||
+          !room.aiOpponent ||
+          currentParticipant.result === BattleResult.NONE)) ||
       (!isTraining &&
+        !isAi &&
         (!opponentParticipant ||
           currentParticipant.result === BattleResult.NONE ||
           opponentParticipant.result === BattleResult.NONE))
@@ -171,8 +198,7 @@ export class BattleHistoryService {
       room.answers
         .filter((answer) => answer.participantId === currentParticipant.id)
         .sort((left, right) => {
-          const diff =
-            right.submittedAt.getTime() - left.submittedAt.getTime();
+          const diff = right.submittedAt.getTime() - left.submittedAt.getTime();
 
           if (diff !== 0) {
             return diff;
@@ -187,7 +213,16 @@ export class BattleHistoryService {
 
     const questions = [...room.questionSnapshots]
       .sort((left, right) => left.orderIndex - right.orderIndex)
-      .map((snapshot) => this.toHistoryQuestion(room, snapshot, answersBySnapshotId));
+      .map((snapshot) =>
+        this.toHistoryQuestion(room, snapshot, answersBySnapshotId),
+      );
+    const aiProjection = isAi ? this.toCompletedAiOpponent(room) : null;
+    const resultReason = isAi
+      ? this.getAiResultReason(room, currentParticipant, aiProjection!)
+      : null;
+    const myCompletionTimeMs = isAi
+      ? this.getParticipantCompletionTimeMs(room, currentParticipant)
+      : null;
 
     return {
       success: true as const,
@@ -200,27 +235,43 @@ export class BattleHistoryService {
         startedAt: room.startedAt,
         durationSeconds: room.durationSeconds,
         myScore: currentParticipant.score,
-        opponentScore: opponentParticipant?.score ?? null,
+        opponentScore:
+          aiProjection?.score ?? opponentParticipant?.score ?? null,
         myCorrectCount: currentParticipant.correctCount,
         myWrongCount: currentParticipant.wrongCount,
         myUnansweredCount: currentParticipant.unansweredCount,
-        opponentCorrectCount: opponentParticipant?.correctCount ?? null,
-        opponentWrongCount: opponentParticipant?.wrongCount ?? null,
-        opponentUnansweredCount: opponentParticipant?.unansweredCount ?? null,
+        opponentCorrectCount:
+          aiProjection?.correctCount ??
+          opponentParticipant?.correctCount ??
+          null,
+        opponentWrongCount:
+          aiProjection?.wrongCount ?? opponentParticipant?.wrongCount ?? null,
+        opponentUnansweredCount:
+          aiProjection?.unansweredCount ??
+          opponentParticipant?.unansweredCount ??
+          null,
         ratingBefore: currentParticipant.ratingBefore ?? 0,
         ratingDelta: currentParticipant.ratingDelta,
         ratingAfter: currentParticipant.ratingAfter ?? 0,
-        opponent: opponentParticipant
-          ? {
-              userId: opponentParticipant.user.id,
-              nickname: opponentParticipant.user.nickname,
-              avatarUrl: opponentParticipant.user.avatarUrl,
-            }
-          : null,
+        opponent:
+          aiProjection ??
+          (opponentParticipant
+            ? {
+                type: 'HUMAN',
+                userId: opponentParticipant.user.id,
+                nickname: opponentParticipant.user.nickname,
+                avatarUrl: opponentParticipant.user.avatarUrl,
+              }
+            : null),
         mySummary: this.toSummary(currentParticipant),
-        opponentSummary: opponentParticipant
-          ? this.toOpponentSummary(opponentParticipant)
-          : null,
+        opponentSummary:
+          aiProjection ??
+          (opponentParticipant
+            ? this.toOpponentSummary(opponentParticipant)
+            : null),
+        resultReason,
+        myCompletionTimeMs,
+        opponentCompletionTimeMs: aiProjection?.completionTimeMs ?? null,
         endReason: room.endReason,
         completedAt: room.completedAt ?? new Date(),
         serverTime: new Date(),
@@ -245,7 +296,9 @@ export class BattleHistoryService {
     return rooms.filter(
       (room) =>
         room.endReason !== BattleEndReason.SYSTEM_CANCELLED &&
-        room.participants.some((participant) => participant.userId === currentUserId),
+        room.participants.some(
+          (participant) => participant.userId === currentUserId,
+        ),
     );
   }
 
@@ -305,12 +358,19 @@ export class BattleHistoryService {
       (participant) => participant.userId !== currentUserId,
     );
     const isTraining = room.mode === BattleMode.TRAINING;
+    const isAi = room.mode === BattleMode.AI;
 
     if (
       !currentParticipant ||
       (isTraining &&
-        (opponentParticipant || currentParticipant.result !== BattleResult.NONE)) ||
+        (opponentParticipant ||
+          currentParticipant.result !== BattleResult.NONE)) ||
+      (isAi &&
+        (opponentParticipant ||
+          !room.aiOpponent ||
+          currentParticipant.result === BattleResult.NONE)) ||
       (!isTraining &&
+        !isAi &&
         (!opponentParticipant ||
           currentParticipant.result === BattleResult.NONE ||
           opponentParticipant.result === BattleResult.NONE))
@@ -320,26 +380,38 @@ export class BattleHistoryService {
       );
     }
 
+    const aiProjection = isAi ? this.toCompletedAiOpponent(room) : null;
+
     return {
       battleId: room.id,
       mode: room.mode,
       skill: room.skillCode,
       result: currentParticipant.result,
-      opponent: opponentParticipant
-        ? {
-            userId: opponentParticipant.user.id,
-            nickname: opponentParticipant.user.nickname,
-            avatarUrl: opponentParticipant.user.avatarUrl,
-          }
-        : null,
+      opponent:
+        aiProjection ??
+        (opponentParticipant
+          ? {
+              type: 'HUMAN',
+              userId: opponentParticipant.user.id,
+              nickname: opponentParticipant.user.nickname,
+              avatarUrl: opponentParticipant.user.avatarUrl,
+            }
+          : null),
       myScore: currentParticipant.score,
-      opponentScore: opponentParticipant?.score ?? null,
+      opponentScore: aiProjection?.score ?? opponentParticipant?.score ?? null,
       myCorrectCount: currentParticipant.correctCount,
       myWrongCount: currentParticipant.wrongCount,
       myUnansweredCount: currentParticipant.unansweredCount,
       ratingBefore: currentParticipant.ratingBefore ?? 0,
       ratingDelta: currentParticipant.ratingDelta,
       ratingAfter: currentParticipant.ratingAfter ?? 0,
+      resultReason: isAi
+        ? this.getAiResultReason(room, currentParticipant, aiProjection!)
+        : null,
+      myCompletionTimeMs: isAi
+        ? this.getParticipantCompletionTimeMs(room, currentParticipant)
+        : null,
+      opponentCompletionTimeMs: aiProjection?.completionTimeMs ?? null,
       endReason: room.endReason,
       completedAt: room.completedAt ?? new Date(),
     };
@@ -351,7 +423,8 @@ export class BattleHistoryService {
     answersBySnapshotId: Map<string, BattleHistoryAnswerRecord>,
   ): BattleHistoryQuestionPayload {
     const answer = answersBySnapshotId.get(snapshot.id) ?? null;
-    const correctAnswer = snapshot.correctAnswerSnapshot as BattleHistoryQuestionPayload['correctAnswer'];
+    const correctAnswer =
+      snapshot.correctAnswerSnapshot as BattleHistoryQuestionPayload['correctAnswer'];
     const options = this.asOptionSnapshots(snapshot.optionsSnapshot);
     const correctOptionId =
       correctAnswer.type === 'SINGLE_CHOICE' ? correctAnswer.optionId : null;
@@ -404,6 +477,7 @@ export class BattleHistoryService {
     participant: BattleHistoryParticipantRecord,
   ): BattleHistoryOpponentSummaryPayload {
     return {
+      type: 'HUMAN',
       userId: participant.user.id,
       nickname: participant.user.nickname,
       avatarUrl: participant.user.avatarUrl,
@@ -415,6 +489,104 @@ export class BattleHistoryService {
       ratingDelta: participant.ratingDelta,
       ratingAfter: participant.ratingAfter ?? 0,
     };
+  }
+
+  private toCompletedAiOpponent(
+    room: BattleHistoryRoomRecord,
+  ): BattleAiCompletedOpponentPayload {
+    if (!room.aiOpponent) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    const stats = this.getAiFinalStats(room);
+    const score = calculateBattleScore({
+      correctCount: stats.correctCount,
+      wrongCount: stats.wrongCount,
+      unansweredCount: stats.unansweredCount,
+      questionCount: room.questionCount,
+      correctScore: room.correctScore,
+      wrongScore: room.wrongScore,
+      unansweredScore: room.unansweredScore,
+    }).score;
+
+    return {
+      type: 'AI',
+      displayName: room.aiOpponent.displayName,
+      ...stats,
+      score,
+    };
+  }
+
+  private getAiFinalStats(room: BattleHistoryRoomRecord) {
+    if (
+      !room.aiOpponent ||
+      room.questionSnapshots.length !== room.questionCount ||
+      !isBattleAiPlanValid({
+        value: room.aiOpponent.answerPlan,
+        strategyVersion: room.aiOpponent.strategyVersion,
+        plannedSubmittedOffsetMs: room.aiOpponent.plannedSubmittedOffsetMs,
+        durationSeconds: room.durationSeconds,
+        snapshots: room.questionSnapshots,
+      })
+    ) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    const answerPlan = parseBattleAiAnswerPlan(room.aiOpponent.answerPlan);
+
+    if (!answerPlan) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    return calculateBattleAiFinalStats({
+      answerPlan,
+      plannedSubmittedOffsetMs: room.aiOpponent.plannedSubmittedOffsetMs,
+      durationSeconds: room.durationSeconds,
+    });
+  }
+
+  private getAiResultReason(
+    room: BattleHistoryRoomRecord,
+    participant: BattleHistoryParticipantRecord,
+    opponent: BattleAiCompletedOpponentPayload,
+  ): BattleAiResultReason {
+    return resolveBattleAiOutcome({
+      userCorrectCount: participant.correctCount,
+      userCompletionTimeMs: this.getParticipantCompletionTimeMs(
+        room,
+        participant,
+      ),
+      aiCorrectCount: opponent.correctCount,
+      aiCompletionTimeMs: opponent.completionTimeMs,
+      userForfeited: room.endReason === BattleEndReason.USER_FORFEIT,
+    }).reason;
+  }
+
+  private getParticipantCompletionTimeMs(
+    room: BattleHistoryRoomRecord,
+    participant: BattleHistoryParticipantRecord,
+  ) {
+    if (!room.startedAt) {
+      throw new ConflictException(
+        BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+      );
+    }
+
+    const completedAt = participant.forfeitedAt ?? participant.submittedAt;
+
+    if (!completedAt) {
+      throw new ConflictException(
+        BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+      );
+    }
+
+    return Math.max(
+      0,
+      Math.min(
+        completedAt.getTime(),
+        room.expiresAt?.getTime() ?? Number.MAX_SAFE_INTEGER,
+      ) - room.startedAt.getTime(),
+    );
   }
 
   private asContentBlocks(value: unknown): ContentBlock[] {
@@ -455,6 +627,9 @@ export class BattleHistoryService {
     completedAt: true,
     endReason: true,
     durationSeconds: true,
+    questionCount: true,
+    correctScore: true,
+    wrongScore: true,
     unansweredScore: true,
     participants: {
       select: {
@@ -470,6 +645,8 @@ export class BattleHistoryService {
         ratingBefore: true,
         ratingDelta: true,
         ratingAfter: true,
+        submittedAt: true,
+        forfeitedAt: true,
         user: {
           select: {
             id: true,
@@ -510,6 +687,14 @@ export class BattleHistoryService {
         timeSpentMs: true,
         isCorrect: true,
         scoreDelta: true,
+      },
+    },
+    aiOpponent: {
+      select: {
+        displayName: true,
+        strategyVersion: true,
+        answerPlan: true,
+        plannedSubmittedOffsetMs: true,
       },
     },
   } as const;

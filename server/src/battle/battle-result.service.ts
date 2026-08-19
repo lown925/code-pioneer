@@ -4,6 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import {
+  BattleEndReason,
   BattleMode,
   BattleParticipantStatus,
   BattleRatingReason,
@@ -27,6 +28,14 @@ import {
   calculateBattlePerformance,
   calculateBestCombo,
 } from './battle-performance';
+import {
+  calculateBattleAiFinalStats,
+  isBattleAiPlanValid,
+  parseBattleAiAnswerPlan,
+  projectBattleAiProgress,
+  resolveBattleAiOutcome,
+} from './battle-ai-plan';
+import { calculateBattleScore } from './battle-score.service';
 
 function isParticipantSubmitted(participant: {
   status: string;
@@ -72,7 +81,13 @@ export class BattleResultService {
           mode: true,
           skillCode: true,
           questionCount: true,
+          durationSeconds: true,
+          correctScore: true,
+          wrongScore: true,
+          unansweredScore: true,
           status: true,
+          startedAt: true,
+          expiresAt: true,
           endReason: true,
           completedAt: true,
           skill: {
@@ -86,6 +101,7 @@ export class BattleResultService {
               userId: true,
               status: true,
               submittedAt: true,
+              forfeitedAt: true,
               result: true,
               score: true,
               correctCount: true,
@@ -107,6 +123,14 @@ export class BattleResultService {
             select: {
               id: true,
               orderIndex: true,
+            },
+          },
+          aiOpponent: {
+            select: {
+              displayName: true,
+              strategyVersion: true,
+              answerPlan: true,
+              plannedSubmittedOffsetMs: true,
             },
           },
           answers: {
@@ -156,6 +180,7 @@ export class BattleResultService {
               (answer) => answer.participantId === opponentParticipant.id,
             ).length
           : null;
+        const aiOpponent = this.toPendingAiOpponent(room, now);
 
         return {
           battleId: room.id,
@@ -165,11 +190,23 @@ export class BattleResultService {
           completed: false,
           totalQuestions: room.questionCount,
           myAnsweredCount,
-          opponentAnsweredCount,
+          opponentAnsweredCount:
+            room.mode === BattleMode.AI
+              ? (aiOpponent?.answeredCount ?? null)
+              : opponentAnsweredCount,
           mySubmitted: isParticipantSubmitted(currentParticipant),
-          opponentSubmitted: opponentParticipant
-            ? isParticipantSubmitted(opponentParticipant)
-            : null,
+          opponentSubmitted:
+            room.mode === BattleMode.AI
+              ? (aiOpponent?.submitted ?? null)
+              : opponentParticipant
+                ? isParticipantSubmitted(opponentParticipant)
+                : null,
+          opponent:
+            room.mode === BattleMode.AI
+              ? aiOpponent
+              : opponentParticipant
+                ? this.toHumanOpponent(opponentParticipant)
+                : null,
           serverTime: now,
         } satisfies BattleResultPayload;
       }
@@ -235,6 +272,100 @@ export class BattleResultService {
           afterStar: null,
           tierChange: null,
           opponent: null,
+          resultReason: null,
+          myCompletionTimeMs: null,
+          opponentCompletionTimeMs: null,
+          endReason: room.endReason,
+          completedAt: room.completedAt,
+          serverTime: now,
+        } satisfies BattleResultPayload;
+      }
+
+      if (room.mode === BattleMode.AI) {
+        if (
+          opponentParticipant ||
+          currentParticipant.result === BattleResult.NONE ||
+          !room.aiOpponent
+        ) {
+          throw new ConflictException(
+            BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+          );
+        }
+
+        const aiStats = this.getAiFinalStats(room);
+        const aiScore = calculateBattleScore({
+          correctCount: aiStats.correctCount,
+          wrongCount: aiStats.wrongCount,
+          unansweredCount: aiStats.unansweredCount,
+          questionCount: room.questionCount,
+          correctScore: room.correctScore,
+          wrongScore: room.wrongScore,
+          unansweredScore: room.unansweredScore,
+        }).score;
+        const myCompletionTimeMs = this.getParticipantCompletionTimeMs(
+          room,
+          currentParticipant,
+        );
+        const outcome = resolveBattleAiOutcome({
+          userCorrectCount: currentParticipant.correctCount,
+          userCompletionTimeMs: myCompletionTimeMs,
+          aiCorrectCount: aiStats.correctCount,
+          aiCompletionTimeMs: aiStats.completionTimeMs,
+          userForfeited: room.endReason === BattleEndReason.USER_FORFEIT,
+        });
+
+        if (outcome.userResult !== currentParticipant.result) {
+          throw new ConflictException(
+            BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+          );
+        }
+
+        const aiPerformance = calculateBattlePerformance(
+          aiStats.correctCount,
+          aiStats.wrongCount,
+          room.questionCount,
+        );
+
+        return {
+          battleId: room.id,
+          mode: room.mode,
+          skill: room.skillCode,
+          status: BattleRoomStatus.COMPLETED,
+          completed: true,
+          result: currentParticipant.result,
+          myScore: currentParticipant.score,
+          opponentScore: aiScore,
+          myCorrectCount: currentParticipant.correctCount,
+          myWrongCount: currentParticipant.wrongCount,
+          myUnansweredCount: currentParticipant.unansweredCount,
+          answeredCount: currentPerformance.answeredCount,
+          accuracy: currentPerformance.accuracy,
+          completionRate: currentPerformance.completionRate,
+          bestCombo,
+          opponentCorrectCount: aiStats.correctCount,
+          opponentWrongCount: aiStats.wrongCount,
+          opponentUnansweredCount: aiStats.unansweredCount,
+          opponentAnsweredCount: aiStats.answeredCount,
+          opponentAccuracy: aiPerformance.accuracy,
+          opponentCompletionRate: aiPerformance.completionRate,
+          scoreDifference: currentParticipant.score - aiScore,
+          ratingBefore: 0,
+          ratingDelta: 0,
+          ratingAfter: 0,
+          star: null,
+          title: null,
+          beforeStar: null,
+          afterStar: null,
+          tierChange: null,
+          opponent: {
+            type: 'AI',
+            displayName: room.aiOpponent.displayName,
+            ...aiStats,
+            score: aiScore,
+          },
+          resultReason: outcome.reason,
+          myCompletionTimeMs,
+          opponentCompletionTimeMs: aiStats.completionTimeMs,
           endReason: room.endReason,
           completedAt: room.completedAt,
           serverTime: now,
@@ -341,10 +472,14 @@ export class BattleResultService {
         afterStar,
         tierChange,
         opponent: {
+          type: 'HUMAN',
           userId: opponentParticipant.user.id,
           nickname: opponentParticipant.user.nickname,
           avatarUrl: opponentParticipant.user.avatarUrl,
         },
+        resultReason: null,
+        myCompletionTimeMs: null,
+        opponentCompletionTimeMs: null,
         endReason: room.endReason,
         completedAt: room.completedAt,
         serverTime: now,
@@ -355,5 +490,125 @@ export class BattleResultService {
       success: true as const,
       data,
     };
+  }
+
+  private toHumanOpponent(participant: {
+    user: { id: string; nickname: string | null; avatarUrl: string | null };
+  }) {
+    return {
+      type: 'HUMAN' as const,
+      userId: participant.user.id,
+      nickname: participant.user.nickname,
+      avatarUrl: participant.user.avatarUrl,
+    };
+  }
+
+  private toPendingAiOpponent(
+    room: {
+      mode: BattleMode;
+      startedAt: Date | null;
+      aiOpponent: {
+        displayName: string;
+        answerPlan: unknown;
+        plannedSubmittedOffsetMs: number;
+      } | null;
+    },
+    serverTime: Date,
+  ) {
+    if (room.mode !== BattleMode.AI) {
+      return null;
+    }
+
+    if (!room.aiOpponent) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    const answerPlan = parseBattleAiAnswerPlan(room.aiOpponent.answerPlan);
+
+    if (!answerPlan) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    const progress = projectBattleAiProgress({
+      startedAt: room.startedAt,
+      serverTime,
+      answerPlan,
+      plannedSubmittedOffsetMs: room.aiOpponent.plannedSubmittedOffsetMs,
+    });
+
+    return {
+      type: 'AI' as const,
+      displayName: room.aiOpponent.displayName,
+      answeredCount: progress.answeredCount,
+      submitted: progress.submitted,
+    };
+  }
+
+  private getAiFinalStats(room: {
+    durationSeconds: number;
+    questionCount: number;
+    questionSnapshots: Array<{ id: string; orderIndex: number }>;
+    aiOpponent: {
+      strategyVersion: string;
+      answerPlan: unknown;
+      plannedSubmittedOffsetMs: number;
+    } | null;
+  }) {
+    if (
+      !room.aiOpponent ||
+      room.questionSnapshots.length !== room.questionCount ||
+      !isBattleAiPlanValid({
+        value: room.aiOpponent.answerPlan,
+        strategyVersion: room.aiOpponent.strategyVersion,
+        plannedSubmittedOffsetMs: room.aiOpponent.plannedSubmittedOffsetMs,
+        durationSeconds: room.durationSeconds,
+        snapshots: room.questionSnapshots,
+      })
+    ) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    const answerPlan = parseBattleAiAnswerPlan(room.aiOpponent.answerPlan);
+
+    if (!answerPlan) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    return calculateBattleAiFinalStats({
+      answerPlan,
+      plannedSubmittedOffsetMs: room.aiOpponent.plannedSubmittedOffsetMs,
+      durationSeconds: room.durationSeconds,
+    });
+  }
+
+  private getParticipantCompletionTimeMs(
+    room: { startedAt: Date | null; expiresAt: Date | null },
+    participant: {
+      submittedAt: Date | null;
+      forfeitedAt: Date | null;
+      status: string;
+    },
+  ) {
+    if (!room.startedAt) {
+      throw new ConflictException(
+        BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+      );
+    }
+
+    const completedAt = participant.forfeitedAt ?? participant.submittedAt;
+
+    if (!completedAt) {
+      throw new ConflictException(
+        BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+      );
+    }
+
+    return Math.max(
+      0,
+      Math.min(
+        completedAt.getTime(),
+        room.expiresAt?.getTime() ?? Number.MAX_SAFE_INTEGER,
+      ) - room.startedAt.getTime(),
+    );
   }
 }

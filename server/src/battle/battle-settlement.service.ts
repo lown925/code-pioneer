@@ -13,6 +13,12 @@ import {
   BattleRoomStatus,
 } from '../../generated/prisma/enums';
 import { BATTLE_SETTLEMENT_STALE_SECONDS } from './battle.constants';
+import {
+  calculateBattleAiFinalStats,
+  isBattleAiPlanValid,
+  parseBattleAiAnswerPlan,
+  resolveBattleAiOutcome,
+} from './battle-ai-plan';
 import { BATTLE_ERROR_CODES } from './battle.errors';
 import { BattleDomainService } from './battle-domain.service';
 import { BattleRatingService } from './battle-rating.service';
@@ -28,6 +34,7 @@ type RoomRecord = {
   skillCode: string | null;
   status: BattleRoomStatus;
   questionCount: number;
+  durationSeconds: number;
   correctScore: number;
   wrongScore: number;
   unansweredScore: number;
@@ -39,6 +46,13 @@ type RoomRecord = {
   updatedAt: Date;
   winnerUserId: string | null;
   participants: ParticipantRecord[];
+  questionSnapshots: Array<{ id: string; orderIndex: number }>;
+  aiOpponent: {
+    displayName: string;
+    strategyVersion: string;
+    answerPlan: unknown;
+    plannedSubmittedOffsetMs: number;
+  } | null;
 };
 
 type ParticipantRecord = {
@@ -179,37 +193,22 @@ export class BattleSettlementService {
       return room;
     }
 
-    // AI settlement is intentionally deferred to P7-3. Never let a one-user
-    // AI room enter the existing two-participant rating and rating-log path.
     if (room.mode === BattleMode.AI) {
-      if (this.shouldAttemptAiSettlement(room, now)) {
-        throw new ConflictException(
-          BATTLE_ERROR_CODES.BATTLE_AI_SETTLEMENT_NOT_IMPLEMENTED,
-        );
+      if (this.isTimeoutCandidate(room, now)) {
+        await this.submitOpenParticipantsAtDeadline(room, prisma);
       }
 
-      return room;
+      const latestAiRoom = await this.loadRoom(battleId, prisma);
+
+      if (!latestAiRoom || !this.shouldAttemptAiSettlement(latestAiRoom, now)) {
+        return latestAiRoom;
+      }
+
+      return this.claimAndSettle(latestAiRoom, now, prisma);
     }
 
     if (this.isTimeoutCandidate(room, now)) {
-      const openStatuses: BattleParticipantStatus[] = [
-        BattleParticipantStatus.JOINED,
-        BattleParticipantStatus.READY,
-        BattleParticipantStatus.PLAYING,
-      ];
-
-      await prisma.battleParticipant.updateMany({
-        where: {
-          battleRoomId: battleId,
-          status: {
-            in: openStatuses,
-          },
-        },
-        data: {
-          status: BattleParticipantStatus.SUBMITTED,
-          submittedAt: room.expiresAt ?? now,
-        },
-      });
+      await this.submitOpenParticipantsAtDeadline(room, prisma);
     }
 
     const latestRoom = await this.loadRoom(battleId, prisma);
@@ -282,7 +281,7 @@ export class BattleSettlementService {
     }
 
     const expectedParticipantCount =
-      room.mode === BattleMode.TRAINING ? 1 : 2;
+      room.mode === BattleMode.TRAINING || room.mode === BattleMode.AI ? 1 : 2;
 
     if (room.participants.length !== expectedParticipantCount) {
       throw new InternalServerErrorException(
@@ -302,6 +301,10 @@ export class BattleSettlementService {
 
     if (room.mode === BattleMode.TRAINING) {
       return this.finalizeTrainingSettlement(room, answers, now, prisma);
+    }
+
+    if (room.mode === BattleMode.AI) {
+      return this.finalizeAiSettlement(room, answers, now, prisma);
     }
 
     const participants = room.participants.map((participant) =>
@@ -501,6 +504,91 @@ export class BattleSettlementService {
     return this.loadRoom(room.id, prisma);
   }
 
+  private async finalizeAiSettlement(
+    room: RoomRecord,
+    answers: AnswerAggregateRecord[],
+    now: Date,
+    prisma: BattleClient,
+  ) {
+    const participant = this.buildParticipantSettlement(
+      room.participants[0]!,
+      room,
+      answers,
+    );
+    const aiStats = this.getAiFinalStats(room);
+    const userCompletionTimeMs = this.getParticipantCompletionTimeMs(
+      room,
+      participant,
+    );
+    const outcome = resolveBattleAiOutcome({
+      userCorrectCount: participant.correctCount,
+      userCompletionTimeMs,
+      aiCorrectCount: aiStats.correctCount,
+      aiCompletionTimeMs: aiStats.completionTimeMs,
+      userForfeited: participant.status === BattleParticipantStatus.FORFEITED,
+    });
+
+    participant.result = outcome.userResult;
+    await this.battleDomainService.ensureBattleProfile(
+      participant.userId,
+      prisma,
+    );
+
+    await prisma.battleParticipant.update({
+      where: { id: participant.id },
+      data: {
+        status: BattleParticipantStatus.COMPLETED,
+        result: participant.result,
+        score: participant.score,
+        correctCount: participant.correctCount,
+        wrongCount: participant.wrongCount,
+        unansweredCount: participant.unansweredCount,
+        ratingBefore: null,
+        ratingDelta: 0,
+        ratingAfter: null,
+        completedAt: now,
+      },
+    });
+
+    await prisma.battleProfile.update({
+      where: { userId: participant.userId },
+      data: {
+        totalBattles: { increment: 1 },
+        wins:
+          participant.result === BattleResult.WIN
+            ? { increment: 1 }
+            : undefined,
+        losses:
+          participant.result === BattleResult.LOSS
+            ? { increment: 1 }
+            : undefined,
+        draws:
+          participant.result === BattleResult.DRAW
+            ? { increment: 1 }
+            : undefined,
+      },
+    });
+
+    await prisma.battleRoom.update({
+      where: { id: room.id },
+      data: {
+        status: BattleRoomStatus.COMPLETED,
+        winnerUserId:
+          participant.result === BattleResult.WIN ? participant.userId : null,
+        settledAt: now,
+        completedAt: now,
+        endReason:
+          participant.status === BattleParticipantStatus.FORFEITED
+            ? BattleEndReason.USER_FORFEIT
+            : this.isTimeoutSettlement(room)
+              ? BattleEndReason.EXPIRED
+              : BattleEndReason.NORMAL,
+      },
+    });
+
+    return this.loadRoom(room.id, prisma);
+  }
+
   private buildParticipantSettlement(
     participant: ParticipantRecord,
     room: RoomRecord,
@@ -562,13 +650,9 @@ export class BattleSettlementService {
         loser.id === leftParticipant.id ? rightParticipant : leftParticipant;
 
       leftParticipant.result =
-        loser.id === leftParticipant.id
-          ? BattleResult.LOSS
-          : BattleResult.WIN;
+        loser.id === leftParticipant.id ? BattleResult.LOSS : BattleResult.WIN;
       rightParticipant.result =
-        loser.id === rightParticipant.id
-          ? BattleResult.LOSS
-          : BattleResult.WIN;
+        loser.id === rightParticipant.id ? BattleResult.LOSS : BattleResult.WIN;
 
       return {
         userId: winner.userId,
@@ -680,13 +764,9 @@ export class BattleSettlementService {
       wins:
         participant.result === BattleResult.WIN ? { increment: 1 } : undefined,
       losses:
-        participant.result === BattleResult.LOSS
-          ? { increment: 1 }
-          : undefined,
+        participant.result === BattleResult.LOSS ? { increment: 1 } : undefined,
       draws:
-        participant.result === BattleResult.DRAW
-          ? { increment: 1 }
-          : undefined,
+        participant.result === BattleResult.DRAW ? { increment: 1 } : undefined,
       currentWinStreak:
         participant.result === BattleResult.WIN ? { increment: 1 } : 0,
       bestWinStreak:
@@ -719,13 +799,9 @@ export class BattleSettlementService {
       wins:
         participant.result === BattleResult.WIN ? { increment: 1 } : undefined,
       losses:
-        participant.result === BattleResult.LOSS
-          ? { increment: 1 }
-          : undefined,
+        participant.result === BattleResult.LOSS ? { increment: 1 } : undefined,
       draws:
-        participant.result === BattleResult.DRAW
-          ? { increment: 1 }
-          : undefined,
+        participant.result === BattleResult.DRAW ? { increment: 1 } : undefined,
       currentWinStreak:
         participant.result === BattleResult.WIN ? { increment: 1 } : 0,
       bestWinStreak:
@@ -736,9 +812,7 @@ export class BattleSettlementService {
             )
           : existingProfile.bestWinStreak,
       rating:
-        room.mode === BattleMode.RANKED
-          ? ratingAfter
-          : existingProfile.rating,
+        room.mode === BattleMode.RANKED ? ratingAfter : existingProfile.rating,
       highestRating:
         room.mode === BattleMode.RANKED
           ? Math.max(existingProfile.highestRating, ratingAfter)
@@ -756,14 +830,14 @@ export class BattleSettlementService {
   ) {
     return {
       totalBattles: { increment: 1 },
-      rankedBattles: room.mode === BattleMode.RANKED ? { increment: 1 } : undefined,
-      friendBattles: room.mode === BattleMode.FRIEND ? { increment: 1 } : undefined,
+      rankedBattles:
+        room.mode === BattleMode.RANKED ? { increment: 1 } : undefined,
+      friendBattles:
+        room.mode === BattleMode.FRIEND ? { increment: 1 } : undefined,
       wins:
         participant.result === BattleResult.WIN ? { increment: 1 } : undefined,
       losses:
-        participant.result === BattleResult.LOSS
-          ? { increment: 1 }
-          : undefined,
+        participant.result === BattleResult.LOSS ? { increment: 1 } : undefined,
       draws:
         participant.result === BattleResult.DRAW ? { increment: 1 } : undefined,
       currentWinStreak:
@@ -809,7 +883,8 @@ export class BattleSettlementService {
 
     if (
       room.participants.some(
-        (participant) => participant.status === BattleParticipantStatus.FORFEITED,
+        (participant) =>
+          participant.status === BattleParticipantStatus.FORFEITED,
       )
     ) {
       return true;
@@ -827,6 +902,17 @@ export class BattleSettlementService {
   }
 
   private shouldAttemptAiSettlement(room: RoomRecord, now: Date) {
+    if (room.status === BattleRoomStatus.SETTLING) {
+      return this.isStaleSettling(room, now);
+    }
+
+    if (
+      room.status !== BattleRoomStatus.COUNTDOWN &&
+      room.status !== BattleRoomStatus.IN_PROGRESS
+    ) {
+      return false;
+    }
+
     if (this.isTimeoutCandidate(room, now)) {
       return true;
     }
@@ -840,14 +926,101 @@ export class BattleSettlementService {
       return true;
     }
 
-    return room.participants.every((participant) =>
-      (
-        [
-          BattleParticipantStatus.SUBMITTED,
-          BattleParticipantStatus.FORFEITED,
-          BattleParticipantStatus.COMPLETED,
-        ] as BattleParticipantStatus[]
-      ).includes(participant.status),
+    const participant = room.participants[0];
+
+    if (
+      !participant ||
+      (participant.status !== BattleParticipantStatus.SUBMITTED &&
+        participant.status !== BattleParticipantStatus.COMPLETED) ||
+      !room.startedAt ||
+      !room.aiOpponent
+    ) {
+      return false;
+    }
+
+    return (
+      now.getTime() - room.startedAt.getTime() >=
+      room.aiOpponent.plannedSubmittedOffsetMs
+    );
+  }
+
+  private async submitOpenParticipantsAtDeadline(
+    room: RoomRecord,
+    prisma: BattleClient,
+  ) {
+    const openStatuses: BattleParticipantStatus[] = [
+      BattleParticipantStatus.JOINED,
+      BattleParticipantStatus.READY,
+      BattleParticipantStatus.PLAYING,
+    ];
+
+    await prisma.battleParticipant.updateMany({
+      where: {
+        battleRoomId: room.id,
+        status: {
+          in: openStatuses,
+        },
+      },
+      data: {
+        status: BattleParticipantStatus.SUBMITTED,
+        submittedAt: room.expiresAt,
+      },
+    });
+  }
+
+  private getAiFinalStats(room: RoomRecord) {
+    if (
+      !room.aiOpponent ||
+      room.questionSnapshots.length !== room.questionCount ||
+      !isBattleAiPlanValid({
+        value: room.aiOpponent.answerPlan,
+        strategyVersion: room.aiOpponent.strategyVersion,
+        plannedSubmittedOffsetMs: room.aiOpponent.plannedSubmittedOffsetMs,
+        durationSeconds: room.durationSeconds,
+        snapshots: room.questionSnapshots,
+      })
+    ) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    const answerPlan = parseBattleAiAnswerPlan(room.aiOpponent.answerPlan);
+
+    if (!answerPlan) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_PLAN_INVALID);
+    }
+
+    return calculateBattleAiFinalStats({
+      answerPlan,
+      plannedSubmittedOffsetMs: room.aiOpponent.plannedSubmittedOffsetMs,
+      durationSeconds: room.durationSeconds,
+    });
+  }
+
+  private getParticipantCompletionTimeMs(
+    room: RoomRecord,
+    participant: SettledParticipant,
+  ) {
+    if (!room.startedAt) {
+      throw new ConflictException(
+        BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+      );
+    }
+
+    const completedAt =
+      participant.status === BattleParticipantStatus.FORFEITED
+        ? participant.forfeitedAt
+        : participant.submittedAt;
+
+    if (!completedAt) {
+      throw new ConflictException(
+        BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+      );
+    }
+
+    const deadline = room.expiresAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    return Math.max(
+      0,
+      Math.min(completedAt.getTime(), deadline) - room.startedAt.getTime(),
     );
   }
 
@@ -872,7 +1045,9 @@ export class BattleSettlementService {
   }
 
   private isStaleSettling(room: RoomRecord, now: Date) {
-    return room.updatedAt.getTime() <= this.getSettlementStaleCutoff(now).getTime();
+    return (
+      room.updatedAt.getTime() <= this.getSettlementStaleCutoff(now).getTime()
+    );
   }
 
   private getSettlementStaleCutoff(now: Date) {
@@ -888,6 +1063,7 @@ export class BattleSettlementService {
         skillCode: true,
         status: true,
         questionCount: true,
+        durationSeconds: true,
         correctScore: true,
         wrongScore: true,
         unansweredScore: true,
@@ -914,6 +1090,20 @@ export class BattleSettlementService {
             submittedAt: true,
             forfeitedAt: true,
             completedAt: true,
+          },
+        },
+        questionSnapshots: {
+          select: {
+            id: true,
+            orderIndex: true,
+          },
+        },
+        aiOpponent: {
+          select: {
+            displayName: true,
+            strategyVersion: true,
+            answerPlan: true,
+            plannedSubmittedOffsetMs: true,
           },
         },
       },

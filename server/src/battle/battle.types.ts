@@ -153,6 +153,7 @@ export type BattleRoomSummaryPayload = {
   expiresAt: Date | null;
   serverTime: Date;
   participants: BattleParticipantSummary[];
+  opponent: BattleAiLiveOpponentPayload | null;
 };
 
 export type BattleRoomDetailPayload = BattleRoomSummaryPayload & {
@@ -236,6 +237,23 @@ export type BattleAiProgress = {
   elapsedMs: number;
 };
 
+export type BattleAiFinalStats = {
+  answeredCount: number;
+  correctCount: number;
+  wrongCount: number;
+  unansweredCount: number;
+  completionTimeMs: number;
+};
+
+export type BattleAiResultReason =
+  'MORE_CORRECT' | 'FASTER' | 'DRAW' | 'FORFEIT';
+
+export type BattleAiMatchmakingResolutionPayload = {
+  resolvedTo: 'AI' | 'HUMAN';
+  battleId: string;
+  serverTime: Date;
+};
+
 export type BattleAiStartPayload = {
   battleId: string;
   mode: 'AI';
@@ -247,11 +265,30 @@ export type BattleAiStartPayload = {
   serverTime: Date;
 };
 
-export type BattleResultOpponentPayload = {
+export type BattleHumanOpponentPayload = {
+  type: 'HUMAN';
   userId: string;
   nickname: string | null;
   avatarUrl: string | null;
 };
+
+export type BattleAiOpponentIdentityPayload = {
+  type: 'AI';
+  displayName: string;
+};
+
+export type BattleAiLiveOpponentPayload = BattleAiOpponentIdentityPayload & {
+  answeredCount: number;
+  submitted: boolean;
+};
+
+export type BattleAiCompletedOpponentPayload = BattleAiOpponentIdentityPayload &
+  BattleAiFinalStats & {
+    score: number;
+  };
+
+export type BattleResultOpponentPayload =
+  BattleHumanOpponentPayload | BattleAiCompletedOpponentPayload;
 
 export type PendingBattleResultPayload = {
   battleId: string;
@@ -264,6 +301,7 @@ export type PendingBattleResultPayload = {
   opponentAnsweredCount: number | null;
   mySubmitted: boolean;
   opponentSubmitted: boolean | null;
+  opponent: BattleHumanOpponentPayload | BattleAiLiveOpponentPayload | null;
   serverTime: Date;
 };
 
@@ -299,6 +337,9 @@ export type CompletedBattleResultPayload = {
   afterStar: BattleCompetitiveStar | null;
   tierChange: BattleCompetitiveTierChange | null;
   opponent: BattleResultOpponentPayload | null;
+  resultReason: BattleAiResultReason | null;
+  myCompletionTimeMs: number | null;
+  opponentCompletionTimeMs: number | null;
   endReason: string | null;
   completedAt: Date;
   serverTime: Date;
@@ -404,6 +445,9 @@ export type BattleHistoryListItemPayload = {
   ratingBefore: number;
   ratingDelta: number;
   ratingAfter: number;
+  resultReason: BattleAiResultReason | null;
+  myCompletionTimeMs: number | null;
+  opponentCompletionTimeMs: number | null;
   endReason: string | null;
   completedAt: Date;
 };
@@ -418,8 +462,9 @@ export type BattleHistorySummaryPayload = {
   ratingAfter: number;
 };
 
-export type BattleHistoryOpponentSummaryPayload = BattleResultOpponentPayload &
-  BattleHistorySummaryPayload;
+export type BattleHistoryOpponentSummaryPayload =
+  | (BattleHumanOpponentPayload & BattleHistorySummaryPayload)
+  | BattleAiCompletedOpponentPayload;
 
 export type BattleHistoryPayload = {
   items: BattleHistoryListItemPayload[];
@@ -475,6 +520,9 @@ export type BattleHistoryDetailPayload = {
   opponent: BattleResultOpponentPayload | null;
   mySummary: BattleHistorySummaryPayload;
   opponentSummary: BattleHistoryOpponentSummaryPayload | null;
+  resultReason: BattleAiResultReason | null;
+  myCompletionTimeMs: number | null;
+  opponentCompletionTimeMs: number | null;
   endReason: string | null;
   completedAt: Date;
   serverTime: Date;

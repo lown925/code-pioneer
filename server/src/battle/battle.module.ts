@@ -53,6 +53,7 @@ import { BattleTokenService } from './battle-token.service';
     BattleRatingService,
     BattleDomainService,
     BattleTokenService,
+    BattleAiService,
     BattleSettlementService,
     BattleRoomService,
     BattleNormalizationService,

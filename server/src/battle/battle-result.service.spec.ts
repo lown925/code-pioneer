@@ -299,6 +299,126 @@ describe('BattleResultService', () => {
     });
   });
 
+  it('returns live AI progress without leaking plan correctness or final score', async () => {
+    const { mock, service } = createService(BattleRoomStatus.IN_PROGRESS);
+    const room = mock.battleRooms.get('room-1')!;
+    room.mode = BattleMode.AI;
+    room.skillCode = 'PYTHON';
+    mock.battleParticipants.delete('participant-b');
+    mock.battleAnswers.delete('answer-b-1');
+    mock.battleAiOpponents.set('ai-opponent-1', {
+      id: 'ai-opponent-1',
+      battleRoomId: room.id,
+      displayName: '电脑对手',
+      strategyVersion: 'normal-v1',
+      seed: 'seed',
+      answerPlan: {
+        strategyVersion: 'normal-v1',
+        questions: [
+          {
+            battleQuestionSnapshotId: 'snapshot-1',
+            orderIndex: 0,
+            plannedCompletedOffsetMs: 30_000,
+            plannedCorrect: true,
+          },
+          {
+            battleQuestionSnapshotId: 'snapshot-2',
+            orderIndex: 1,
+            plannedCompletedOffsetMs: 90_000,
+            plannedCorrect: false,
+          },
+        ],
+      },
+      plannedSubmittedOffsetMs: 100_000,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const result = await service.getBattleResult(USER_A_ID, room.id);
+
+    expect(result.data).toMatchObject({
+      completed: false,
+      opponentAnsweredCount: 1,
+      opponentSubmitted: false,
+      opponent: {
+        type: 'AI',
+        displayName: '电脑对手',
+        answeredCount: 1,
+        submitted: false,
+      },
+    });
+    expect(result.data.opponent).not.toHaveProperty('correctCount');
+    expect(result.data.opponent).not.toHaveProperty('score');
+    expect(result.data.opponent).not.toHaveProperty('plannedSubmittedOffsetMs');
+  });
+
+  it('returns completed AI statistics, completion times, and server result reason', async () => {
+    const { mock, service } = createService(BattleRoomStatus.COMPLETED);
+    const room = mock.battleRooms.get('room-1')!;
+    room.mode = BattleMode.AI;
+    room.skillCode = 'PYTHON';
+    room.winnerUserId = USER_A_ID;
+    mock.battleParticipants.delete('participant-b');
+    mock.battleAnswers.delete('answer-b-1');
+    const participant = mock.battleParticipants.get('participant-a')!;
+    participant.result = BattleResult.WIN;
+    participant.submittedAt = new Date(room.startedAt!.getTime() + 50_000);
+    participant.ratingBefore = null;
+    participant.ratingDelta = 0;
+    participant.ratingAfter = null;
+    mock.battleAiOpponents.set('ai-opponent-1', {
+      id: 'ai-opponent-1',
+      battleRoomId: room.id,
+      displayName: '电脑对手',
+      strategyVersion: 'normal-v1',
+      seed: 'seed',
+      answerPlan: {
+        strategyVersion: 'normal-v1',
+        questions: [
+          {
+            battleQuestionSnapshotId: 'snapshot-1',
+            orderIndex: 0,
+            plannedCompletedOffsetMs: 20_000,
+            plannedCorrect: true,
+          },
+          {
+            battleQuestionSnapshotId: 'snapshot-2',
+            orderIndex: 1,
+            plannedCompletedOffsetMs: 40_000,
+            plannedCorrect: false,
+          },
+        ],
+      },
+      plannedSubmittedOffsetMs: 60_000,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const result = await service.getBattleResult(USER_A_ID, room.id);
+
+    expect(result.data).toMatchObject({
+      completed: true,
+      mode: BattleMode.AI,
+      result: BattleResult.WIN,
+      resultReason: 'MORE_CORRECT',
+      myCompletionTimeMs: 50_000,
+      opponentCompletionTimeMs: 60_000,
+      ratingBefore: 0,
+      ratingDelta: 0,
+      ratingAfter: 0,
+      opponent: {
+        type: 'AI',
+        displayName: '电脑对手',
+        answeredCount: 2,
+        correctCount: 1,
+        wrongCount: 1,
+        unansweredCount: 0,
+        completionTimeMs: 60_000,
+        score: 1,
+      },
+    });
+  });
+
   it('returns first-placement tier data for a completed skill-ranked battle', async () => {
     const { mock, service } = createService(BattleRoomStatus.COMPLETED);
     const room = mock.battleRooms.get('room-1')! as {

@@ -314,6 +314,141 @@ describe('Battle routes (e2e)', () => {
       .expect(400);
   });
 
+  it('atomically switches an unlocked matchmaking queue to computer battle', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/battles/matchmaking/join')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .send({ skill: 'PYTHON' })
+      .expect(201);
+
+    const queue = mockState.battleQueues.get(USER_A.id)!;
+    queue.searchStartedAt = new Date(Date.now() - 121_000);
+    queue.expiresAt = new Date(Date.now() + 10 * 60_000);
+
+    const switched = await request(app.getHttpServer())
+      .post('/api/v1/battles/matchmaking/ai')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200);
+
+    expect(switched.body.data).toMatchObject({
+      resolvedTo: 'AI',
+      battleId: expect.any(String),
+    });
+    expect(mockState.battleQueues.get(USER_A.id)?.status).toBe('CANCELLED');
+    expect(mockState.battleParticipants.size).toBe(1);
+    expect(mockState.battleAiOpponents.size).toBe(1);
+    const skillRatingsBeforeSettlement = structuredClone([
+      ...mockState.userBattleSkillRatings.entries(),
+    ]);
+
+    const repeated = await request(app.getHttpServer())
+      .post('/api/v1/battles/matchmaking/ai')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200);
+
+    expect(repeated.body.data).toMatchObject({
+      resolvedTo: 'AI',
+      battleId: switched.body.data.battleId,
+    });
+    expect(mockState.battleRooms.size).toBe(1);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/battles/${switched.body.data.battleId as string}`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.participants).toHaveLength(1);
+        expect(response.body.data.opponent).toMatchObject({
+          type: 'AI',
+          displayName: expect.any(String),
+          answeredCount: 0,
+          submitted: false,
+        });
+        expect(response.body.data.opponent).not.toHaveProperty('correctCount');
+        expect(response.body.data.opponent).not.toHaveProperty(
+          'plannedSubmittedOffsetMs',
+        );
+      });
+
+    const battleId = switched.body.data.battleId as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${battleId}/ready`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(201)
+      .expect((response) => {
+        expect(response.body.data.status).toBe('COUNTDOWN');
+      });
+
+    const aiRoom = mockState.battleRooms.get(battleId)!;
+    const aiOpponent = [...mockState.battleAiOpponents.values()].find(
+      (opponent) => opponent.battleRoomId === battleId,
+    )!;
+    aiRoom.startedAt = new Date(Date.now() - 1_000);
+    aiRoom.expiresAt = new Date(Date.now() + 179_000);
+    aiOpponent.answerPlan = {
+      strategyVersion: aiOpponent.strategyVersion,
+      questions: [...mockState.battleQuestionSnapshots.values()]
+        .filter((snapshot) => snapshot.battleRoomId === battleId)
+        .sort((left, right) => left.orderIndex - right.orderIndex)
+        .map((snapshot, index) => ({
+          battleQuestionSnapshotId: snapshot.id,
+          orderIndex: snapshot.orderIndex,
+          plannedCompletedOffsetMs: index + 1,
+          plannedCorrect: index === 0,
+        })),
+    };
+    aiOpponent.plannedSubmittedOffsetMs = 25;
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/battles/${battleId}/submit`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.completed).toBe(true);
+        expect(response.body.data.roomStatus).toBe('COMPLETED');
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/battles/${battleId}/result`)
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          mode: 'AI',
+          completed: true,
+          result: 'LOSS',
+          resultReason: 'MORE_CORRECT',
+          ratingDelta: 0,
+          opponent: {
+            type: 'AI',
+            correctCount: 1,
+          },
+        });
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/battles/history?mode=AI')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.items).toEqual([
+          expect.objectContaining({
+            battleId,
+            mode: 'AI',
+            result: 'LOSS',
+            ratingDelta: 0,
+            opponent: expect.objectContaining({ type: 'AI' }),
+          }),
+        ]);
+      });
+
+    expect(mockState.battleRatingLogs.size).toBe(0);
+    expect([...mockState.userBattleSkillRatings.entries()]).toEqual(
+      skillRatingsBeforeSettlement,
+    );
+    expect(mockState.battleProfiles.get(USER_A.id)?.totalBattles).toBe(1);
+  });
+
   it('supports submit, result, timeout settlement, and forfeit routes end to end', async () => {
     const createdRoom = await request(app.getHttpServer())
       .post('/api/v1/battles/friend-rooms')

@@ -13,6 +13,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { JwtUserAuthGuard } from '../auth/jwt-user-auth.guard';
 import { BattleFriendRoomService } from './battle-friend-room.service';
+import { BattleAiService } from './battle-ai.service';
 import { BattleHistoryService } from './battle-history.service';
 import { BattleAnswerService } from './battle-answer.service';
 import { BattleLeaderboardService } from './battle-leaderboard.service';
@@ -37,6 +38,7 @@ import { BattleSkillDto } from './dto/battle-skill.dto';
 export class BattleController {
   constructor(
     private readonly battleMatchmakingService: BattleMatchmakingService,
+    private readonly battleAiService: BattleAiService,
     private readonly battleFriendRoomService: BattleFriendRoomService,
     private readonly battleProfileService: BattleProfileService,
     private readonly battleLeaderboardService: BattleLeaderboardService,
@@ -55,7 +57,10 @@ export class BattleController {
     @CurrentUser() currentUser: CurrentUserContext,
     @Body() dto: BattleSkillDto,
   ) {
-    return this.battleMatchmakingService.joinMatchmaking(currentUser, dto.skill);
+    return this.battleMatchmakingService.joinMatchmaking(
+      currentUser,
+      dto.skill,
+    );
   }
 
   @Get('matchmaking/status')
@@ -67,6 +72,12 @@ export class BattleController {
       currentUser,
       skill,
     );
+  }
+
+  @HttpCode(200)
+  @Post('matchmaking/ai')
+  switchMatchmakingToAi(@CurrentUser() currentUser: CurrentUserContext) {
+    return this.battleAiService.switchFromMatchmaking(currentUser);
   }
 
   @Get('profile')
@@ -122,7 +133,10 @@ export class BattleController {
     @CurrentUser() currentUser: CurrentUserContext,
     @Body() dto: BattleSkillDto,
   ) {
-    return this.battleFriendRoomService.createFriendRoom(currentUser, dto.skill);
+    return this.battleFriendRoomService.createFriendRoom(
+      currentUser,
+      dto.skill,
+    );
   }
 
   @Get('friend-rooms/:invitationToken')
@@ -219,7 +233,10 @@ export class BattleController {
     @CurrentUser() currentUser: CurrentUserContext,
     @Param() params: BattleIdParamDto,
   ) {
-    return this.battleSubmitService.submitBattle(currentUser.id, params.battleId);
+    return this.battleSubmitService.submitBattle(
+      currentUser.id,
+      params.battleId,
+    );
   }
 
   @HttpCode(200)
@@ -239,7 +256,10 @@ export class BattleController {
     @CurrentUser() currentUser: CurrentUserContext,
     @Param() params: BattleIdParamDto,
   ) {
-    return this.battleResultService.getBattleResult(currentUser.id, params.battleId);
+    return this.battleResultService.getBattleResult(
+      currentUser.id,
+      params.battleId,
+    );
   }
 
   @Get(':battleId')

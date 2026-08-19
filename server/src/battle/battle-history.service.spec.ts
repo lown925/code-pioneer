@@ -24,7 +24,16 @@ describe('BattleHistoryService', () => {
       completedAt,
       endReason: BattleEndReason.NORMAL,
       durationSeconds: 180,
+      questionCount: 1,
+      correctScore: 2,
+      wrongScore: -1,
       unansweredScore: 0,
+      aiOpponent: null as null | {
+        displayName: string;
+        strategyVersion: string;
+        answerPlan: unknown;
+        plannedSubmittedOffsetMs: number;
+      },
       participants: [
         {
           id: 'training-participant',
@@ -39,6 +48,8 @@ describe('BattleHistoryService', () => {
           ratingBefore: 1200,
           ratingDelta: 0,
           ratingAfter: 1200,
+          submittedAt: completedAt,
+          forfeitedAt: null as Date | null,
           user: {
             id: USER_ID,
             nickname: 'Training Player',
@@ -100,6 +111,7 @@ describe('BattleHistoryService', () => {
     return {
       service: new BattleHistoryService(prisma as never),
       prisma,
+      room,
     };
   }
 
@@ -163,5 +175,67 @@ describe('BattleHistoryService', () => {
         }),
       }),
     ]);
+  });
+
+  it('lists and returns AI history without requiring a second participant', async () => {
+    const { service, room } = createService();
+    const participant = room.participants[0]!;
+    room.mode = BattleMode.AI;
+    participant.result = BattleResult.WIN;
+    participant.score = 2;
+    participant.correctCount = 1;
+    participant.wrongCount = 0;
+    participant.unansweredCount = 0;
+    participant.ratingBefore = null as never;
+    participant.ratingAfter = null as never;
+    participant.submittedAt = new Date(room.startedAt.getTime() + 30_000);
+    room.aiOpponent = {
+      displayName: '电脑对手',
+      strategyVersion: 'normal-v1',
+      answerPlan: {
+        strategyVersion: 'normal-v1',
+        questions: [
+          {
+            battleQuestionSnapshotId: 'snapshot-1',
+            orderIndex: 0,
+            plannedCompletedOffsetMs: 40_000,
+            plannedCorrect: false,
+          },
+        ],
+      },
+      plannedSubmittedOffsetMs: 50_000,
+    };
+
+    const list = await service.getHistory(USER_ID, { mode: BattleMode.AI });
+    const detail = await service.getHistoryDetail(USER_ID, room.id);
+
+    expect(list.data.items).toEqual([
+      expect.objectContaining({
+        mode: BattleMode.AI,
+        result: BattleResult.WIN,
+        ratingDelta: 0,
+        resultReason: 'MORE_CORRECT',
+        opponent: expect.objectContaining({
+          type: 'AI',
+          displayName: '电脑对手',
+          correctCount: 0,
+        }),
+      }),
+    ]);
+    expect(detail.data).toMatchObject({
+      mode: BattleMode.AI,
+      result: BattleResult.WIN,
+      resultReason: 'MORE_CORRECT',
+      myCompletionTimeMs: 30_000,
+      opponentCompletionTimeMs: 50_000,
+      opponent: {
+        type: 'AI',
+        displayName: '电脑对手',
+      },
+      opponentSummary: {
+        type: 'AI',
+        displayName: '电脑对手',
+      },
+    });
   });
 });

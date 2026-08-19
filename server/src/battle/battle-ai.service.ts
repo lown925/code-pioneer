@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import {
+  BattleMatchQueueStatus,
   BattleMode,
   BattleParticipantStatus,
   BattleResult,
@@ -11,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   AI_DISPLAY_NAME,
   AI_STRATEGY_VERSION,
+  AI_UNLOCK_SECONDS,
   BATTLE_CORRECT_SCORE,
   BATTLE_DURATION_SECONDS,
   BATTLE_UNANSWERED_SCORE,
@@ -27,6 +29,7 @@ import { BATTLE_ERROR_CODES } from './battle.errors';
 import { BattleQuestionService } from './battle-question.service';
 import { BattleSkillService } from './battle-skill.service';
 import type {
+  BattleAiMatchmakingResolutionPayload,
   BattleAiStartPayload,
   BattleTransactionClient,
 } from './battle.types';
@@ -55,80 +58,224 @@ export class BattleAiService {
         now,
         tx,
       );
+      await this.battleDomainService.normalizeExpiredRankedMatchRoomsForUser(
+        currentUser.id,
+        now,
+        tx,
+      );
       await this.battleSkillService.assertAvailableSkill(skillCode, tx);
       await this.battleDomainService.assertUserHasNoActiveBattle(
         currentUser.id,
         tx,
       );
 
-      const room = await tx.battleRoom.create({
-        data: {
-          mode: BattleMode.AI,
-          skillCode,
-          status: BattleRoomStatus.WAITING,
-          questionCount: DEFAULT_BATTLE_QUESTION_COUNT,
-          durationSeconds: BATTLE_DURATION_SECONDS,
-          correctScore: BATTLE_CORRECT_SCORE,
-          wrongScore: BATTLE_WRONG_SCORE,
-          unansweredScore: BATTLE_UNANSWERED_SCORE,
-          createdByUserId: currentUser.id,
-        },
-        select: { id: true },
-      });
-
-      await tx.battleParticipant.create({
-        data: {
-          battleRoomId: room.id,
-          userId: currentUser.id,
-          seat: 1,
-          status: BattleParticipantStatus.JOINED,
-          result: BattleResult.NONE,
-        },
-      });
-
-      const snapshots =
-        await this.battleQuestionService.createQuestionSnapshots(tx, {
-          battleId: room.id,
-          questionCount: DEFAULT_BATTLE_QUESTION_COUNT,
-          durationSeconds: BATTLE_DURATION_SECONDS,
-          now,
-          skillCode,
-        });
-      const seed = this.createSeed();
-      const plan = generateBattleAiPlan({
-        seed,
-        strategyVersion: AI_STRATEGY_VERSION,
-        durationSeconds: BATTLE_DURATION_SECONDS,
-        snapshots,
-      });
-
-      await tx.battleAiOpponent.create({
-        data: {
-          battleRoomId: room.id,
-          displayName: AI_DISPLAY_NAME,
-          strategyVersion: AI_STRATEGY_VERSION,
-          seed,
-          answerPlan: plan.answerPlan,
-          plannedSubmittedOffsetMs: plan.plannedSubmittedOffsetMs,
-        },
-      });
-
-      return {
-        battleId: room.id,
-        mode: BattleMode.AI,
-        skill: skillCode,
-        status: BattleRoomStatus.WAITING,
-        opponent: {
-          displayName: AI_DISPLAY_NAME,
-        },
-        serverTime: now,
-      } satisfies BattleAiStartPayload;
+      return this.createAiBattleWithClient(currentUser.id, skillCode, now, tx);
     });
 
     return {
       success: true as const,
       data,
     };
+  }
+
+  async switchFromMatchmaking(currentUser: CurrentUserContext) {
+    const data = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
+      await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
+        currentUser.id,
+        now,
+        tx,
+      );
+      await this.battleDomainService.normalizeExpiredRankedMatchRoomsForUser(
+        currentUser.id,
+        now,
+        tx,
+      );
+
+      const activeBattle =
+        await this.battleDomainService.getActiveBattleForUser(
+          currentUser.id,
+          tx,
+        );
+
+      if (activeBattle) {
+        if (activeBattle.mode === BattleMode.AI) {
+          return this.createResolution('AI', activeBattle.battleRoomId, now);
+        }
+
+        if (activeBattle.mode === BattleMode.RANKED) {
+          return this.createResolution('HUMAN', activeBattle.battleRoomId, now);
+        }
+
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_ALREADY_ACTIVE);
+      }
+
+      let queue = await tx.battleMatchQueue.findUnique({
+        where: { userId: currentUser.id },
+        select: {
+          userId: true,
+          skillCode: true,
+          status: true,
+          searchStartedAt: true,
+          expiresAt: true,
+        },
+      });
+
+      if (
+        queue?.status === BattleMatchQueueStatus.SEARCHING &&
+        queue.expiresAt &&
+        queue.expiresAt.getTime() <= now.getTime()
+      ) {
+        const expired = await tx.battleMatchQueue.updateMany({
+          where: {
+            userId: currentUser.id,
+            status: BattleMatchQueueStatus.SEARCHING,
+            expiresAt: { lte: now },
+          },
+          data: {
+            status: BattleMatchQueueStatus.EXPIRED,
+            matchedBattleRoomId: null,
+            matchedAt: null,
+          },
+        });
+
+        if (expired.count !== 1) {
+          throw new ConflictException(
+            BATTLE_ERROR_CODES.BATTLE_AI_NOT_AVAILABLE,
+          );
+        }
+
+        queue = {
+          ...queue,
+          status: BattleMatchQueueStatus.EXPIRED,
+        };
+      }
+
+      if (
+        !queue ||
+        (queue.status !== BattleMatchQueueStatus.SEARCHING &&
+          queue.status !== BattleMatchQueueStatus.EXPIRED) ||
+        !queue.searchStartedAt ||
+        !queue.skillCode ||
+        now.getTime() - queue.searchStartedAt.getTime() <
+          AI_UNLOCK_SECONDS * 1000
+      ) {
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_NOT_AVAILABLE);
+      }
+
+      const skillCode = this.battleSkillService.normalizeSkillCode(
+        queue.skillCode,
+      );
+      await this.battleSkillService.assertAvailableSkill(skillCode, tx);
+
+      const queueStatus = queue.status;
+      const cancelled = await tx.battleMatchQueue.updateMany({
+        where: {
+          userId: currentUser.id,
+          status: queueStatus,
+          ...(queueStatus === BattleMatchQueueStatus.SEARCHING
+            ? { expiresAt: { gt: now } }
+            : {}),
+        },
+        data: {
+          status: BattleMatchQueueStatus.CANCELLED,
+          cancelledAt: now,
+          matchedAt: null,
+          matchedBattleRoomId: null,
+        },
+      });
+
+      if (cancelled.count !== 1) {
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_AI_NOT_AVAILABLE);
+      }
+
+      const battle = await this.createAiBattleWithClient(
+        currentUser.id,
+        skillCode,
+        now,
+        tx,
+      );
+
+      return this.createResolution('AI', battle.battleId, now);
+    });
+
+    return {
+      success: true as const,
+      data,
+    };
+  }
+
+  private async createAiBattleWithClient(
+    userId: string,
+    skillCode: string,
+    now: Date,
+    tx: BattleTransactionClient,
+  ): Promise<BattleAiStartPayload> {
+    const room = await tx.battleRoom.create({
+      data: {
+        mode: BattleMode.AI,
+        skillCode,
+        status: BattleRoomStatus.WAITING,
+        questionCount: DEFAULT_BATTLE_QUESTION_COUNT,
+        durationSeconds: BATTLE_DURATION_SECONDS,
+        correctScore: BATTLE_CORRECT_SCORE,
+        wrongScore: BATTLE_WRONG_SCORE,
+        unansweredScore: BATTLE_UNANSWERED_SCORE,
+        createdByUserId: userId,
+      },
+      select: { id: true },
+    });
+
+    await tx.battleParticipant.create({
+      data: {
+        battleRoomId: room.id,
+        userId,
+        seat: 1,
+        status: BattleParticipantStatus.JOINED,
+        result: BattleResult.NONE,
+      },
+    });
+
+    const snapshots = await this.battleQuestionService.createQuestionSnapshots(
+      tx,
+      {
+        battleId: room.id,
+        questionCount: DEFAULT_BATTLE_QUESTION_COUNT,
+        durationSeconds: BATTLE_DURATION_SECONDS,
+        now,
+        skillCode,
+      },
+    );
+    const seed = this.createSeed();
+    const plan = generateBattleAiPlan({
+      seed,
+      strategyVersion: AI_STRATEGY_VERSION,
+      durationSeconds: BATTLE_DURATION_SECONDS,
+      snapshots,
+    });
+
+    await tx.battleAiOpponent.create({
+      data: {
+        battleRoomId: room.id,
+        displayName: AI_DISPLAY_NAME,
+        strategyVersion: AI_STRATEGY_VERSION,
+        seed,
+        answerPlan: plan.answerPlan,
+        plannedSubmittedOffsetMs: plan.plannedSubmittedOffsetMs,
+      },
+    });
+
+    return {
+      battleId: room.id,
+      mode: BattleMode.AI,
+      skill: skillCode,
+      status: BattleRoomStatus.WAITING,
+      opponent: {
+        displayName: AI_DISPLAY_NAME,
+      },
+      serverTime: now,
+    } satisfies BattleAiStartPayload;
   }
 
   async getProgress(
@@ -170,5 +317,17 @@ export class BattleAiService {
 
   protected createSeed() {
     return randomBytes(16).toString('hex');
+  }
+
+  private createResolution(
+    resolvedTo: BattleAiMatchmakingResolutionPayload['resolvedTo'],
+    battleId: string,
+    serverTime: Date,
+  ): BattleAiMatchmakingResolutionPayload {
+    return {
+      resolvedTo,
+      battleId,
+      serverTime,
+    };
   }
 }

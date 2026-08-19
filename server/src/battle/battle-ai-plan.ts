@@ -8,7 +8,13 @@ import {
   AI_STRATEGY_VERSION,
   AI_SUBMISSION_DELAY_MS,
 } from './battle.constants';
-import type { BattleAiAnswerPlan, BattleAiProgress } from './battle.types';
+import { BattleResult } from '../../generated/prisma/enums';
+import type {
+  BattleAiAnswerPlan,
+  BattleAiFinalStats,
+  BattleAiProgress,
+  BattleAiResultReason,
+} from './battle.types';
 
 type AiPlanSnapshot = {
   id: string;
@@ -128,6 +134,77 @@ export function projectBattleAiProgress(input: {
     submitted:
       Boolean(input.startedAt) && elapsedMs >= input.plannedSubmittedOffsetMs,
     elapsedMs,
+  };
+}
+
+export function calculateBattleAiFinalStats(input: {
+  answerPlan: BattleAiAnswerPlan;
+  plannedSubmittedOffsetMs: number;
+  durationSeconds: number;
+}): BattleAiFinalStats {
+  const deadlineMs = input.durationSeconds * 1000;
+  const completionTimeMs = Math.min(
+    Math.max(0, input.plannedSubmittedOffsetMs),
+    deadlineMs,
+  );
+  const completedQuestions = input.answerPlan.questions.filter(
+    (question) => question.plannedCompletedOffsetMs <= completionTimeMs,
+  );
+  const correctCount = completedQuestions.filter(
+    (question) => question.plannedCorrect,
+  ).length;
+  const wrongCount = completedQuestions.length - correctCount;
+
+  return {
+    answeredCount: completedQuestions.length,
+    correctCount,
+    wrongCount,
+    unansweredCount:
+      input.answerPlan.questions.length - completedQuestions.length,
+    completionTimeMs,
+  };
+}
+
+export function resolveBattleAiOutcome(input: {
+  userCorrectCount: number;
+  userCompletionTimeMs: number;
+  aiCorrectCount: number;
+  aiCompletionTimeMs: number;
+  userForfeited?: boolean;
+}): {
+  userResult: Exclude<BattleResult, 'NONE'>;
+  reason: BattleAiResultReason;
+} {
+  if (input.userForfeited) {
+    return {
+      userResult: BattleResult.LOSS,
+      reason: 'FORFEIT',
+    };
+  }
+
+  if (input.userCorrectCount !== input.aiCorrectCount) {
+    return {
+      userResult:
+        input.userCorrectCount > input.aiCorrectCount
+          ? BattleResult.WIN
+          : BattleResult.LOSS,
+      reason: 'MORE_CORRECT',
+    };
+  }
+
+  if (input.userCompletionTimeMs !== input.aiCompletionTimeMs) {
+    return {
+      userResult:
+        input.userCompletionTimeMs < input.aiCompletionTimeMs
+          ? BattleResult.WIN
+          : BattleResult.LOSS,
+      reason: 'FASTER',
+    };
+  }
+
+  return {
+    userResult: BattleResult.DRAW,
+    reason: 'DRAW',
   };
 }
 

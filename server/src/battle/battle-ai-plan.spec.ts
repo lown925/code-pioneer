@@ -7,9 +7,11 @@ import {
   AI_STRATEGY_VERSION,
 } from './battle.constants';
 import {
+  calculateBattleAiFinalStats,
   generateBattleAiPlan,
   isBattleAiPlanValid,
   projectBattleAiProgress,
+  resolveBattleAiOutcome,
 } from './battle-ai-plan';
 
 const SNAPSHOTS = Array.from({ length: 20 }, (_, index) => ({
@@ -22,6 +24,66 @@ const SNAPSHOTS = Array.from({ length: 20 }, (_, index) => ({
 }));
 
 describe('battle AI deterministic plan', () => {
+  it('resolves AI results by correct count, then completion time, with exact ties as draws', () => {
+    expect(
+      resolveBattleAiOutcome({
+        userCorrectCount: 8,
+        userCompletionTimeMs: 300_000,
+        aiCorrectCount: 7,
+        aiCompletionTimeMs: 1,
+      }),
+    ).toEqual({ userResult: 'WIN', reason: 'MORE_CORRECT' });
+    expect(
+      resolveBattleAiOutcome({
+        userCorrectCount: 8,
+        userCompletionTimeMs: 300_000,
+        aiCorrectCount: 8,
+        aiCompletionTimeMs: 301_000,
+      }),
+    ).toEqual({ userResult: 'WIN', reason: 'FASTER' });
+    expect(
+      resolveBattleAiOutcome({
+        userCorrectCount: 8,
+        userCompletionTimeMs: 300_000,
+        aiCorrectCount: 8,
+        aiCompletionTimeMs: 300_000,
+      }),
+    ).toEqual({ userResult: 'DRAW', reason: 'DRAW' });
+  });
+
+  it('derives AI final stats only from the persisted answer plan', () => {
+    const answerPlan = {
+      strategyVersion: AI_STRATEGY_VERSION,
+      questions: [
+        {
+          battleQuestionSnapshotId: 'snapshot-1',
+          orderIndex: 0,
+          plannedCompletedOffsetMs: 1_000,
+          plannedCorrect: true,
+        },
+        {
+          battleQuestionSnapshotId: 'snapshot-2',
+          orderIndex: 1,
+          plannedCompletedOffsetMs: 3_000,
+          plannedCorrect: false,
+        },
+      ],
+    };
+
+    expect(
+      calculateBattleAiFinalStats({
+        answerPlan,
+        plannedSubmittedOffsetMs: 2_000,
+        durationSeconds: 180,
+      }),
+    ).toEqual({
+      answeredCount: 1,
+      correctCount: 1,
+      wrongCount: 0,
+      unansweredCount: 1,
+      completionTimeMs: 2_000,
+    });
+  });
   it('generates the same immutable behavior plan for the same inputs', () => {
     const input = {
       seed: 'fixed-seed',

@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import {
   BattleEndReason,
   BattleMode,
@@ -14,7 +13,7 @@ import { BattleRatingService } from './battle-rating.service';
 import { BattleScoreService } from './battle-score.service';
 import { BattleSettlementService } from './battle-settlement.service';
 import { createBattlePrismaMock } from './battle-test.helpers';
-import { BATTLE_ERROR_CODES } from './battle.errors';
+import { AI_STRATEGY_VERSION } from './battle.constants';
 
 const USER_A_ID = '11111111-1111-4111-8111-111111111111';
 const USER_B_ID = '22222222-2222-4222-8222-222222222222';
@@ -223,27 +222,286 @@ describe('BattleSettlementService', () => {
     expect(mock.battleRatingLogs.size).toBe(2);
   });
 
-  it('explicitly rejects AI settlement before P7-3 without rating side effects', async () => {
+  it('rejects an AI room with a missing persisted plan without side effects', async () => {
     const { mock, service } = createService(BattleMode.AI);
     mock.battleParticipants.delete('participant-b');
 
-    await expect(
-      service.normalizeBattleState(
-        'room-1',
-        new Date('2026-07-25T10:03:30.000Z'),
-      ),
-    ).rejects.toEqual(
-      expect.objectContaining<Partial<ConflictException>>({
-        message: BATTLE_ERROR_CODES.BATTLE_AI_SETTLEMENT_NOT_IMPLEMENTED,
-      }),
+    const result = await service.normalizeBattleState(
+      'room-1',
+      new Date('2026-07-25T10:03:30.000Z'),
     );
 
+    expect(result?.status).toBe(BattleRoomStatus.IN_PROGRESS);
     expect(mock.battleRooms.get('room-1')?.status).toBe(
       BattleRoomStatus.IN_PROGRESS,
     );
     expect(mock.battleProfiles.size).toBe(0);
     expect(mock.userBattleSkillRatings.size).toBe(0);
     expect(mock.battleRatingLogs.size).toBe(0);
+  });
+
+  it('settles AI by correct count first, then server completion time, without rating writes', async () => {
+    const { mock, service } = createService(BattleMode.AI);
+    mock.battleParticipants.delete('participant-b');
+    const room = mock.battleRooms.get('room-1')!;
+    const startedAt = new Date('2026-07-25T10:00:00.000Z');
+    const submittedAt = new Date('2026-07-25T10:00:09.000Z');
+    room.startedAt = startedAt;
+    room.expiresAt = new Date('2026-07-25T10:03:00.000Z');
+    room.skillCode = 'PYTHON';
+    room.status = BattleRoomStatus.IN_PROGRESS;
+    const participant = mock.battleParticipants.get('participant-a')!;
+    participant.status = BattleParticipantStatus.SUBMITTED;
+    participant.submittedAt = submittedAt;
+
+    mock.battleAiOpponents.set('ai-opponent-1', {
+      id: 'ai-opponent-1',
+      battleRoomId: room.id,
+      displayName: '电脑对手',
+      strategyVersion: AI_STRATEGY_VERSION,
+      seed: 'seed',
+      answerPlan: {
+        strategyVersion: AI_STRATEGY_VERSION,
+        questions: [
+          {
+            battleQuestionSnapshotId: 'snapshot-1',
+            orderIndex: 0,
+            plannedCompletedOffsetMs: 5_000,
+            plannedCorrect: true,
+          },
+          {
+            battleQuestionSnapshotId: 'snapshot-2',
+            orderIndex: 1,
+            plannedCompletedOffsetMs: 7_000,
+            plannedCorrect: true,
+          },
+          {
+            battleQuestionSnapshotId: 'snapshot-3',
+            orderIndex: 2,
+            plannedCompletedOffsetMs: 9_000,
+            plannedCorrect: false,
+          },
+        ],
+      },
+      plannedSubmittedOffsetMs: 10_000,
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    });
+    mock.battleAnswers.set('answer-a-1', {
+      id: 'answer-a-1',
+      battleRoomId: room.id,
+      participantId: participant.id,
+      battleQuestionSnapshotId: 'snapshot-1',
+      userId: USER_A_ID,
+      clientRequestId: 'request-a-1',
+      answerVersion: 1,
+      answerPayload: { type: 'SINGLE_CHOICE', optionId: 'option-a' },
+      normalizedAnswer: null,
+      isCorrect: true,
+      scoreDelta: 2,
+      submittedAt,
+      timeSpentMs: null,
+      createdAt: submittedAt,
+    });
+    mock.battleAnswers.set('answer-a-2', {
+      id: 'answer-a-2',
+      battleRoomId: room.id,
+      participantId: participant.id,
+      battleQuestionSnapshotId: 'snapshot-2',
+      userId: USER_A_ID,
+      clientRequestId: 'request-a-2',
+      answerVersion: 1,
+      answerPayload: { type: 'SINGLE_CHOICE', optionId: 'option-a' },
+      normalizedAnswer: null,
+      isCorrect: true,
+      scoreDelta: 2,
+      submittedAt,
+      timeSpentMs: null,
+      createdAt: submittedAt,
+    });
+
+    await service.normalizeBattleState(
+      room.id,
+      new Date('2026-07-25T10:00:10.000Z'),
+    );
+
+    expect(mock.battleRooms.get(room.id)).toMatchObject({
+      status: BattleRoomStatus.COMPLETED,
+      winnerUserId: USER_A_ID,
+    });
+    expect(mock.battleParticipants.get(participant.id)).toMatchObject({
+      status: BattleParticipantStatus.COMPLETED,
+      result: BattleResult.WIN,
+      correctCount: 2,
+      wrongCount: 0,
+      unansweredCount: 1,
+      ratingBefore: null,
+      ratingDelta: 0,
+      ratingAfter: null,
+    });
+    expect(mock.battleProfiles.get(USER_A_ID)).toMatchObject({
+      totalBattles: 1,
+      wins: 1,
+      rankedBattles: 0,
+    });
+    expect(mock.userBattleSkillRatings.size).toBe(0);
+    expect(mock.battleRatingLogs.size).toBe(0);
+  });
+
+  it('settles an AI forfeit immediately as a loss without waiting for the plan', async () => {
+    const { mock, service } = createService(BattleMode.AI);
+    mock.battleParticipants.delete('participant-b');
+    const room = mock.battleRooms.get('room-1')!;
+    room.startedAt = new Date('2026-07-25T10:00:00.000Z');
+    room.expiresAt = new Date('2026-07-25T10:03:00.000Z');
+    room.status = BattleRoomStatus.IN_PROGRESS;
+    mock.battleAiOpponents.set('ai-opponent-1', {
+      id: 'ai-opponent-1',
+      battleRoomId: room.id,
+      displayName: '电脑对手',
+      strategyVersion: AI_STRATEGY_VERSION,
+      seed: 'seed',
+      answerPlan: {
+        strategyVersion: AI_STRATEGY_VERSION,
+        questions: [
+          ...[1, 2, 3].map((index) => ({
+            battleQuestionSnapshotId: `snapshot-${index}`,
+            orderIndex: index - 1,
+            plannedCompletedOffsetMs: index * 5_000,
+            plannedCorrect: index !== 3,
+          })),
+        ],
+      },
+      plannedSubmittedOffsetMs: 20_000,
+      createdAt: room.startedAt,
+      updatedAt: room.startedAt,
+    });
+    const participant = mock.battleParticipants.get('participant-a')!;
+    participant.status = BattleParticipantStatus.FORFEITED;
+    participant.forfeitedAt = new Date('2026-07-25T10:00:02.000Z');
+
+    await service.normalizeBattleState(
+      room.id,
+      new Date('2026-07-25T10:00:03.000Z'),
+    );
+
+    expect(mock.battleRooms.get(room.id)).toMatchObject({
+      status: BattleRoomStatus.COMPLETED,
+      winnerUserId: null,
+      endReason: BattleEndReason.USER_FORFEIT,
+    });
+    expect(mock.battleParticipants.get(participant.id)?.result).toBe(
+      BattleResult.LOSS,
+    );
+    expect(mock.battleRatingLogs.size).toBe(0);
+    expect(mock.userBattleSkillRatings.size).toBe(0);
+  });
+
+  it('keeps an early-submitted AI battle in progress until the persisted AI time', async () => {
+    const { mock, service } = createService(BattleMode.AI);
+    mock.battleParticipants.delete('participant-b');
+    const room = mock.battleRooms.get('room-1')!;
+    const startedAt = new Date('2026-07-25T10:00:00.000Z');
+    room.startedAt = startedAt;
+    room.expiresAt = new Date('2026-07-25T10:03:00.000Z');
+    room.status = BattleRoomStatus.IN_PROGRESS;
+    const participant = mock.battleParticipants.get('participant-a')!;
+    participant.status = BattleParticipantStatus.SUBMITTED;
+    participant.submittedAt = new Date('2026-07-25T10:00:05.000Z');
+    mock.battleAiOpponents.set('ai-opponent-1', {
+      id: 'ai-opponent-1',
+      battleRoomId: room.id,
+      displayName: '电脑对手',
+      strategyVersion: AI_STRATEGY_VERSION,
+      seed: 'seed',
+      answerPlan: {
+        strategyVersion: AI_STRATEGY_VERSION,
+        questions: [1, 2, 3].map((index) => ({
+          battleQuestionSnapshotId: `snapshot-${index}`,
+          orderIndex: index - 1,
+          plannedCompletedOffsetMs: index * 10_000,
+          plannedCorrect: index !== 3,
+        })),
+      },
+      plannedSubmittedOffsetMs: 40_000,
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    });
+
+    const pending = await service.normalizeBattleState(
+      room.id,
+      new Date('2026-07-25T10:00:20.000Z'),
+    );
+
+    expect(pending?.status).toBe(BattleRoomStatus.IN_PROGRESS);
+    expect(mock.battleProfiles.size).toBe(0);
+
+    await Promise.all([
+      service.normalizeBattleState(
+        room.id,
+        new Date('2026-07-25T10:00:40.000Z'),
+      ),
+      service.normalizeBattleState(
+        room.id,
+        new Date('2026-07-25T10:00:40.000Z'),
+      ),
+    ]);
+    await service.normalizeBattleState(
+      room.id,
+      new Date('2026-07-25T10:00:41.000Z'),
+    );
+
+    expect(mock.battleRooms.get(room.id)?.status).toBe(
+      BattleRoomStatus.COMPLETED,
+    );
+    expect(mock.battleProfiles.get(USER_A_ID)?.totalBattles).toBe(1);
+    expect(mock.battleRatingLogs.size).toBe(0);
+  });
+
+  it('uses the room deadline as the timed-out user completion time', async () => {
+    const { mock, service } = createService(BattleMode.AI);
+    mock.battleParticipants.delete('participant-b');
+    const room = mock.battleRooms.get('room-1')!;
+    const startedAt = new Date('2026-07-25T10:00:00.000Z');
+    const deadline = new Date('2026-07-25T10:03:00.000Z');
+    room.startedAt = startedAt;
+    room.expiresAt = deadline;
+    room.status = BattleRoomStatus.IN_PROGRESS;
+    const participant = mock.battleParticipants.get('participant-a')!;
+    participant.status = BattleParticipantStatus.PLAYING;
+    participant.submittedAt = null;
+    mock.battleAiOpponents.set('ai-opponent-1', {
+      id: 'ai-opponent-1',
+      battleRoomId: room.id,
+      displayName: '电脑对手',
+      strategyVersion: AI_STRATEGY_VERSION,
+      seed: 'seed',
+      answerPlan: {
+        strategyVersion: AI_STRATEGY_VERSION,
+        questions: [1, 2, 3].map((index) => ({
+          battleQuestionSnapshotId: `snapshot-${index}`,
+          orderIndex: index - 1,
+          plannedCompletedOffsetMs: index * 10_000,
+          plannedCorrect: index !== 3,
+        })),
+      },
+      plannedSubmittedOffsetMs: 40_000,
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    });
+
+    await service.normalizeBattleState(room.id, deadline);
+
+    expect(mock.battleParticipants.get(participant.id)).toMatchObject({
+      status: BattleParticipantStatus.COMPLETED,
+      submittedAt: deadline,
+      result: BattleResult.LOSS,
+    });
+    expect(mock.battleRooms.get(room.id)).toMatchObject({
+      status: BattleRoomStatus.COMPLETED,
+      endReason: BattleEndReason.EXPIRED,
+      winnerUserId: null,
+    });
   });
 
   it('auto-submits timeout participants and settles friend battle without rating change or logs', async () => {
@@ -320,7 +578,9 @@ describe('BattleSettlementService', () => {
       losses: 1,
     });
     expect(mock.battleRatingLogs.size).toBe(0);
-    expect(mock.battleRooms.get('room-1')?.endReason).toBe(BattleEndReason.EXPIRED);
+    expect(mock.battleRooms.get('room-1')?.endReason).toBe(
+      BattleEndReason.EXPIRED,
+    );
   });
 
   it('treats forfeit as an immediate valid loss/win settlement', async () => {
@@ -383,7 +643,10 @@ describe('BattleSettlementService', () => {
     });
 
     await expect(
-      service.normalizeBattleState('room-1', new Date('2026-07-25T10:04:00.000Z')),
+      service.normalizeBattleState(
+        'room-1',
+        new Date('2026-07-25T10:04:00.000Z'),
+      ),
     ).rejects.toThrow('rating log write failed');
 
     expect(mock.battleRooms.get('room-1')?.status).toBe(
@@ -446,7 +709,9 @@ describe('BattleSettlementService', () => {
       rankedBattles: 1,
       draws: 1,
     });
-    expect(mock.userBattleSkillRatings.get(`${USER_A_ID}:PYTHON`)).toMatchObject({
+    expect(
+      mock.userBattleSkillRatings.get(`${USER_A_ID}:PYTHON`),
+    ).toMatchObject({
       rankedBattles: 4,
       highestRating: 1300,
     });
@@ -553,8 +818,14 @@ describe('BattleSettlementService', () => {
     });
 
     await Promise.all([
-      service.normalizeBattleState('room-1', new Date('2026-07-25T10:04:00.000Z')),
-      service.normalizeBattleState('room-1', new Date('2026-07-25T10:04:00.000Z')),
+      service.normalizeBattleState(
+        'room-1',
+        new Date('2026-07-25T10:04:00.000Z'),
+      ),
+      service.normalizeBattleState(
+        'room-1',
+        new Date('2026-07-25T10:04:00.000Z'),
+      ),
     ]);
 
     expect(mock.battleRooms.get('room-1')?.status).toBe(
