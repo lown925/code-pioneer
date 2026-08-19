@@ -9,6 +9,7 @@
   },
   "include": [
     "scripts/seed-content.ts",
+    "scripts/update-p7-5-code-fill.ts",
     "prisma/seed-data/**/*.ts",
     "generated/prisma/**/*.ts",
     "src/prisma/prisma.service.ts",
