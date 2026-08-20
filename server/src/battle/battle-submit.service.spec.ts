@@ -16,6 +16,7 @@ import { BattleScoreService } from './battle-score.service';
 import { BattleSettlementService } from './battle-settlement.service';
 import { BattleSubmitService } from './battle-submit.service';
 import { createBattlePrismaMock } from './battle-test.helpers';
+import { AI_STRATEGY_VERSION } from './battle.constants';
 
 const USER_A_ID = '11111111-1111-4111-8111-111111111111';
 const USER_B_ID = '22222222-2222-4222-8222-222222222222';
@@ -281,6 +282,63 @@ describe('BattleSubmitService', () => {
       trainingBattles: 1,
       rankedBattles: 0,
     });
+  });
+
+  it('settles a computer battle immediately on submit without changing its persisted plan', async () => {
+    const { mock, submitService } = createServices();
+    const room = mock.battleRooms.get('room-1')!;
+    room.mode = BattleMode.AI;
+    room.skillCode = 'PYTHON';
+    room.startedAt = new Date(Date.now() - 1_000);
+    room.expiresAt = new Date(Date.now() + 179_000);
+    mock.battleParticipants.delete('participant-b');
+    const answerPlan = {
+      strategyVersion: AI_STRATEGY_VERSION,
+      questions: [
+        {
+          battleQuestionSnapshotId: 'snapshot-1',
+          orderIndex: 0,
+          plannedCompletedOffsetMs: 30_000,
+          plannedCorrect: true,
+        },
+        {
+          battleQuestionSnapshotId: 'snapshot-2',
+          orderIndex: 1,
+          plannedCompletedOffsetMs: 60_000,
+          plannedCorrect: false,
+        },
+      ],
+    };
+    mock.battleAiOpponents.set('ai-opponent-1', {
+      id: 'ai-opponent-1',
+      battleRoomId: room.id,
+      displayName: '电脑对手',
+      strategyVersion: AI_STRATEGY_VERSION,
+      seed: 'persisted-seed',
+      answerPlan,
+      plannedSubmittedOffsetMs: 120_000,
+      createdAt: room.startedAt,
+      updatedAt: room.startedAt,
+    });
+
+    const result = await submitService.submitBattle(USER_A_ID, room.id);
+
+    expect(result.data).toMatchObject({
+      roomStatus: BattleRoomStatus.COMPLETED,
+      participantStatus: BattleParticipantStatus.COMPLETED,
+      waitingForOpponent: false,
+      completed: true,
+    });
+    expect(mock.battleAiOpponents.get('ai-opponent-1')?.answerPlan).toEqual(
+      answerPlan,
+    );
+    expect(mock.battleParticipants.get('participant-a')).toMatchObject({
+      ratingBefore: null,
+      ratingDelta: 0,
+      ratingAfter: null,
+    });
+    expect(mock.battleRatingLogs.size).toBe(0);
+    expect(mock.userBattleSkillRatings.size).toBe(0);
   });
 
   it('rejects forfeiting a single-player training room', async () => {

@@ -5,13 +5,6 @@
     <text class="hero-copy">离开本页后匹配仍会继续，匹配成功后会自动进入对战房间。</text>
   </view>
 
-  <view class="section-card rating-card">
-    <view class="rating-item">
-      <text class="rating-label">{{selectedSkillName || 'Python'}} 匹配中</text>
-      <text class="rating-value">{{waitingCountText}}</text>
-    </view>
-  </view>
-
   <view class="section-card skill-card">
     <text class="section-title">对战语言</text>
     <text class="section-subtitle">匹配开始后语言锁定，本局只使用该语言题目。</text>
@@ -33,6 +26,7 @@
     <text class="section-title">{{stateTitle}}</text>
     <text class="section-subtitle">{{stateDescription}}</text>
     <text wx:if="{{selectedSkillName}}" class="locked-skill">对战语言：{{selectedSkillName}}</text>
+    <text wx:if="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="status-copy">{{waitingCountText}}</text>
 
     <view wx:if="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="timer-grid">
       <view class="timer-card"><text class="timer-label">已等待时间</text><text class="timer-value">{{waitedText}}</text></view>

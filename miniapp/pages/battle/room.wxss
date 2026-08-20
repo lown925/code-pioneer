@@ -330,6 +330,10 @@
   min-height: 88rpx;
 }
 
+.leave-room-button {
+  margin-top: 16rpx;
+}
+
 .action-button-disabled {
   opacity: 0.5;
 }

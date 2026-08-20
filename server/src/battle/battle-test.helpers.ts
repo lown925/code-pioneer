@@ -897,6 +897,13 @@ export function createBattlePrismaMock() {
               battleRoom: {
                 id: room.id,
                 mode: room.mode,
+                skillCode: room.skillCode ?? null,
+                skill: room.skillCode
+                  ? {
+                      name:
+                        battleSkills.get(room.skillCode)?.name ?? room.skillCode,
+                    }
+                  : null,
                 status: room.status,
                 questionCount: room.questionCount,
                 durationSeconds: room.durationSeconds,

@@ -25,6 +25,7 @@ import { BattleResultService } from './battle-result.service';
 import { BattleRoomService } from './battle-room.service';
 import { BattleSubmitService } from './battle-submit.service';
 import { BattleTrainingService } from './battle-training.service';
+import { BattleActiveService } from './battle-active.service';
 import { BattleIdParamDto } from './dto/battle-id-param.dto';
 import { BattleHistoryQueryDto } from './dto/battle-history-query.dto';
 import { BattleLeaderboardQueryDto } from './dto/battle-leaderboard-query.dto';
@@ -50,6 +51,7 @@ export class BattleController {
     private readonly battleTrainingService: BattleTrainingService,
     private readonly battleResultService: BattleResultService,
     private readonly battleRoomService: BattleRoomService,
+    private readonly battleActiveService: BattleActiveService,
   ) {}
 
   @Post('matchmaking/join')
@@ -120,6 +122,11 @@ export class BattleController {
       currentUser.id,
       params.battleId,
     );
+  }
+
+  @Get('active')
+  getActiveBattle(@CurrentUser() currentUser: CurrentUserContext) {
+    return this.battleActiveService.getActiveBattle(currentUser.id);
   }
 
   @HttpCode(200)

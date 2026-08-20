@@ -9,6 +9,10 @@ import {
 } from './auth';
 import { formatBattleSkill } from './battle';
 import { request, RequestError } from './request';
+import {
+  guardBattleEntry,
+  handleBattleAlreadyActive,
+} from './battle-active-recovery';
 
 declare function clearTimeout(timeoutId: number): void;
 declare function setTimeout(handler: () => void, timeout: number): number;
@@ -72,6 +76,8 @@ type MatchmakingDependencies = {
     cancelText: string;
     success?: (result: { confirm: boolean; cancel: boolean }) => void;
   }): void;
+  recoverActiveBattle?(error: unknown): Promise<boolean>;
+  guardBattleEntry?(): Promise<boolean>;
 };
 
 const POLL_INTERVAL_MS = 1800;
@@ -240,6 +246,14 @@ export class BattleMatchmakingManager {
       skillCode,
       skillName: formatBattleSkill(skillCode),
     });
+
+    if (
+      this.dependencies.guardBattleEntry &&
+      !(await this.dependencies.guardBattleEntry())
+    ) {
+      this.patch({ isJoining: false });
+      return this.getSnapshot();
+    }
     this.computerPromptShown = false;
     this.enteredBattleId = '';
 
@@ -252,7 +266,11 @@ export class BattleMatchmakingManager {
       });
       this.applyServerStatus(payload);
     } catch (error) {
-      this.handleActionFailure(error, '加入随机匹配失败，请稍后重试。');
+      const recovered =
+        (await this.dependencies.recoverActiveBattle?.(error)) ?? false;
+      if (!recovered) {
+        this.handleActionFailure(error, '加入随机匹配失败，请稍后重试。');
+      }
     } finally {
       this.patch({ isJoining: false });
       this.scheduleForCurrentState();
@@ -297,6 +315,14 @@ export class BattleMatchmakingManager {
 
     this.patch({ isStartingComputer: true, lastError: '' });
 
+    if (
+      this.dependencies.guardBattleEntry &&
+      !(await this.dependencies.guardBattleEntry())
+    ) {
+      this.patch({ isStartingComputer: false });
+      return null;
+    }
+
     try {
       const resolution =
         await this.dependencies.request<BattleAiMatchmakingResolutionResponse>({
@@ -318,8 +344,12 @@ export class BattleMatchmakingManager {
       return resolution;
     } catch (error) {
       this.patch({ isStartingComputer: false });
-      this.handleActionFailure(error, '电脑对战创建失败，请稍后重试。');
-      await this.sync({ force: true });
+      const recovered =
+        (await this.dependencies.recoverActiveBattle?.(error)) ?? false;
+      if (!recovered) {
+        this.handleActionFailure(error, '电脑对战创建失败，请稍后重试。');
+        await this.sync({ force: true });
+      }
       return null;
     }
   }
@@ -613,6 +643,8 @@ const manager = new BattleMatchmakingManager({
   setTimeout: (handler, timeout) => setTimeout(handler, timeout),
   clearTimeout: (timeoutId) => clearTimeout(timeoutId),
   showComputerPrompt: (options) => wx.showModal(options),
+  recoverActiveBattle: handleBattleAlreadyActive,
+  guardBattleEntry,
 });
 
 export function initializeBattleMatchmakingManager() {

@@ -211,6 +211,19 @@ describe('Battle routes (e2e)', () => {
     );
 
     await request(app.getHttpServer())
+      .get('/api/v1/battles/active')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          battleId: joinedRoom.body.data.battleId,
+          mode: 'FRIEND',
+          recoveryTarget: 'ROOM',
+          readOnly: false,
+        });
+      });
+
+    await request(app.getHttpServer())
       .get(`/api/v1/battles/${joinedRoom.body.data.battleId}`)
       .set('Authorization', `Bearer ${USER_A_TOKEN}`)
       .expect(200)
@@ -271,6 +284,19 @@ describe('Battle routes (e2e)', () => {
       }>;
     }>;
     const firstQuestion = questions[0];
+
+    await request(app.getHttpServer())
+      .get('/api/v1/battles/active')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          battleId: joinedRoom.body.data.battleId,
+          mode: 'FRIEND',
+          recoveryTarget: 'PLAY',
+          readOnly: false,
+        });
+      });
 
     await request(app.getHttpServer())
       .post(`/api/v1/battles/${joinedRoom.body.data.battleId}/answers`)
@@ -397,7 +423,7 @@ describe('Battle routes (e2e)', () => {
           plannedCorrect: index === 0,
         })),
     };
-    aiOpponent.plannedSubmittedOffsetMs = 25;
+    aiOpponent.plannedSubmittedOffsetMs = 120_000;
 
     await request(app.getHttpServer())
       .post(`/api/v1/battles/${battleId}/submit`)
@@ -406,6 +432,19 @@ describe('Battle routes (e2e)', () => {
       .expect((response) => {
         expect(response.body.data.completed).toBe(true);
         expect(response.body.data.roomStatus).toBe('COMPLETED');
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/battles/active')
+      .set('Authorization', `Bearer ${USER_A_TOKEN}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          battleId,
+          mode: 'AI',
+          recoveryTarget: 'RESULT',
+          readOnly: true,
+        });
       });
 
     await request(app.getHttpServer())

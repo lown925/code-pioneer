@@ -22,6 +22,7 @@ import { BattleSubmitService } from './battle-submit.service';
 import { BattleTrainingService } from './battle-training.service';
 import { BattleSkillService } from './battle-skill.service';
 import { BattleTokenService } from './battle-token.service';
+import { BattleActiveService } from './battle-active.service';
 
 @Module({
   imports: [PrismaModule, AuthModule],
@@ -47,6 +48,7 @@ import { BattleTokenService } from './battle-token.service';
     BattleHistoryService,
     BattleMatchmakingService,
     BattleFriendRoomService,
+    BattleActiveService,
   ],
   exports: [
     BattleScoreService,
@@ -68,6 +70,7 @@ import { BattleTokenService } from './battle-token.service';
     BattleHistoryService,
     BattleMatchmakingService,
     BattleFriendRoomService,
+    BattleActiveService,
   ],
 })
 export class BattleModule {}

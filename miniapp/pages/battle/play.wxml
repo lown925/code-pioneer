@@ -4,7 +4,7 @@
     style="padding-top: {{navTopPadding}}px; height: {{navTopPadding + navBarHeight}}px;"
   >
     <view class="battle-nav-bar" style="height: {{navBarHeight}}px;">
-      <view class="battle-nav-back" bindtap="handleBackRoom" aria-label="返回对战房间">
+      <view class="battle-nav-back" bindtap="handleBackRoom" aria-label="返回对战首页">
         <text class="battle-nav-back-icon">‹</text>
       </view>
       <view class="battle-clock">
@@ -27,7 +27,7 @@
       <text class="battle-state-copy">{{errorMessage || descriptionText}}</text>
       <view class="state-action-row">
         <view class="state-action state-action-primary" bindtap="handleRetry">重新获取</view>
-        <view class="state-action state-action-secondary" bindtap="handleBackRoom">返回房间</view>
+        <view class="state-action state-action-secondary" bindtap="handleBackRoom">返回对战首页</view>
       </view>
     </view>
 

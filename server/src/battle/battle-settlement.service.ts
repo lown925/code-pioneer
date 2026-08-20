@@ -938,10 +938,7 @@ export class BattleSettlementService {
       return false;
     }
 
-    return (
-      now.getTime() - room.startedAt.getTime() >=
-      room.aiOpponent.plannedSubmittedOffsetMs
-    );
+    return true;
   }
 
   private async submitOpenParticipantsAtDeadline(

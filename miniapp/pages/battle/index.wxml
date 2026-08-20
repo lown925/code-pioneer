@@ -15,6 +15,17 @@
     </view>
   </view>
 
+  <view wx:if="{{activeBattle}}" class="section-card active-battle-card">
+    <view class="active-battle-copy">
+      <text class="active-battle-eyebrow">当前对战</text>
+      <text class="active-battle-title">{{activeBattle.skillText}} · {{activeBattle.modeText}}</text>
+      <text class="active-battle-status">{{activeBattle.statusText}}</text>
+    </view>
+    <view class="primary-button active-battle-action" bindtap="handleRecoverBattle">
+      {{activeBattle.actionText}}
+    </view>
+  </view>
+
   <view wx:if="{{state === 'guest'}}" class="section-card state-box">
     <text class="state-title">登录后开启对战</text>
     <text class="state-text">登录后可查看实时排行榜、个人排名和完整战绩。</text>

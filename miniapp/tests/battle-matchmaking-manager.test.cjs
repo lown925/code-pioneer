@@ -72,13 +72,23 @@ function loadManagerModule() {
         RequestError: MockRequestError,
       };
     }
+    if (request === './battle-active-recovery') {
+      return {
+        async guardBattleEntry() {
+          return true;
+        },
+        async handleBattleAlreadyActive() {
+          return false;
+        },
+      };
+    }
     return Module.prototype.require.call(managerModule, request);
   };
   managerModule._compile(compiledManager, managerPath);
   return managerModule.exports;
 }
 
-function createHarness(responses = []) {
+function createHarness(responses = [], options = {}) {
   const { BattleMatchmakingManager } = loadManagerModule();
   const requests = [];
   const navigations = [];
@@ -89,6 +99,8 @@ function createHarness(responses = []) {
   let now = Date.parse('2026-08-19T00:00:00.000Z');
   let authenticated = true;
   let clearedAuth = 0;
+  let activeGuardCalls = 0;
+  let activeRecoveryCalls = 0;
 
   const dependencies = {
     async request(options) {
@@ -126,6 +138,16 @@ function createHarness(responses = []) {
     showComputerPrompt(options) {
       prompts.push(options);
     },
+    async guardBattleEntry() {
+      activeGuardCalls += 1;
+      return options.activeAllowed ?? true;
+    },
+    async recoverActiveBattle(error) {
+      activeRecoveryCalls += 1;
+      return Boolean(
+        options.recoverActive && error?.code === 'BATTLE_ALREADY_ACTIVE',
+      );
+    },
   };
   const manager = new BattleMatchmakingManager(dependencies);
 
@@ -144,6 +166,12 @@ function createHarness(responses = []) {
     },
     get clearedAuth() {
       return clearedAuth;
+    },
+    get activeGuardCalls() {
+      return activeGuardCalls;
+    },
+    get activeRecoveryCalls() {
+      return activeRecoveryCalls;
     },
   };
 }
@@ -164,6 +192,29 @@ test('starts IDLE and joins into SEARCHING without a computer entry', async () =
   assert.equal(snapshot.computerAvailable, false);
   assert.equal(snapshot.waitingCount, 2);
   assert.equal(harness.requests[0].url, '/battles/matchmaking/join');
+});
+
+test('checks active battle before joining and does not create a second battle', async () => {
+  const harness = createHarness([], { activeAllowed: false });
+
+  await harness.manager.join('PYTHON');
+
+  assert.equal(harness.activeGuardCalls, 1);
+  assert.equal(harness.requests.length, 0);
+  assert.equal(harness.manager.getSnapshot().status, 'IDLE');
+});
+
+test('recovers a raced BATTLE_ALREADY_ACTIVE response without exposing the code', async () => {
+  const harness = createHarness(
+    [new MockRequestError({ statusCode: 409, code: 'BATTLE_ALREADY_ACTIVE', message: 'BATTLE_ALREADY_ACTIVE' })],
+    { recoverActive: true },
+  );
+
+  await harness.manager.join('PYTHON');
+
+  assert.equal(harness.activeRecoveryCalls, 1);
+  assert.equal(harness.manager.getSnapshot().lastError, '');
+  assert.equal(harness.requests.filter((item) => item.url === '/battles/matchmaking/join').length, 1);
 });
 
 test('uses server aiAvailable and keeps it after collapse', async () => {

@@ -36,9 +36,12 @@ function createPrismaMock() {
       battleRoomId: string;
       status: BattleParticipantStatus;
       seat: number;
-      battleRoom: {
-        mode: BattleMode;
-        status: BattleRoomStatus;
+        battleRoom: {
+          mode: BattleMode;
+          status: BattleRoomStatus;
+          skillCode?: string | null;
+          skill?: { name: string } | null;
+          invitation?: { token: string; inviteCode: string | null } | null;
         startedAt: Date | null;
         expiresAt: Date | null;
         completedAt: Date | null;
@@ -258,6 +261,33 @@ describe('BattleDomainService', () => {
     const service = new BattleDomainService(prisma as never);
 
     await expect(service.assertUserHasNoActiveBattle('user-1')).resolves.toBeUndefined();
+  });
+
+  it('does not fall back to result recovery when the latest battle expired', async () => {
+    const { prisma, activeParticipants } = createPrismaMock();
+    activeParticipants.set('user-1', {
+      battleRoomId: 'battle-expired',
+      status: BattleParticipantStatus.JOINED,
+      seat: 1,
+      battleRoom: {
+        mode: BattleMode.RANKED,
+        status: BattleRoomStatus.EXPIRED,
+        startedAt: null,
+        expiresAt: new Date('2026-08-20T08:00:00.000Z'),
+        completedAt: null,
+        cancelledAt: null,
+        endReason: 'EXPIRED',
+      },
+      joinedAt: new Date('2026-08-20T07:59:00.000Z'),
+    });
+    const service = new BattleDomainService(prisma as never);
+
+    await expect(
+      service.getRecentCompletedBattleForUser(
+        'user-1',
+        new Date('2026-08-20T07:55:00.000Z'),
+      ),
+    ).resolves.toBeNull();
   });
 
   it('does not treat COMPLETED rooms as active battles', async () => {

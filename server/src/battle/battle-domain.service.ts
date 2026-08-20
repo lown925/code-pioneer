@@ -267,6 +267,18 @@ export class BattleDomainService {
         battleRoom: {
           select: {
             mode: true,
+            skillCode: true,
+            skill: {
+              select: {
+                name: true,
+              },
+            },
+            invitation: {
+              select: {
+                token: true,
+                inviteCode: true,
+              },
+            },
             status: true,
             startedAt: true,
             expiresAt: true,
@@ -287,6 +299,82 @@ export class BattleDomainService {
       participantStatus: participant.status,
       roomStatus: participant.battleRoom.status,
       mode: participant.battleRoom.mode,
+      skillCode: participant.battleRoom.skillCode,
+      skillName:
+        participant.battleRoom.skill?.name ?? participant.battleRoom.skillCode,
+      invitationToken: participant.battleRoom.invitation?.token ?? null,
+      inviteCode: participant.battleRoom.invitation?.inviteCode ?? null,
+      seat: participant.seat,
+      startedAt: participant.battleRoom.startedAt,
+      expiresAt: participant.battleRoom.expiresAt,
+      completedAt: participant.battleRoom.completedAt,
+      cancelledAt: participant.battleRoom.cancelledAt,
+      endReason: participant.battleRoom.endReason,
+    };
+  }
+
+  async getRecentCompletedBattleForUser(
+    userId: string,
+    completedAfter: Date,
+    client?: BattleClient,
+  ) {
+    const prisma = client ?? this.prisma;
+    const participant = await prisma.battleParticipant.findFirst({
+      where: {
+        userId,
+      },
+      orderBy: {
+        joinedAt: 'desc',
+      },
+      select: {
+        battleRoomId: true,
+        status: true,
+        seat: true,
+        battleRoom: {
+          select: {
+            mode: true,
+            skillCode: true,
+            skill: {
+              select: {
+                name: true,
+              },
+            },
+            invitation: {
+              select: {
+                token: true,
+                inviteCode: true,
+              },
+            },
+            status: true,
+            startedAt: true,
+            expiresAt: true,
+            completedAt: true,
+            cancelledAt: true,
+            endReason: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !participant ||
+      participant.battleRoom.status !== BattleRoomStatus.COMPLETED ||
+      !participant.battleRoom.completedAt ||
+      participant.battleRoom.completedAt.getTime() < completedAfter.getTime()
+    ) {
+      return null;
+    }
+
+    return {
+      battleRoomId: participant.battleRoomId,
+      participantStatus: participant.status,
+      roomStatus: participant.battleRoom.status,
+      mode: participant.battleRoom.mode,
+      skillCode: participant.battleRoom.skillCode,
+      skillName:
+        participant.battleRoom.skill?.name ?? participant.battleRoom.skillCode,
+      invitationToken: participant.battleRoom.invitation?.token ?? null,
+      inviteCode: participant.battleRoom.invitation?.inviteCode ?? null,
       seat: participant.seat,
       startedAt: participant.battleRoom.startedAt,
       expiresAt: participant.battleRoom.expiresAt,

@@ -7,7 +7,6 @@
 }
 
 .hero-card,
-.rating-card,
 .skill-card,
 .status-card {
   padding: 28rpx;
@@ -118,18 +117,12 @@
   gap: 18rpx;
 }
 
-.rating-card {
-  display: block;
-}
-
-.rating-item,
 .timer-card {
   padding: 22rpx;
   border-radius: 22rpx;
   background: var(--color-card-subtle);
 }
 
-.rating-label,
 .timer-label,
 .matched-label {
   display: block;
@@ -137,7 +130,6 @@
   color: var(--color-text-secondary);
 }
 
-.rating-value,
 .timer-value {
   display: block;
   margin-top: 10rpx;

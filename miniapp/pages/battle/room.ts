@@ -6,7 +6,6 @@ import type {
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   disableBattleLeaveAlert,
-  enableBattleLeaveAlert,
   formatBattleDuration,
   formatBattleInitial,
   formatBattleNickname,
@@ -66,6 +65,7 @@ type RoomPageData = {
   canShareInvitation: boolean;
   showInviteTools: boolean;
   showInviteCode: boolean;
+  canLeaveRoom: boolean;
   friendStatusNotice: string;
   myParticipant: ParticipantCard | null;
   opponentParticipant: ParticipantCard | null;
@@ -95,6 +95,7 @@ type RoomPageMethods = {
   handlePrimaryAction(): void;
   handleCopyInviteCode(): void;
   handleNavBack(): Promise<void>;
+  handleLeaveRoom(): void;
   navigateToPlay(autoNavigate?: boolean): void;
   navigateToResult(autoNavigate?: boolean): void;
   navigateHome(): void;
@@ -219,6 +220,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
     canShareInvitation: false,
     showInviteTools: false,
     showInviteCode: false,
+    canLeaveRoom: false,
     friendStatusNotice: '',
     myParticipant: null,
     opponentParticipant: null,
@@ -264,7 +266,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
 
     if (hasLoadedOnce && this.data.isValidBattleId) {
       void this.loadRoom({
-        autoNavigate: true,
+        autoNavigate: false,
       });
     }
   },
@@ -522,9 +524,9 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
 
   async confirmCancelAndLeave() {
     const result = await showBattleConfirmModal({
-      title: '返回对战首页',
-      content: '返回首页将取消当前好友房并释放占用状态，是否继续？',
-      confirmText: '确认返回',
+      title: '离开房间',
+      content: '离开后将无法继续本场对战，当前好友房也会结束。',
+      confirmText: '确认离开',
       cancelText: '继续停留',
       confirmColor: '#c24343',
     });
@@ -613,6 +615,10 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
       canShareInvitation: showInviteTools,
       showInviteTools,
       showInviteCode,
+      canLeaveRoom:
+        isFriendRoomCreator &&
+        !!this.data.invitationToken &&
+        (state === 'WAITING' || state === 'READY' || state === 'ERROR'),
       friendStatusNotice: meta.friendStatusNotice,
       myParticipant: this.mapParticipant(myParticipant, currentUserId),
       opponentParticipant:
@@ -634,7 +640,9 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
     }
 
     if (state === 'IN_PROGRESS') {
-      this.navigateToPlay(options?.autoNavigate);
+      if (options?.autoNavigate) {
+        this.navigateToPlay(true);
+      }
       return;
     }
 
@@ -732,11 +740,6 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
   },
 
   syncLeaveAlert() {
-    if (this.canCreatorCancelFriendRoom()) {
-      enableBattleLeaveAlert('离开页面将取消当前好友房。');
-      return;
-    }
-
     disableBattleLeaveAlert();
   },
 
@@ -780,49 +783,13 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
   },
 
   async handleNavBack() {
-    if (
-      this.data.isFriendRoomCreator &&
-      this.data.state === 'COUNTDOWN'
-    ) {
-      const result = await showBattleConfirmModal({
-        title: '对局即将开始',
-        content: '双方已准备完成，当前阶段不能取消。确定离开页面吗？',
-        confirmText: '确认离开',
-        cancelText: '继续对局',
-        confirmColor: '#2f6bff',
-      });
+    this.navigateHome();
+  },
 
-      if (result.confirm) {
-        this.navigateHome();
-      }
-
-      return;
+  handleLeaveRoom() {
+    if (this.data.canLeaveRoom) {
+      void this.confirmCancelAndLeave();
     }
-
-    if (!this.canCreatorCancelFriendRoom()) {
-      if (
-        this.data.isFriendMode &&
-        !this.data.isFriendRoomCreator &&
-        (this.data.state === 'WAITING' ||
-          this.data.state === 'READY' ||
-          this.data.state === 'COUNTDOWN')
-      ) {
-        await showBattleConfirmModal({
-          title: '当前不能直接离开',
-          content:
-            '你已经加入该好友房。当前阶段请等待房主取消房间，或继续准备开始对战。',
-          confirmText: '我知道了',
-          cancelText: '继续停留',
-          confirmColor: '#2f6bff',
-        });
-        return;
-      }
-
-      this.navigateHome();
-      return;
-    }
-
-    await this.confirmCancelAndLeave();
   },
 
   navigateToPlay(autoNavigate = false) {

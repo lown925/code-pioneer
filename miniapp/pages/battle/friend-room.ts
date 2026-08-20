@@ -14,6 +14,11 @@ import {
   normalizeBattleInviteCode,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
+import {
+  guardBattleEntry,
+  handleBattleAlreadyActive,
+  showActiveBattleRecovery,
+} from '../../utils/battle-active-recovery';
 
 type FriendRoomPageState =
   | 'IDLE'
@@ -281,6 +286,10 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
       return;
     }
 
+    if (!(await guardBattleEntry())) {
+      return;
+    }
+
     const currentRequestSerial = ++requestSerial;
 
     this.setData({
@@ -313,6 +322,11 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
       );
     } catch (error) {
       if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      if (await handleBattleAlreadyActive(error)) {
+        this.setData({ isBusy: false });
         return;
       }
 
@@ -459,6 +473,10 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
       return;
     }
 
+    if (!(await guardBattleEntry())) {
+      return;
+    }
+
     const currentRequestSerial = ++requestSerial;
 
     this.setData({
@@ -491,6 +509,11 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
         return;
       }
 
+      if (await handleBattleAlreadyActive(error)) {
+        this.setData({ isBusy: false });
+        return;
+      }
+
       this.setData({
         state: 'ERROR',
         stateTitle: '加入好友房失败',
@@ -517,6 +540,10 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
         title: '请输入邀请码',
         icon: 'none',
       });
+      return;
+    }
+
+    if (!(await guardBattleEntry())) {
       return;
     }
 
@@ -564,6 +591,11 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
         return;
       }
 
+      if (await handleBattleAlreadyActive(error)) {
+        this.setData({ isBusy: false, joinButtonText: '查询并加入' });
+        return;
+      }
+
       this.setData({
         state: 'ERROR',
         stateTitle: '加入好友房失败',
@@ -579,6 +611,10 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
   },
 
   applyPreview(payload: FriendRoomPreviewResponse) {
+    if (payload.cannotJoinReason === 'BATTLE_ALREADY_ACTIVE') {
+      void showActiveBattleRecovery();
+    }
+
     const currentUserId = getAuthStateSummary().user?.id ?? '';
     const isCreator = payload.inviter.userId === currentUserId;
     const state = this.getPreviewState(payload);

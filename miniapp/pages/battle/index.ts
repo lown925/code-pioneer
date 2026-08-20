@@ -14,6 +14,13 @@ import {
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request } from '../../utils/request';
+import {
+  fetchActiveBattle,
+  getActiveBattlePresentation,
+  guardBattleEntry,
+  navigateToActiveBattle,
+  type ActiveBattlePresentation,
+} from '../../utils/battle-active-recovery';
 
 type PageState = 'guest' | 'loading' | 'success' | 'empty' | 'error';
 type LeaderboardScope = 'TOTAL' | 'PYTHON';
@@ -56,6 +63,8 @@ type BattlePageData = {
   leaderboardSubtitle: string;
   leaderboardRatingLabel: string;
   leaderboardBattlesLabel: string;
+  activeBattle: ActiveBattlePresentation | null;
+  isCheckingBattleEntry: boolean;
 };
 
 type BattlePageMethods = {
@@ -66,10 +75,11 @@ type BattlePageMethods = {
   handleRandomMatch(): void;
   handleFriendBattle(): void;
   handleHistory(): void;
+  handleRecoverBattle(): void;
   handleLeaderboardScopeChange(
     event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>,
   ): void;
-  openBattlePage(path: string): void;
+  openBattlePage(path: string, guardActiveBattle?: boolean): Promise<void>;
   mapLeaderboardItem(item: BattleLeaderboardItem): LeaderboardRow;
   mapMyRank(profile: BattleProfileResponse, leaderboard: BattleLeaderboardResponse): MyRankCard;
   getReadableErrorMessage(error: unknown): string;
@@ -93,6 +103,8 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
     leaderboardSubtitle: '全部方向 Rating 总和排名',
     leaderboardRatingLabel: '总榜 Rating',
     leaderboardBattlesLabel: '总场次',
+    activeBattle: null,
+    isCheckingBattleEntry: false,
   },
 
   onLoad() {
@@ -137,6 +149,7 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
         errorMessage: '',
         rankings: [],
         myRank: null,
+        activeBattle: null,
       });
       return;
     }
@@ -154,6 +167,18 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
     });
 
     try {
+      const activeBattle = await fetchActiveBattle().catch(() => null);
+
+      if (!isPageActive || currentRequestSerial !== requestSerial) {
+        return;
+      }
+
+      this.setData({
+        activeBattle: activeBattle
+          ? getActiveBattlePresentation(activeBattle)
+          : null,
+      });
+
       const [profile, leaderboard] = await Promise.all([
         request<BattleProfileResponse>({
           url: '/battles/profile',
@@ -185,6 +210,9 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
         errorMessage: '',
         rankings,
         myRank: this.mapMyRank(profile, leaderboard),
+        activeBattle: activeBattle
+          ? getActiveBattlePresentation(activeBattle)
+          : null,
       });
     } catch (error) {
       if (!isPageActive || currentRequestSerial !== requestSerial) {
@@ -211,15 +239,21 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
   },
 
   handleRandomMatch() {
-    this.openBattlePage('/pages/battle/matchmaking');
+    void this.openBattlePage('/pages/battle/matchmaking', true);
   },
 
   handleFriendBattle() {
-    this.openBattlePage('/pages/battle/friend-room');
+    void this.openBattlePage('/pages/battle/friend-room', true);
   },
 
   handleHistory() {
-    this.openBattlePage('/pages/battle/history');
+    void this.openBattlePage('/pages/battle/history');
+  },
+
+  handleRecoverBattle() {
+    if (this.data.activeBattle) {
+      navigateToActiveBattle(this.data.activeBattle.battle);
+    }
   },
 
   handleLeaderboardScopeChange(event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>) {
@@ -241,10 +275,24 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
     void this.loadBattleHome();
   },
 
-  openBattlePage(path: string) {
+  async openBattlePage(path: string, guardActiveBattle = false) {
     if (!this.data.isAuthenticated) {
       redirectToLogin('/pages/battle/index');
       return;
+    }
+
+    if (guardActiveBattle) {
+      if (this.data.isCheckingBattleEntry) {
+        return;
+      }
+
+      this.setData({ isCheckingBattleEntry: true });
+      const canContinue = await guardBattleEntry();
+      this.setData({ isCheckingBattleEntry: false });
+
+      if (!canContinue) {
+        return;
+      }
     }
 
     wx.navigateTo({

@@ -397,7 +397,7 @@ describe('BattleSettlementService', () => {
     expect(mock.userBattleSkillRatings.size).toBe(0);
   });
 
-  it('keeps an early-submitted AI battle in progress until the persisted AI time', async () => {
+  it('settles an early-submitted AI battle immediately from the persisted plan', async () => {
     const { mock, service } = createService(BattleMode.AI);
     mock.battleParticipants.delete('participant-b');
     const room = mock.battleRooms.get('room-1')!;
@@ -428,31 +428,18 @@ describe('BattleSettlementService', () => {
       updatedAt: startedAt,
     });
 
-    const pending = await service.normalizeBattleState(
+    const persistedPlan = structuredClone(
+      mock.battleAiOpponents.get('ai-opponent-1')!.answerPlan,
+    );
+    const settled = await service.normalizeBattleState(
       room.id,
       new Date('2026-07-25T10:00:20.000Z'),
     );
 
-    expect(pending?.status).toBe(BattleRoomStatus.IN_PROGRESS);
-    expect(mock.battleProfiles.size).toBe(0);
-
-    await Promise.all([
-      service.normalizeBattleState(
-        room.id,
-        new Date('2026-07-25T10:00:40.000Z'),
-      ),
-      service.normalizeBattleState(
-        room.id,
-        new Date('2026-07-25T10:00:40.000Z'),
-      ),
-    ]);
-    await service.normalizeBattleState(
-      room.id,
-      new Date('2026-07-25T10:00:41.000Z'),
-    );
-
-    expect(mock.battleRooms.get(room.id)?.status).toBe(
-      BattleRoomStatus.COMPLETED,
+    expect(settled?.status).toBe(BattleRoomStatus.COMPLETED);
+    expect(mock.battleRooms.get(room.id)?.status).toBe(BattleRoomStatus.COMPLETED);
+    expect(mock.battleAiOpponents.get('ai-opponent-1')!.answerPlan).toEqual(
+      persistedPlan,
     );
     expect(mock.battleProfiles.get(USER_A_ID)?.totalBattles).toBe(1);
     expect(mock.battleRatingLogs.size).toBe(0);

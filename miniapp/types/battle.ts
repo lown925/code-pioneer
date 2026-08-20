@@ -18,6 +18,22 @@ export type BattleParticipantStatus =
   | 'FORFEITED'
   | 'COMPLETED';
 
+export type ActiveBattleRecoveryTarget = 'ROOM' | 'PLAY' | 'RESULT';
+
+export type ActiveBattleResponse = {
+  battleId: string;
+  mode: BattleMode;
+  roomStatus: BattleRoomStatus;
+  participantStatus: BattleParticipantStatus;
+  skillCode: string | null;
+  skillName: string | null;
+  invitationToken: string | null;
+  inviteCode: string | null;
+  recoveryTarget: ActiveBattleRecoveryTarget;
+  readOnly: boolean;
+  serverTime: string;
+};
+
 export type BattleResult = 'WIN' | 'LOSS' | 'DRAW' | 'NONE';
 
 export type BattleQuestionType = 'SINGLE_CHOICE' | 'CODE_FILL';

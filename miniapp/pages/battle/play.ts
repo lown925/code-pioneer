@@ -1145,23 +1145,8 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       return;
     }
 
-    const url = `/pages/battle/room?battleId=${encodeURIComponent(this.data.battleId)}`;
-
-    wx.redirectTo({
-      url,
-      fail: () => {
-        (
-          wx as unknown as {
-            navigateBack: (options: { delta?: number; fail?: () => void }) => void;
-          }
-        ).navigateBack({
-          fail: () => {
-            wx.switchTab({
-              url: '/pages/battle/index',
-            });
-          },
-        });
-      },
+    wx.switchTab({
+      url: '/pages/battle/index',
     });
   },
 

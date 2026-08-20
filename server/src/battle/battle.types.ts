@@ -88,12 +88,32 @@ export type BattleActiveRoomSummary = {
   participantStatus: string;
   roomStatus: string;
   mode: string;
+  skillCode: string | null;
+  skillName: string | null;
+  invitationToken: string | null;
+  inviteCode: string | null;
   seat: number;
   startedAt: Date | null;
   expiresAt: Date | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
   endReason: string | null;
+};
+
+export type BattleRecoveryTarget = 'ROOM' | 'PLAY' | 'RESULT';
+
+export type ActiveBattleRecoveryPayload = {
+  battleId: string;
+  mode: string;
+  roomStatus: string;
+  participantStatus: string;
+  skillCode: string | null;
+  skillName: string | null;
+  invitationToken: string | null;
+  inviteCode: string | null;
+  recoveryTarget: BattleRecoveryTarget;
+  readOnly: boolean;
+  serverTime: Date;
 };
 
 export type BattleTransactionClient = Prisma.TransactionClient;

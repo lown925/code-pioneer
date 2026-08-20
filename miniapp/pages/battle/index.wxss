@@ -86,6 +86,54 @@
   background: rgba(255, 255, 255, 0.42);
 }
 
+.active-battle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 24rpx 26rpx;
+  border-color: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-card-elevated), var(--color-primary-subtle));
+}
+
+.active-battle-copy,
+.active-battle-eyebrow,
+.active-battle-title,
+.active-battle-status {
+  display: block;
+}
+
+.active-battle-copy {
+  min-width: 0;
+}
+
+.active-battle-eyebrow {
+  color: var(--color-primary);
+  font-size: 19rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.active-battle-title {
+  margin-top: 7rpx;
+  color: var(--color-text-primary);
+  font-size: 27rpx;
+  font-weight: 700;
+}
+
+.active-battle-status {
+  margin-top: 5rpx;
+  color: var(--color-text-secondary);
+  font-size: 21rpx;
+}
+
+.active-battle-action {
+  flex: 0 0 auto;
+  min-height: 68rpx;
+  padding: 0 24rpx;
+  font-size: 22rpx;
+}
+
 .leaderboard-panel {
   overflow: hidden;
   padding: 0;

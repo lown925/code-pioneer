@@ -5,7 +5,7 @@
   >
     <view class="custom-nav-bar" style="height: {{navBarHeight}}px;">
       <view class="custom-nav-back" bindtap="handleNavBack">
-        <text class="custom-nav-back-icon">&lt;</text>
+        <text class="custom-nav-back-icon">‹</text>
         <text class="custom-nav-back-text">返回</text>
       </view>
       <text class="custom-nav-title">好友对战</text>
