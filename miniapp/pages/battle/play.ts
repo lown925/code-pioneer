@@ -406,7 +406,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
     isValidBattleId: false,
     state: 'LOADING',
     titleText: '正在加载题目',
-    descriptionText: '系统正在同步 Battle 题目、已答状态和剩余时间。',
+    descriptionText: '系统正在同步对战题目、已答状态和剩余时间。',
     errorMessage: '',
     remainingTimeText: '00:00',
     countdownText: '',
@@ -449,10 +449,10 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       battleId,
       isValidBattleId,
       state: isValidBattleId ? 'LOADING' : 'ERROR',
-      titleText: isValidBattleId ? '正在加载题目' : 'battleId 无效',
+      titleText: isValidBattleId ? '正在加载题目' : '当前对战标识无效',
       descriptionText: isValidBattleId
-        ? '系统正在同步 Battle 题目、已答状态和剩余时间。'
-        : '当前页面没有收到合法的 Battle 标识。',
+        ? '系统正在同步对战题目、已答状态和剩余时间。'
+        : '当前页面没有收到合法的对战标识。',
       errorMessage: '',
       myPlayer: currentUser
         ? {
@@ -638,7 +638,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       nicknameText: formatBattleNickname(participant.nickname),
       avatarUrl: participant.avatarUrl ?? '',
       avatarFallbackText: formatBattleInitial(participant.nickname),
-      ratingText: rating === null ? '' : `Rating ${rating}`,
+      ratingText: rating === null ? '' : `积分 ${rating}`,
     };
   },
 
@@ -661,7 +661,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       this.setData({
         state: 'LOADING',
         titleText: '正在加载题目',
-        descriptionText: '系统正在同步 Battle 题目、已答状态和剩余时间。',
+        descriptionText: '系统正在同步对战题目、已答状态和剩余时间。',
         errorMessage: '',
       });
     }
@@ -691,8 +691,8 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       this.setData({
         state: 'ERROR',
         titleText: '题目加载失败',
-        descriptionText: '你可以重新获取题目，或先回到 Battle 房间。',
-        errorMessage: this.getReadableError(error, 'Battle 题目加载失败，请稍后重试。'),
+        descriptionText: '你可以重新获取题目，或先回到对战房间。',
+        errorMessage: this.getReadableError(error, '对战题目加载失败，请稍后重试。'),
       });
     } finally {
       isQuestionsRequesting = false;
@@ -754,7 +754,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
             ? '等待结算中'
             : nextState === 'COMPLETED'
               ? '本场对战已结束'
-              : 'Battle 答题中',
+              : '对战答题中',
       descriptionText:
         nextState === 'COUNTDOWN'
           ? '倒计时尚未结束，结束后会自动进入作答状态。'
@@ -1040,8 +1040,8 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
       this.setData({
         state: 'ERROR',
         titleText: '结果获取失败',
-        descriptionText: '当前 Battle 结果无法继续同步，你可以稍后重试。',
-        errorMessage: this.getReadableError(error, 'Battle 结果暂时不可用，请稍后重试。'),
+        descriptionText: '当前对战结果无法继续同步，你可以稍后重试。',
+        errorMessage: this.getReadableError(error, '对战结果暂时不可用，请稍后重试。'),
         isBattleActionPending: false,
         submitBattleButtonText: '交卷',
         forfeitButtonText: '认输',
@@ -1465,7 +1465,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
 
     void showBattleConfirmModal({
       title: '确认认输',
-      content: '认输会立即判负，并结束你当前这场 Battle。确认后将直接进入结算等待。',
+      content: '认输会立即判负，并结束你当前这场对战。确认后将直接进入结算等待。',
       confirmText: '确认认输',
       cancelText: '继续对战',
       confirmColor: BATTLE_NATIVE_COLOR_TOKENS.danger,
@@ -2025,7 +2025,7 @@ registerThemedPage<PlayPageData, PlayPageMethods>({
         BATTLE_EXPIRED: '本场对战作答时间已结束，当前已停止修改答案。',
         BATTLE_SETTLEMENT_IN_PROGRESS: '当前对战正在结算中，暂时不能继续修改答案。',
         BATTLE_ALREADY_COMPLETED: '当前对战已经完成，题目页面只保留只读展示。',
-        BATTLE_NOT_PARTICIPANT: '你不是当前对局参与者，无法继续本场 Battle。',
+        BATTLE_NOT_PARTICIPANT: '你不是当前对局参与者，无法继续本场对战。',
         BATTLE_INVALID_STATUS: '当前对战状态已变化，请刷新后再继续操作。',
       },
     );

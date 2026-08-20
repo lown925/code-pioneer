@@ -18,7 +18,8 @@
 
 - `types.ts`：内容模板类型定义
 - `index.ts`：当前启用的课程种子入口
-- `v1/javascript-starter.ts`：首批 JavaScript 入门示例课程
+- `v1/`：已完成并通过内容门禁的正式课程 seed
+- `formal-course-plan.ts`：第一版正式课程规划层；未完成课程不会进入 seed
 
 ## 新增或更新课程内容
 

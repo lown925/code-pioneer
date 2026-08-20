@@ -110,7 +110,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
     battleId: '',
     isValidBattleId: false,
     state: 'LOADING',
-    titleText: '正在获取 Battle 结果',
+    titleText: '正在获取对战结果',
     descriptionText: '系统正在同步本场对战的结算结果，请稍候。',
     errorMessage: '',
     modeText: '',
@@ -159,10 +159,10 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
       battleId,
       isValidBattleId,
       state: isValidBattleId ? 'LOADING' : 'ERROR',
-      titleText: isValidBattleId ? '正在获取 Battle 结果' : 'battleId 无效',
+      titleText: isValidBattleId ? '正在获取对战结果' : '当前对战标识无效',
       descriptionText: isValidBattleId
         ? '系统正在同步本场对战的结算结果，请稍候。'
-        : '当前页面没有收到合法的 Battle 标识。',
+        : '当前页面没有收到合法的对战标识。',
       errorMessage: '',
     });
 
@@ -222,7 +222,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
     if (!hasLoadedOnce) {
       this.setData({
         state: 'LOADING',
-        titleText: '正在获取 Battle 结果',
+        titleText: '正在获取对战结果',
         descriptionText: '系统正在同步本场对战的结算结果，请稍候。',
         errorMessage: '',
       });
@@ -274,12 +274,12 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
         state: 'SUCCESS',
         titleText: resultMeta.resultText,
         descriptionText: isTrainingMode
-          ? '本场单人训练已完成，答题记录会进入对战历史，且不会改变 Rating。'
+          ? '本场单人训练已完成，答题记录会进入对战历史，且不会改变积分。'
           : isRankedMode
-            ? '本场排位的分数、胜负和 Rating 变化已经确认。'
+            ? '本场随机匹配的分数、胜负和积分变化已经确认。'
             : isAiMode
-              ? '本场电脑对战已完成，不修改正式 Rating。'
-              : '本场好友对战已完成，不计 Rating。',
+              ? '本场电脑对战已完成，不修改正式积分。'
+              : '本场好友对战已完成，不计积分。',
         errorMessage: '',
         modeText: this.getModeText(response.mode),
         skillText: formatBattleSkill(response.skill),
@@ -353,7 +353,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
       this.setData({
         state: 'ERROR',
         titleText: '结果获取失败',
-        descriptionText: '你可以重新查询本场结果，或先返回 Battle 首页。',
+        descriptionText: '你可以重新查询本场结果，或先返回对战首页。',
         errorMessage: this.getReadableError(error),
       });
     } finally {
@@ -463,7 +463,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
     }
 
     if (mode === 'RANKED') {
-      return '排位对战';
+      return '随机匹配';
     }
 
     if (mode === 'TRAINING') {
@@ -481,7 +481,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
     if (result === 'NONE') {
       return {
         resultText: '训练完成',
-        resultHintText: '本场训练不计 Rating，答错题目仍会进入错题记录。',
+        resultHintText: '本场训练不计积分，答错题目仍会进入错题记录。',
         resultBadgeClassName: 'result-badge-draw',
       };
     }
@@ -489,7 +489,7 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
     if (result === 'WIN') {
       return {
         resultText: '胜利',
-        resultHintText: '你在这场 Battle 中取得了胜利。',
+        resultHintText: '你在这场对战中取得了胜利。',
         resultBadgeClassName: 'result-badge-win',
       };
     }
@@ -497,14 +497,14 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
     if (result === 'LOSS') {
       return {
         resultText: '失利',
-        resultHintText: '本场 Battle 已结束，本次结果为失利。',
+        resultHintText: '本场对战已结束，本次结果为失利。',
         resultBadgeClassName: 'result-badge-loss',
       };
     }
 
     return {
       resultText: '平局',
-      resultHintText: '本场 Battle 双方战成平局。',
+      resultHintText: '本场对战双方战成平局。',
       resultBadgeClassName: 'result-badge-draw',
     };
   },
@@ -589,21 +589,21 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
     if (error instanceof RequestError) {
       if (error.statusCode === 401 || error.code === 'UNAUTHORIZED') {
         redirectToLogin(`/pages/battle/result?battleId=${encodeURIComponent(this.data.battleId)}`);
-        return '登录状态已失效，请重新登录后再查看 Battle 结果。';
+        return '登录状态已失效，请重新登录后再查看对战结果。';
       }
     }
 
     return getBattleErrorMessage(
       error,
       {
-        unauthorized: '登录状态已失效，请重新登录后再查看 Battle 结果。',
+        unauthorized: '登录状态已失效，请重新登录后再查看对战结果。',
         network: '网络连接失败，请确认后端服务已启动后重试。',
-        fallback: 'Battle 结果获取失败，请稍后重试。',
+        fallback: '对战结果获取失败，请稍后重试。',
       },
       {
-        BATTLE_NOT_PARTICIPANT: '你不是这场对战的参与者，无法查看 Battle 结果。',
+        BATTLE_NOT_PARTICIPANT: '你不是这场对战的参与者，无法查看结果。',
         BATTLE_SETTLEMENT_DATA_INVALID: '当前对战尚未生成有效结算数据，请稍后再试。',
-        BATTLE_ALREADY_COMPLETED: '本场 Battle 已完成，正在同步最终结果。',
+        BATTLE_ALREADY_COMPLETED: '本场对战已完成，正在同步最终结果。',
         BATTLE_INVALID_STATUS: '当前结果状态已变化，请刷新后再继续查看。',
       },
     );

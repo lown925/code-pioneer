@@ -113,7 +113,7 @@ const SOURCE_FILTERS: SourceFilterOption[] = [
   { value: '', label: '全部' },
   { value: 'LEARNING', label: '学习' },
   { value: 'PRACTICE', label: '练习室' },
-  { value: 'BATTLE', label: 'Battle' },
+  { value: 'BATTLE', label: '对战' },
 ];
 
 function isNonEmptyString(value: unknown): value is string {
@@ -147,7 +147,7 @@ registerThemedPage<WrongQuestionPageData, WrongQuestionPageMethods>({
     isRefreshing: false,
     selectedSource: '',
     sourceFilters: SOURCE_FILTERS,
-    listSubtitleText: '当前列表支持按章节学习、练习室和 Battle 来源筛选。',
+    listSubtitleText: '当前列表支持按章节学习、练习室和对战来源筛选。',
   },
 
   onLoad(query) {
@@ -483,9 +483,9 @@ registerThemedPage<WrongQuestionPageData, WrongQuestionPageMethods>({
   resolveEmptyState(source: SourceFilterValue) {
     if (source === 'BATTLE') {
       return {
-        title: '还没有 Battle 错题记录',
-        message: '完成 Battle 对战后，已提交且答错的题目会出现在这里。',
-        subtitle: '当前列表已切换为 Battle 来源，统计卡片仍展示全来源聚合结果。',
+        title: '还没有对战错题记录',
+        message: '完成对战后，已提交且答错的题目会出现在这里。',
+        subtitle: '当前列表已切换为对战来源，统计卡片仍展示全来源聚合结果。',
       };
     }
 
@@ -507,8 +507,8 @@ registerThemedPage<WrongQuestionPageData, WrongQuestionPageMethods>({
 
     return {
       title: '还没有错题记录',
-      message: '完成章节测验、练习室或 Battle 后，答错的题目会出现在这里。',
-      subtitle: '当前列表支持按章节学习、练习室和 Battle 来源筛选。',
+      message: '完成章节测验、练习室或对战后，答错的题目会出现在这里。',
+      subtitle: '当前列表支持按章节学习、练习室和对战来源筛选。',
     };
   },
 

@@ -102,13 +102,13 @@ registerThemedPage<ProfilePageData, ProfilePageMethods>({
         key: 'battleHistory',
         title: '战绩',
         valueText: '0',
-        helperText: '查看 Battle 战绩',
+        helperText: '查看对战记录',
       },
       {
         key: 'wrongQuestion',
         title: '错题',
         valueText: '0',
-        helperText: '学习与 Battle 错题',
+        helperText: '学习与对战错题',
       },
     ],
     isOverviewLoading: false,
@@ -219,14 +219,14 @@ registerThemedPage<ProfilePageData, ProfilePageMethods>({
           key: 'battleHistory',
           title: '战绩',
           valueText: this.data.battleSummary?.totalBattlesText ?? '0',
-          helperText: '查看 Battle 战绩',
+          helperText: '查看对战记录',
         },
         {
           key: 'wrongQuestion',
           title: '错题',
           valueText:
             this.data.wrongQuestionSummary?.totalWrongQuestionsText ?? '0',
-          helperText: '学习与 Battle 错题',
+          helperText: '学习与对战错题',
         },
       ],
     });

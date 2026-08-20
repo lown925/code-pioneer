@@ -9,17 +9,17 @@
   <view class="growth-line-chart__legend" wx:if="{{chartMode === 'learning'}}">
     <view class="growth-line-chart__legend-item">
       <view class="growth-line-chart__legend-line growth-line-chart__legend-line--quiz"></view>
-      <text>Quiz</text>
+      <text>章节测验</text>
     </view>
     <view class="growth-line-chart__legend-item">
       <view class="growth-line-chart__legend-line growth-line-chart__legend-line--practice"></view>
-      <text>Practice</text>
+      <text>练习室</text>
     </view>
   </view>
   <view class="growth-line-chart__legend" wx:else>
     <view class="growth-line-chart__legend-item">
       <view class="growth-line-chart__legend-line growth-line-chart__legend-line--quiz"></view>
-      <text>Rating（最近对局）</text>
+      <text>积分（最近对战）</text>
     </view>
   </view>
 </view>

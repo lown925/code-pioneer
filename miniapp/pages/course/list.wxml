@@ -1,7 +1,7 @@
 <view class="page-shell course-list-page theme-{{resolvedTheme}}">
   <battle-match-floating />
   <view class="course-hero">
-    <text class="hero-eyebrow">COURSE LIBRARY</text>
+    <text class="hero-eyebrow">课程库</text>
     <text class="hero-title">选择课程</text>
     <text class="hero-copy">按学习方向筛选课程，点击卡片右侧按钮加入学习页。</text>
   </view>

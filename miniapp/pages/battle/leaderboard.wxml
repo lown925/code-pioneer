@@ -24,7 +24,7 @@
       <text class="summary-value">{{mySummary.rankText}}</text>
     </view>
     <view class="summary-item">
-      <text class="summary-label">我的评分</text>
+      <text class="summary-label">我的积分</text>
       <text class="summary-value">{{mySummary.ratingText}}</text>
     </view>
     <text class="summary-copy">{{mySummary.hintText}}</text>
@@ -78,7 +78,7 @@
 
           <view class="player-info">
             <text class="nickname">{{item.nicknameText}}</text>
-            <text class="player-meta">评分 {{item.ratingText}} · 最高 {{item.highestRatingText}}</text>
+            <text class="player-meta">积分 {{item.ratingText}} · 最高 {{item.highestRatingText}}</text>
             <view
               wx:if="{{scope === 'PYTHON'}}"
               class="battle-star-rating leaderboard-card-stars"
@@ -91,12 +91,12 @@
                 class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
               >{{star.isFilled ? '★' : '☆'}}</text>
             </view>
-            <text class="player-meta">{{item.rankedBattlesText}} 场排位</text>
+            <text class="player-meta">{{item.rankedBattlesText}} 场随机匹配</text>
             <text class="player-meta">{{item.recordText}}</text>
           </view>
 
           <view class="winrate-box">
-            <text class="winrate-label">{{scope === 'PYTHON' ? '排位胜率' : '总榜胜率'}}</text>
+            <text class="winrate-label">{{scope === 'PYTHON' ? '随机匹配胜率' : '总榜胜率'}}</text>
             <text class="winrate-value">{{item.winRateText}}</text>
           </view>
         </view>

@@ -3,7 +3,7 @@
   <view class="intro-card">
     <text class="intro-eyebrow">个人名片</text>
     <text class="intro-title">让队友认识真实的你</text>
-    <text class="intro-copy">头像和昵称由你主动选择，仅用于码站先锋内的个人主页和排行榜。</text>
+    <text class="intro-copy">头像和昵称由你主动选择，仅用于码战先锋内的个人主页和排行榜。</text>
   </view>
 
   <view class="section-card form-card">
@@ -72,6 +72,6 @@
 
   <view class="privacy-note">
     <text class="privacy-title">隐私说明</text>
-    <text class="privacy-copy">小程序不会自动读取你的微信头像或昵称。只有你主动选择并点击保存后，资料才会提交到码站先锋。</text>
+    <text class="privacy-copy">小程序不会自动读取你的微信头像或昵称。只有你主动选择并点击保存后，资料才会提交到码战先锋。</text>
   </view>
 </view>

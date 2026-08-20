@@ -150,7 +150,7 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(indexTemplate).toContain('Python 榜');
     expect(indexTemplate).toContain('bindtap="handleLeaderboardScopeChange"');
     expect(indexTemplate).toContain(
-      "leaderboardScope === 'PYTHON' ? '排位胜率' : '总榜胜率'",
+      "leaderboardScope === 'PYTHON' ? '随机匹配胜率' : '总榜胜率'",
     );
     expect(indexTemplate).not.toContain('{{item.winRateText}} 胜率');
     expect(indexTemplate).not.toContain('全部榜单');
@@ -172,7 +172,7 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(leaderboardTemplate).toContain('data-scope="PYTHON"');
     expect(leaderboardTemplate).toContain('>总榜</view>');
     expect(leaderboardTemplate).toContain('>Python 榜</view>');
-    expect(leaderboardTemplate).toContain('排位胜率');
+    expect(leaderboardTemplate).toContain('随机匹配胜率');
     expect(leaderboardScript).toContain('item.rankedBattles');
     expect(leaderboardScript).toContain('item.star');
     expect(leaderboardScript).toContain('formatBattleStarDisplay(item.star)');

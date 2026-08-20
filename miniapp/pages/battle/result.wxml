@@ -1,13 +1,13 @@
 <view class="page-shell result-page theme-{{resolvedTheme}}">
   <view class="section-card hero-card">
-    <text class="hero-eyebrow">Battle 结果</text>
+    <text class="hero-eyebrow">对战结果</text>
     <text class="hero-title">{{titleText}}</text>
     <text class="hero-copy">{{descriptionText}}</text>
   </view>
 
   <view wx:if="{{state === 'LOADING'}}" class="section-card state-box">
     <text class="state-title">正在同步结算结果</text>
-    <text class="state-text">系统正在获取本场对战的结果、分数和 rating 变化。</text>
+    <text class="state-text">系统正在获取本场对战的结果、分数和积分变化。</text>
   </view>
 
   <view wx:elif="{{state === 'ERROR'}}" class="section-card state-box">
@@ -15,7 +15,7 @@
     <text class="state-text">{{errorMessage}}</text>
     <view class="state-actions">
       <view class="primary-button action-button" bindtap="handleRetry">重新获取结果</view>
-      <view class="ghost-button action-button" bindtap="handleBackHome">返回 Battle 首页</view>
+      <view class="ghost-button action-button" bindtap="handleBackHome">返回对战首页</view>
     </view>
   </view>
 
@@ -39,7 +39,7 @@
       <text class="state-text">结果生成后页面会自动刷新。你也可以下拉刷新或点下方按钮重新查询。</text>
       <view class="state-actions">
         <view class="primary-button action-button" bindtap="handleRetry">立即查询结果</view>
-        <view class="ghost-button action-button" bindtap="handleBackHome">返回 Battle 首页</view>
+        <view class="ghost-button action-button" bindtap="handleBackHome">返回对战首页</view>
       </view>
     </view>
 
@@ -145,7 +145,7 @@
       </view>
 
       <view wx:if="{{isRankedMode}}" class="section-card rating-card">
-        <text class="section-title">Rating 变化</text>
+        <text class="section-title">积分变化</text>
         <view class="rating-grid">
           <view class="rating-item">
             <text class="rating-label">变更前</text>
@@ -166,7 +166,7 @@
         <view class="tier-heading">
           <view>
             <text class="section-title">当前星级</text>
-            <text class="section-subtitle">最高六星，Rating 变化会影响当前星级。</text>
+            <text class="section-subtitle">最高六星，积分变化会影响当前星级。</text>
           </view>
           <view
             class="battle-star-rating tier-stars"
@@ -185,13 +185,13 @@
 
       <view wx:if="{{isTrainingMode}}" class="section-card rating-card">
         <text class="section-title">训练说明</text>
-        <text class="summary-hint">本场计入 Battle 总场次和单人训练场次，不改变正式 Rating、排位胜负或连胜。</text>
+        <text class="summary-hint">本场计入对战总场次和单人训练场次，不改变正式积分、随机匹配胜负或连胜。</text>
       </view>
 
       <view class="section-card footer-card">
         <view class="footer-actions">
           <view class="primary-button action-button" bindtap="handleReplay">查看本场复盘</view>
-          <view class="ghost-button action-button" bindtap="handleBackHome">返回 Battle 首页</view>
+          <view class="ghost-button action-button" bindtap="handleBackHome">返回对战首页</view>
         </view>
       </view>
     </block>

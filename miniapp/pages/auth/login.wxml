@@ -2,7 +2,7 @@
   <view class="section-card hero-card">
     <text class="hero-eyebrow">统一认证</text>
     <text class="hero-title">微信登录</text>
-    <text class="hero-copy">使用微信身份登录码站先锋。</text>
+    <text class="hero-copy">使用微信身份登录码战先锋。</text>
   </view>
 
   <view class="section-card auth-card">

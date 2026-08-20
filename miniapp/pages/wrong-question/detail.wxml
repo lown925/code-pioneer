@@ -101,7 +101,7 @@
 
     <block wx:else>
       <view class="section-card content-card">
-        <text class="section-title">Battle Snapshot 题干</text>
+        <text class="section-title">对战快照题干</text>
         <view class="content-block-list">
           <block wx:for="{{detail.battleStemBlocks}}" wx:key="blockKey" wx:for-item="stemBlock">
             <text wx:if="{{stemBlock.type === 'TEXT'}}" class="question-content">{{stemBlock.text}}</text>
@@ -123,7 +123,7 @@
       </view>
 
       <view class="section-card content-card">
-        <text class="section-title">Battle Snapshot 选项</text>
+        <text class="section-title">对战快照选项</text>
         <view wx:if="{{detail.battleOptions.length > 0}}" class="battle-option-list">
           <view
             wx:for="{{detail.battleOptions}}"

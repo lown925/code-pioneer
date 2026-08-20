@@ -3,7 +3,7 @@
   <view class="learning-hero">
     <view class="hero-orb hero-orb-one"></view>
     <view class="hero-orb hero-orb-two"></view>
-    <text class="hero-eyebrow">LEARNING</text>
+    <text class="hero-eyebrow">学习</text>
     <text class="hero-title">学习</text>
     <text class="hero-copy">选择一条清晰的学习路线，把知识沉淀成下一场对战的实力。</text>
   </view>

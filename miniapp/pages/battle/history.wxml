@@ -1,6 +1,6 @@
 <view class="page-shell history-page theme-{{resolvedTheme}}">
   <view class="section-card hero-card">
-    <text class="hero-eyebrow">Battle 战绩</text>
+    <text class="hero-eyebrow">对战记录</text>
     <text class="hero-title">历史对战记录</text>
     <text class="hero-copy">按完成时间查看历史战绩，并按模式或结果快速筛选。</text>
   </view>
@@ -36,7 +36,7 @@
 
   <view wx:if="{{state === 'loading'}}" class="section-card state-box">
     <text class="state-title">正在加载战绩</text>
-    <text class="state-text">系统正在获取你的 Battle 历史记录，请稍候。</text>
+    <text class="state-text">系统正在获取你的对战记录，请稍候。</text>
   </view>
 
   <view wx:elif="{{state === 'error' || state === 'unauthorized'}}" class="section-card state-box">
@@ -48,8 +48,8 @@
   </view>
 
   <view wx:elif="{{state === 'empty'}}" class="section-card state-box">
-    <text class="state-title">还没有 Battle 战绩</text>
-    <text class="state-text">完成一场 Battle 后，你的历史战绩会出现在这里。</text>
+    <text class="state-title">还没有对战记录</text>
+    <text class="state-text">完成一场对战后，你的历史战绩会出现在这里。</text>
   </view>
 
   <block wx:else>
@@ -91,7 +91,7 @@
 
       <view class="card-summary-grid">
         <view wx:if="{{record.mode === 'RANKED'}}" class="summary-item">
-          <text class="summary-label">Rating 变化</text>
+          <text class="summary-label">积分变化</text>
           <text class="summary-value">{{record.ratingDeltaText}}</text>
         </view>
         <view class="summary-item">

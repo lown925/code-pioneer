@@ -1,6 +1,6 @@
 <view class="page-shell history-detail-page theme-{{resolvedTheme}}">
   <view class="section-card hero-card">
-    <text class="hero-eyebrow">Battle 复盘</text>
+    <text class="hero-eyebrow">对战复盘</text>
     <text class="hero-title">{{titleText}}</text>
     <text class="hero-copy">{{descriptionText}}</text>
   </view>
@@ -15,7 +15,7 @@
     <text class="state-text">{{errorMessage}}</text>
     <view class="state-actions">
       <view class="primary-button action-button" bindtap="handleRetry">重新获取复盘</view>
-      <view class="ghost-button action-button" bindtap="handleBackHome">返回 Battle 首页</view>
+      <view class="ghost-button action-button" bindtap="handleBackHome">返回对战首页</view>
     </view>
   </view>
 
@@ -110,7 +110,7 @@
     </view>
 
     <view wx:if="{{isRankedMode}}" class="section-card rating-card">
-      <text class="section-title">Rating 变化</text>
+      <text class="section-title">积分变化</text>
       <view class="rating-grid">
         <view class="rating-item">
           <text class="rating-label">变更前</text>
@@ -129,7 +129,7 @@
 
     <view wx:if="{{isTrainingMode}}" class="section-card rating-card">
       <text class="section-title">训练说明</text>
-      <text class="summary-end-reason">本场不改变 Rating、排位胜负或连胜，答错题目仍保留在 Battle 错题记录中。</text>
+      <text class="summary-end-reason">本场不改变积分、随机匹配胜负或连胜，答错题目仍保留在对战错题记录中。</text>
     </view>
 
     <view
@@ -306,7 +306,7 @@
     <view class="section-card footer-card">
       <view class="footer-actions">
         <view class="primary-button action-button" bindtap="handleBackResult">查看本场结果</view>
-        <view class="ghost-button action-button" bindtap="handleBackHome">返回 Battle 首页</view>
+        <view class="ghost-button action-button" bindtap="handleBackHome">返回对战首页</view>
       </view>
     </view>
   </block>

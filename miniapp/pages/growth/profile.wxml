@@ -1,7 +1,7 @@
 <view class="page-shell growth-profile-page theme-{{resolvedTheme}}">
   <battle-match-floating />
   <view class="profile-hero">
-    <text class="profile-hero-eyebrow">LEARNING PROFILE</text>
+    <text class="profile-hero-eyebrow">学习画像</text>
     <text class="profile-hero-title">完善学习画像</text>
     <text class="profile-hero-copy">这些信息由你主动维护，仅用于后续成长规划。</text>
   </view>

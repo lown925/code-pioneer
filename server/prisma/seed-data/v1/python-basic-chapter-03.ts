@@ -296,18 +296,27 @@ function parseQuestion(
     : undefined;
 
   if (type === 'SINGLE_CHOICE') {
-    const presentationLabel = requiredMatch(
-      segment,
-      /^Battle 展示类型：(.+)$/m,
-      `question ${questionNumber} Battle presentation`,
-    );
-    const battlePresentation =
-      presentationLabel === '综合项目题'
-        ? 'TEXT_CHOICE'
-        : PRESENTATION_MAP[presentationLabel as keyof typeof PRESENTATION_MAP];
-    if (!battlePresentation) {
-      throw new Error(`Question ${questionNumber} has unsupported Battle presentation ${presentationLabel}`);
-    }
+    const battlePresentation = isBattleEnabled
+      ? (() => {
+          const presentationLabel = requiredMatch(
+            segment,
+            /^Battle 展示类型：(.+)$/m,
+            `question ${questionNumber} Battle presentation`,
+          );
+          const presentation =
+            presentationLabel === '综合项目题'
+              ? 'TEXT_CHOICE'
+              : PRESENTATION_MAP[
+                  presentationLabel as keyof typeof PRESENTATION_MAP
+                ];
+          if (!presentation) {
+            throw new Error(
+              `Question ${questionNumber} has unsupported Battle presentation ${presentationLabel}`,
+            );
+          }
+          return presentation;
+        })()
+      : 'TEXT_CHOICE';
     return {
       key: questionKeys[questionNumber - 1]!,
       type,
@@ -333,7 +342,9 @@ function parseQuestion(
     ? true
     : !/忽略大小写：是/.test(segment);
   const collapseWhitespace = /合并连续空格：是/.test(segment);
-  const standardCode = segment.match(/标准完整代码：\n```python\n([\s\S]*?)\n```/)?.[1]?.trim();
+  const standardCode = segment.match(
+    /标准完整代码：\n\s*```python\n([\s\S]*?)\n```/,
+  )?.[1]?.trim();
 
   if (type === 'FILL_BLANK') {
     if (isBattleEnabled) {

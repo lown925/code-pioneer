@@ -136,7 +136,7 @@ npm run seed:content
 当前示例内容位于：
 
 ```text
-server/prisma/seed-data/v1/javascript-starter.ts
+server/prisma/seed-data/v1/python-basic.ts
 ```
 
 新增课程和题目的完整流程见 [版本化 Seed Data 说明](server/prisma/seed-data/README.md)。可以提供 Markdown、纯文本、代码示例和结构化题目，再转换为版本化内容模板导入。

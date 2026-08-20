@@ -174,8 +174,8 @@ describe('WrongQuestionService', () => {
           chapterId: 'chapter-js-1',
           chapter: {
             title: 'Variables',
-            courseId: 'course-js',
-            course: { title: 'JavaScript Starter' },
+            courseId: 'course-python',
+            course: { title: 'Python 程序设计基础' },
           },
         },
       },
@@ -344,8 +344,8 @@ describe('WrongQuestionService', () => {
           chapterId: 'chapter-js-1',
           chapter: {
             title: 'Variables',
-            courseId: 'course-js',
-            course: { title: 'JavaScript Starter' },
+            courseId: 'course-python',
+            course: { title: 'Python 程序设计基础' },
           },
         },
       },

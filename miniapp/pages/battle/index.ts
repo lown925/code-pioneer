@@ -100,8 +100,8 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
     myRank: null,
     leaderboardScope: 'TOTAL',
     leaderboardTitle: '总榜',
-    leaderboardSubtitle: '全部方向 Rating 总和排名',
-    leaderboardRatingLabel: '总榜 Rating',
+    leaderboardSubtitle: '全部对战语言积分总和排名',
+    leaderboardRatingLabel: '总积分',
     leaderboardBattlesLabel: '总场次',
     activeBattle: null,
     isCheckingBattleEntry: false,
@@ -267,8 +267,8 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
       leaderboardScope: scope,
       leaderboardTitle: scope === 'PYTHON' ? 'Python 榜' : '总榜',
       leaderboardSubtitle:
-        scope === 'PYTHON' ? 'Python 方向 Rating 排名' : '全部方向 Rating 总和排名',
-      leaderboardRatingLabel: scope === 'PYTHON' ? 'Python Rating' : '总榜 Rating',
+        scope === 'PYTHON' ? 'Python 对战积分排名' : '全部对战语言积分总和排名',
+      leaderboardRatingLabel: scope === 'PYTHON' ? 'Python 积分' : '总积分',
       leaderboardBattlesLabel: scope === 'PYTHON' ? 'Python 场次' : '总场次',
       myRank: null,
     });

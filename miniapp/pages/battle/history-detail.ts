@@ -291,7 +291,7 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
       const opponent = formatBattleOpponentIdentity(response.opponent, '');
       this.setData({
         state: 'SUCCESS',
-        titleText: 'Battle 复盘详情',
+        titleText: '对战复盘详情',
         descriptionText: isTrainingMode
           ? '当前页面展示本次单人训练的逐题作答、正确答案和解析。'
           : '当前页面只展示本人的逐题作答、正确答案和解析，不展示对手逐题答案。',
@@ -336,7 +336,7 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
       this.setData({
         state: 'ERROR',
         titleText: '复盘详情加载失败',
-        descriptionText: '你可以重新获取本场 Battle 复盘，或先回到 Battle 首页。',
+        descriptionText: '你可以重新获取本场对战复盘，或先回到对战首页。',
         errorMessage: this.getReadableError(error),
       });
     } finally {
@@ -628,7 +628,7 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
     }
 
     if (mode === 'RANKED') {
-      return '排位对战';
+      return '随机匹配';
     }
 
     if (mode === 'TRAINING') {
@@ -804,21 +804,21 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
         redirectToLogin(
           `/pages/battle/history-detail?battleId=${encodeURIComponent(this.data.battleId)}`,
         );
-        return '登录状态已失效，请重新登录后再查看 Battle 复盘。';
+        return '登录状态已失效，请重新登录后再查看对战复盘。';
       }
     }
 
     return getBattleErrorMessage(
       error,
       {
-        unauthorized: '登录状态已失效，请重新登录后再查看 Battle 复盘。',
+        unauthorized: '登录状态已失效，请重新登录后再查看对战复盘。',
         network: '网络连接失败，请确认后端服务已启动后重试。',
-        fallback: 'Battle 复盘加载失败，请稍后重试。',
+        fallback: '对战复盘加载失败，请稍后重试。',
       },
       {
-        BATTLE_HISTORY_NOT_FOUND: '当前 Battle 战绩不存在或已无法查看。',
-        BATTLE_HISTORY_NOT_COMPLETED: '当前 Battle 尚未形成可复盘的已完成战绩。',
-        BATTLE_NOT_PARTICIPANT: '你不是这场对战的参与者，无法查看 Battle 复盘详情。',
+        BATTLE_HISTORY_NOT_FOUND: '当前对战记录不存在或已无法查看。',
+        BATTLE_HISTORY_NOT_COMPLETED: '当前对战尚未形成可复盘的已完成记录。',
+        BATTLE_NOT_PARTICIPANT: '你不是这场对战的参与者，无法查看复盘详情。',
       },
     );
   },

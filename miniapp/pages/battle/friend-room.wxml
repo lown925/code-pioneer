@@ -21,7 +21,7 @@
 
   <view wx:if="{{state === 'IDLE'}}" class="entry-list">
     <view class="section-card entry-card">
-      <text class="entry-title">创建好友房</text>
+      <text class="entry-title">创建好友对战</text>
       <text class="entry-copy">
         适合你先发起房间，再通过微信分享或邀请码邀请好友加入。
       </text>
@@ -41,12 +41,12 @@
         </view>
       </view>
       <view class="primary-button action-button" bindtap="handleCreateRoom">
-        创建好友房
+        创建好友对战
       </view>
     </view>
 
     <view class="section-card entry-card">
-      <text class="entry-title">加入好友房</text>
+      <text class="entry-title">加入好友对战</text>
       <text class="entry-copy">
         输入 6 位邀请码，系统会先校验房间状态，再决定是否允许加入。
       </text>
@@ -85,7 +85,7 @@
 
       <view class="preview-meta">
         <view class="preview-meta-item">
-          <text class="preview-meta-label">对战方向</text>
+          <text class="preview-meta-label">对战语言</text>
           <text class="preview-meta-value">{{selectedSkillName || '历史对战'}}</text>
         </view>
         <view class="preview-meta-item">
@@ -117,7 +117,7 @@
         class="primary-button action-button"
         bindtap="handleJoinFromPreview"
       >
-        加入好友房
+        加入好友对战
       </view>
 
       <view

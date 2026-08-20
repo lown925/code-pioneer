@@ -339,7 +339,7 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     currentRatingText: "未定级",
     highestRatingText: "暂无",
     ratingNetChangeText: "暂无",
-    ratingEmptyText: "暂无该技能 Battle 数据",
+    ratingEmptyText: "暂无该技能对战数据",
   },
 
   onShow() {
@@ -489,8 +489,8 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
       friendBattleText: `${skill.friendBattles} 场`,
       ratingEmptyText:
         skill.rankedBattles + skill.trainingBattles + skill.friendBattles === 0
-          ? "暂无该技能 Battle 数据"
-          : "暂无 Ranked Rating 趋势",
+          ? "暂无该技能对战数据"
+          : "暂无随机匹配积分趋势",
     });
   },
 
@@ -755,8 +755,8 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
             selectedSkill.trainingBattles +
             selectedSkill.friendBattles ===
           0
-            ? "暂无该技能 Battle 数据"
-            : "暂无 Ranked Rating 趋势",
+            ? "暂无该技能对战数据"
+            : "暂无随机匹配积分趋势",
       });
     } else {
       this.setData({

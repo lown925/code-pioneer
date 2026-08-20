@@ -3,7 +3,7 @@
   <view class="hero-card">
     <view class="hero-glow hero-glow-top"></view>
     <view class="hero-glow hero-glow-bottom"></view>
-    <text class="hero-eyebrow">BATTLE V1</text>
+    <text class="hero-eyebrow">对战</text>
     <text class="hero-title">1v1 编程知识对战</text>
     <text class="hero-copy">和实力相近的对手正面交锋，在每一次作答中提升排名。</text>
     <view wx:if="{{myRank}}" class="hero-summary">
@@ -82,7 +82,7 @@
       <view class="leaderboard-columns">
         <text class="column-rank">名次</text>
         <text class="column-player">选手</text>
-        <text class="column-rating">Rating</text>
+        <text class="column-rating">积分</text>
         <text class="column-battles">场次</text>
       </view>
 
@@ -120,8 +120,8 @@
                     class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
                   >{{star.isFilled ? '★' : '☆'}}</text>
                 </view>
-                <text class="leaderboard-win-rate-line">{{item.winRateText}} {{leaderboardScope === 'PYTHON' ? '排位胜率' : '总榜胜率'}}</text>
-                <text class="mobile-player-meta">{{item.rankText}} · {{item.totalBattlesText}} 场 · {{item.winRateText}} {{leaderboardScope === 'PYTHON' ? '排位胜率' : '总榜胜率'}}</text>
+                <text class="leaderboard-win-rate-line">{{item.winRateText}} {{leaderboardScope === 'PYTHON' ? '随机匹配胜率' : '总榜胜率'}}</text>
+                <text class="mobile-player-meta">{{item.rankText}} · {{item.totalBattlesText}} 场 · {{item.winRateText}} {{leaderboardScope === 'PYTHON' ? '随机匹配胜率' : '总榜胜率'}}</text>
               </view>
           </view>
           <text class="rating-value">{{item.ratingText}}</text>
@@ -185,7 +185,7 @@
     >
       <text class="action-icon action-icon-friend">双</text>
       <text class="action-title">好友对战</text>
-      <text class="action-copy">创建或加入好友房</text>
+      <text class="action-copy">创建或加入好友对战</text>
     </view>
     <view
       class="battle-action"

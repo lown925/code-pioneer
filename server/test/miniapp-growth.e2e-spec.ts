@@ -143,13 +143,13 @@ describe('miniapp Growth product skeleton', () => {
           isSelected: false,
         },
         {
-          id: 'course-javascript',
-          title: 'JavaScript 入门',
-          slug: 'javascript-starter',
-          summary: 'JavaScript',
+          id: 'course-data-structures',
+          title: '数据结构与算法基础',
+          slug: 'data-structures-algorithms',
+          summary: '算法基础',
           coverUrl: null,
-          category: 'PROGRAMMING',
-          language: 'JavaScript',
+          category: 'GENERAL',
+          language: 'Python',
           difficulty: 'BEGINNER',
           estimatedMinutes: 60,
           chapterCount: 1,
@@ -181,6 +181,69 @@ describe('miniapp Growth product skeleton', () => {
         [],
       ),
     ).toEqual([]);
+  });
+
+  it('uses progress and published prerequisites without synthesizing planned courses', () => {
+    const profile = {
+      major: 'major.computer_science',
+      grade: 'grade.sophomore',
+      learningDirection: 'direction.backend',
+      technicalInterests: ['interest.algorithm'],
+      careerDirection: 'career.backend_engineer',
+      isCoreProfileComplete: true,
+    };
+    const python = {
+      id: 'course-python',
+      title: 'Python 程序设计基础',
+      slug: 'python-basic',
+      summary: 'Python',
+      coverUrl: null,
+      category: 'PROGRAMMING',
+      language: 'Python',
+      difficulty: 'BEGINNER' as const,
+      estimatedMinutes: 1200,
+      chapterCount: 15,
+      learnerCount: 10,
+      progressPercent: 40,
+      isSelected: true,
+    };
+    const dataStructures = {
+      id: 'course-data-structures',
+      title: '数据结构与算法基础',
+      slug: 'data-structures-algorithms',
+      summary: '算法',
+      coverUrl: null,
+      category: 'GENERAL',
+      language: 'Python',
+      difficulty: 'BEGINNER' as const,
+      estimatedMinutes: 1440,
+      chapterCount: 12,
+      learnerCount: 0,
+      progressPercent: 0,
+      isSelected: false,
+    };
+
+    const whilePythonIncomplete = buildGrowthCourseRecommendations(profile, [
+      python,
+      dataStructures,
+    ]);
+    expect(whilePythonIncomplete.map((item) => item.courseId)).toEqual([
+      'course-python',
+    ]);
+    expect(whilePythonIncomplete[0]?.reason).toContain('40%');
+
+    const afterPythonComplete = buildGrowthCourseRecommendations(profile, [
+      { ...python, progressPercent: 100 },
+      dataStructures,
+    ]);
+    expect(afterPythonComplete.map((item) => item.courseId)).toEqual([
+      'course-data-structures',
+    ]);
+    expect(
+      afterPythonComplete.every(
+        (item) => item.courseTitle !== 'Linux 基础与常用命令',
+      ),
+    ).toBe(true);
   });
 
   it('keeps the recommendation fallback and preserves the Goal controls', () => {

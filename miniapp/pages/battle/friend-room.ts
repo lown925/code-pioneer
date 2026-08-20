@@ -167,7 +167,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     expiresAtText: '',
     stateTitle: '好友对战',
     stateDescription:
-      '你可以主动创建好友房，也可以输入邀请码加入已有房间。',
+      '你可以主动创建好友对战，也可以输入邀请码加入已有对战房间。',
     errorMessage: '',
     canJoin: false,
     isJoinInputVisible: false,
@@ -239,7 +239,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
       expiresAtText: '',
       stateTitle: '好友对战',
       stateDescription:
-        '你可以主动创建好友房，也可以输入邀请码加入已有房间。',
+        '你可以主动创建好友对战，也可以输入邀请码加入已有对战房间。',
       errorMessage: '',
       canJoin: false,
       isJoinInputVisible: false,
@@ -282,7 +282,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     }
 
     if (!this.data.selectedSkillCode) {
-      wx.showToast({ title: '请先选择对战方向', icon: 'none' });
+      wx.showToast({ title: '请先选择对战语言', icon: 'none' });
       return;
     }
 
@@ -294,8 +294,8 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
 
     this.setData({
       state: 'CREATING',
-      stateTitle: '正在创建好友房',
-      stateDescription: '系统正在为你生成好友房和邀请码，请稍候。',
+      stateTitle: '正在创建好友对战',
+      stateDescription: '系统正在为你创建好友对战房间和邀请码，请稍候。',
       errorMessage: '',
       isBusy: true,
       canJoin: false,
@@ -332,11 +332,11 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
 
       this.setData({
         state: 'ERROR',
-        stateTitle: '好友房创建失败',
-        stateDescription: '当前无法创建好友房，请稍后重试。',
+        stateTitle: '好友对战创建失败',
+        stateDescription: '当前无法创建好友对战，请稍后重试。',
         errorMessage: this.getReadableErrorMessage(
           error,
-          '好友房创建失败，请稍后重试。',
+          '好友对战创建失败，请稍后重试。',
         ),
         isBusy: false,
         canJoin: false,
@@ -361,7 +361,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     this.setData({
       state: 'PREVIEWING',
       stateTitle: '正在读取邀请信息',
-      stateDescription: '系统正在同步好友房状态，请稍候。',
+      stateDescription: '系统正在同步好友对战房间状态，请稍候。',
       errorMessage: '',
       isBusy: true,
       canJoin: false,
@@ -396,7 +396,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
       this.setData({
         state: 'ERROR',
         stateTitle: '邀请信息读取失败',
-        stateDescription: '当前无法读取好友房状态，请稍后重试。',
+        stateDescription: '当前无法读取好友对战房间状态，请稍后重试。',
         errorMessage: this.getReadableErrorMessage(
           error,
           '邀请信息读取失败，请稍后重试。',
@@ -423,7 +423,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     this.setData({
       state: 'LOOKING_UP',
       stateTitle: '正在查询邀请码',
-      stateDescription: '系统正在根据邀请码查询好友房状态。',
+      stateDescription: '系统正在根据邀请码查询好友对战房间状态。',
       errorMessage: '',
       isBusy: true,
       joinButtonText: '查询中',
@@ -481,7 +481,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
 
     this.setData({
       state: 'JOINING',
-      stateTitle: '正在加入好友房',
+      stateTitle: '正在加入好友对战',
       stateDescription: '系统正在校验邀请并准备进入房间。',
       errorMessage: '',
       isBusy: true,
@@ -516,11 +516,11 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
 
       this.setData({
         state: 'ERROR',
-        stateTitle: '加入好友房失败',
-        stateDescription: '当前无法加入好友房，请查看提示后重试。',
+        stateTitle: '加入好友对战失败',
+        stateDescription: '当前无法加入好友对战，请查看提示后重试。',
         errorMessage: this.getReadableErrorMessage(
           error,
-          '加入好友房失败，请稍后重试。',
+          '加入好友对战失败，请稍后重试。',
         ),
         isBusy: false,
         canJoin: false,
@@ -562,7 +562,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
 
     this.setData({
       state: 'JOINING',
-      stateTitle: '正在加入好友房',
+      stateTitle: '正在加入好友对战',
       stateDescription: '系统正在根据邀请码进入房间。',
       errorMessage: '',
       isBusy: true,
@@ -598,11 +598,11 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
 
       this.setData({
         state: 'ERROR',
-        stateTitle: '加入好友房失败',
+        stateTitle: '加入好友对战失败',
         stateDescription: '当前邀请码暂时无法加入，请查看提示后重试。',
         errorMessage: this.getReadableErrorMessage(
           error,
-          '加入好友房失败，请稍后重试。',
+          '加入好友对战失败，请稍后重试。',
         ),
         isBusy: false,
         joinButtonText: '查询并加入',
@@ -619,17 +619,17 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     const isCreator = payload.inviter.userId === currentUserId;
     const state = this.getPreviewState(payload);
 
-    let stateTitle = '好友房状态';
+    let stateTitle = '好友对战房间状态';
     let stateDescription = '正在获取当前房间状态。';
     let errorMessage = '';
     let canJoin = payload.canJoin && !isCreator;
 
     if (state === 'AVAILABLE') {
-      stateTitle = '可加入好友房';
+      stateTitle = '可加入好友对战';
       stateDescription =
         '邀请码有效。确认后即可进入这场好友对战，进入后会直接看到统一房间页。';
     } else if (state === 'FULL') {
-      stateTitle = '当前好友房不可加入';
+      stateTitle = '当前好友对战不可加入';
       stateDescription = '该房间已经满员、已开始，或邀请已被其他玩家接受。';
       errorMessage = this.getJoinRestrictionMessage(
         payload.cannotJoinReason || 'BATTLE_ROOM_FULL',
@@ -637,13 +637,13 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
       canJoin = false;
     } else if (state === 'EXPIRED') {
       stateTitle = '邀请已失效';
-      stateDescription = '当前好友房邀请已经过期，请重新获取新的邀请码或邀请链接。';
+      stateDescription = '当前好友对战邀请已经过期，请重新获取新的邀请码或邀请链接。';
       errorMessage = this.getJoinRestrictionMessage(
         payload.cannotJoinReason || 'BATTLE_INVITATION_EXPIRED',
       );
       canJoin = false;
     } else if (state === 'ERROR') {
-      stateTitle = '当前好友房不可用';
+      stateTitle = '当前好友对战不可用';
       stateDescription = '请检查邀请状态后重试。';
       errorMessage = this.getJoinRestrictionMessage(
         payload.cannotJoinReason || 'BATTLE_INVITATION_INVALID',
@@ -884,7 +884,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     }
 
     if (code === 'BATTLE_ROOM_FULL') {
-      return '当前好友房已满员，无法继续加入。';
+      return '当前好友对战已满员，无法继续加入。';
     }
 
     if (code === 'BATTLE_INVITATION_ALREADY_ACCEPTED') {
@@ -892,15 +892,15 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     }
 
     if (code === 'BATTLE_ALREADY_ACTIVE') {
-      return '你当前已有进行中的对局，请先完成当前对局后再加入好友房。';
+      return '你当前已有进行中的对局，请先完成当前对局后再加入好友对战。';
     }
 
     if (code === 'BATTLE_ALREADY_MATCHING') {
-      return '你当前正在随机匹配中，请先退出匹配后再加入好友房。';
+      return '你当前正在随机匹配中，请先退出匹配后再加入好友对战。';
     }
 
     if (code === 'BATTLE_CANNOT_INVITE_SELF') {
-      return '这是你自己创建的好友房，系统将直接带你进入房间。';
+      return '这是你自己创建的好友对战，系统将直接带你进入房间。';
     }
 
     if (code === 'BATTLE_INVITATION_INVALID') {
@@ -908,7 +908,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     }
 
     if (code === 'BATTLE_INVALID_STATUS') {
-      return '当前好友房状态已变化，暂时不能继续加入。';
+      return '当前好友对战房间状态已变化，暂时不能继续加入。';
     }
 
     return '当前邀请码暂时不可用，请稍后重试。';

@@ -1,7 +1,7 @@
 <view class="page-shell practice-page theme-{{resolvedTheme}}">
   <battle-match-floating compact-only="{{true}}" />
   <view class="practice-hero">
-    <text class="hero-eyebrow">PRACTICE ROOM</text>
+    <text class="hero-eyebrow">练习室</text>
     <text class="hero-title">练习室</text>
     <text class="hero-copy">选择课程和题量，每次作答后立即查看结果与解析。</text>
   </view>

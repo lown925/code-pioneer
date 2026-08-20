@@ -3,7 +3,7 @@
   <view wx:if="{{!isAuthenticated}}" class="section-card guest-card">
     <text class="guest-title">登录后查看个人主页</text>
     <text class="guest-copy">
-      登录后可查看 Battle 战绩、统一错题、学习入口和账号资料。
+      登录后可查看对战记录、统一错题、学习入口和账号资料。
     </text>
     <view class="primary-button guest-action" bindtap="handleLogin">去登录</view>
   </view>
@@ -26,7 +26,7 @@
             <text class="profile-name">{{displayName}}</text>
             <view class="profile-edit-button" bindtap="handleEditProfile">编辑资料</view>
           </view>
-          <text class="profile-meta">Battle Rating {{battleSummary ? battleSummary.ratingText : user.battleRating}}</text>
+          <text class="profile-meta">对战积分 {{battleSummary ? battleSummary.ratingText : user.battleRating}}</text>
         </view>
       </view>
 

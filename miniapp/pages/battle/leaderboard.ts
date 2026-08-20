@@ -97,7 +97,7 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     mySummary: null,
     scope: 'TOTAL',
     titleText: '总榜',
-    descriptionText: '按全部方向 Rating 总和排名。',
+    descriptionText: '按全部对战语言积分总和排名。',
   },
 
   onLoad() {
@@ -127,7 +127,7 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
 
     this.setData({
       state: 'unauthorized',
-      errorMessage: '请先登录后再查看 Battle 排行榜。',
+      errorMessage: '请先登录后再查看对战排行榜。',
       items: [],
       mySummary: null,
       hasMore: false,
@@ -283,7 +283,7 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
       scope,
       titleText: scope === 'PYTHON' ? 'Python 排行榜' : '总榜',
       descriptionText:
-        scope === 'PYTHON' ? '按 Python Ranked 方向 Rating 排名。' : '按全部方向 Rating 总和排名。',
+        scope === 'PYTHON' ? '按 Python 随机匹配积分排名。' : '按全部对战语言积分总和排名。',
       mySummary: null,
     });
     void this.loadFirstPage();

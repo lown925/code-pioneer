@@ -88,8 +88,8 @@ type HistoryPageMethods = {
 const PAGE_SIZE = 20;
 const MODE_FILTERS: FilterOption[] = [
   { value: '', label: '全部模式' },
-  { value: 'RANKED', label: '排位' },
-  { value: 'FRIEND', label: '好友' },
+  { value: 'RANKED', label: '随机匹配' },
+  { value: 'FRIEND', label: '好友对战' },
   { value: 'TRAINING', label: '训练' },
 ];
 const RESULT_FILTERS: FilterOption[] = [
@@ -148,7 +148,7 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
 
     this.setData({
       state: 'unauthorized',
-      errorMessage: '请先登录后再查看 Battle 战绩。',
+      errorMessage: '请先登录后再查看对战记录。',
       items: [],
       hasMore: false,
       isLoadingMore: false,
@@ -384,7 +384,7 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
       scoreLabelText: item.mode === 'TRAINING' ? '训练得分' : '比分',
       ratingDeltaText:
         item.mode === 'TRAINING' || item.mode === 'AI'
-          ? '不计 Rating'
+          ? '不计积分'
           : this.formatRatingDelta(item.ratingDelta),
       completedAtText: this.formatCompletedAt(item.completedAt),
       endReasonText: this.getEndReasonText(item.endReason),
@@ -397,7 +397,7 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
     }
 
     if (mode === 'RANKED') {
-      return '排位对战';
+      return '随机匹配';
     }
 
     if (mode === 'TRAINING') {
@@ -491,7 +491,7 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
         redirectToLogin('/pages/battle/history');
         return {
           state: 'unauthorized',
-          message: '登录状态已失效，请重新登录后再查看 Battle 战绩。',
+          message: '登录状态已失效，请重新登录后再查看对战记录。',
         };
       }
       return {
@@ -499,13 +499,13 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
         message: getBattleErrorMessage(
           error,
           {
-            unauthorized: '登录状态已失效，请重新登录后再查看 Battle 战绩。',
+            unauthorized: '登录状态已失效，请重新登录后再查看对战记录。',
             network: '网络连接失败，请确认后端服务已启动后重试。',
-            fallback: 'Battle 战绩加载失败，请稍后重试。',
+            fallback: '对战记录加载失败，请稍后重试。',
           },
           {
             BATTLE_NOT_PARTICIPANT:
-              '你不是当前对局参与者，无法查看对应 Battle 战绩。',
+              '你不是当前对战参与者，无法查看对应记录。',
           },
         ),
       };
@@ -513,7 +513,7 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
 
     return {
       state: 'error',
-      message: 'Battle 战绩加载失败，请稍后重试。',
+      message: '对战记录加载失败，请稍后重试。',
     };
   },
 });

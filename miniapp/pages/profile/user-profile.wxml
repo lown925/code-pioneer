@@ -25,7 +25,7 @@
 
         <view class="profile-main">
           <text class="profile-name">{{displayName}}</text>
-          <text class="profile-meta">Battle Rating {{profile.battleRating}}</text>
+          <text class="profile-meta">对战积分 {{profile.battleRating}}</text>
         </view>
       </view>
 
@@ -33,7 +33,7 @@
         <view class="metric-card">
           <text class="metric-value">{{profile.totalBattles}}</text>
           <text class="metric-title">战绩</text>
-          <text class="metric-helper">累计 Battle 对局</text>
+          <text class="metric-helper">累计对战场次</text>
         </view>
       </view>
     </view>

@@ -41,7 +41,7 @@
 
         <view class="user-main">
           <text class="user-name">{{item.displayName}}</text>
-          <text class="user-meta">Battle Rating {{item.ratingText}}</text>
+          <text class="user-meta">对战积分 {{item.ratingText}}</text>
         </view>
 
         <view class="user-tag">

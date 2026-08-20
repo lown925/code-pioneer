@@ -21,7 +21,7 @@
     <text class="invite-label">好友邀请码</text>
     <text class="invite-code">{{inviteCode}}</text>
     <text class="invite-copy">
-      {{showInviteTools ? '复制邀请码或直接邀请好友，好友加入后即可准备开始。' : '请以当前显示的好友房状态为准。'}}
+      {{showInviteTools ? '复制邀请码或直接邀请好友，好友加入后即可准备开始。' : '请以当前显示的好友对战房间状态为准。'}}
     </text>
 
     <view wx:if="{{showInviteTools}}" class="invite-actions">
@@ -62,7 +62,7 @@
         <text class="meta-value">{{roomStatusText}}</text>
       </view>
       <view class="meta-item">
-        <text class="meta-label">对战方向</text>
+        <text class="meta-label">对战语言</text>
         <text class="meta-value">{{skillText}}</text>
       </view>
       <view class="meta-item">

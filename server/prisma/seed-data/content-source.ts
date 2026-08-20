@@ -1,16 +1,19 @@
 import { existsSync, readFileSync } from 'fs';
 import { dirname, parse, resolve } from 'path';
 
-const CONTENT_DIRECTORY = ['docs', 'python-chapter'] as const;
+const DEFAULT_CONTENT_DIRECTORY = ['docs', 'python-chapter'] as const;
 
-export function resolveSeedDocumentPath(fileName: string): string {
+export function resolveSeedDocumentPath(
+  fileName: string,
+  contentDirectory: readonly string[] = DEFAULT_CONTENT_DIRECTORY,
+): string {
   let currentDirectory = __dirname;
   const filesystemRoot = parse(currentDirectory).root;
 
   while (true) {
     const candidate = resolve(
       currentDirectory,
-      ...CONTENT_DIRECTORY,
+      ...contentDirectory,
       fileName,
     );
     if (existsSync(candidate)) {
@@ -24,10 +27,16 @@ export function resolveSeedDocumentPath(fileName: string): string {
   }
 
   throw new Error(
-    `Seed document not found: ${CONTENT_DIRECTORY.join('/')}/${fileName}`,
+    `Seed document not found: ${contentDirectory.join('/')}/${fileName}`,
   );
 }
 
-export function readSeedDocument(fileName: string): string {
-  return readFileSync(resolveSeedDocumentPath(fileName), 'utf8');
+export function readSeedDocument(
+  fileName: string,
+  contentDirectory?: readonly string[],
+): string {
+  return readFileSync(
+    resolveSeedDocumentPath(fileName, contentDirectory),
+    'utf8',
+  );
 }

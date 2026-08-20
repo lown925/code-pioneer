@@ -1,6 +1,6 @@
 <view class="page-shell home-page theme-{{resolvedTheme}}">
   <view class="hero section-card">
-    <text class="hero-brand">码站先锋</text>
+    <text class="hero-brand">码战先锋</text>
     <text class="hero-title">从一门课程开始，稳稳进入编程世界</text>
     <text class="hero-copy">首页先聚焦课程浏览：推荐课程、我的学习占位和全部课程入口都在这里。</text>
     <view class="hero-actions">

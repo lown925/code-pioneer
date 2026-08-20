@@ -244,7 +244,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
         : '',
       isValidBattleId,
       state: isValidBattleId ? 'LOADING' : 'ERROR',
-      titleText: isValidBattleId ? '正在加载房间' : 'battleId 无效',
+      titleText: isValidBattleId ? '正在加载房间' : '当前对战标识无效',
       descriptionText: isValidBattleId
         ? '系统正在同步房间状态，请稍候。'
         : '当前页面没有收到合法的房间标识。',
@@ -491,7 +491,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
         ) {
           if (!options?.silentIdempotent) {
             wx.showToast({
-              title: '好友房已结束',
+              title: '好友对战已结束',
               icon: 'none',
             });
           }
@@ -525,7 +525,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
   async confirmCancelAndLeave() {
     const result = await showBattleConfirmModal({
       title: '离开房间',
-      content: '离开后将无法继续本场对战，当前好友房也会结束。',
+      content: '离开后将无法继续本场对战，当前好友对战房间也会结束。',
       confirmText: '确认离开',
       cancelText: '继续停留',
       confirmColor: '#c24343',
@@ -1011,7 +1011,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
     if (isAiMode) {
       return {
         titleText: '电脑对手已就位',
-        descriptionText: '点击准备后开始倒计时，电脑对战不会修改正式 Rating。',
+        descriptionText: '点击准备后开始倒计时，电脑对战不会修改正式积分。',
         roomStatusText: '等待准备',
         primaryActionText: '准备电脑对战',
         primaryActionEnabled: true,
@@ -1102,9 +1102,9 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
 
   getCancelConflictMessage(code: string) {
     if (code === 'BATTLE_INVALID_STATUS') {
-      return '当前好友房已进入不可直接取消的阶段。若对局已开始，请进入答题页后通过认输结束。';
+      return '当前好友对战已进入不可直接取消的阶段。若对局已开始，请进入答题页后通过认输结束。';
     }
 
-    return '当前好友房暂时无法取消，请稍后重试。';
+    return '当前好友对战暂时无法取消，请稍后重试。';
   },
 });
