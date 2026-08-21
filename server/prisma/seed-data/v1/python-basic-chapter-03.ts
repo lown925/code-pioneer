@@ -235,7 +235,7 @@ function parseAcceptedAnswers(segment: string, questionNumber: number) {
     `question ${questionNumber} accepted answers`,
   );
   const answers = [
-    ...[...section.matchAll(/```(?:python)?\n([\s\S]*?)\n```/g)].map(
+    ...[...section.matchAll(/```[a-zA-Z0-9_-]*\n([\s\S]*?)\n```/g)].map(
       (match) => match[1]!.trim(),
     ),
     ...[...section.matchAll(/^- (.+)$/gm)].map((match) => {
@@ -254,6 +254,7 @@ function parseQuestion(
   segment: string,
   questionNumber: number,
   questionKeys: readonly string[],
+  programmingLanguage = 'python',
 ): SeedQuestion {
   const type = requiredMatch(segment, /^题型：(.+)$/m, `question ${questionNumber} type`);
   const title = requiredMatch(segment, /^题干：(.+)$/m, `question ${questionNumber} title`);
@@ -280,10 +281,19 @@ function parseQuestion(
     /^是否用于 Battle：(是|否)$/m,
     `question ${questionNumber} Battle flag`,
   ) === '是';
+  const codeFencePattern = new RegExp(
+    '```' + programmingLanguage + '\\r?\\n([\\s\\S]*?)\\r?\\n```',
+  );
   const stemCode =
-    segment.match(/```python\r?\n([\s\S]*?)\r?\n```/)?.[1]?.trim() ??
+    segment.match(codeFencePattern)?.[1]?.trim() ??
     segment
-      .match(/\[代码 language=python\]\r?\n([\s\S]*?)\r?\n\[\/代码\]/)?.[1]
+      .match(
+        new RegExp(
+          '\\[代码 language=' +
+            programmingLanguage +
+            '\\]\\r?\\n([\\s\\S]*?)\\r?\\n\\[/代码\\]',
+        ),
+      )?.[1]
       ?.trim();
   if (type === 'CODE_FILL' && !stemCode) {
     throw new Error(`CODE_FILL question ${questionNumber} must include a code context`);
@@ -291,7 +301,7 @@ function parseQuestion(
   const stemBlocks = stemCode
     ? [
         { type: 'TEXT' as const, text: title },
-        { type: 'CODE' as const, language: 'python', code: stemCode },
+        { type: 'CODE' as const, language: programmingLanguage, code: stemCode },
       ]
     : undefined;
 
@@ -326,7 +336,7 @@ function parseQuestion(
       score,
       isBattleEnabled,
       battlePresentation,
-      programmingLanguage: 'python',
+      programmingLanguage,
       stemBlocks,
       options: parseOptions(segment, questionNumber),
       tags,
@@ -343,7 +353,11 @@ function parseQuestion(
     : !/忽略大小写：是/.test(segment);
   const collapseWhitespace = /合并连续空格：是/.test(segment);
   const standardCode = segment.match(
-    /标准完整代码：\n\s*```python\n([\s\S]*?)\n```/,
+    new RegExp(
+      '标准完整代码：\\n\\s*```' +
+        programmingLanguage +
+        '\\n([\\s\\S]*?)\\n```',
+    ),
   )?.[1]?.trim();
 
   if (type === 'FILL_BLANK') {
@@ -391,7 +405,7 @@ function parseQuestion(
     score,
     isBattleEnabled,
     battlePresentation,
-    programmingLanguage: 'python',
+    programmingLanguage,
     acceptedAnswers,
     answerNormalization: {
       trim: /忽略首尾空格：是/.test(segment),
@@ -403,14 +417,18 @@ function parseQuestion(
     explanationBlocks: standardCode
       ? [
           { type: 'TEXT', text: explanation },
-          { type: 'CODE', language: 'python', code: standardCode },
+          { type: 'CODE', language: programmingLanguage, code: standardCode },
         ]
       : undefined,
     tags,
   };
 }
 
-function parseQuestions(markdown: string, questionKeys: readonly string[]) {
+function parseQuestions(
+  markdown: string,
+  questionKeys: readonly string[],
+  programmingLanguage = 'python',
+) {
   const matches = [...markdown.matchAll(/^#### 题目 (\d+)$/gm)];
   return matches.map((match, index) => {
     const questionNumber = Number(match[1]);
@@ -420,6 +438,7 @@ function parseQuestions(markdown: string, questionKeys: readonly string[]) {
       markdown.slice(start, end).trim(),
       questionNumber,
       questionKeys,
+      programmingLanguage,
     );
   });
 }
@@ -433,6 +452,7 @@ export type PythonChapterSourceConfig = {
   quizTitle: string;
   quizDescription: string;
   passScorePercent: number;
+  programmingLanguage?: string;
 };
 
 export function parsePythonChapterSource(
@@ -471,6 +491,7 @@ export function parsePythonChapterSource(
         ? questionSection.slice(0, supplementalStart)
         : questionSection,
       config.questionKeys,
+      config.programmingLanguage ?? 'python',
     );
     const blocks = parseLessonBlocks(
       `${lessonSource.slice(0, questionMarker)}\n${
@@ -536,7 +557,7 @@ export function parsePythonChapterSource(
       requiredMatch(
         normalized,
         new RegExp(
-          `^# 第${config.chapterOrdinal}章：.+\\n\\n章节简介：.+\\n预计学习时间：(\\d+) 分钟$`,
+          `^# 第${config.chapterOrdinal}章：.+\\n\\n章节简介：.+\\n\\n?预计学习时间：(\\d+) 分钟$`,
           'm',
         ),
         `chapter ${config.chapterNumber} estimated minutes`,

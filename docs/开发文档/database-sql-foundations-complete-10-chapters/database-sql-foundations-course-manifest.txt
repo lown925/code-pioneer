@@ -1,0 +1,24 @@
+课程：数据库与 SQL 基础
+slug：database-sql-foundations
+
+正式内容统计：
+- 10 chapters
+- 60 lessons
+- 180 questions
+- 120 Battle questions
+- 60 MEDIUM
+- 60 HARD
+- 30 CODE_FILL
+- exact duplicate prompts: 0
+
+章节：
+01. database-sql-introduction | 数据库与 SQL 入门
+02. data-types-null-expressions | 数据类型、NULL 与表达式
+03. filters-functions | 条件查询与常用函数
+04. aggregation-grouping | 聚合、分组与统计
+05. joins-relations | 多表查询与 JOIN
+06. subqueries-sets-cte | 子查询、集合与 CTE
+07. data-modification-transactions | 数据写入与事务
+08. schema-constraints-indexes | 表设计、约束与索引
+09. views-window-functions | 视图、窗口函数与高级查询
+10. sql-practice-optimization | SQL 综合实践与查询优化

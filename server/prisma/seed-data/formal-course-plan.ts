@@ -135,7 +135,7 @@ export const FORMAL_COURSE_PLAN = [
       'Shell 基础与脚本',
       'Linux 综合运维实践',
     ]),
-    publishedSeed: false,
+    publishedSeed: true,
   },
   {
     order: 4,

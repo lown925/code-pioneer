@@ -23,6 +23,7 @@
     "cleanup:dev-battle-users": "node scripts/run-cleanup-dev-battle-users.cjs",
     "cleanup:javascript-starter": "node scripts/run-cleanup-javascript-starter.cjs",
     "publish:data-structures-algorithms": "node scripts/run-publish-data-structures-algorithms.cjs",
+    "publish:linux-fundamentals": "node scripts/run-publish-linux-fundamentals.cjs",
     "seed:content": "node scripts/run-seed-content.cjs",
     "update:p7-5-code-fill": "node scripts/run-update-p7-5-code-fill.cjs",
     "seed:quiz": "prisma db execute --file prisma/seed.sql --config prisma.config.ts"

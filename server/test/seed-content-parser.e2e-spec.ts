@@ -9,6 +9,10 @@ import {
   PUBLISHED_FORMAL_COURSE_SLUGS,
 } from '../prisma/seed-data/formal-course-plan';
 import { resolveSeedDocumentPath } from '../prisma/seed-data/content-source';
+import {
+  assertNoExactDuplicatesInCourse,
+  auditCrossCourseExactDuplicates,
+} from '../prisma/seed-data/content-quality';
 
 const PYTHON_CHAPTER_FILES = [
   'python-basic-chapter-01.md',
@@ -32,6 +36,12 @@ const DATA_STRUCTURES_CHAPTER_FILES = Array.from(
   { length: 12 },
   (_, index) =>
     `data-structures-algorithms-chapter-${String(index + 1).padStart(2, '0')}.md`,
+);
+
+const LINUX_CHAPTER_FILES = Array.from(
+  { length: 10 },
+  (_, index) =>
+    `linux-fundamentals-chapter-${String(index + 1).padStart(2, '0')}.md`,
 );
 
 const BATTLE_PRESENTATIONS = new Set([
@@ -167,6 +177,7 @@ describe('seed content parser', () => {
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).toEqual([
       'python-basic',
       'data-structures-algorithms',
+      'linux-fundamentals',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).not.toContain(
       'javascript-starter',
@@ -313,6 +324,117 @@ describe('seed content parser', () => {
     });
   });
 
+  it('enforces the Linux source, identity, quality, and duplicate gates', () => {
+    const { course, questions, battleQuestions } =
+      countQuestions('linux-fundamentals');
+    const lessonKeys = course.chapters.flatMap((chapter) =>
+      chapter.lessons.map((lesson) => lesson.key),
+    );
+
+    expect(course.chapters).toHaveLength(10);
+    expect(course.chapters.map((chapter) => chapter.key)).toEqual(
+      LINUX_CHAPTER_FILES.map((fileName) => fileName.replace('.md', '')),
+    );
+    expect(course.chapters.map((chapter) => chapter.sortOrder)).toEqual(
+      Array.from({ length: 10 }, (_, index) => index + 1),
+    );
+    expect(lessonKeys).toHaveLength(60);
+    expect(new Set(lessonKeys).size).toBe(60);
+    expect(questions).toHaveLength(180);
+    expect(new Set(questions.map((question) => question.key)).size).toBe(180);
+    expect(battleQuestions).toHaveLength(120);
+    expect(
+      battleQuestions.filter((question) => question.difficulty === 'MEDIUM'),
+    ).toHaveLength(60);
+    expect(
+      battleQuestions.filter((question) => question.difficulty === 'HARD'),
+    ).toHaveLength(60);
+    expect(
+      questions.filter((question) => question.type === 'CODE_FILL'),
+    ).toHaveLength(30);
+
+    course.chapters.forEach((chapter, index) => {
+      const chapterQuestions = chapter.lessons.flatMap(
+        (lesson) => lesson.questions,
+      );
+      const chapterBattleQuestions = chapterQuestions.filter(
+        (question) => question.isBattleEnabled,
+      );
+      const sourcePath = resolveSeedDocumentPath(LINUX_CHAPTER_FILES[index]!, [
+        'docs',
+        '开发文档',
+        'linux-fundamentals-complete-10-chapters',
+      ]);
+      const sourceQuestionNumbers = [
+        ...readFileSync(sourcePath, 'utf8').matchAll(/^#### 题目 (\d+)$/gm),
+      ].map((match) => Number(match[1]));
+
+      expect(chapter.lessons).toHaveLength(6);
+      expect(chapterQuestions).toHaveLength(18);
+      expect(chapterBattleQuestions).toHaveLength(12);
+      expect(
+        chapterBattleQuestions.filter(
+          (question) => question.difficulty === 'MEDIUM',
+        ),
+      ).toHaveLength(6);
+      expect(
+        chapterBattleQuestions.filter(
+          (question) => question.difficulty === 'HARD',
+        ),
+      ).toHaveLength(6);
+      expect(
+        chapterQuestions.filter((question) => question.type === 'CODE_FILL'),
+      ).toHaveLength(3);
+      expect(sourceQuestionNumbers).toEqual(
+        Array.from({ length: 18 }, (_, questionIndex) => questionIndex + 1),
+      );
+    });
+
+    for (const question of questions) {
+      expect(question.explanation.trim().length).toBeGreaterThan(0);
+      if (question.type === 'SINGLE_CHOICE') {
+        expect(
+          question.options.filter((option) => option.isCorrect),
+        ).toHaveLength(1);
+      }
+      if (question.type === 'CODE_FILL') {
+        expect(question.acceptedAnswers.length).toBeGreaterThan(0);
+        expect(
+          question.stemBlocks?.some(
+            (block) =>
+              block.type === 'CODE' &&
+              block.language === 'bash' &&
+              block.code.includes('____'),
+          ),
+        ).toBe(true);
+        expect(
+          question.explanationBlocks?.some(
+            (block) =>
+              block.type === 'CODE' &&
+              block.language === 'bash' &&
+              block.code.trim().length > 0,
+          ),
+        ).toBe(true);
+      }
+      if (question.isBattleEnabled) {
+        expect(['SINGLE_CHOICE', 'CODE_FILL']).toContain(question.type);
+        expect(['MEDIUM', 'HARD']).toContain(question.difficulty);
+        expect(BATTLE_PRESENTATIONS.has(question.battlePresentation)).toBe(
+          true,
+        );
+      }
+    }
+
+    expect(() => assertNoExactDuplicatesInCourse(course)).not.toThrow();
+    expect(
+      auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS).filter((group) =>
+        group.questions.some(
+          (question) => question.courseSlug === 'linux-fundamentals',
+        ),
+      ),
+    ).toHaveLength(0);
+  });
+
   it('keeps exactly ten formal plans while publishing only completed sources', () => {
     expect(FORMAL_COURSE_PLAN).toHaveLength(10);
     expect(FORMAL_COURSE_PLAN.map((course) => course.order)).toEqual(
@@ -324,6 +446,7 @@ describe('seed content parser', () => {
     expect(PUBLISHED_FORMAL_COURSE_SLUGS).toEqual([
       'python-basic',
       'data-structures-algorithms',
+      'linux-fundamentals',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).toEqual(
       PUBLISHED_FORMAL_COURSE_SLUGS,
