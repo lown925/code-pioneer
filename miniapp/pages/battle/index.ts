@@ -25,7 +25,7 @@ import {
 
 type PageState = 'guest' | 'loading' | 'success' | 'empty' | 'error';
 type LeaderboardScope = string;
-type TrackOption = ProfessionalTrack & { courseCountText: string; questionCountText: string };
+type TrackOption = ProfessionalTrack & { description: string };
 
 type LeaderboardRow = {
   rank: number;
@@ -195,13 +195,14 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
       ]);
 
       const trackOptions = capabilities.tracks.map((track) => {
-        const courses = capabilities.items.filter(
-          (course) => course.professionalTracks.includes(track.trackKey) && course.supportsBattle,
-        );
+        const descriptionByTrack: Record<string, string> = {
+          'big-data': '综合考察编程、数据处理与大数据相关专业知识',
+          'computer-science': '综合考察程序设计、算法、系统与网络相关专业知识',
+          'software-engineering': '综合考察程序设计、数据库与软件开发相关专业知识',
+        };
         return {
           ...track,
-          courseCountText: `${courses.length} 门课程`,
-          questionCountText: `${courses.reduce((sum, course) => sum + course.battleQuestionCount, 0)} 道题`,
+          description: descriptionByTrack[track.trackKey] ?? '综合考察该专业相关课程知识',
         };
       });
       const selectedTrackKey = trackOptions.some((track) => track.trackKey === this.data.selectedTrackKey)

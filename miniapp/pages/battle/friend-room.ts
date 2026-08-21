@@ -52,7 +52,7 @@ type FriendRoomPageData = {
   availableSkills: BattleSkillProfile[];
   selectedSkillCode: string;
   selectedSkillName: string;
-  tracks: (ProfessionalTrack & { courseNames: string; questionCountText: string })[];
+  tracks: (ProfessionalTrack & { description: string })[];
   selectedTrackKey: string;
   selectedTrackName: string;
   selectedTrackCoursesText: string;
@@ -186,7 +186,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     tracks: [],
     selectedTrackKey: 'big-data',
     selectedTrackName: '大数据',
-    selectedTrackCoursesText: '暂无已发布对战题库',
+    selectedTrackCoursesText: '综合考察该专业相关课程知识',
   },
 
   onLoad(options) {
@@ -686,7 +686,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
         this.data.selectedTrackName,
       selectedTrackCoursesText:
         this.data.tracks.find((track) => track.trackKey === payload.professionalTrackKey)
-          ?.courseNames ?? this.data.selectedTrackCoursesText,
+          ?.description ?? this.data.selectedTrackCoursesText,
     });
   },
 
@@ -711,22 +711,21 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
 
   async loadTracks() {
     const response = await request<CourseCapabilityResponse>({ url: '/course-capabilities', method: 'GET', authMode: 'auto' });
-    const tracks = response.tracks.map((track) => {
-      const courses = response.items.filter(
-        (course) => course.professionalTracks.includes(track.trackKey) && course.supportsBattle,
-      );
-      return {
-        ...track,
-        courseNames: courses.map((course) => course.title).join('、') || '暂无已发布对战题库',
-        questionCountText: `${courses.reduce((sum, course) => sum + course.battleQuestionCount, 0)} 道可用对战题`,
+      const descriptionByTrack: Record<string, string> = {
+        'big-data': '综合考察编程、数据处理与大数据相关专业知识',
+        'computer-science': '综合考察程序设计、算法、系统与网络相关专业知识',
+        'software-engineering': '综合考察程序设计、数据库与软件开发相关专业知识',
       };
-    });
+      const tracks = response.tracks.map((track) => ({
+        ...track,
+        description: descriptionByTrack[track.trackKey] ?? '综合考察该专业相关课程知识',
+      }));
     const selected = tracks.find((track) => track.trackKey === this.data.selectedTrackKey) ?? tracks[0];
     this.setData({
       tracks,
       selectedTrackKey: selected?.trackKey ?? 'big-data',
       selectedTrackName: selected?.shortName ?? '大数据',
-      selectedTrackCoursesText: selected?.courseNames ?? '暂无已发布对战题库',
+      selectedTrackCoursesText: selected?.description ?? '',
     });
   },
 
@@ -764,7 +763,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     this.setData({
       selectedTrackKey: track.trackKey,
       selectedTrackName: track.shortName,
-      selectedTrackCoursesText: track.courseNames,
+      selectedTrackCoursesText: track.description,
     });
   },
 

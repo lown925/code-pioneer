@@ -82,12 +82,14 @@ describe('miniapp Growth product skeleton', () => {
     expect(indexScript).toMatch(
       /redirectToLogin\(["']\/pages\/growth\/index["']\)/,
     );
-    expect(indexScript).toContain('profile.isCoreProfileComplete');
+    expect(indexScript).toContain('overview.learning.professionalRoute');
     expect(indexScript).toContain('buildRatingChartPoints');
     expect(indexScript).toContain('openGoalEditor');
     expect(indexTemplate).toContain('微信登录');
     expect(indexTemplate).toContain('下一步建议');
-    expect(indexTemplate).toContain('推荐学习');
+    expect(indexTemplate).toContain('继续学习');
+    expect(indexTemplate).toContain('下一步推荐');
+    expect(indexTemplate).toContain('专业学习路线');
     expect(indexTemplate).toContain('学习趋势');
     expect(indexTemplate).toContain('rating-points=');
     expect(indexTemplate).toContain('chart-mode="rating"');
@@ -103,7 +105,7 @@ describe('miniapp Growth product skeleton', () => {
   it('puts profile before goals and keeps complete/incomplete profile paths', () => {
     const template = readMiniappFile('pages/growth/index.wxml');
     const profileIndex = template.indexOf('学习画像');
-    const courseIndex = template.indexOf('推荐学习');
+    const courseIndex = template.indexOf('继续学习');
     const goalIndex = template.indexOf('我的学习目标');
 
     expect(profileIndex).toBeGreaterThan(-1);
@@ -259,8 +261,8 @@ describe('miniapp Growth product skeleton', () => {
 
   it('keeps the recommendation fallback and preserves the Goal controls', () => {
     const template = readMiniappFile('pages/growth/index.wxml');
-    expect(template).toContain('courseRecommendationFallbackText');
-    expect(readMiniappFile('pages/growth/index.ts')).toContain('"浏览课程"');
+    expect(template).toContain('nextRecommendation');
+    expect(template).toContain('professionalRoute');
     expect(template).toContain('继续学习');
     expect(template).toContain('调整目标');
     expect(template).toContain('取消目标');

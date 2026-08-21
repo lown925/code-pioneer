@@ -47,7 +47,7 @@ function getPresentation(snapshot: BattleMatchmakingSnapshot) {
   if (snapshot.status === 'MATCHED') {
     return {
       toneClassName: 'floating-matched',
-      compactTitle: `${snapshot.skillName} 匹配成功`,
+      compactTitle: '匹配成功',
       titleText: '匹配成功',
       descriptionText: '正在打开对战房间，请完成准备。',
     };
@@ -56,7 +56,7 @@ function getPresentation(snapshot: BattleMatchmakingSnapshot) {
   if (snapshot.status === 'EXPIRED') {
     return {
       toneClassName: 'floating-expired',
-      compactTitle: `${snapshot.skillName} 匹配已结束`,
+      compactTitle: '匹配已结束',
       titleText: '匹配已结束',
       descriptionText: snapshot.computerAvailable
         ? '本轮搜索已结束，仍可进入电脑对战或重新匹配。'
@@ -67,7 +67,7 @@ function getPresentation(snapshot: BattleMatchmakingSnapshot) {
   if (snapshot.status === 'CANCELLED') {
     return {
       toneClassName: 'floating-expired',
-      compactTitle: `${snapshot.skillName} 匹配已失效`,
+      compactTitle: '该次匹配已失效',
       titleText: '该次匹配已失效',
       descriptionText: '对战房间未在准备时间内开始，请重新匹配。',
     };
@@ -76,7 +76,7 @@ function getPresentation(snapshot: BattleMatchmakingSnapshot) {
   if (snapshot.status === 'ERROR') {
     return {
       toneClassName: 'floating-error',
-      compactTitle: `${snapshot.skillName} 正在重新连接`,
+      compactTitle: '匹配正在重新连接',
       titleText: '匹配状态暂时不可用',
       descriptionText: '正在保留最近一次匹配状态，请稍候重试。',
     };
@@ -85,16 +85,16 @@ function getPresentation(snapshot: BattleMatchmakingSnapshot) {
   if (snapshot.status === 'SEARCHING_COMPUTER_AVAILABLE') {
     return {
       toneClassName: 'floating-computer',
-      compactTitle: `${snapshot.skillName} 匹配中 · ${formatBattleDuration(snapshot.elapsedMs / 1000)}`,
-      titleText: `${snapshot.skillName} 匹配中`,
+      compactTitle: `匹配中 · ${formatBattleDuration(snapshot.elapsedMs / 1000)}`,
+      titleText: '匹配中',
       descriptionText: '暂时没有合适的对手，可进入电脑对战或继续等待。',
     };
   }
 
   return {
     toneClassName: 'floating-searching',
-    compactTitle: `${snapshot.skillName} 匹配中 · ${formatBattleDuration(snapshot.elapsedMs / 1000)}`,
-    titleText: `${snapshot.skillName} 匹配中`,
+    compactTitle: `匹配中 · ${formatBattleDuration(snapshot.elapsedMs / 1000)}`,
+    titleText: '匹配中',
     descriptionText: '可以继续使用小程序，匹配会在前台持续同步。',
   };
 }

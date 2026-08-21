@@ -14,6 +14,7 @@ export type FormalCoursePlan = {
   interests: readonly string[];
   prerequisites: readonly string[];
   nextCourses: readonly string[];
+  coreRouteOrder: Readonly<Record<string, number>>;
   chapters: readonly FormalChapterPlan[];
   publishedSeed: boolean;
 };
@@ -37,13 +38,14 @@ export const FORMAL_COURSE_PLAN = [
   {
     order: 1,
     slug: 'python-basic',
-    title: 'Python 程序设计基础',
+    title: 'Python 基础入门',
     implementationLanguage: 'Python',
     subjectCategory: '程序设计',
     professionalDirections: ['computer-science', 'software-engineering', 'big-data'],
     interests: ['python', 'software-development', 'data-processing'],
     prerequisites: [],
     nextCourses: ['data-structures-algorithms', 'linux-fundamentals'],
+    coreRouteOrder: { 'big-data': 1, 'computer-science': 1, 'software-engineering': 1 },
     chapters: fixedChapters([
       ['python-first-experience', 'Python 初体验'],
       ['python-variables-and-basic-types', '变量与基础数据类型'],
@@ -86,6 +88,7 @@ export const FORMAL_COURSE_PLAN = [
       'java-object-oriented-programming',
       'linux-fundamentals',
     ],
+    coreRouteOrder: { 'big-data': 2, 'computer-science': 2, 'software-engineering': 2 },
     chapters: fixedChapters([
       ['data-structures-algorithms-introduction', '认识算法与复杂度'],
       ['data-structures-algorithms-arrays', '数组与顺序表'],
@@ -119,6 +122,7 @@ export const FORMAL_COURSE_PLAN = [
       'big-data-fundamentals',
       'computer-networks-fundamentals',
     ],
+    coreRouteOrder: { 'big-data': 3, 'computer-science': 3 },
     chapters: plannedChapters('linux-fundamentals', [
       'Linux 与终端入门',
       '文件系统与目录导航',
@@ -152,6 +156,7 @@ export const FORMAL_COURSE_PLAN = [
       'software-engineering-project-development',
       'big-data-fundamentals',
     ],
+    coreRouteOrder: { 'big-data': 4, 'computer-science': 4, 'software-engineering': 4 },
     chapters: plannedChapters('database-sql-fundamentals', [
       '认识数据库与关系模型',
       '表、字段、记录与主键',
@@ -181,6 +186,7 @@ export const FORMAL_COURSE_PLAN = [
       'database-sql-fundamentals',
       'software-engineering-project-development',
     ],
+    coreRouteOrder: { 'software-engineering': 3 },
     chapters: plannedChapters('java-object-oriented-programming', [
       'Java 与程序结构',
       '变量、数据类型与运算符',
@@ -207,6 +213,7 @@ export const FORMAL_COURSE_PLAN = [
     interests: ['network', 'system', 'backend', 'network-security'],
     prerequisites: ['linux-fundamentals'],
     nextCourses: [],
+    coreRouteOrder: { 'computer-science': 6, 'software-engineering': 6 },
     chapters: plannedChapters('computer-networks-fundamentals', [
       '认识计算机网络',
       'OSI 与 TCP/IP 模型',
@@ -231,6 +238,7 @@ export const FORMAL_COURSE_PLAN = [
     interests: ['operating-system', 'system', 'computer-foundations'],
     prerequisites: ['data-structures-algorithms'],
     nextCourses: ['computer-networks-fundamentals'],
+    coreRouteOrder: { 'computer-science': 5 },
     chapters: plannedChapters('computer-architecture-operating-systems', [
       '计算机系统整体结构',
       '二进制与数据表示',
@@ -262,6 +270,7 @@ export const FORMAL_COURSE_PLAN = [
     ],
     prerequisites: ['data-structures-algorithms', 'database-sql-fundamentals'],
     nextCourses: ['computer-networks-fundamentals'],
+    coreRouteOrder: { 'software-engineering': 5 },
     chapters: plannedChapters('software-engineering-project-development', [
       '什么是软件工程',
       '软件生命周期与开发模型',
@@ -290,6 +299,7 @@ export const FORMAL_COURSE_PLAN = [
       'database-sql-fundamentals',
     ],
     nextCourses: ['spark-data-processing'],
+    coreRouteOrder: { 'big-data': 5 },
     chapters: plannedChapters('big-data-fundamentals', [
       '什么是大数据',
       '分布式计算基础',
@@ -319,6 +329,7 @@ export const FORMAL_COURSE_PLAN = [
     ],
     prerequisites: ['python-basic', 'big-data-fundamentals'],
     nextCourses: [],
+    coreRouteOrder: { 'big-data': 6 },
     chapters: plannedChapters('spark-data-processing', [
       'Spark 是什么',
       'Spark 应用与执行模型',

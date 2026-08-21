@@ -7,13 +7,12 @@
 
   <view class="section-card skill-card">
     <text class="section-title">对战方向</text>
-    <text class="section-subtitle">选择专业方向后，将从该方向已发布课程中综合出题。</text>
+    <text class="section-subtitle">选择专业方向后，将综合考察该方向相关课程知识。</text>
     <view class="skill-list">
       <view wx:for="{{tracks}}" wx:key="trackKey" class="skill-option {{selectedTrackKey === item.trackKey ? 'skill-option-selected' : ''}} {{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE' || state === 'MATCHED' || state === 'JOINING' ? 'skill-option-locked' : ''}}" data-track="{{item.trackKey}}" bindtap="handleSelectTrack">
         <view>
           <text class="skill-name">{{item.shortName}} · {{item.formalName}}</text>
-          <text class="skill-status">{{item.courseCountText}} · {{item.questionCountText}}</text>
-          <text class="skill-status">当前题库：{{item.courseNames}}</text>
+          <text class="skill-status">{{item.description}}</text>
         </view>
         <text class="skill-check">{{selectedTrackKey === item.trackKey ? '已选择' : '选择'}}</text>
       </view>
@@ -27,7 +26,7 @@
     <text wx:if="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="status-copy">{{waitingCountText}}</text>
 
     <view wx:if="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="timer-grid">
-      <view class="timer-card"><text class="timer-label">已等待时间</text><text class="timer-value">{{waitedText}}</text></view>
+      <view class="timer-card"><text class="timer-label">已等待</text><text class="timer-value">{{waitedText}}</text></view>
       <view class="timer-card"><text class="timer-label">剩余搜索时间</text><text class="timer-value">{{remainingText}}</text></view>
     </view>
 
@@ -43,7 +42,7 @@
     <view class="action-row">
       <button wx:if="{{state === 'IDLE'}}" class="primary-button action-button" bindtap="handleStartMatchmaking">开始匹配</button>
       <button wx:elif="{{state === 'JOINING'}}" class="ghost-button action-button" loading disabled>正在加入匹配池</button>
-      <block wx:elif="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}"><button class="ghost-button action-button" bindtap="handleContinueWaiting">离开页面继续等待</button><button class="danger-button action-button" loading="{{isCancelling}}" disabled="{{isCancelling}}" bindtap="handleCancelMatchmaking">取消匹配</button></block>
+      <block wx:elif="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}"><button class="ghost-button action-button" bindtap="handleContinueWaiting">继续使用小程序</button><button class="danger-button action-button" loading="{{isCancelling}}" disabled="{{isCancelling}}" bindtap="handleCancelMatchmaking">取消匹配</button></block>
       <block wx:elif="{{state === 'MATCHED'}}"><text class="status-copy">正在进入对战</text><button class="ghost-button action-button" bindtap="handleBackHome">返回首页</button></block>
       <block wx:elif="{{state === 'CANCELLED'}}"><button class="primary-button action-button" bindtap="handleRetry">重新匹配</button><button class="ghost-button action-button" bindtap="handleBackHome">返回首页</button></block>
       <block wx:elif="{{state === 'EXPIRED'}}"><button wx:if="{{computerAvailable}}" class="primary-button action-button" loading="{{isStartingComputer}}" disabled="{{isStartingComputer}}" bindtap="handleStartComputer">电脑对战</button><button class="ghost-button action-button" bindtap="handleRetry">重新匹配</button><button class="ghost-button action-button" bindtap="handleBackHome">返回首页</button></block>

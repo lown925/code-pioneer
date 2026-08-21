@@ -109,6 +109,29 @@ export type GrowthContinueLearning = {
   progressPercent: number;
 } | null;
 
+export type GrowthProfessionalRouteStatus =
+  | 'LEARNING'
+  | 'COMPLETED'
+  | 'AVAILABLE'
+  | 'UPCOMING';
+
+export type GrowthProfessionalRouteNode = {
+  slug: string;
+  courseId: string | null;
+  courseTitle: string;
+  progressPercent: number;
+  status: GrowthProfessionalRouteStatus;
+  targetPath: string | null;
+};
+
+export type GrowthNextCourseRecommendation = {
+  courseId: string;
+  courseTitle: string;
+  progressPercent: number;
+  reason: string;
+  targetPath: string;
+};
+
 export type GrowthWrongArea = {
   courseId: string | null;
   courseTitle: string;
@@ -204,6 +227,8 @@ export type GrowthOverviewResponse = {
     practice: GrowthPerformanceSummary;
     trend: GrowthTrendPoint[];
     continueLearning: GrowthContinueLearning;
+    nextRecommendation: GrowthNextCourseRecommendation | null;
+    professionalRoute: GrowthProfessionalRouteNode[];
   };
   competency: {
     chapters: GrowthChapterPerformance[];

@@ -27,7 +27,7 @@
       </text>
       <view class="skill-list">
         <view wx:for="{{tracks}}" wx:key="trackKey" class="skill-option {{selectedTrackKey === item.trackKey ? 'skill-option-selected' : ''}}" data-track="{{item.trackKey}}" bindtap="handleSelectTrack">
-          <view><text class="skill-name">{{item.shortName}} · {{item.formalName}}</text><text class="skill-copy">当前题库：{{item.courseNames}}</text><text class="skill-copy">{{item.questionCountText}}</text></view>
+          <view><text class="skill-name">{{item.shortName}} · {{item.formalName}}</text><text class="skill-copy">{{item.description}}</text></view>
           <text class="skill-check">{{selectedTrackKey === item.trackKey ? '已选择' : '选择'}}</text>
         </view>
       </view>
@@ -80,7 +80,7 @@
           <text class="preview-meta-value">{{selectedTrackName || '历史对战'}}</text>
         </view>
         <view class="preview-meta-item">
-          <text class="preview-meta-label">当前题库</text>
+          <text class="preview-meta-label">对战说明</text>
           <text class="preview-meta-value">{{selectedTrackCoursesText}}</text>
         </view>
         <view class="preview-meta-item">

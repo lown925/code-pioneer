@@ -1,0 +1,132 @@
+{
+  "course": "Linux 基础与常用命令",
+  "slug": "linux-fundamentals",
+  "chapters": [
+    {
+      "no": 1,
+      "title": "Linux 与终端入门",
+      "filename": "linux-fundamentals-chapter-01.md",
+      "lessons": 6,
+      "questions": 18,
+      "battle": 12,
+      "medium_battle": 6,
+      "hard_battle": 6,
+      "code_fill": 3
+    },
+    {
+      "no": 2,
+      "title": "文件系统与目录导航",
+      "filename": "linux-fundamentals-chapter-02.md",
+      "lessons": 6,
+      "questions": 18,
+      "battle": 12,
+      "medium_battle": 6,
+      "hard_battle": 6,
+      "code_fill": 3
+    },
+    {
+      "no": 3,
+      "title": "文件与目录操作",
+      "filename": "linux-fundamentals-chapter-03.md",
+      "lessons": 6,
+      "questions": 18,
+      "battle": 12,
+      "medium_battle": 6,
+      "hard_battle": 6,
+      "code_fill": 3
+    },
+    {
+      "no": 4,
+      "title": "文本查看、搜索与处理",
+      "filename": "linux-fundamentals-chapter-04.md",
+      "lessons": 6,
+      "questions": 18,
+      "battle": 12,
+      "medium_battle": 6,
+      "hard_battle": 6,
+      "code_fill": 3
+    },
+    {
+      "no": 5,
+      "title": "用户、用户组与权限",
+      "filename": "linux-fundamentals-chapter-05.md",
+      "lessons": 6,
+      "questions": 18,
+      "battle": 12,
+      "medium_battle": 6,
+      "hard_battle": 6,
+      "code_fill": 3
+    },
+    {
+      "no": 6,
+      "title": "进程与任务管理",
+      "filename": "linux-fundamentals-chapter-06.md",
+      "lessons": 6,
+      "questions": 18,
+      "battle": 12,
+      "medium_battle": 6,
+      "hard_battle": 6,
+      "code_fill": 3
+    },
+    {
+      "no": 7,
+      "title": "软件包与系统服务",
+      "filename": "linux-fundamentals-chapter-07.md",
+      "lessons": 6,
+      "questions": 18,
+      "battle": 12,
+      "medium_battle": 6,
+      "hard_battle": 6,
+      "code_fill": 3
+    },
+    {
+      "no": 8,
+      "title": "Linux 网络基础与常用命令",
+      "filename": "linux-fundamentals-chapter-08.md",
+      "lessons": 6,
+      "questions": 18,
+      "battle": 12,
+      "medium_battle": 6,
+      "hard_battle": 6,
+      "code_fill": 3
+    },
+    {
+      "no": 9,
+      "title": "Shell 基础与脚本",
+      "filename": "linux-fundamentals-chapter-09.md",
+      "lessons": 6,
+      "questions": 18,
+      "battle": 12,
+      "medium_battle": 6,
+      "hard_battle": 6,
+      "code_fill": 3
+    },
+    {
+      "no": 10,
+      "title": "Linux 综合运维实践",
+      "filename": "linux-fundamentals-chapter-10.md",
+      "lessons": 6,
+      "questions": 18,
+      "battle": 12,
+      "medium_battle": 6,
+      "hard_battle": 6,
+      "code_fill": 3
+    }
+  ],
+  "totals": {
+    "chapters": 10,
+    "lessons": 60,
+    "questions": 180,
+    "battle": 120,
+    "medium_battle": 60,
+    "hard_battle": 60,
+    "code_fill": 30
+  },
+  "validation": {
+    "per_chapter": "PASS",
+    "question_numbering": "PASS",
+    "single_choice_unique_correct": "PASS",
+    "code_fill_gate": "PASS",
+    "exact_prompt_duplicates": 0
+  }
+}

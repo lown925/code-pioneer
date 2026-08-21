@@ -169,6 +169,90 @@ describe('GrowthService', () => {
     expect(result.data.battle.currentPythonRating).toBeNull();
   });
 
+  it('builds continue learning, next recommendation, and the full track route from published courses', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2026-08-18T04:00:00.000Z');
+    seedEmpty(prisma);
+    prisma.user.findFirst.mockResolvedValue({
+      major: 'major.computer_science',
+      grade: 'grade.junior',
+      learningDirection: 'direction.backend',
+      technicalInterests: [],
+      careerDirection: null,
+    });
+    prisma.course.findMany = jest.fn().mockResolvedValue([
+      { id: 'course-python', slug: 'python-basic', title: 'Python 基础入门' },
+      { id: 'course-data', slug: 'data-structures-algorithms', title: '数据结构与算法基础' },
+    ]);
+    prisma.courseLearningRecord.findMany.mockResolvedValue([
+      {
+        courseId: 'course-python',
+        isSelected: true,
+        status: 'LEARNING',
+        progressPercent: 6,
+        lastLearnedAt: now,
+        course: { id: 'course-python', title: 'Python 基础入门' },
+        lastChapter: null,
+      },
+      {
+        courseId: 'course-data',
+        isSelected: false,
+        status: 'NOT_STARTED',
+        progressPercent: 0,
+        lastLearnedAt: null,
+        course: { id: 'course-data', title: '数据结构与算法基础' },
+        lastChapter: null,
+      },
+    ]);
+
+    const result = await new GrowthService(
+      prisma as unknown as PrismaService,
+    ).getOverview('user-1', '7d', now);
+
+    expect(result.data.learning.continueLearning).toMatchObject({
+      courseId: 'course-python',
+      progressPercent: 6,
+    });
+    expect(result.data.learning.nextRecommendation).toMatchObject({
+      courseId: 'course-data',
+      courseTitle: '数据结构与算法基础',
+    });
+    expect(result.data.learning.professionalRoute.map((item) => [item.slug, item.status])).toEqual([
+      ['python-basic', 'LEARNING'],
+      ['data-structures-algorithms', 'AVAILABLE'],
+      ['linux-fundamentals', 'UPCOMING'],
+      ['database-sql-fundamentals', 'UPCOMING'],
+      ['computer-architecture-operating-systems', 'UPCOMING'],
+      ['computer-networks-fundamentals', 'UPCOMING'],
+    ]);
+    expect(result.data.learning.professionalRoute.filter((item) => item.status === 'UPCOMING').every((item) => item.courseId === null && item.targetPath === null)).toBe(true);
+  });
+
+  it('turns Linux from upcoming into available when it becomes published', async () => {
+    const prisma = createMockPrisma();
+    seedEmpty(prisma);
+    prisma.user.findFirst.mockResolvedValue({
+      major: 'major.computer_science',
+      grade: 'grade.junior',
+      learningDirection: 'direction.backend',
+      technicalInterests: [],
+      careerDirection: null,
+    });
+    prisma.course.findMany = jest.fn().mockResolvedValue([
+      { id: 'course-linux', slug: 'linux-fundamentals', title: 'Linux 基础与常用命令' },
+    ]);
+
+    const result = await new GrowthService(
+      prisma as unknown as PrismaService,
+    ).getOverview('user-1', '7d', new Date('2026-08-18T04:00:00.000Z'));
+
+    expect(result.data.learning.professionalRoute.find((item) => item.slug === 'linux-fundamentals')).toMatchObject({
+      status: 'AVAILABLE',
+      courseId: 'course-linux',
+      targetPath: '/pages/course/detail?courseId=course-linux',
+    });
+  });
+
   it('combines Quiz and completed Practice by chapter while keeping Battle modes separate', async () => {
     const prisma = createMockPrisma();
     const now = new Date('2026-08-18T04:00:00.000Z');

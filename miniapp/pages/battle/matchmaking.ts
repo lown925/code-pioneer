@@ -26,7 +26,7 @@ type MatchmakingPageData = {
   computerAvailable: boolean;
   isStartingComputer: boolean;
   isCancelling: boolean;
-  tracks: (ProfessionalTrack & { courseCountText: string; questionCountText: string; courseNames: string })[];
+  tracks: (ProfessionalTrack & { description: string })[];
   selectedTrackKey: string;
   selectedTrackName: string;
   profileDefaultTrackKey: string;
@@ -53,10 +53,10 @@ let unsubscribeMatchmaking: (() => void) | null = null;
 
 function getStateCopy(snapshot: BattleMatchmakingSnapshot) {
   if (snapshot.status === 'SEARCHING_COMPUTER_AVAILABLE') {
-    return { title: '正在匹配对手', description: '暂时没有合适的对手，可进入电脑对战或继续等待。' };
+    return { title: '匹配中', description: '暂时没有合适的对手，可进入电脑对战或继续等待。' };
   }
   if (snapshot.status === 'SEARCHING') {
-    return { title: '正在匹配对手', description: '可以离开本页继续使用小程序，匹配状态会持续同步。' };
+    return { title: '匹配中', description: '可以继续使用小程序，匹配状态会持续同步。' };
   }
   if (snapshot.status === 'MATCHED') {
     return { title: '匹配成功', description: '正在打开对战房间，请完成准备。' };
@@ -147,8 +147,12 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
     try {
       const response = await request<CourseCapabilityResponse>({ url: '/course-capabilities', method: 'GET', authMode: 'auto' });
       const tracks = response.tracks.map((track) => {
-        const courses = response.items.filter((course) => course.professionalTracks.includes(track.trackKey) && course.supportsBattle);
-        return { ...track, courseCountText: `${courses.length} 门可用课程`, questionCountText: `${courses.reduce((sum, course) => sum + course.battleQuestionCount, 0)} 道可用对战题`, courseNames: courses.map((course) => course.title).join('、') || '暂无已发布对战题' };
+        const descriptionByTrack: Record<string, string> = {
+          'big-data': '综合考察编程、数据处理与大数据相关专业知识',
+          'computer-science': '综合考察程序设计、算法、系统与网络相关专业知识',
+          'software-engineering': '综合考察程序设计、数据库与软件开发相关专业知识',
+        };
+        return { ...track, description: descriptionByTrack[track.trackKey] ?? '综合考察该专业相关课程知识' };
       });
       const preferredTrackKey = this.data.profileDefaultTrackKey || this.data.selectedTrackKey;
       const selected = tracks.find((track) => track.trackKey === preferredTrackKey) ?? tracks[0];

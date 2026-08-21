@@ -49,6 +49,16 @@
 .course-recommendation-title { display: block; color: var(--color-text-primary); font-size: 26rpx; font-weight: 700; }
 .course-recommendation-reason, .course-recommendation-empty { color: var(--color-text-secondary); font-size: 22rpx; line-height: 1.55; }
 .course-recommendation-reason { display: block; margin-top: 7rpx; }
+.professional-route-section { border-color: var(--color-border); }
+.professional-route-list { display: flex; flex-direction: column; margin-top: 18rpx; }
+.professional-route-row { display: flex; align-items: center; gap: 16rpx; min-height: 82rpx; border-bottom: 1rpx solid var(--color-border); }
+.professional-route-row:last-child { border-bottom: 0; }
+.professional-route-clickable:active { opacity: 0.72; }
+.professional-route-index { display: flex; align-items: center; justify-content: center; width: 42rpx; height: 42rpx; border-radius: 50%; background: var(--color-primary-soft); color: var(--color-primary); font-size: 22rpx; font-weight: 700; }
+.professional-route-copy { min-width: 0; flex: 1; }
+.professional-route-title, .professional-route-status { display: block; }
+.professional-route-title { color: var(--color-text-primary); font-size: 25rpx; font-weight: 600; }
+.professional-route-status { margin-top: 5rpx; color: var(--color-text-secondary); font-size: 21rpx; }
 .recommendation-list { display: flex; flex-direction: column; gap: 12rpx; margin-top: 22rpx; }
 .recommendation-row { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; padding: 20rpx; border-radius: 18rpx; background: var(--color-card-subtle); }
 .recommendation-copy { min-width: 0; }

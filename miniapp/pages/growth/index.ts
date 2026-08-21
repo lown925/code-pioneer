@@ -3,7 +3,8 @@ import type {
   GrowthBattleSkillSummary,
   GrowthBattleTrackSummary,
   GrowthChapterPerformance,
-  GrowthCourseRecommendation,
+  GrowthNextCourseRecommendation,
+  GrowthProfessionalRouteNode,
   GrowthLearningGoal,
   GrowthOverviewResponse,
   GrowthProfileSummary,
@@ -23,7 +24,6 @@ import {
 } from "../../utils/growth-profile";
 import {
   fetchGrowthOverview,
-  buildGrowthCourseRecommendations,
   cancelGrowthGoal,
   createGrowthGoal,
   fetchGrowthCourses,
@@ -67,11 +67,9 @@ type GrowthPageData = {
   trend: GrowthTrendPoint[];
   recommendations: GrowthRecommendationView[];
   hasRecommendations: boolean;
-  courseRecommendations: GrowthCourseRecommendation[];
-  hasCourseRecommendations: boolean;
-  courseRecommendationFallbackText: string;
-  courseRecommendationActionText: string;
-  courseRecommendationActionPath: string;
+  continueLearning: GrowthOverviewResponse["learning"]["continueLearning"];
+  nextRecommendation: GrowthNextCourseRecommendation | null;
+  professionalRoute: GrowthProfessionalRouteNode[];
   hasPerformanceData: boolean;
   hasQuizData: boolean;
   hasPracticeData: boolean;
@@ -292,12 +290,9 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     trend: [],
     recommendations: [],
     hasRecommendations: false,
-    courseRecommendations: [],
-    hasCourseRecommendations: false,
-    courseRecommendationFallbackText:
-      "完善学习画像后，我们会根据明确的技术兴趣推荐课程。",
-    courseRecommendationActionText: "完善画像",
-    courseRecommendationActionPath: "/pages/growth/profile",
+    continueLearning: null,
+    nextRecommendation: null,
+    professionalRoute: [],
     hasPerformanceData: false,
     hasQuizData: false,
     hasPracticeData: false,
@@ -390,32 +385,13 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     });
 
     try {
-      const [overview, courseResult] = await Promise.all([
-        fetchGrowthOverview(this.data.range),
-        fetchGrowthCourses().catch(() => null),
-      ]);
+      const overview = await fetchGrowthOverview(this.data.range);
 
       if (!isPageActive || currentSerial !== requestSerial) {
         return;
       }
 
       this.applyOverview(overview);
-      const courseRecommendations = courseResult
-        ? buildGrowthCourseRecommendations(overview.profile, courseResult.items)
-        : [];
-      this.setData({
-        courseRecommendations,
-        hasCourseRecommendations: courseRecommendations.length > 0,
-        courseRecommendationFallbackText: overview.profile.isCoreProfileComplete
-          ? "暂时没有与你的学习画像高度匹配的课程，可以先浏览全部课程。"
-          : "完善学习画像后，我们会根据明确的技术兴趣推荐课程。",
-        courseRecommendationActionText: overview.profile.isCoreProfileComplete
-          ? "浏览课程"
-          : "完善画像",
-        courseRecommendationActionPath: overview.profile.isCoreProfileComplete
-          ? "/pages/course/list"
-          : "/pages/growth/profile",
-      });
     } catch (error) {
       if (!isPageActive || currentSerial !== requestSerial) {
         return;
@@ -722,15 +698,22 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
       overview,
       profile,
       goal: overview.goal ?? null,
+      continueLearning: overview.learning.continueLearning,
+      nextRecommendation: overview.learning.nextRecommendation ?? null,
+      professionalRoute: overview.learning.professionalRoute ?? [],
       chapterItems,
       trend: overview.learning.trend,
-      recommendations: overview.recommendations.map(
-        (item: GrowthRecommendation) => ({
-          ...item,
-          priorityText: priorityText(item.priority),
-        }),
+      recommendations: overview.recommendations
+        .filter((item) => item.type !== "CONTINUE_COURSE")
+        .map(
+          (item: GrowthRecommendation) => ({
+            ...item,
+            priorityText: priorityText(item.priority),
+          }),
+        ),
+      hasRecommendations: overview.recommendations.some(
+        (item) => item.type !== "CONTINUE_COURSE",
       ),
-      hasRecommendations: overview.recommendations.length > 0,
       hasPerformanceData:
         quiz.attemptCount > 0 ||
         practice.attemptCount > 0 ||

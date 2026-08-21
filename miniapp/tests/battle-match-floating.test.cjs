@@ -86,6 +86,13 @@ test('uses only product copy for computer battles', () => {
   assert.doesNotMatch(matchmakingTemplate, /AI 对战|AI Battle|Bot/i);
 });
 
+test('uses track-neutral matchmaking copy and compact track cards', () => {
+  assert.match(componentScript, /titleText: '匹配中'/);
+  assert.doesNotMatch(componentScript, /skillName} 匹配中/);
+  assert.match(matchmakingScript, /综合考察程序设计/);
+  assert.doesNotMatch(matchmakingTemplate, /当前题库|可用课程|可用对战题/);
+});
+
 let failures = 0;
 tests.forEach(({ name, run }) => {
   try {

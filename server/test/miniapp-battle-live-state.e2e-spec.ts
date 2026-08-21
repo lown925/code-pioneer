@@ -296,7 +296,8 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     const resultTemplate = readMiniappFile('pages/battle/result.wxml');
     const battleUtility = readMiniappFile('utils/battle.ts');
 
-    expect(matchmakingTemplate).toContain('当前题库');
+    expect(matchmakingTemplate).toContain('综合考察');
+    expect(matchmakingTemplate).not.toMatch(/当前题库|可用课程|可用对战题/);
     expect(matchmakingTemplate).toContain('selectedTrackName');
     expect(matchmakingTemplate).not.toContain('对战语言');
     expect(indexScript).toContain('item.star');

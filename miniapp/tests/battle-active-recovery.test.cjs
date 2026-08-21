@@ -226,7 +226,7 @@ test('removes duplicate matchmaking card and visible HTML entities', () => {
 
   assert.doesNotMatch(matchmaking, /class="section-card rating-card"/);
   assert.doesNotMatch(matchmaking, /\{\{selectedSkillName \|\| 'Python'\}\} 匹配中/);
-  assert.match(matchmaking, /已等待时间/);
+  assert.match(matchmaking, /已等待/);
   assert.match(matchmaking, /剩余搜索时间/);
   assert.match(matchmaking, /电脑对战/);
   [room, friendRoom].forEach((template) => {

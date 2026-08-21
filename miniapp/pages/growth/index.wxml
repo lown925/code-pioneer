@@ -48,19 +48,29 @@
       </block>
     </view>
 
-    <view class="growth-section course-recommendation-section">
-      <view class="section-heading">
-        <view><text class="section-title">推荐学习</text><text class="section-subtitle">根据明确的技术兴趣与课程信息匹配</text></view>
+    <view wx:if="{{continueLearning}}" class="growth-section course-recommendation-section">
+      <view class="section-heading"><view><text class="section-title">继续学习</text><text class="section-subtitle">从你正在学习的课程继续</text></view></view>
+      <view class="course-recommendation-row" data-path="/pages/learning/course-progress?courseId={{continueLearning.courseId}}" bindtap="handleRecommendationTap">
+        <view class="course-recommendation-copy"><text class="course-recommendation-title">{{continueLearning.courseTitle}}</text><text class="course-recommendation-reason">已完成 {{continueLearning.progressPercent}}%</text></view>
+        <text class="section-link">继续学习 ›</text>
       </view>
-      <view wx:if="{{hasCourseRecommendations}}" class="course-recommendation-list">
-        <view wx:for="{{courseRecommendations}}" wx:key="courseId" class="course-recommendation-row" data-path="{{item.targetPath}}" bindtap="handleRecommendationTap">
-          <view class="course-recommendation-copy"><text class="course-recommendation-title">{{item.courseTitle}}</text><text class="course-recommendation-reason">{{item.reason}}</text></view>
-          <text class="section-link">查看课程 ›</text>
+    </view>
+
+    <view wx:if="{{nextRecommendation}}" class="growth-section course-recommendation-section">
+      <view class="section-heading"><view><text class="section-title">下一步推荐</text><text class="section-subtitle">沿着你的专业核心课程路线继续</text></view></view>
+      <view class="course-recommendation-row" data-path="{{nextRecommendation.targetPath}}" bindtap="handleRecommendationTap">
+        <view class="course-recommendation-copy"><text class="course-recommendation-title">{{nextRecommendation.courseTitle}}</text><text class="course-recommendation-reason">{{nextRecommendation.reason}}</text></view>
+        <text class="section-link">查看课程 ›</text>
+      </view>
+    </view>
+
+    <view wx:if="{{professionalRoute.length}}" class="growth-section professional-route-section">
+      <view class="section-heading"><view><text class="section-title">专业学习路线</text><text class="section-subtitle">{{profile.professionalTrack.formalName}}</text></view></view>
+      <view class="professional-route-list">
+        <view wx:for="{{professionalRoute}}" wx:key="slug" class="professional-route-row {{item.targetPath ? 'professional-route-clickable' : ''}}" data-path="{{item.targetPath}}" bindtap="handleRecommendationTap">
+          <text class="professional-route-index">{{index + 1}}</text>
+          <view class="professional-route-copy"><text class="professional-route-title">{{item.courseTitle}}</text><text class="professional-route-status">{{item.status === 'LEARNING' ? '学习中 · ' + item.progressPercent + '%' : item.status === 'COMPLETED' ? '已完成' : item.status === 'AVAILABLE' ? '可学习' : '待开放'}}</text></view>
         </view>
-      </view>
-      <view wx:else class="course-recommendation-empty">
-        <text>{{courseRecommendationFallbackText}}</text>
-        <text class="section-link" data-path="{{courseRecommendationActionPath}}" bindtap="handleRecommendationTap">{{courseRecommendationActionText}} ›</text>
       </view>
     </view>
 

@@ -23,6 +23,7 @@ import {
 } from './growth-metrics';
 import { buildGrowthRecommendations } from './growth-recommendations';
 import { getTrackForMajor, PROFESSIONAL_TRACK_CATALOG } from '../course/course-catalog';
+import { getFormalCoreRoute, getFormalCourse } from './growth-route';
 import {
   calculateGoalMetrics,
   compareGoalDates,
@@ -37,6 +38,8 @@ import type {
   GrowthBattleTrackSummary,
   GrowthChapterPerformance,
   GrowthContinueLearning,
+  GrowthNextCourseRecommendation,
+  GrowthProfessionalRouteNode,
   GrowthLearningGoal,
   GrowthOverviewResponse,
   GrowthPerformanceSummary,
@@ -367,6 +370,7 @@ export class GrowthService {
     const [
       user,
       publishedChapters,
+      publishedCourses,
       courseLearningRecords,
       chapterLearningRecords,
       quizAttempts,
@@ -403,6 +407,10 @@ export class GrowthService {
           course: { select: { id: true, title: true } },
         },
       }),
+      this.prisma.course?.findMany?.({
+        where: { status: 'PUBLISHED', deletedAt: null },
+        select: { id: true, slug: true, title: true },
+      }) ?? Promise.resolve([]),
       this.prisma.courseLearningRecord.findMany({
         where: {
           userId,
@@ -975,6 +983,14 @@ export class GrowthService {
       weakAreas,
     );
     const continueLearning = this.findContinueLearning(courseLearningRecords);
+    const professionalRoute = this.buildProfessionalRoute(
+      profile.professionalTrack?.trackKey ?? null,
+      publishedCourses,
+      courseLearningRecords,
+    );
+    const nextRecommendation = this.findNextCourseRecommendation(
+      professionalRoute,
+    );
     const goal = activeGoal
       ? this.buildGoalView(
           activeGoal,
@@ -1027,6 +1043,8 @@ export class GrowthService {
           practice,
           trend: learningTrend,
           continueLearning,
+          nextRecommendation,
+          professionalRoute,
         },
         competency: { chapters: chapterPerformance },
         wrongQuestions: wrongQuestionSummary,
@@ -1459,6 +1477,7 @@ export class GrowthService {
       isSelected: boolean;
       status: string;
       progressPercent: unknown;
+      lastLearnedAt: Date | null;
       course: { id: string; title: string };
       lastChapter: { id: string; title: string } | null;
     }>,
@@ -1467,6 +1486,8 @@ export class GrowthService {
       .filter((item) => item.isSelected && item.status === 'LEARNING')
       .sort(
         (left, right) =>
+          (right.lastLearnedAt?.getTime?.() ?? 0) -
+            (left.lastLearnedAt?.getTime?.() ?? 0) ||
           Number(right.progressPercent) - Number(left.progressPercent),
       )[0];
 
@@ -1480,6 +1501,93 @@ export class GrowthService {
       chapterId: record.lastChapter?.id ?? null,
       chapterTitle: record.lastChapter?.title ?? null,
       progressPercent: Number(record.progressPercent),
+    };
+  }
+
+  private buildProfessionalRoute(
+    trackKey: string | null,
+    publishedCourses: Array<{ id: string; slug: string; title: string }>,
+    records: Array<{
+      courseId: string;
+      status: string;
+      progressPercent: unknown;
+    }>,
+  ): GrowthProfessionalRouteNode[] {
+    if (!trackKey) return [];
+
+    const publishedBySlug = new Map(
+      publishedCourses.map((course) => [course.slug, course]),
+    );
+    const progressByCourseId = new Map(
+      records.map((record) => [
+        record.courseId,
+        {
+          progressPercent: Number(record.progressPercent),
+          status: record.status,
+        },
+      ]),
+    );
+
+    return getFormalCoreRoute(trackKey).map((course) => {
+      const published = publishedBySlug.get(course.slug);
+      const progress = published
+        ? progressByCourseId.get(published.id)
+        : undefined;
+      const progressPercent = Math.max(0, Math.min(100, progress?.progressPercent ?? 0));
+      const completed = progress?.status === 'COMPLETED' || progressPercent >= 100;
+      const status = !published
+        ? 'UPCOMING'
+        : completed
+          ? 'COMPLETED'
+          : progressPercent > 0
+            ? 'LEARNING'
+            : 'AVAILABLE';
+
+      return {
+        slug: course.slug,
+        courseId: published?.id ?? null,
+        courseTitle: published?.title ?? course.title,
+        progressPercent,
+        status,
+        targetPath: published
+          ? `/pages/course/detail?courseId=${encodeURIComponent(published.id)}`
+          : null,
+      };
+    });
+  }
+
+  private findNextCourseRecommendation(
+    route: GrowthProfessionalRouteNode[],
+  ): GrowthNextCourseRecommendation | null {
+    const current = route.find(
+      (item) => item.status === 'LEARNING' && item.progressPercent < 100,
+    );
+    const candidate = route.find((item) => {
+      if (item.status !== 'AVAILABLE' || !item.courseId) return false;
+      const prerequisites = getFormalCourse(item.slug)?.prerequisites ?? [];
+      return prerequisites.every((slug) => {
+        const prerequisite = route.find((routeItem) => routeItem.slug === slug);
+        return prerequisite && prerequisite.status !== 'UPCOMING';
+      });
+    });
+    if (!candidate?.courseId || !candidate.targetPath) return null;
+
+    const prerequisiteSlug = getFormalCourse(candidate.slug)?.prerequisites[0];
+    const prerequisite = prerequisiteSlug
+      ? route.find((item) => item.slug === prerequisiteSlug)
+      : undefined;
+    const reason = prerequisite && prerequisite.status === 'LEARNING'
+      ? `建议先完成${prerequisite.courseTitle}后学习`
+      : current && current.slug !== candidate.slug
+        ? '专业核心课程 · 下一步推荐'
+        : '专业核心课程 · 下一步推荐';
+
+    return {
+      courseId: candidate.courseId,
+      courseTitle: candidate.courseTitle,
+      progressPercent: candidate.progressPercent,
+      reason,
+      targetPath: candidate.targetPath,
     };
   }
 }
