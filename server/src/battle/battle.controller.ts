@@ -33,6 +33,7 @@ import { InviteCodeParamDto } from './dto/invite-code-param.dto';
 import { InvitationTokenParamDto } from './dto/invitation-token-param.dto';
 import { SubmitBattleAnswerDto } from './dto/submit-battle-answer.dto';
 import { BattleSkillDto } from './dto/battle-skill.dto';
+import { BattleTrackService } from './battle-track.service';
 
 @UseGuards(JwtUserAuthGuard)
 @Controller('battles')
@@ -52,7 +53,13 @@ export class BattleController {
     private readonly battleResultService: BattleResultService,
     private readonly battleRoomService: BattleRoomService,
     private readonly battleActiveService: BattleActiveService,
+    private readonly battleTrackService: BattleTrackService,
   ) {}
+
+  @Get('tracks')
+  getProfessionalTracks() {
+    return { success: true as const, data: this.battleTrackService.list() };
+  }
 
   @Post('matchmaking/join')
   joinMatchmaking(
@@ -62,6 +69,7 @@ export class BattleController {
     return this.battleMatchmakingService.joinMatchmaking(
       currentUser,
       dto.skill,
+      dto.professionalTrackKey,
     );
   }
 
@@ -69,10 +77,12 @@ export class BattleController {
   getMatchmakingStatus(
     @CurrentUser() currentUser: CurrentUserContext,
     @Query('skill') skill?: string,
+    @Query('professionalTrackKey') professionalTrackKey?: string,
   ) {
     return this.battleMatchmakingService.getMatchmakingStatus(
       currentUser,
       skill,
+      professionalTrackKey,
     );
   }
 
@@ -88,8 +98,11 @@ export class BattleController {
   }
 
   @Post('training')
-  startTraining(@CurrentUser() currentUser: CurrentUserContext) {
-    return this.battleTrainingService.startTraining(currentUser);
+  startTraining(
+    @CurrentUser() currentUser: CurrentUserContext,
+    @Body() dto: BattleSkillDto,
+  ) {
+    return this.battleTrainingService.startTraining(currentUser, dto.professionalTrackKey);
   }
 
   @Get('leaderboard')
@@ -102,6 +115,7 @@ export class BattleController {
       query.page,
       query.pageSize,
       query.skill,
+      query.professionalTrackKey,
     );
   }
 
@@ -143,6 +157,7 @@ export class BattleController {
     return this.battleFriendRoomService.createFriendRoom(
       currentUser,
       dto.skill,
+      dto.professionalTrackKey,
     );
   }
 

@@ -374,7 +374,11 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
       opponentAvatarFallbackText: opponent.avatarFallbackText,
       opponentAvatarUrl: opponent.avatarUrl,
       modeText: this.getModeText(item.mode),
-      skillText: formatBattleSkill(item.skill),
+      skillText: item.professionalTrack?.shortName
+        ? `${item.professionalTrack.shortName}专业对战`
+        : item.professionalTrackKey
+          ? '专业对战'
+          : formatBattleSkill(item.skill),
       resultText: resultMeta.resultText,
       resultClassName: resultMeta.resultClassName,
       scoreText:

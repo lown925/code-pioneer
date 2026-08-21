@@ -22,6 +22,7 @@ import {
   SHANGHAI_TIMEZONE,
 } from './growth-metrics';
 import { buildGrowthRecommendations } from './growth-recommendations';
+import { getTrackForMajor, PROFESSIONAL_TRACK_CATALOG } from '../course/course-catalog';
 import {
   calculateGoalMetrics,
   compareGoalDates,
@@ -33,6 +34,7 @@ import type {
   GrowthActivitySummary,
   GrowthBattleSummary,
   GrowthBattleSkillSummary,
+  GrowthBattleTrackSummary,
   GrowthChapterPerformance,
   GrowthContinueLearning,
   GrowthLearningGoal,
@@ -353,6 +355,7 @@ export class GrowthService {
       [BattleMode.FRIEND, 0],
     ]);
     const skillMetrics = new Map<string, SkillAccumulator>();
+    const trackMetrics = new Map<string, SkillAccumulator>();
     let completedChapters = 0;
     let selectedRangeQuizAttempts = 0;
     let selectedRangePracticeAttempts = 0;
@@ -374,6 +377,7 @@ export class GrowthService {
       battleSkills,
       skillRatings,
       legacyPythonSkillRating,
+      trackRatings,
     ] = await Promise.all([
       this.prisma.user.findFirst({
         where: { id: userId, deletedAt: null },
@@ -510,6 +514,7 @@ export class GrowthService {
               id: true,
               mode: true,
               skillCode: true,
+              professionalTrackKey: true,
               status: true,
               completedAt: true,
             },
@@ -570,6 +575,15 @@ export class GrowthService {
         where: { userId_skillCode: { userId, skillCode: 'PYTHON' } },
         select: { rating: true },
       }) ?? Promise.resolve(null),
+      this.prisma.userBattleTrackRating?.findMany?.({
+        where: { userId },
+        select: {
+          trackKey: true,
+          rating: true,
+          highestRating: true,
+          rankedBattles: true,
+        },
+      }) ?? Promise.resolve([]),
     ]);
 
     if (!user) {
@@ -767,6 +781,7 @@ export class GrowthService {
 
       battleCounts.set(mode, (battleCounts.get(mode) ?? 0) + 1);
       const skillCode = room.skillCode ?? null;
+      const trackKey = room.professionalTrackKey ?? null;
       let skillAccumulator: SkillAccumulator | null = null;
       if (skillCode) {
         skillAccumulator = skillMetrics.get(skillCode) ?? {
@@ -787,6 +802,27 @@ export class GrowthService {
           (skillAccumulator.counts.get(mode) ?? 0) + 1,
         );
       }
+      const trackAccumulator = trackKey
+        ? trackMetrics.get(trackKey) ?? {
+            counts: new Map<BattleMode, number>([
+              [BattleMode.RANKED, 0],
+              [BattleMode.TRAINING, 0],
+              [BattleMode.FRIEND, 0],
+            ]),
+            metrics: new Map<BattleMode, AnswerMetric>([
+              [BattleMode.RANKED, { answeredCount: 0, correctCount: 0 }],
+              [BattleMode.TRAINING, { answeredCount: 0, correctCount: 0 }],
+              [BattleMode.FRIEND, { answeredCount: 0, correctCount: 0 }],
+            ]),
+          }
+        : null;
+      if (trackKey && trackAccumulator) {
+        trackMetrics.set(trackKey, trackAccumulator);
+        trackAccumulator.counts.set(
+          mode,
+          (trackAccumulator.counts.get(mode) ?? 0) + 1,
+        );
+      }
       for (const answer of participant.answers) {
         modeMetric.answeredCount += 1;
         modeMetric.correctCount += answer.isCorrect ? 1 : 0;
@@ -794,6 +830,11 @@ export class GrowthService {
         if (skillModeMetric) {
           skillModeMetric.answeredCount += 1;
           skillModeMetric.correctCount += answer.isCorrect ? 1 : 0;
+        }
+        const trackModeMetric = trackAccumulator?.metrics.get(mode);
+        if (trackModeMetric) {
+          trackModeMetric.answeredCount += 1;
+          trackModeMetric.correctCount += answer.isCorrect ? 1 : 0;
         }
 
         if (!answer.isCorrect) {
@@ -848,11 +889,13 @@ export class GrowthService {
         ratingDelta: true,
         createdAt: true,
         skillCode: true,
+        professionalTrackKey: true,
       },
     });
 
     const profile: GrowthProfileSummary = {
       major: user.major,
+      professionalTrack: getTrackForMajor(user.major),
       grade: user.grade,
       learningDirection: user.learningDirection,
       technicalInterests: user.technicalInterests ?? [],
@@ -922,6 +965,9 @@ export class GrowthService {
       skillRatings,
       skillMetrics,
       legacyPythonSkillRating?.rating ?? null,
+      trackRatings,
+      trackMetrics,
+      profile.professionalTrack?.trackKey ?? null,
       ratingLogs,
     );
     const wrongQuestionSummary = this.buildWrongSummary(
@@ -1090,12 +1136,21 @@ export class GrowthService {
     }>,
     skillMetrics: Map<string, SkillAccumulator>,
     legacyPythonRating: number | null,
+    trackRatings: Array<{
+      trackKey: string;
+      rating: number;
+      highestRating: number;
+      rankedBattles: number;
+    }>,
+    trackMetrics: Map<string, SkillAccumulator>,
+    defaultTrackKey: string | null,
     ratingLogs: Array<{
       ratingBefore: number;
       ratingAfter: number;
       ratingDelta: number;
       createdAt: Date;
       skillCode: string | null;
+      professionalTrackKey: string | null;
     }>,
   ): GrowthBattleSummary {
     const getCount = (mode: BattleMode) => counts.get(mode) ?? 0;
@@ -1221,6 +1276,49 @@ export class GrowthService {
       ) ??
       skills[0] ??
       null;
+    const ratingByTrack = new Map(
+      (trackRatings ?? []).map((rating) => [rating.trackKey, rating]),
+    );
+    const logsByTrack = new Map<string, typeof ratingLogs>();
+    for (const log of ratingLogs) {
+      if (!log.professionalTrackKey) continue;
+      const logs = logsByTrack.get(log.professionalTrackKey) ?? [];
+      if (logs.length < RATING_TREND_LIMIT) logs.push(log);
+      logsByTrack.set(log.professionalTrackKey, logs);
+    }
+    const buildTrackSummary = (track: (typeof PROFESSIONAL_TRACK_CATALOG)[number]): GrowthBattleTrackSummary => {
+      const accumulator = trackMetrics.get(track.trackKey);
+      const rating = ratingByTrack.get(track.trackKey);
+      const getTrackCount = (mode: BattleMode) => accumulator?.counts.get(mode) ?? 0;
+      const getTrackMetric = (mode: BattleMode) => accumulator?.metrics.get(mode) ?? { answeredCount: 0, correctCount: 0 };
+      const buildTrackModePerformance = (mode: BattleMode) => this.buildPerformanceSummary(getTrackCount(mode), getTrackCount(mode), getTrackMetric(mode));
+      const trend = [...(logsByTrack.get(track.trackKey) ?? [])].reverse().map((log) => ({
+        ratingBefore: log.ratingBefore,
+        ratingAfter: log.ratingAfter,
+        ratingDelta: log.ratingDelta,
+        createdAt: log.createdAt.toISOString(),
+        skillCode: log.skillCode ?? '',
+        professionalTrackKey: track.trackKey,
+      }));
+      return {
+        trackKey: track.trackKey,
+        formalName: track.formalName,
+        shortName: track.shortName,
+        rating: rating?.rating ?? null,
+        highestRating: rating?.highestRating ?? null,
+        rankedBattles: rating?.rankedBattles ?? getTrackCount(BattleMode.RANKED),
+        trainingBattles: getTrackCount(BattleMode.TRAINING),
+        friendBattles: getTrackCount(BattleMode.FRIEND),
+        ranked: buildTrackModePerformance(BattleMode.RANKED),
+        training: buildTrackModePerformance(BattleMode.TRAINING),
+        friend: buildTrackModePerformance(BattleMode.FRIEND),
+        ratingTrend: trend,
+      };
+    };
+    const tracks = PROFESSIONAL_TRACK_CATALOG.map(buildTrackSummary);
+    const defaultTrack = tracks.find((track) => track.trackKey === defaultTrackKey) ??
+      tracks.find((track) => track.rankedBattles > 0 || track.rating !== null) ??
+      tracks[0] ?? null;
     const rankedBattles = profile?.rankedBattles ?? getCount(BattleMode.RANKED);
     const trainingBattles =
       profile?.trainingBattles ?? getCount(BattleMode.TRAINING);
@@ -1230,6 +1328,8 @@ export class GrowthService {
     return {
       skills,
       defaultSkillCode: defaultSkill?.code ?? null,
+      tracks,
+      defaultTrackKey: defaultTrack?.trackKey ?? null,
       rankedBattles,
       trainingBattles,
       friendBattles,

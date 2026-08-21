@@ -95,6 +95,74 @@ describe('BattleMatchmakingService', () => {
     expect(skillService.ensureUserSkillRating).toHaveBeenCalledTimes(1);
   });
 
+  it('matches users only within the selected professional track', async () => {
+    const mock = createBattlePrismaMock();
+    const domainService = new BattleDomainService(mock.prisma as never);
+    const trackService = {
+      normalize: jest.fn((trackKey?: string) => trackKey ?? 'big-data'),
+      getRating: jest.fn(async () => null),
+      ensureRating: jest.fn(),
+    };
+    const skillService = {
+      assertAvailableSkill: jest.fn(async () => ({
+        code: 'PYTHON',
+        name: 'Python',
+      })),
+    };
+    const service = new BattleMatchmakingService(
+      mock.prisma as never,
+      domainService,
+      skillService as never,
+      trackService as never,
+    );
+
+    const first = await service.joinMatchmaking(USER_A, 'PYTHON', 'big-data');
+    const isolated = await service.joinMatchmaking(
+      USER_B,
+      'PYTHON',
+      'computer-science',
+    );
+
+    expect(first.data.status).toBe('SEARCHING');
+    expect(isolated.data.status).toBe('SEARCHING');
+    expect(mock.battleRooms.size).toBe(0);
+    expect(mock.battleQueues.get(USER_A.id)?.professionalTrackKey).toBe(
+      'big-data',
+    );
+    expect(trackService.getRating).toHaveBeenCalledWith(
+      USER_A.id,
+      'big-data',
+      expect.anything(),
+    );
+    expect(trackService.ensureRating).not.toHaveBeenCalled();
+    expect(mock.battleQueues.get(USER_B.id)?.professionalTrackKey).toBe(
+      'computer-science',
+    );
+    expect(isolated.data.waitingCount).toBe(1);
+
+    const sameTrackUser = {
+      ...USER_B,
+      id: '33333333-3333-4333-8333-333333333333',
+    };
+    mock.users.set(sameTrackUser.id, {
+      id: sameTrackUser.id,
+      battleRating: 1000,
+      nickname: 'Same Track User',
+    });
+    const matched = await service.joinMatchmaking(
+      sameTrackUser,
+      'PYTHON',
+      'big-data',
+    );
+
+    expect(matched.data.status).toBe('MATCHED');
+    expect(matched.data.professionalTrackKey).toBe('big-data');
+    expect(mock.battleRooms.size).toBe(1);
+    expect(
+      [...mock.battleRooms.values()][0]?.professionalTrackKey,
+    ).toBe('big-data');
+  });
+
   it('unlocks AI from server time after two minutes without expiring the queue', async () => {
     const { mock, service } = createService();
     const now = Date.now();
@@ -176,6 +244,68 @@ describe('BattleMatchmakingService', () => {
 
     expect(result.data.status).toBe('MATCHED');
     expect(result.data.battleId).toBe('room-1');
+  });
+
+  it('preserves the locked professional track when recovering an active queue', async () => {
+    const mock = createBattlePrismaMock();
+    const domainService = new BattleDomainService(mock.prisma as never);
+    const trackService = {
+      normalize: jest.fn((trackKey?: string) => trackKey ?? 'big-data'),
+      getRating: jest.fn(async () => null),
+      ensureRating: jest.fn(),
+    };
+    const skillService = {
+      assertAvailableSkill: jest.fn(async () => ({
+        code: 'PYTHON',
+        name: 'Python',
+      })),
+    };
+    const service = new BattleMatchmakingService(
+      mock.prisma as never,
+      domainService,
+      skillService as never,
+      trackService as never,
+    );
+
+    mock.battleRooms.set('room-1', {
+      id: 'room-1',
+      mode: BattleMode.RANKED,
+      status: BattleRoomStatus.WAITING,
+      professionalTrackKey: 'big-data',
+      questionCount: 20,
+      durationSeconds: 180,
+      correctScore: 2,
+      wrongScore: -1,
+      unansweredScore: 0,
+      createdByUserId: USER_A.id,
+      expiresAt: null,
+      endReason: null,
+      createdAt: new Date(),
+      startedAt: null,
+    });
+    mock.battleQueues.set(USER_A.id, {
+      id: 'queue-1',
+      userId: USER_A.id,
+      skillCode: 'PYTHON',
+      professionalTrackKey: 'big-data',
+      status: 'MATCHED',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: 'room-1',
+      searchStartedAt: new Date(),
+      matchedAt: new Date(),
+      cancelledAt: null,
+      expiresAt: new Date(Date.now() + 120000),
+    });
+
+    const result = await service.joinMatchmaking(
+      USER_A,
+      'PYTHON',
+      'computer-science',
+    );
+
+    expect(result.data.status).toBe('MATCHED');
+    expect(result.data.battleId).toBe('room-1');
+    expect(result.data.professionalTrackKey).toBe('big-data');
   });
 
   it('rejects join when the user is already in an active friend room', async () => {
@@ -384,7 +514,7 @@ describe('BattleMatchmakingService', () => {
     expect(result.data.status).toBe('IDLE');
   });
 
-  it('counts only fresh unexpired SEARCHING queues', async () => {
+  it('counts all unexpired SEARCHING queues regardless of heartbeat freshness', async () => {
     const { mock, service } = createService();
     const now = Date.now();
     mock.battleQueues.set(USER_B.id, {
@@ -482,7 +612,7 @@ describe('BattleMatchmakingService', () => {
     const result = await service.getMatchmakingStatus(USER_A);
 
     expect(result.data.status).toBe('IDLE');
-    expect(result.data.waitingCount).toBe(1);
+    expect(result.data.waitingCount).toBe(2);
 
     const javascriptResult = await service.getMatchmakingStatus(
       USER_A,

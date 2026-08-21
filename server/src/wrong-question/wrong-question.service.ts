@@ -17,6 +17,7 @@ import type {
   BattleQuestionOptionSnapshot,
   ContentBlock,
 } from '../battle/battle.types';
+import { canonicalizeQuestionBlocks } from '../question/content-blocks';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 10;
@@ -46,11 +47,14 @@ type LearningQuestionRecord = {
   type: QuestionType;
   content: string;
   explanation: string | null;
+  stemBlocks: unknown;
+  explanationBlocks: unknown;
   acceptedAnswers: unknown;
   programmingLanguage: string | null;
   options: Array<{
     id: string;
     content: string;
+    contentBlocks: unknown;
     isCorrect: boolean;
     sortOrder: number;
   }>;
@@ -161,6 +165,7 @@ type UnifiedWrongQuestionItem = {
   correctOptionId: string | null;
   correctAnswer: unknown;
   explanation: string | ContentBlock[] | null;
+  explanationBlocks: ContentBlock[] | null;
   latestWrongAnswer: BattleAnswerPayload | LearningAnswerPayload | null;
   sourceQuizQuestionId: string | null;
   battle: {
@@ -364,11 +369,19 @@ export class WrongQuestionService {
         type: true,
         content: true,
         explanation: true,
+        stemBlocks: true,
+        explanationBlocks: true,
         acceptedAnswers: true,
         programmingLanguage: true,
         options: {
           orderBy: { sortOrder: 'asc' },
-          select: { id: true, content: true, isCorrect: true, sortOrder: true },
+          select: {
+            id: true,
+            content: true,
+            contentBlocks: true,
+            isCorrect: true,
+            sortOrder: true,
+          },
         },
         quiz: {
           select: {
@@ -420,10 +433,11 @@ export class WrongQuestionService {
         presentation: null,
         difficulty: null,
         programmingLanguage: question.programmingLanguage ?? null,
-        stem: null,
+        stem: canonicalizeQuestionBlocks(question.stemBlocks, question.content),
         options: question.options.map((option) => ({
           optionId: option.id,
           content: option.content,
+          contentBlocks: canonicalizeQuestionBlocks(option.contentBlocks, option.content),
           order: option.sortOrder,
         })),
         optionSnapshots: null,
@@ -432,6 +446,10 @@ export class WrongQuestionService {
           ? { type: question.type, acceptedAnswers }
           : { type: question.type, optionId: correctOption!.id },
         explanation: question.explanation,
+        explanationBlocks: canonicalizeQuestionBlocks(
+          question.explanationBlocks,
+          question.explanation,
+        ),
         latestWrongAnswer: textQuestion
           ? {
               type: question.type as 'FILL_BLANK' | 'CODE_FILL',
@@ -489,6 +507,8 @@ export class WrongQuestionService {
         type: true,
         content: true,
         explanation: true,
+        stemBlocks: true,
+        explanationBlocks: true,
         acceptedAnswers: true,
         programmingLanguage: true,
         options: {
@@ -498,6 +518,7 @@ export class WrongQuestionService {
           select: {
             id: true,
             content: true,
+            contentBlocks: true,
             isCorrect: true,
             sortOrder: true,
           },
@@ -556,10 +577,11 @@ export class WrongQuestionService {
         presentation: null,
         difficulty: null,
         programmingLanguage: question.programmingLanguage ?? null,
-        stem: null,
+        stem: canonicalizeQuestionBlocks(question.stemBlocks, question.content),
         options: question.options.map((option) => ({
           optionId: option.id,
           content: option.content,
+          contentBlocks: canonicalizeQuestionBlocks(option.contentBlocks, option.content),
           order: option.sortOrder,
         })),
         optionSnapshots: null,
@@ -568,6 +590,10 @@ export class WrongQuestionService {
           ? { type: question.type, acceptedAnswers }
           : { type: question.type, optionId: correctOption!.id },
         explanation: question.explanation,
+        explanationBlocks: canonicalizeQuestionBlocks(
+          question.explanationBlocks,
+          question.explanation,
+        ),
         latestWrongAnswer: textQuestion
           ? {
               type: question.type as 'FILL_BLANK' | 'CODE_FILL',
@@ -831,6 +857,7 @@ export class WrongQuestionService {
       correctOptionId,
       correctAnswer: resolvedCorrectAnswer,
       explanation: this.asMaybeContentBlocks(snapshot.explanationSnapshot),
+      explanationBlocks: this.asMaybeContentBlocks(snapshot.explanationSnapshot),
       latestWrongAnswer: answer.answerPayload as BattleAnswerPayload,
       sourceQuizQuestionId: snapshot.sourceQuizQuestionId,
       knowledgeTags: this.asStringArray(snapshot.knowledgeTagsSnapshot),
@@ -886,6 +913,7 @@ export class WrongQuestionService {
         correctOptionId: item.correctOptionId,
         correctAnswer: item.correctAnswer,
         explanation: item.explanation,
+        explanationBlocks: item.explanationBlocks,
         wrongCount: item.wrongCount,
         lastWrongAt: item.lastWrongAt,
         latestWrongAt: item.latestWrongAt,
@@ -916,6 +944,7 @@ export class WrongQuestionService {
       correctOptionId: item.correctOptionId,
       correctAnswer: item.correctAnswer,
       explanation: item.explanation,
+      explanationBlocks: item.explanationBlocks,
       wrongCount: item.wrongCount,
       lastWrongAt: item.lastWrongAt,
       latestWrongAt: item.latestWrongAt,

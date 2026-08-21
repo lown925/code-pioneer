@@ -23,9 +23,11 @@ import { BattleTrainingService } from './battle-training.service';
 import { BattleSkillService } from './battle-skill.service';
 import { BattleTokenService } from './battle-token.service';
 import { BattleActiveService } from './battle-active.service';
+import { CourseModule } from '../course/course.module';
+import { BattleTrackService } from './battle-track.service';
 
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, AuthModule, CourseModule],
   controllers: [BattleController],
   providers: [
     BattleScoreService,
@@ -49,6 +51,7 @@ import { BattleActiveService } from './battle-active.service';
     BattleMatchmakingService,
     BattleFriendRoomService,
     BattleActiveService,
+    BattleTrackService,
   ],
   exports: [
     BattleScoreService,
@@ -71,6 +74,7 @@ import { BattleActiveService } from './battle-active.service';
     BattleMatchmakingService,
     BattleFriendRoomService,
     BattleActiveService,
+    BattleTrackService,
   ],
 })
 export class BattleModule {}

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BattleDomainService } from './battle-domain.service';
 import {
@@ -8,6 +8,8 @@ import {
 } from './battle-ranking';
 import type { BattleProfilePayload } from './battle.types';
 import { BattleSkillService } from './battle-skill.service';
+import { BattleTrackService } from './battle-track.service';
+import { getTrackForMajor, PROFESSIONAL_TRACK_CATALOG } from '../course/course-catalog';
 import {
   calculateBattleCompetitiveTier,
   createBattleCompetitiveTitle,
@@ -34,6 +36,7 @@ export class BattleProfileService {
     private readonly prisma: PrismaService,
     private readonly battleDomainService: BattleDomainService,
     private readonly battleSkillService: BattleSkillService,
+    @Optional() private readonly battleTrackService?: BattleTrackService,
   ) {}
 
   async getBattleProfile(currentUserId: string) {
@@ -43,10 +46,21 @@ export class BattleProfileService {
     const sortedProfiles = [...profiles].sort(compareBattleRanking);
     const availableSkills =
       await this.loadAvailableSkillProfiles(currentUserId);
+    const availableTracks = await this.loadAvailableTrackProfiles(currentUserId);
+    const currentUser = await this.prisma.user?.findUnique?.({
+      where: { id: currentUserId },
+      select: { major: true },
+    });
 
     return {
       success: true as const,
-      data: this.toPayload(profile, sortedProfiles, availableSkills),
+      data: this.toPayload(
+        profile,
+        sortedProfiles,
+        availableSkills,
+        availableTracks,
+        getTrackForMajor(currentUser?.major)?.trackKey ?? null,
+      ),
     };
   }
 
@@ -73,6 +87,8 @@ export class BattleProfileService {
     profile: BattleProfileRecord,
     sortedProfiles: BattleProfileRecord[],
     availableSkills: BattleProfilePayload['availableSkills'],
+    availableTracks: BattleProfilePayload['availableTracks'],
+    defaultTrackKey: string | null,
   ): BattleProfilePayload {
     const rank = calculateBattleRank(sortedProfiles, profile.userId);
 
@@ -96,6 +112,8 @@ export class BattleProfileService {
       rank: rank ?? 0,
       currentRank: rank ?? 0,
       availableSkills,
+      availableTracks,
+      defaultTrackKey,
     };
   }
 
@@ -151,6 +169,32 @@ export class BattleProfileService {
         status: tier.status,
         star: tier.star,
         title: createBattleCompetitiveTitle(skill.name, tier.star),
+      };
+    });
+  }
+
+  private async loadAvailableTrackProfiles(currentUserId: string) {
+    const tracks = this.battleTrackService?.list() ?? PROFESSIONAL_TRACK_CATALOG;
+    const trackRatingDelegate = (this.prisma as any).userBattleTrackRating;
+    const ratings = trackRatingDelegate?.findMany
+      ? await trackRatingDelegate.findMany({
+          select: { userId: true, trackKey: true, rating: true, rankedBattles: true },
+        })
+      : [];
+    return tracks.map((track) => {
+      const trackRatings = ratings
+        .filter((rating) => rating.trackKey === track.trackKey && rating.rankedBattles > 0)
+        .sort((left, right) => right.rating - left.rating || right.rankedBattles - left.rankedBattles || left.userId.localeCompare(right.userId));
+      const current = ratings.find((rating) => rating.userId === currentUserId && rating.trackKey === track.trackKey);
+      const rankIndex = trackRatings.findIndex((rating) => rating.userId === currentUserId);
+      return {
+        trackKey: track.trackKey,
+        formalName: track.formalName,
+        shortName: track.shortName,
+        rating: current?.rating ?? null,
+        rankedBattles: current?.rankedBattles ?? 0,
+        rank: rankIndex >= 0 ? rankIndex + 1 : null,
+        status: current && current.rankedBattles > 0 ? 'RANKED' as const : 'UNRANKED' as const,
       };
     });
   }

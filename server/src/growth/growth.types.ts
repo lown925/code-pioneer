@@ -45,6 +45,11 @@ export type GrowthPerformanceSummary = {
 
 export type GrowthProfileSummary = {
   major: string | null;
+  professionalTrack?: {
+    trackKey: string;
+    formalName: string;
+    shortName: string;
+  } | null;
   grade: string | null;
   learningDirection: string | null;
   technicalInterests: string[];
@@ -128,6 +133,7 @@ export type GrowthRatingTrendPoint = {
   ratingDelta: number;
   createdAt: string;
   skillCode: string;
+  professionalTrackKey?: string;
 };
 
 export type GrowthBattleSkillSummary = {
@@ -145,9 +151,26 @@ export type GrowthBattleSkillSummary = {
   ratingTrend: GrowthRatingTrendPoint[];
 };
 
+export type GrowthBattleTrackSummary = {
+  trackKey: string;
+  formalName: string;
+  shortName: string;
+  rating: number | null;
+  highestRating: number | null;
+  rankedBattles: number;
+  trainingBattles: number;
+  friendBattles: number;
+  ranked: GrowthPerformanceSummary;
+  training: GrowthPerformanceSummary;
+  friend: GrowthPerformanceSummary;
+  ratingTrend: GrowthRatingTrendPoint[];
+};
+
 export type GrowthBattleSummary = {
   skills: GrowthBattleSkillSummary[];
   defaultSkillCode: string | null;
+  tracks?: GrowthBattleTrackSummary[];
+  defaultTrackKey?: string | null;
   rankedBattles: number;
   trainingBattles: number;
   friendBattles: number;

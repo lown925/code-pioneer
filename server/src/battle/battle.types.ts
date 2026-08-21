@@ -4,6 +4,7 @@ import type {
   BattleCompetitiveStar,
   BattleCompetitiveTierChange,
 } from './battle-competitive-tier';
+import type { ProfessionalTrackIdentity } from '../course/course-catalog';
 
 export type TextContentBlock = {
   type: 'TEXT';
@@ -89,6 +90,8 @@ export type BattleActiveRoomSummary = {
   roomStatus: string;
   mode: string;
   skillCode: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   skillName: string | null;
   invitationToken: string | null;
   inviteCode: string | null;
@@ -108,6 +111,8 @@ export type ActiveBattleRecoveryPayload = {
   roomStatus: string;
   participantStatus: string;
   skillCode: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   skillName: string | null;
   invitationToken: string | null;
   inviteCode: string | null;
@@ -148,6 +153,8 @@ export type MatchmakingStatusPayload = {
   expiresAt: Date | null;
   serverTime: Date;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   waitingCount: number;
   elapsedMs: number;
   remainingSearchMs: number;
@@ -166,6 +173,8 @@ export type BattleRoomSummaryPayload = {
   battleId: string;
   mode: string;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   status: string;
   questionCount: number;
   durationSeconds: number;
@@ -205,6 +214,8 @@ export type BattleQuestionsPayload = {
   mode: string;
   status: string;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   startedAt: Date | null;
   expiresAt: Date | null;
   serverTime: Date;
@@ -234,6 +245,7 @@ export type BattleTrainingStartPayload = {
   battleId: string;
   mode: 'TRAINING';
   skill: string;
+  professionalTrackKey: string;
   status: 'COUNTDOWN';
   startedAt: Date;
   expiresAt: Date;
@@ -315,6 +327,8 @@ export type PendingBattleResultPayload = {
   battleId: string;
   mode: string;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   status: string;
   completed: false;
   totalQuestions: number;
@@ -330,6 +344,8 @@ export type CompletedBattleResultPayload = {
   battleId: string;
   mode: string;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   status: 'COMPLETED';
   completed: true;
   result: BattleResult;
@@ -372,6 +388,8 @@ export type BattleResultPayload =
 export type FriendRoomPreviewPayload = {
   battleId: string;
   skill: string | null;
+  professionalTrackKey: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   roomStatus: string;
   invitationStatus: string;
   inviteCode: string | null;
@@ -404,6 +422,18 @@ export type BattleProfilePayload = {
   rank: number;
   currentRank: number;
   availableSkills: BattleSkillProfilePayload[];
+  availableTracks: BattleTrackProfilePayload[];
+  defaultTrackKey?: string | null;
+};
+
+export type BattleTrackProfilePayload = {
+  trackKey: string;
+  formalName: string;
+  shortName: string;
+  rating: number | null;
+  rankedBattles: number;
+  rank: number | null;
+  status: 'RANKED' | 'UNRANKED';
 };
 
 export type BattleSkillProfilePayload = {
@@ -444,6 +474,8 @@ export type BattleLeaderboardPayload = {
   myRating: number | null;
   serverTime: Date;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
 };
 
 export type BattleHistoryMyAnswerPayload = {
@@ -456,6 +488,8 @@ export type BattleHistoryListItemPayload = {
   battleId: string;
   mode: string;
   skill: string | null;
+  professionalTrackKey: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   result: BattleResult;
   opponent: BattleResultOpponentPayload | null;
   myScore: number;
@@ -524,6 +558,8 @@ export type BattleHistoryDetailPayload = {
   battleId: string;
   mode: string;
   skill: string | null;
+  professionalTrackKey: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   status: string;
   result: BattleResult;
   startedAt: Date | null;

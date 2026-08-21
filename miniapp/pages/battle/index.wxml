@@ -33,6 +33,13 @@
   </view>
 
   <view wx:else class="section-card leaderboard-panel">
+    <view wx:if="{{tracks.length}}" class="leaderboard-track-selector">
+      <text class="track-selector-label">对战方向</text>
+      <scroll-view scroll-x class="track-selector-scroll">
+        <view wx:for="{{tracks}}" wx:key="trackKey" class="scope-option {{item.trackKey === selectedTrackKey ? 'scope-option-active' : ''}}" data-scope="{{item.trackKey}}" bindtap="handleLeaderboardScopeChange">{{item.shortName}}</view>
+      </scroll-view>
+      <text class="track-selector-meta">{{leaderboardSubtitle}}</text>
+    </view>
     <view class="leaderboard-heading">
       <view class="leaderboard-heading-copy">
         <text class="leaderboard-title">{{leaderboardTitle}}</text>
@@ -45,18 +52,7 @@
         </view>
       </view>
     </view>
-    <view class="leaderboard-scope" role="tablist">
-      <view
-        class="scope-option {{leaderboardScope === 'TOTAL' ? 'scope-option-active' : ''}}"
-        data-scope="TOTAL"
-        bindtap="handleLeaderboardScopeChange"
-      >总榜</view>
-      <view
-        class="scope-option {{leaderboardScope === 'PYTHON' ? 'scope-option-active' : ''}}"
-        data-scope="PYTHON"
-        bindtap="handleLeaderboardScopeChange"
-      >Python 榜</view>
-    </view>
+    <view class="leaderboard-scope"><text class="scope-option scope-option-active">{{leaderboardTitle}}</text></view>
 
     <view wx:if="{{state === 'loading'}}" class="leaderboard-state">
       <view class="loading-orbit"></view>
@@ -109,7 +105,7 @@
                   <text wx:if="{{item.isCurrentUser}}" class="me-badge">我</text>
                 </view>
                 <view
-                  wx:if="{{leaderboardScope === 'PYTHON'}}"
+                  wx:if="{{leaderboardScope}}"
                   class="battle-star-rating leaderboard-star-rating"
                   aria-label="{{item.starAriaLabel}}"
                 >
@@ -120,8 +116,8 @@
                     class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
                   >{{star.isFilled ? '★' : '☆'}}</text>
                 </view>
-                <text class="leaderboard-win-rate-line">{{item.winRateText}} {{leaderboardScope === 'PYTHON' ? '随机匹配胜率' : '总榜胜率'}}</text>
-                <text class="mobile-player-meta">{{item.rankText}} · {{item.totalBattlesText}} 场 · {{item.winRateText}} {{leaderboardScope === 'PYTHON' ? '随机匹配胜率' : '总榜胜率'}}</text>
+                <text class="leaderboard-win-rate-line">{{item.winRateText}} 专业对战胜率</text>
+                <text class="mobile-player-meta">{{item.rankText}} · {{item.totalBattlesText}} 场 · {{item.winRateText}} 专业对战胜率</text>
               </view>
           </view>
           <text class="rating-value">{{item.ratingText}}</text>
@@ -144,7 +140,7 @@
           <text class="my-rank-name">{{myRank.nicknameText}}</text>
           <text class="my-rank-position">{{myRank.rankText}}</text>
           <view
-            wx:if="{{leaderboardScope === 'PYTHON'}}"
+            wx:if="{{leaderboardScope}}"
             class="battle-star-rating my-rank-stars"
             aria-label="{{myRank.starAriaLabel}}"
           >

@@ -53,6 +53,7 @@ export class BattleReadyService {
           mode: true,
           status: true,
           skillCode: true,
+          professionalTrackKey: true,
           questionCount: true,
           durationSeconds: true,
           startedAt: true,
@@ -249,6 +250,7 @@ export class BattleReadyService {
             await this.battleQuestionService.startCountdown(tx, {
               battleId,
               skillCode: room.skillCode,
+              professionalTrackKey: room.professionalTrackKey,
               questionCount: room.questionCount,
               durationSeconds: room.durationSeconds,
               now,
@@ -259,6 +261,7 @@ export class BattleReadyService {
               {
                 battleId,
                 skillCode: room.skillCode,
+                professionalTrackKey: room.professionalTrackKey,
                 questionCount: room.questionCount,
                 durationSeconds: room.durationSeconds,
                 now,

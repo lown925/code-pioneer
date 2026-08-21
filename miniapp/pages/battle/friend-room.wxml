@@ -26,18 +26,9 @@
         适合你先发起房间，再通过微信分享或邀请码邀请好友加入。
       </text>
       <view class="skill-list">
-        <view
-          wx:for="{{availableSkills}}"
-          wx:key="code"
-          class="skill-option {{selectedSkillCode === item.code ? 'skill-option-selected' : ''}}"
-          data-skill="{{item.code}}"
-          bindtap="handleSelectSkill"
-        >
-          <view>
-            <text class="skill-name">{{item.name}}</text>
-            <text class="skill-copy">本局只出现该方向题目</text>
-          </view>
-          <text class="skill-check">{{selectedSkillCode === item.code ? '已选择' : '选择'}}</text>
+        <view wx:for="{{tracks}}" wx:key="trackKey" class="skill-option {{selectedTrackKey === item.trackKey ? 'skill-option-selected' : ''}}" data-track="{{item.trackKey}}" bindtap="handleSelectTrack">
+          <view><text class="skill-name">{{item.shortName}} · {{item.formalName}}</text><text class="skill-copy">当前题库：{{item.courseNames}}</text><text class="skill-copy">{{item.questionCountText}}</text></view>
+          <text class="skill-check">{{selectedTrackKey === item.trackKey ? '已选择' : '选择'}}</text>
         </view>
       </view>
       <view class="primary-button action-button" bindtap="handleCreateRoom">
@@ -85,8 +76,12 @@
 
       <view class="preview-meta">
         <view class="preview-meta-item">
-          <text class="preview-meta-label">对战语言</text>
-          <text class="preview-meta-value">{{selectedSkillName || '历史对战'}}</text>
+          <text class="preview-meta-label">对战方向</text>
+          <text class="preview-meta-value">{{selectedTrackName || '历史对战'}}</text>
+        </view>
+        <view class="preview-meta-item">
+          <text class="preview-meta-label">当前题库</text>
+          <text class="preview-meta-value">{{selectedTrackCoursesText}}</text>
         </view>
         <view class="preview-meta-item">
           <text class="preview-meta-label">房主</text>

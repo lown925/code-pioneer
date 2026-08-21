@@ -455,6 +455,41 @@ describe('BattleResultService', () => {
     });
   });
 
+  it('uses professional-track logs and titles for a track-ranked battle', async () => {
+    const { mock, service } = createService(BattleRoomStatus.COMPLETED);
+    const room = mock.battleRooms.get('room-1')! as {
+      skillCode?: string | null;
+      professionalTrackKey?: string | null;
+      skill?: { name: string };
+    };
+    room.skillCode = 'PYTHON';
+    room.professionalTrackKey = 'big-data';
+    room.skill = { name: 'Python' };
+    const participant = mock.battleParticipants.get('participant-a')!;
+    participant.ratingBefore = 1000;
+    participant.ratingAfter = 1080;
+    participant.ratingDelta = 80;
+    mock.battleRatingLogs.set('track-log-a', {
+      id: 'track-log-a',
+      userId: USER_A_ID,
+      battleRoomId: 'room-1',
+      participantId: 'participant-a',
+      skillCode: 'PYTHON',
+      professionalTrackKey: 'big-data',
+      reason: 'BATTLE_RESULT',
+      ratingBefore: 1000,
+      ratingDelta: 80,
+      ratingAfter: 1080,
+      createdAt: new Date(Date.now() - 1000),
+    } as never);
+
+    const result = await service.getBattleResult(USER_A_ID, 'room-1');
+
+    expect(result.data.professionalTrackKey).toBe('big-data');
+    expect(result.data.star).toBe(3);
+    expect(result.data.title).not.toContain('Python');
+  });
+
   it('rejects non-participants and not-started rooms', async () => {
     const { mock, service } = createService(BattleRoomStatus.READY);
 

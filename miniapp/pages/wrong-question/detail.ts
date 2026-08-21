@@ -38,6 +38,7 @@ type ViewBlock = BattleContentBlock & {
 type WrongQuestionOptionCard = WrongQuestionOption & {
   labelText: string;
   contentText: string;
+  contentBlocks: ViewBlock[];
   isCorrect: boolean;
   statusText: string;
   statusClassName: string;
@@ -70,6 +71,8 @@ type WrongQuestionDetailCard = WrongQuestionDetail & {
   isBattleSource: boolean;
   battleCompletedAtText: string;
   battleOpponentText: string;
+  learningStemBlocks: ViewBlock[];
+  learningExplanationBlocks: ViewBlock[];
   battleStemBlocks: ViewBlock[];
   battleOptions: BattleOptionCard[];
   battleMyAnswerLabel: string;
@@ -376,6 +379,13 @@ registerThemedPage<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>(
         };
       }
 
+      if (section === 'learning-stem') {
+        return {
+          ...detail,
+          learningStemBlocks: markBlocks(detail.learningStemBlocks),
+        };
+      }
+
       if (section === 'my-answer') {
         return {
           ...detail,
@@ -492,13 +502,15 @@ registerThemedPage<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>(
       );
     }
 
+    const explanationBlocks = data.explanationBlocks ?? (Array.isArray(data.explanation) ? data.explanation : []);
     const battleExplanationBlocks =
-      isBattleSource && Array.isArray(data.explanation)
-        ? this.mapBlocks(data.explanation, `${data.questionId}-explanation`)
+      isBattleSource && explanationBlocks.length > 0
+        ? this.mapBlocks(explanationBlocks, `${data.questionId}-explanation`)
         : [];
     const battleKnowledgeTags = (data.knowledgeTags ?? [])
       .map((tag) => tag.trim().replace(/^topic:/, ''))
       .filter(Boolean);
+    const mappedStemBlocks = this.mapBlocks(data.stem ?? [], `${data.questionId}-stem`);
     const isLearningTextQuestion =
       !isBattleSource &&
       (data.questionType === 'FILL_BLANK' || data.questionType === 'CODE_FILL');
@@ -541,12 +553,17 @@ registerThemedPage<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>(
         isNonEmptyString(data.chapterId) && isNonEmptyString(data.chapterTitle),
       answerUnavailableText: learningMyAnswerText,
       isBattleSource,
+      learningStemBlocks: isBattleSource ? [] : mappedStemBlocks,
+      learningExplanationBlocks:
+        !isBattleSource && explanationBlocks.length > 0
+          ? this.mapBlocks(explanationBlocks, `${data.questionId}-learning-explanation`)
+          : [],
       battleCompletedAtText: data.battle?.completedAt
         ? formatLearningTimestamp(data.battle.completedAt)
         : formatLearningTimestamp(data.lastWrongAt),
       battleOpponentText:
         data.battle?.opponent?.nickname?.trim() || '对手信息暂缺',
-      battleStemBlocks: this.mapBlocks(data.stem ?? [], `${data.questionId}-stem`),
+      battleStemBlocks: isBattleSource ? mappedStemBlocks : [],
       battleOptions,
       battleMyAnswerLabel,
       battleMyAnswerText,
@@ -573,6 +590,10 @@ registerThemedPage<WrongQuestionDetailPageData, WrongQuestionDetailPageMethods>(
           ...option,
           labelText: getWrongQuestionOptionLabel(index),
           contentText: option.content.trim() || '选项内容暂缺',
+          contentBlocks: this.mapBlocks(
+            option.contentBlocks ?? [],
+            `${data.questionId}-learning-option-${option.optionId}`,
+          ),
           isCorrect,
           statusText: isCorrect ? '正确答案' : '选项',
           statusClassName: isCorrect ? 'option-tag-correct' : 'option-tag-normal',

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BattleDomainService } from './battle-domain.service';
 import { BATTLE_ERROR_CODES } from './battle.errors';
@@ -9,6 +9,8 @@ import {
 } from './battle-ranking';
 import type { BattleLeaderboardPayload } from './battle.types';
 import { BattleSkillService } from './battle-skill.service';
+import { BattleTrackService } from './battle-track.service';
+import { PROFESSIONAL_TRACK_CATALOG } from '../course/course-catalog';
 import {
   calculateBattleCompetitiveTier,
   createBattleCompetitiveTitle,
@@ -48,6 +50,7 @@ export class BattleLeaderboardService {
     private readonly prisma: PrismaService,
     private readonly battleDomainService: BattleDomainService,
     private readonly battleSkillService: BattleSkillService,
+    @Optional() private readonly battleTrackService?: BattleTrackService,
   ) {}
 
   async getLeaderboard(
@@ -55,6 +58,7 @@ export class BattleLeaderboardService {
     page = 1,
     pageSize = 100,
     requestedSkill?: string,
+    requestedTrack?: string,
   ) {
     if (page < 1 || pageSize < 1 || pageSize > 100) {
       throw new BadRequestException(
@@ -74,63 +78,82 @@ export class BattleLeaderboardService {
       );
     }
 
-    const ratings = (await this.prisma.userBattleSkillRating.findMany({
-      where: {
-        rankedBattles: { gt: 0 },
-      },
-      select: {
-        userId: true,
-        rating: true,
-        highestRating: true,
-        rankedBattles: true,
-        wins: true,
-        losses: true,
-        draws: true,
-        user: {
-          select: {
-            nickname: true,
-            avatarUrl: true,
-          },
-        },
-      },
-    })) as BattleSkillLeaderboardRecord[];
+    if (requestedTrack) {
+      if (!this.battleTrackService) return this.getSkillLeaderboard(currentUserId, requestedSkill ?? 'PYTHON', requestedSkill ?? 'Python', page, pageSize);
+      return this.getTrackLeaderboard(
+        currentUserId,
+        this.battleTrackService.normalize(requestedTrack),
+        page,
+        pageSize,
+      );
+    }
+    if (!this.battleTrackService) return this.getLegacyTotalLeaderboard(currentUserId, page, pageSize);
+    return this.getTrackLeaderboard(
+      currentUserId,
+      this.battleTrackService.normalize(undefined),
+      page,
+      pageSize,
+    );
 
-    const profiles = this.aggregateTotalLeaderboard(ratings);
+  }
 
-    const sortedProfiles = [...profiles].sort(compareBattleRanking);
-    const total = sortedProfiles.length;
+  private async getLegacyTotalLeaderboard(currentUserId: string, page: number, pageSize: number) {
+    const ratings = await this.prisma.userBattleSkillRating.findMany({
+      where: { rankedBattles: { gt: 0 } },
+      select: { userId: true, rating: true, highestRating: true, rankedBattles: true, wins: true, losses: true, draws: true, user: { select: { nickname: true, avatarUrl: true } } },
+    }) as BattleSkillLeaderboardRecord[];
+    const profiles = this.aggregateTotalLeaderboard(ratings).sort(compareBattleRanking);
     const skip = (page - 1) * pageSize;
-    const pageItems = sortedProfiles.slice(skip, skip + pageSize);
+    const pageItems = profiles.slice(skip, skip + pageSize);
+    return { success: true as const, data: {
+      items: pageItems.map((profile, index) => ({ rank: skip + index + 1, userId: profile.userId, nickname: profile.user.nickname, avatarUrl: profile.user.avatarUrl, rating: profile.rating, highestRating: profile.highestRating, rankedBattles: profile.totalBattles, wins: profile.wins, losses: profile.losses, draws: profile.draws, winRate: calculateBattleWinRate(profile.totalBattles, profile.wins) })),
+      page, pageSize, total: profiles.length, totalPages: profiles.length ? Math.ceil(profiles.length / pageSize) : 0,
+      myRank: calculateBattleRank(profiles, currentUserId), myRating: profiles.find((item) => item.userId === currentUserId)?.rating ?? null, serverTime: new Date(), skill: null,
+    } satisfies BattleLeaderboardPayload };
+  }
 
+  private async getTrackLeaderboard(
+    currentUserId: string,
+    trackKey: string,
+    page: number,
+    pageSize: number,
+  ) {
+    const ratings = await this.prisma.userBattleTrackRating.findMany({
+      where: { trackKey, rankedBattles: { gt: 0 } },
+      orderBy: [{ rating: 'desc' }, { rankedBattles: 'desc' }, { userId: 'asc' }],
+      select: {
+        userId: true, rating: true, highestRating: true, rankedBattles: true,
+        wins: true, losses: true, draws: true,
+        user: { select: { nickname: true, avatarUrl: true } },
+      },
+    });
+    const total = ratings.length;
+    const skip = (page - 1) * pageSize;
+    const pageItems = ratings.slice(skip, skip + pageSize);
+    const myIndex = ratings.findIndex((rating) => rating.userId === currentUserId);
+    const track = (this.battleTrackService?.list() ?? PROFESSIONAL_TRACK_CATALOG).find((item) => item.trackKey === trackKey);
     return {
       success: true as const,
       data: {
-        items: pageItems.map((profile, index) => ({
-          rank: skip + index + 1,
-          userId: profile.userId,
-          nickname: profile.user.nickname,
-          avatarUrl: profile.user.avatarUrl ?? null,
-          rating: profile.rating,
-          highestRating: profile.highestRating,
-          rankedBattles: profile.totalBattles,
-          wins: profile.wins ?? 0,
-          losses: profile.losses ?? 0,
-          draws: profile.draws ?? 0,
-          winRate: calculateBattleWinRate(
-            profile.totalBattles ?? 0,
-            profile.wins ?? 0,
-          ),
-        })),
-        page,
-        pageSize,
-        total,
+        items: pageItems.map((rating, index) => {
+          const tier = calculateBattleCompetitiveTier(rating.rating, rating.rankedBattles);
+          const decisions = rating.wins + rating.losses + rating.draws;
+          return {
+            rank: skip + index + 1, userId: rating.userId,
+            nickname: rating.user.nickname, avatarUrl: rating.user.avatarUrl,
+            rating: rating.rating, highestRating: rating.highestRating,
+            rankedBattles: rating.rankedBattles, wins: rating.wins,
+            losses: rating.losses, draws: rating.draws,
+            winRate: calculateBattleWinRate(decisions, rating.wins),
+            star: tier.star!,
+            title: createBattleCompetitiveTitle(track?.shortName ?? trackKey, tier.star),
+          };
+        }),
+        page, pageSize, total,
         totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
-        myRank: calculateBattleRank(sortedProfiles, currentUserId),
-        myRating:
-          sortedProfiles.find((profile) => profile.userId === currentUserId)
-            ?.rating ?? null,
-        serverTime: new Date(),
-        skill: null,
+        myRank: myIndex >= 0 ? myIndex + 1 : null,
+        myRating: myIndex >= 0 ? ratings[myIndex]!.rating : null,
+        serverTime: new Date(), skill: null, professionalTrackKey: trackKey,
       } satisfies BattleLeaderboardPayload,
     };
   }

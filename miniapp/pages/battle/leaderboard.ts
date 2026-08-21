@@ -3,6 +3,7 @@ import type {
   BattleLeaderboardItem,
   BattleLeaderboardQuery,
   BattleLeaderboardResponse,
+  BattleProfileResponse,
 } from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
@@ -16,9 +17,10 @@ import {
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
+import type { CourseCapabilityResponse, ProfessionalTrack } from '../../types/course-capability';
 
 type PageState = 'loading' | 'success' | 'empty' | 'error' | 'unauthorized';
-type LeaderboardScope = 'TOTAL' | 'PYTHON';
+type LeaderboardScope = string;
 
 type LeaderboardCard = BattleLeaderboardItem & {
   nicknameText: string;
@@ -56,6 +58,7 @@ type BattleLeaderboardPageData = {
   scope: LeaderboardScope;
   titleText: string;
   descriptionText: string;
+  tracks: ProfessionalTrack[];
 };
 
 type BattleLeaderboardPageMethods = {
@@ -63,6 +66,7 @@ type BattleLeaderboardPageMethods = {
   loadFirstPage(): Promise<void>;
   loadMore(): Promise<void>;
   refreshPage(): Promise<void>;
+  loadTracks(): Promise<void>;
   fetchLeaderboard(options: { page: number; replace: boolean }): Promise<void>;
   buildQuery(page: number): BattleLeaderboardQuery;
   handleRetry(): void;
@@ -95,14 +99,15 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     hasMore: false,
     isLoadingMore: false,
     mySummary: null,
-    scope: 'TOTAL',
-    titleText: '总榜',
-    descriptionText: '按全部对战语言积分总和排名。',
+    scope: 'big-data',
+    titleText: '大数据专业榜',
+    descriptionText: '按大数据专业对战积分排名。',
+    tracks: [],
   },
 
   onLoad() {
     isPageActive = true;
-    void this.loadFirstPage();
+    void this.loadTracks();
   },
 
   onUnload() {
@@ -268,8 +273,23 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     return {
       page,
       pageSize: PAGE_SIZE,
-      ...(this.data.scope === 'PYTHON' ? { skill: 'PYTHON' } : {}),
+      professionalTrackKey: this.data.scope,
     };
+  },
+
+  async loadTracks() {
+    try {
+      const [response, profile] = await Promise.all([
+        request<CourseCapabilityResponse>({ url: '/course-capabilities', method: 'GET', authMode: 'auto' }),
+        request<BattleProfileResponse>({ url: '/battles/profile', method: 'GET', authMode: 'required' }),
+      ]);
+      const preferredTrackKey = profile.defaultTrackKey ?? this.data.scope;
+      const selected = response.tracks.find((track) => track.trackKey === preferredTrackKey) ?? response.tracks[0];
+      this.setData({ tracks: response.tracks, scope: selected?.trackKey ?? this.data.scope, titleText: selected ? `${selected.shortName}专业榜` : this.data.titleText, descriptionText: selected ? `按${selected.shortName}专业对战积分排名。` : this.data.descriptionText });
+      void this.loadFirstPage();
+    } catch {
+      void this.loadFirstPage();
+    }
   },
 
   handleScopeChange(event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>) {
@@ -281,9 +301,8 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
 
     this.setData({
       scope,
-      titleText: scope === 'PYTHON' ? 'Python 排行榜' : '总榜',
-      descriptionText:
-        scope === 'PYTHON' ? '按 Python 随机匹配积分排名。' : '按全部对战语言积分总和排名。',
+      titleText: this.data.tracks.find((track) => track.trackKey === scope)?.shortName ? `${this.data.tracks.find((track) => track.trackKey === scope)!.shortName}专业榜` : '专业榜',
+      descriptionText: '按所选专业方向对战积分排名。',
       mySummary: null,
     });
     void this.loadFirstPage();

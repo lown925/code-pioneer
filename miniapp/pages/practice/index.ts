@@ -22,6 +22,7 @@ type PageState =
 type OptionView = PracticeQuestion["options"][number] & {
   label: string;
   statusClassName: string;
+  contentBlocks: PracticeBlockView[];
 };
 
 type PracticeBlockView = BattleContentBlock & {
@@ -52,6 +53,7 @@ type PracticePageData = {
   correctOptionId: string;
   correctAnswerText: string;
   answerResult: PracticeAnswerResponse | null;
+  answerExplanationBlocks: PracticeBlockView[];
   progressText: string;
   correctCount: number;
   wrongCount: number;
@@ -84,6 +86,7 @@ registerThemedPage<PracticePageData>({
     correctOptionId: "",
     correctAnswerText: "",
     answerResult: null,
+    answerExplanationBlocks: [],
     progressText: "",
     correctCount: 0,
     wrongCount: 0,
@@ -237,6 +240,12 @@ registerThemedPage<PracticePageData>({
       this.setData({
         state: "PLAYING",
         answerResult: result,
+        answerExplanationBlocks: result.explanationBlocks.map((block, blockIndex) => ({
+          ...block,
+          blockKey: `${question.questionId}-explanation-${blockIndex}`,
+          imageFailed: false,
+          altText: block.type === "IMAGE" ? block.alt?.trim() || "图片加载失败" : "",
+        })),
         correctOptionId: result.correctOptionId ?? "",
         correctAnswerText: result.acceptedAnswers?.length
           ? result.acceptedAnswers.join(" / ")
@@ -311,6 +320,12 @@ registerThemedPage<PracticePageData>({
       currentStemBlocks,
       currentOptions: (question?.options ?? []).map((option, optionIndex) => ({
         ...option,
+        contentBlocks: option.contentBlocks.map((block, blockIndex) => ({
+          ...block,
+          blockKey: `${question?.questionId ?? "question"}-option-${optionIndex}-${blockIndex}`,
+          imageFailed: false,
+          altText: block.type === "IMAGE" ? block.alt?.trim() || "鍥剧墖鍔犺浇澶辫触" : "",
+        })),
         label: String.fromCharCode(65 + optionIndex),
         statusClassName: "",
       })),
@@ -323,6 +338,7 @@ registerThemedPage<PracticePageData>({
       correctOptionId: "",
       correctAnswerText: "",
       answerResult: null,
+      answerExplanationBlocks: [],
       errorMessage: "",
       progressText: question
         ? `第 ${index + 1} / ${this.data.questions.length} 题`

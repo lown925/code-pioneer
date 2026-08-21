@@ -790,10 +790,18 @@ describe('Quiz flow (e2e)', () => {
         expect(response.body.data.questions[0].explanationBlocks).toEqual([
           {
             type: 'TEXT',
+            text: 'print() writes text to standard output.',
+          },
+          {
+            type: 'TEXT',
             text: 'print() is the standard output function in Python.',
           },
         ]);
         expect(response.body.data.questions[0].stemBlocks).toEqual([
+          {
+            type: 'TEXT',
+            text: 'Which function prints text in Python?',
+          },
           {
             type: 'CODE',
             code: "print('Hello')",
@@ -892,6 +900,10 @@ describe('Quiz flow (e2e)', () => {
         expect(response.body.data.results[0]).toHaveProperty('correctOptionId');
         expect(response.body.data.results[0]).toHaveProperty('explanation');
         expect(response.body.data.results[0].explanationBlocks).toEqual([
+          {
+            type: 'TEXT',
+            text: 'print() writes text to standard output.',
+          },
           {
             type: 'TEXT',
             text: 'print() is the standard output function in Python.',

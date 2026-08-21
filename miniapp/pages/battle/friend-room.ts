@@ -6,6 +6,7 @@ import type {
   FriendRoomCreateResponse,
   FriendRoomPreviewResponse,
 } from '../../types/battle';
+import type { CourseCapabilityResponse, ProfessionalTrack } from '../../types/course-capability';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatBattleDuration,
@@ -51,6 +52,10 @@ type FriendRoomPageData = {
   availableSkills: BattleSkillProfile[];
   selectedSkillCode: string;
   selectedSkillName: string;
+  tracks: (ProfessionalTrack & { courseNames: string; questionCountText: string })[];
+  selectedTrackKey: string;
+  selectedTrackName: string;
+  selectedTrackCoursesText: string;
 };
 
 type FriendRoomPageMethods = {
@@ -61,6 +66,7 @@ type FriendRoomPageMethods = {
   refreshPreview(): Promise<void>;
   createFriendRoom(): Promise<void>;
   loadSkills(): Promise<void>;
+  loadTracks(): Promise<void>;
   previewFriendRoomByToken(): Promise<void>;
   previewFriendRoomByCode(inviteCode: string): Promise<FriendRoomPreviewResponse | null>;
   joinFriendRoomByToken(): Promise<void>;
@@ -70,6 +76,7 @@ type FriendRoomPageMethods = {
   handleSelectSkill(
     event: WechatMiniprogram.CustomEvent<{ skill?: string }>,
   ): void;
+  handleSelectTrack(event: WechatMiniprogram.CustomEvent<{ track?: string }>): void;
   handleShowJoinInput(): void;
   handleJoinCodeInput(
     event: WechatMiniprogram.CustomEvent<{
@@ -176,6 +183,10 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     availableSkills: [],
     selectedSkillCode: '',
     selectedSkillName: '',
+    tracks: [],
+    selectedTrackKey: 'big-data',
+    selectedTrackName: '大数据',
+    selectedTrackCoursesText: '暂无已发布对战题库',
   },
 
   onLoad(options) {
@@ -258,6 +269,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
         await this.previewFriendRoomByToken();
       } else if (isPageActive) {
         await this.loadSkills();
+        await this.loadTracks();
         this.resetToIdle();
       }
     } finally {
@@ -282,7 +294,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     }
 
     if (!this.data.selectedSkillCode) {
-      wx.showToast({ title: '请先选择对战语言', icon: 'none' });
+      wx.showToast({ title: '请先选择对战方向', icon: 'none' });
       return;
     }
 
@@ -308,6 +320,7 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
         authMode: 'required',
         data: {
           skill: this.data.selectedSkillCode,
+          professionalTrackKey: this.data.selectedTrackKey,
         },
       });
 
@@ -665,6 +678,15 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
       joinButtonText: '查询并加入',
       selectedSkillCode: payload.skill ?? '',
       selectedSkillName: payload.skill === 'PYTHON' ? 'Python' : payload.skill ?? '历史对战',
+      selectedTrackKey: payload.professionalTrackKey ?? this.data.selectedTrackKey,
+      selectedTrackName:
+        payload.professionalTrack?.shortName ??
+        this.data.tracks.find((track) => track.trackKey === payload.professionalTrackKey)
+          ?.shortName ??
+        this.data.selectedTrackName,
+      selectedTrackCoursesText:
+        this.data.tracks.find((track) => track.trackKey === payload.professionalTrackKey)
+          ?.courseNames ?? this.data.selectedTrackCoursesText,
     });
   },
 
@@ -683,6 +705,28 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
       availableSkills: profile.availableSkills,
       selectedSkillCode: selectedSkill?.code ?? '',
       selectedSkillName: selectedSkill?.name ?? '',
+      selectedTrackKey: profile.defaultTrackKey ?? this.data.selectedTrackKey,
+    });
+  },
+
+  async loadTracks() {
+    const response = await request<CourseCapabilityResponse>({ url: '/course-capabilities', method: 'GET', authMode: 'auto' });
+    const tracks = response.tracks.map((track) => {
+      const courses = response.items.filter(
+        (course) => course.professionalTracks.includes(track.trackKey) && course.supportsBattle,
+      );
+      return {
+        ...track,
+        courseNames: courses.map((course) => course.title).join('、') || '暂无已发布对战题库',
+        questionCountText: `${courses.reduce((sum, course) => sum + course.battleQuestionCount, 0)} 道可用对战题`,
+      };
+    });
+    const selected = tracks.find((track) => track.trackKey === this.data.selectedTrackKey) ?? tracks[0];
+    this.setData({
+      tracks,
+      selectedTrackKey: selected?.trackKey ?? 'big-data',
+      selectedTrackName: selected?.shortName ?? '大数据',
+      selectedTrackCoursesText: selected?.courseNames ?? '暂无已发布对战题库',
     });
   },
 
@@ -709,6 +753,18 @@ registerThemedPage<FriendRoomPageData, FriendRoomPageMethods>({
     this.setData({
       selectedSkillCode: skill.code,
       selectedSkillName: skill.name,
+    });
+  },
+
+  handleSelectTrack(event: WechatMiniprogram.CustomEvent<{ track?: string }>) {
+    if (this.data.isBusy || this.data.invitationToken) return;
+    const trackKey = event.currentTarget.dataset.track;
+    const track = this.data.tracks.find((item) => item.trackKey === trackKey);
+    if (!track) return;
+    this.setData({
+      selectedTrackKey: track.trackKey,
+      selectedTrackName: track.shortName,
+      selectedTrackCoursesText: track.courseNames,
     });
   },
 

@@ -6,16 +6,7 @@
   </view>
 
   <view class="leaderboard-scope" role="tablist">
-    <view
-      class="scope-option {{scope === 'TOTAL' ? 'scope-option-active' : ''}}"
-      data-scope="TOTAL"
-      bindtap="handleScopeChange"
-    >总榜</view>
-    <view
-      class="scope-option {{scope === 'PYTHON' ? 'scope-option-active' : ''}}"
-      data-scope="PYTHON"
-      bindtap="handleScopeChange"
-    >Python 榜</view>
+    <view wx:for="{{tracks}}" wx:key="trackKey" class="scope-option {{scope === item.trackKey ? 'scope-option-active' : ''}}" data-scope="{{item.trackKey}}" bindtap="handleScopeChange">{{item.shortName}}</view>
   </view>
 
   <view wx:if="{{mySummary}}" class="section-card summary-card">
@@ -80,7 +71,7 @@
             <text class="nickname">{{item.nicknameText}}</text>
             <text class="player-meta">积分 {{item.ratingText}} · 最高 {{item.highestRatingText}}</text>
             <view
-              wx:if="{{scope === 'PYTHON'}}"
+              wx:if="{{scope}}"
               class="battle-star-rating leaderboard-card-stars"
               aria-label="{{item.starAriaLabel}}"
             >
@@ -96,7 +87,7 @@
           </view>
 
           <view class="winrate-box">
-            <text class="winrate-label">{{scope === 'PYTHON' ? '随机匹配胜率' : '总榜胜率'}}</text>
+            <text class="winrate-label">专业对战胜率</text>
             <text class="winrate-value">{{item.winRateText}}</text>
           </view>
         </view>

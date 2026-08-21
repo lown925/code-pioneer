@@ -219,6 +219,7 @@ model User {
   practiceAnswers        PracticeAnswer[]
   battleProfile          BattleProfile?
   battleSkillRatings     UserBattleSkillRating[]
+  battleTrackRatings     UserBattleTrackRating[]
   createdBattleRooms     BattleRoom[]               @relation("BattleRoomCreatedBy")
   wonBattleRooms         BattleRoom[]               @relation("BattleRoomWinner")
   battleParticipants     BattleParticipant[]
@@ -621,10 +622,32 @@ model UserBattleSkillRating {
   @@map("user_battle_skill_ratings")
 }
 
+model UserBattleTrackRating {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  trackKey         String   @map("track_key")
+  rating           Int      @default(1000)
+  highestRating    Int      @default(1000) @map("highest_rating")
+  rankedBattles    Int      @default(0) @map("ranked_battles")
+  wins             Int      @default(0)
+  losses           Int      @default(0)
+  draws            Int      @default(0)
+  currentWinStreak Int      @default(0) @map("current_win_streak")
+  bestWinStreak    Int      @default(0) @map("best_win_streak")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  user             User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, trackKey])
+  @@index([trackKey, rating(sort: Desc), rankedBattles(sort: Desc), userId], map: "user_battle_track_rating_rank_idx")
+  @@map("user_battle_track_ratings")
+}
+
 model BattleRoom {
   id                String                   @id @default(uuid()) @db.Uuid
   mode              BattleMode
   skillCode         String?                  @map("skill_code")
+  professionalTrackKey String?               @map("professional_track_key")
   status            BattleRoomStatus         @default(WAITING)
   questionCount     Int                      @default(20) @map("question_count")
   durationSeconds   Int                      @default(180) @map("duration_seconds")
@@ -655,6 +678,7 @@ model BattleRoom {
   @@index([status])
   @@index([mode, status])
   @@index([skillCode, mode, status])
+  @@index([professionalTrackKey, mode, status])
   @@index([createdAt])
   @@index([expiresAt])
   @@map("battle_rooms")
@@ -798,6 +822,7 @@ model BattleRatingLog {
   battleRoomId  String?            @map("battle_room_id") @db.Uuid
   participantId String?            @map("participant_id") @db.Uuid
   skillCode     String?            @map("skill_code")
+  professionalTrackKey String?     @map("professional_track_key")
   reason        BattleRatingReason
   ratingBefore  Int                @map("rating_before")
   ratingDelta   Int                @map("rating_delta")
@@ -812,6 +837,7 @@ model BattleRatingLog {
   @@index([userId, createdAt])
   @@index([battleRoomId])
   @@index([skillCode, userId, createdAt])
+  @@index([professionalTrackKey, userId, createdAt])
   @@map("battle_rating_logs")
 }
 
@@ -819,6 +845,7 @@ model BattleMatchQueue {
   id                  String                 @id @default(uuid()) @db.Uuid
   userId              String                 @unique @map("user_id") @db.Uuid
   skillCode           String?                @map("skill_code")
+  professionalTrackKey String?               @map("professional_track_key")
   status              BattleMatchQueueStatus @default(CANCELLED)
   ratingSnapshot      Int                    @map("rating_snapshot")
   matchedBattleRoomId String?                @map("matched_battle_room_id") @db.Uuid
@@ -834,6 +861,7 @@ model BattleMatchQueue {
 
   @@index([status])
   @@index([skillCode, status, expiresAt])
+  @@index([professionalTrackKey, status, expiresAt])
   @@index([expiresAt])
   @@map("battle_match_queues")
 }

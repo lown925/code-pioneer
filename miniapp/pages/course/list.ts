@@ -80,7 +80,11 @@ registerThemedPage({
       }
 
       allCourses = result.items.map((course) => this.mapCourse(course));
-      const categories = [...new Set(allCourses.map((course) => course.category))];
+      const categories = [
+        ...new Set(
+          allCourses.map((course) => course.subjectCategory ?? course.category),
+        ),
+      ];
 
       this.setData({
         categoryFilters: [
@@ -115,8 +119,14 @@ registerThemedPage({
       ...course,
       difficultyText: formatDifficulty(course.difficulty),
       estimatedMinutesText: formatMinutes(course.estimatedMinutes),
-      categoryText: CATEGORY_LABELS[course.category] ?? course.category,
-      languageText: course.language?.trim() || '综合课程',
+      categoryText:
+        CATEGORY_LABELS[course.subjectCategory ?? course.category] ??
+        course.subjectCategory ??
+        course.category,
+      languageText:
+        course.implementationLanguage?.trim() ||
+        course.language?.trim() ||
+        '综合课程',
       coverText: (course.title.trim() || '课程').slice(0, 2),
       coverFailed: false,
       isSelectionUpdating: false,
@@ -144,7 +154,9 @@ registerThemedPage({
     const courses =
       category === 'ALL'
         ? allCourses
-        : allCourses.filter((course) => course.category === category);
+        : allCourses.filter(
+            (course) => (course.subjectCategory ?? course.category) === category,
+          );
 
     this.setData({
       selectedCategory: category,

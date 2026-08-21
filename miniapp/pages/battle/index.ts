@@ -14,6 +14,7 @@ import {
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request } from '../../utils/request';
+import type { CourseCapabilityResponse, ProfessionalTrack } from '../../types/course-capability';
 import {
   fetchActiveBattle,
   getActiveBattlePresentation,
@@ -23,7 +24,8 @@ import {
 } from '../../utils/battle-active-recovery';
 
 type PageState = 'guest' | 'loading' | 'success' | 'empty' | 'error';
-type LeaderboardScope = 'TOTAL' | 'PYTHON';
+type LeaderboardScope = string;
+type TrackOption = ProfessionalTrack & { courseCountText: string; questionCountText: string };
 
 type LeaderboardRow = {
   rank: number;
@@ -65,6 +67,8 @@ type BattlePageData = {
   leaderboardBattlesLabel: string;
   activeBattle: ActiveBattlePresentation | null;
   isCheckingBattleEntry: boolean;
+  tracks: TrackOption[];
+  selectedTrackKey: string;
 };
 
 type BattlePageMethods = {
@@ -98,13 +102,15 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
     errorMessage: '',
     rankings: [],
     myRank: null,
-    leaderboardScope: 'TOTAL',
-    leaderboardTitle: '总榜',
-    leaderboardSubtitle: '全部对战语言积分总和排名',
-    leaderboardRatingLabel: '总积分',
-    leaderboardBattlesLabel: '总场次',
+    leaderboardScope: '',
+    leaderboardTitle: '大数据专业榜',
+    leaderboardSubtitle: '按大数据专业对战积分排名',
+    leaderboardRatingLabel: '大数据积分',
+    leaderboardBattlesLabel: '大数据场次',
     activeBattle: null,
     isCheckingBattleEntry: false,
+    tracks: [],
+    selectedTrackKey: '',
   },
 
   onLoad() {
@@ -179,23 +185,37 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
           : null,
       });
 
-      const [profile, leaderboard] = await Promise.all([
+      const [profile, capabilities] = await Promise.all([
         request<BattleProfileResponse>({
           url: '/battles/profile',
           method: 'GET',
           authMode: 'required',
         }),
-        request<BattleLeaderboardResponse>({
-          url: '/battles/leaderboard',
-          method: 'GET',
-          data: {
-            page: 1,
-            pageSize: LEADERBOARD_LIMIT,
-            ...(this.data.leaderboardScope === 'PYTHON' ? { skill: 'PYTHON' } : {}),
-          },
-          authMode: 'required',
-        }),
+        request<CourseCapabilityResponse>({ url: '/course-capabilities', method: 'GET', authMode: 'auto' }),
       ]);
+
+      const trackOptions = capabilities.tracks.map((track) => {
+        const courses = capabilities.items.filter(
+          (course) => course.professionalTracks.includes(track.trackKey) && course.supportsBattle,
+        );
+        return {
+          ...track,
+          courseCountText: `${courses.length} 门课程`,
+          questionCountText: `${courses.reduce((sum, course) => sum + course.battleQuestionCount, 0)} 道题`,
+        };
+      });
+      const selectedTrackKey = trackOptions.some((track) => track.trackKey === this.data.selectedTrackKey)
+        ? this.data.selectedTrackKey
+        : profile.defaultTrackKey && trackOptions.some((track) => track.trackKey === profile.defaultTrackKey)
+          ? profile.defaultTrackKey
+          : trackOptions[0]?.trackKey ?? 'big-data';
+      const selectedTrack = trackOptions.find((track) => track.trackKey === selectedTrackKey);
+      const leaderboard = await request<BattleLeaderboardResponse>({
+        url: '/battles/leaderboard',
+        method: 'GET',
+        data: { page: 1, pageSize: LEADERBOARD_LIMIT, professionalTrackKey: selectedTrackKey },
+        authMode: 'required',
+      });
 
       if (!isPageActive || currentRequestSerial !== requestSerial) {
         return;
@@ -210,6 +230,13 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
         errorMessage: '',
         rankings,
         myRank: this.mapMyRank(profile, leaderboard),
+        tracks: trackOptions,
+        selectedTrackKey,
+        leaderboardScope: selectedTrackKey,
+        leaderboardTitle: `${selectedTrack?.shortName ?? '专业'}专业榜`,
+        leaderboardSubtitle: `按${selectedTrack?.shortName ?? '所选专业方向'}对战积分排名`,
+        leaderboardRatingLabel: `${selectedTrack?.shortName ?? '专业'}积分`,
+        leaderboardBattlesLabel: `${selectedTrack?.shortName ?? '专业'}场次`,
         activeBattle: activeBattle
           ? getActiveBattlePresentation(activeBattle)
           : null,
@@ -265,11 +292,11 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
 
     this.setData({
       leaderboardScope: scope,
-      leaderboardTitle: scope === 'PYTHON' ? 'Python 榜' : '总榜',
-      leaderboardSubtitle:
-        scope === 'PYTHON' ? 'Python 对战积分排名' : '全部对战语言积分总和排名',
-      leaderboardRatingLabel: scope === 'PYTHON' ? 'Python 积分' : '总积分',
-      leaderboardBattlesLabel: scope === 'PYTHON' ? 'Python 场次' : '总场次',
+      selectedTrackKey: scope,
+      leaderboardTitle: '专业榜',
+      leaderboardSubtitle: '按所选专业方向对战积分排名',
+      leaderboardRatingLabel: '专业积分',
+      leaderboardBattlesLabel: '专业场次',
       myRank: null,
     });
     void this.loadBattleHome();
@@ -322,20 +349,14 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
   mapMyRank(profile: BattleProfileResponse, leaderboard: BattleLeaderboardResponse) {
     const user = getAuthStateSummary().user;
     const currentItem = leaderboard.items.find((item) => item.userId === user?.id);
-    const primarySkill = profile.availableSkills.find((skill) => skill.code === 'PYTHON');
     const rating = leaderboard.myRating;
     const totalBattles = currentItem
       ? Math.max(0, currentItem.wins) +
         Math.max(0, currentItem.losses) +
         Math.max(0, currentItem.draws)
-      : this.data.leaderboardScope === 'PYTHON'
-        ? (primarySkill?.rankedBattles ?? 0)
-        : profile.availableSkills.reduce((sum, skill) => sum + Math.max(0, skill.rankedBattles), 0);
+      : 0;
 
-    const star =
-      this.data.leaderboardScope === 'PYTHON'
-        ? (currentItem?.star ?? primarySkill?.star ?? null)
-        : null;
+    const star = currentItem?.star ?? null;
 
     return {
       avatarUrl: user?.avatarUrl ?? null,

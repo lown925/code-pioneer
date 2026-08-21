@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Optional } from '@nestjs/common';
 import {
   BattleMode,
   BattleParticipantStatus,
@@ -24,6 +24,11 @@ import { BATTLE_ERROR_CODES } from './battle.errors';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { BattleSkillService } from './battle-skill.service';
+import {
+  BattleTrackService,
+  DEFAULT_BATTLE_RATING,
+  DEFAULT_PROFESSIONAL_TRACK_KEY,
+} from './battle-track.service';
 import type {
   BattleTransactionClient,
   MatchmakingStatusPayload,
@@ -33,6 +38,7 @@ import type {
 type QueueRecord = {
   userId: string;
   skillCode: string | null;
+  professionalTrackKey: string | null;
   status: 'SEARCHING' | 'MATCHED' | 'CANCELLED' | 'EXPIRED';
   ratingSnapshot: number;
   matchedBattleRoomId: string | null;
@@ -49,24 +55,25 @@ export class BattleMatchmakingService {
     private readonly prisma: PrismaService,
     private readonly battleDomainService: BattleDomainService,
     private readonly battleSkillService: BattleSkillService,
+    @Optional() private readonly battleTrackService?: BattleTrackService,
   ) {}
 
   async joinMatchmaking(
     currentUser: CurrentUserContext,
     requestedSkill = 'PYTHON',
+    requestedTrack = DEFAULT_PROFESSIONAL_TRACK_KEY,
   ) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      const professionalTrackKey = this.normalizeTrack(requestedTrack);
       await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
       const skill = await this.battleSkillService.assertAvailableSkill(
         requestedSkill,
         tx,
       );
-      const skillRating = await this.battleSkillService.ensureUserSkillRating(
-        currentUser.id,
-        skill.code,
-        tx,
-      );
+      const ratingSnapshot = this.battleTrackService
+        ? (await this.battleTrackService.getRating(currentUser.id, professionalTrackKey, tx))?.rating ?? DEFAULT_BATTLE_RATING
+        : (await this.battleSkillService.ensureUserSkillRating(currentUser.id, skill.code, tx)).rating;
 
       await this.battleDomainService.normalizeExpiredFriendRoomsForUser(
         currentUser.id,
@@ -89,6 +96,7 @@ export class BattleMatchmakingService {
       ) {
         return this.createPayload('MATCHED', {
           skill: queue.skillCode,
+          professionalTrackKey: queue.professionalTrackKey,
           battleId: queue.matchedBattleRoomId,
           searchStartedAt: queue.searchStartedAt,
           expiresAt: queue.expiresAt,
@@ -102,7 +110,10 @@ export class BattleMatchmakingService {
       );
 
       if (queue?.status === 'SEARCHING') {
-        if (queue.skillCode !== skill.code) {
+        if (
+          (queue.professionalTrackKey && queue.professionalTrackKey !== professionalTrackKey) ||
+          (!queue.professionalTrackKey && queue.skillCode !== skill.code)
+        ) {
           throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_SKILL_LOCKED);
         }
 
@@ -112,6 +123,9 @@ export class BattleMatchmakingService {
         const matchResult = await this.tryMatchUser(tx, {
           currentUserId: currentUser.id,
           skillCode: skill.code,
+          professionalTrackKey: queue.professionalTrackKey ?? professionalTrackKey,
+          useLegacySkillIsolation:
+            !this.battleTrackService || !queue.professionalTrackKey,
           currentRating: queue.ratingSnapshot,
           searchStartedAt: queue.searchStartedAt ?? now,
           expiresAt: queue.expiresAt ?? this.createExpiry(now),
@@ -122,6 +136,7 @@ export class BattleMatchmakingService {
           matchResult ??
           this.createPayload('SEARCHING', {
             skill: skill.code,
+            professionalTrackKey: queue.professionalTrackKey ?? professionalTrackKey,
             searchStartedAt: queue.searchStartedAt,
             expiresAt: queue.expiresAt,
             serverTime: now,
@@ -138,7 +153,8 @@ export class BattleMatchmakingService {
           data: {
             status: 'SEARCHING',
             skillCode: skill.code,
-            ratingSnapshot: skillRating.rating,
+            professionalTrackKey,
+            ratingSnapshot,
             searchStartedAt,
             matchedAt: null,
             cancelledAt: null,
@@ -151,8 +167,9 @@ export class BattleMatchmakingService {
           data: {
             userId: currentUser.id,
             skillCode: skill.code,
+            professionalTrackKey,
             status: 'SEARCHING',
-            ratingSnapshot: skillRating.rating,
+            ratingSnapshot,
             searchStartedAt,
             expiresAt,
           },
@@ -162,7 +179,9 @@ export class BattleMatchmakingService {
       const matchResult = await this.tryMatchUser(tx, {
         currentUserId: currentUser.id,
         skillCode: skill.code,
-        currentRating: skillRating.rating,
+        professionalTrackKey,
+        useLegacySkillIsolation: !this.battleTrackService,
+        currentRating: ratingSnapshot,
         searchStartedAt,
         expiresAt,
         now,
@@ -172,13 +191,14 @@ export class BattleMatchmakingService {
         matchResult ??
         this.createPayload('SEARCHING', {
           skill: skill.code,
+          professionalTrackKey,
           searchStartedAt,
           expiresAt,
           serverTime: now,
         })
       );
     });
-    const waitingCount = await this.countWaitingUsers(data.skill);
+    const waitingCount = await this.countWaitingUsers(data.skill, data.professionalTrackKey);
 
     return {
       success: true as const,
@@ -192,10 +212,12 @@ export class BattleMatchmakingService {
   async getMatchmakingStatus(
     currentUser: CurrentUserContext,
     requestedSkill = 'PYTHON',
+    requestedTrack = DEFAULT_PROFESSIONAL_TRACK_KEY,
   ) {
     const normalizedRequestedSkill = (requestedSkill || 'PYTHON')
       .trim()
       .toUpperCase();
+    const normalizedTrack = this.normalizeTrack(requestedTrack);
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
       await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
@@ -214,6 +236,7 @@ export class BattleMatchmakingService {
       if (!queue) {
         return this.createPayload('IDLE', {
           skill: normalizedRequestedSkill,
+          professionalTrackKey: normalizedTrack,
           serverTime: now,
         });
       }
@@ -223,6 +246,7 @@ export class BattleMatchmakingService {
       if (!queue) {
         return this.createPayload('IDLE', {
           skill: normalizedRequestedSkill,
+          professionalTrackKey: normalizedTrack,
           serverTime: now,
         });
       }
@@ -234,6 +258,9 @@ export class BattleMatchmakingService {
         const matchResult = await this.tryMatchUser(tx, {
           currentUserId: currentUser.id,
           skillCode: queue.skillCode,
+          professionalTrackKey: queue.professionalTrackKey ?? normalizedTrack,
+          useLegacySkillIsolation:
+            !this.battleTrackService || !queue.professionalTrackKey,
           currentRating: queue.ratingSnapshot,
           searchStartedAt: queue.searchStartedAt ?? now,
           expiresAt: queue.expiresAt ?? this.createExpiry(now),
@@ -244,6 +271,7 @@ export class BattleMatchmakingService {
           matchResult ??
           this.createPayload('SEARCHING', {
             skill: queue.skillCode,
+            professionalTrackKey: queue.professionalTrackKey ?? normalizedTrack,
             searchStartedAt: queue.searchStartedAt,
             expiresAt: queue.expiresAt,
             serverTime: now,
@@ -258,6 +286,7 @@ export class BattleMatchmakingService {
       ) {
         return this.createPayload('MATCHED', {
           skill: queue.skillCode,
+          professionalTrackKey: queue.professionalTrackKey ?? normalizedTrack,
           battleId: queue.matchedBattleRoomId,
           searchStartedAt: queue.searchStartedAt,
           expiresAt: queue.expiresAt,
@@ -267,12 +296,13 @@ export class BattleMatchmakingService {
 
       return this.createPayload(queue.status, {
         skill: queue.skillCode,
+        professionalTrackKey: queue.professionalTrackKey ?? normalizedTrack,
         searchStartedAt: queue.searchStartedAt,
         expiresAt: queue.expiresAt,
         serverTime: now,
       });
     });
-    const waitingCount = await this.countWaitingUsers(data.skill);
+    const waitingCount = await this.countWaitingUsers(data.skill, data.professionalTrackKey);
 
     return {
       success: true as const,
@@ -343,6 +373,7 @@ export class BattleMatchmakingService {
 
         return this.createPayload('CANCELLED', {
           skill: queue.skillCode,
+          professionalTrackKey: queue.professionalTrackKey,
           searchStartedAt: queue.searchStartedAt,
           expiresAt: queue.expiresAt,
           serverTime: now,
@@ -372,6 +403,7 @@ export class BattleMatchmakingService {
 
         return this.createPayload('CANCELLED', {
           skill: queue.skillCode,
+          professionalTrackKey: queue.professionalTrackKey,
           searchStartedAt: queue.searchStartedAt,
           expiresAt: queue.expiresAt,
           serverTime: now,
@@ -380,12 +412,16 @@ export class BattleMatchmakingService {
 
       return this.createPayload(queue.status, {
         skill: queue.skillCode,
+        professionalTrackKey: queue.professionalTrackKey,
         searchStartedAt: queue.searchStartedAt,
         expiresAt: queue.expiresAt,
         serverTime: now,
       });
     });
-    const waitingCount = await this.countWaitingUsers(data.skill);
+    const waitingCount = await this.countWaitingUsers(
+      data.skill,
+      data.professionalTrackKey,
+    );
 
     return {
       success: true as const,
@@ -401,6 +437,8 @@ export class BattleMatchmakingService {
     input: {
       currentUserId: string;
       skillCode: string | null;
+      professionalTrackKey: string;
+      useLegacySkillIsolation: boolean;
       currentRating: number;
       searchStartedAt: Date;
       expiresAt: Date;
@@ -410,6 +448,8 @@ export class BattleMatchmakingService {
     const {
       currentUserId,
       skillCode,
+      professionalTrackKey,
+      useLegacySkillIsolation,
       currentRating,
       searchStartedAt,
       expiresAt,
@@ -422,7 +462,9 @@ export class BattleMatchmakingService {
         userId: {
           not: currentUserId,
         },
-        skillCode,
+        ...(useLegacySkillIsolation
+          ? { skillCode }
+          : { professionalTrackKey }),
         expiresAt: {
           gt: now,
         },
@@ -430,6 +472,7 @@ export class BattleMatchmakingService {
       select: {
         userId: true,
         skillCode: true,
+        professionalTrackKey: true,
         status: true,
         ratingSnapshot: true,
         searchStartedAt: true,
@@ -442,7 +485,12 @@ export class BattleMatchmakingService {
       orderBy: [{ searchStartedAt: 'asc' }, { userId: 'asc' }],
     })) as QueueRecord[];
 
-    const sortedCandidates = candidates
+    const scopedCandidates = candidates.filter((candidate) =>
+      this.battleTrackService && !useLegacySkillIsolation
+        ? candidate.professionalTrackKey === professionalTrackKey
+        : candidate.skillCode === skillCode,
+    );
+    const sortedCandidates = scopedCandidates
       .filter((candidate) =>
         this.isCandidateWithinRange({
           currentRating,
@@ -512,7 +560,7 @@ export class BattleMatchmakingService {
       const currentClaim = await tx.battleMatchQueue.updateMany({
         where: {
           userId: currentUserId,
-          skillCode,
+            ...(useLegacySkillIsolation ? { skillCode } : { professionalTrackKey }),
           status: 'SEARCHING',
           expiresAt: {
             gt: now,
@@ -531,7 +579,7 @@ export class BattleMatchmakingService {
       const candidateClaim = await tx.battleMatchQueue.updateMany({
         where: {
           userId: candidate.userId,
-          skillCode,
+          ...(useLegacySkillIsolation ? { skillCode } : { professionalTrackKey }),
           status: 'SEARCHING',
           expiresAt: {
             gt: now,
@@ -558,6 +606,7 @@ export class BattleMatchmakingService {
         data: {
           mode: BattleMode.RANKED,
           skillCode,
+          professionalTrackKey,
           status: BattleRoomStatus.WAITING,
           questionCount: DEFAULT_BATTLE_QUESTION_COUNT,
           durationSeconds: BATTLE_DURATION_SECONDS,
@@ -609,6 +658,7 @@ export class BattleMatchmakingService {
       return this.createPayload('MATCHED', {
         skill: skillCode,
         battleId: room.id,
+        professionalTrackKey: useLegacySkillIsolation ? null : professionalTrackKey,
         searchStartedAt,
         expiresAt,
         serverTime: now,
@@ -693,6 +743,10 @@ export class BattleMatchmakingService {
     return new Date(now.getTime() + MATCHMAKING_TTL_SECONDS * 1000);
   }
 
+  private normalizeTrack(trackKey?: string) {
+    return this.battleTrackService?.normalize(trackKey) ?? DEFAULT_PROFESSIONAL_TRACK_KEY;
+  }
+
   private async touchQueueHeartbeat(
     tx: BattleTransactionClient,
     userId: string,
@@ -763,6 +817,7 @@ export class BattleMatchmakingService {
       expiresAt,
       serverTime: input.serverTime,
       skill: input.skill ?? null,
+      professionalTrackKey: input.professionalTrackKey ?? null,
       waitingCount: input.waitingCount ?? 0,
       elapsedMs,
       remainingSearchMs,
@@ -770,22 +825,13 @@ export class BattleMatchmakingService {
     };
   }
 
-  private countWaitingUsers(skillCode: string | null, now = new Date()) {
-    if (!skillCode) {
-      return Promise.resolve(0);
-    }
-
+  private countWaitingUsers(skillCode: string | null, professionalTrackKey?: string | null, now = new Date()) {
     return this.prisma.battleMatchQueue.count({
       where: {
         status: 'SEARCHING',
-        skillCode,
+        ...(this.battleTrackService && professionalTrackKey ? { professionalTrackKey } : { skillCode }),
         expiresAt: {
           gt: now,
-        },
-        updatedAt: {
-          gt: new Date(
-            now.getTime() - MATCHMAKING_HEARTBEAT_TTL_SECONDS * 1000,
-          ),
         },
       },
     });
@@ -797,6 +843,7 @@ export class BattleMatchmakingService {
       select: {
         userId: true,
         skillCode: true,
+        professionalTrackKey: true,
         status: true,
         ratingSnapshot: true,
         matchedBattleRoomId: true,

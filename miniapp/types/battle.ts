@@ -20,6 +20,12 @@ export type BattleParticipantStatus =
 
 export type ActiveBattleRecoveryTarget = 'ROOM' | 'PLAY' | 'RESULT';
 
+export type ProfessionalTrackIdentity = {
+  trackKey: string;
+  formalName: string;
+  shortName: string;
+};
+
 export type ActiveBattleResponse = {
   battleId: string;
   mode: BattleMode;
@@ -27,6 +33,8 @@ export type ActiveBattleResponse = {
   participantStatus: BattleParticipantStatus;
   skillCode: string | null;
   skillName: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   invitationToken: string | null;
   inviteCode: string | null;
   recoveryTarget: ActiveBattleRecoveryTarget;
@@ -80,6 +88,8 @@ export type BattleProfileResponse = {
   rank: number;
   currentRank: number;
   availableSkills: BattleSkillProfile[];
+  availableTracks?: BattleTrackProfile[];
+  defaultTrackKey?: string | null;
 };
 
 export type BattleSkillProfile = {
@@ -92,6 +102,16 @@ export type BattleSkillProfile = {
   status: 'RANKED' | 'UNRANKED';
   star: number | null;
   title: string;
+};
+
+export type BattleTrackProfile = {
+  trackKey: string;
+  formalName: string;
+  shortName: string;
+  rating: number | null;
+  rankedBattles: number;
+  rank: number | null;
+  status: 'RANKED' | 'UNRANKED';
 };
 
 export type BattleLeaderboardItem = {
@@ -120,12 +140,15 @@ export type BattleLeaderboardResponse = {
   myRating: number | null;
   serverTime: string;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
 };
 
 export type BattleLeaderboardQuery = {
   page: number;
   pageSize: number;
   skill?: string;
+  professionalTrackKey?: string;
 };
 
 export type MatchmakingViewStatus =
@@ -142,6 +165,8 @@ export type MatchmakingStatusResponse = {
   expiresAt: string | null;
   serverTime: string;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   waitingCount: number;
   elapsedMs: number;
   remainingSearchMs: number;
@@ -189,6 +214,8 @@ export type BattleRoomSummaryResponse = {
   battleId: string;
   mode: BattleMode;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   status: BattleRoomStatus;
   questionCount: number;
   durationSeconds: number;
@@ -212,6 +239,8 @@ export type FriendRoomCreateResponse = {
   battleId: string;
   mode: BattleMode;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   status: BattleRoomStatus;
   invitationToken: string;
   inviteCode: string | null;
@@ -223,6 +252,8 @@ export type FriendRoomCreateResponse = {
 export type FriendRoomPreviewResponse = {
   battleId: string;
   skill: string | null;
+  professionalTrackKey: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   roomStatus: BattleRoomStatus;
   invitationStatus: BattleInvitationStatus;
   inviteCode: string | null;
@@ -290,6 +321,8 @@ export type BattleQuestionsResponse = {
   battleId: string;
   mode: BattleMode;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING' | 'COMPLETED';
   startedAt: string | null;
   expiresAt: string | null;
@@ -320,6 +353,7 @@ export type BattleTrainingStartResponse = {
   battleId: string;
   mode: 'TRAINING';
   skill: string;
+  professionalTrackKey: string;
   status: 'COUNTDOWN';
   startedAt: string;
   expiresAt: string;
@@ -330,6 +364,8 @@ export type PendingBattleResultResponse = {
   battleId: string;
   mode: BattleMode;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING';
   completed: false;
   totalQuestions: number;
@@ -345,6 +381,8 @@ export type CompletedBattleResultResponse = {
   battleId: string;
   mode: BattleMode;
   skill: string | null;
+  professionalTrackKey?: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   status: 'COMPLETED';
   completed: true;
   result: BattleResult;
@@ -393,6 +431,8 @@ export type BattleHistoryListItemResponse = {
   battleId: string;
   mode: BattleMode;
   skill: string | null;
+  professionalTrackKey: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   result: BattleResult;
   opponent: BattleCompletedOpponentResponse | null;
   myScore: number;
@@ -470,6 +510,8 @@ export type BattleHistoryDetailResponse = {
   battleId: string;
   mode: BattleMode;
   skill: string | null;
+  professionalTrackKey: string | null;
+  professionalTrack?: ProfessionalTrackIdentity | null;
   status: 'COMPLETED';
   result: BattleResult;
   startedAt: string | null;

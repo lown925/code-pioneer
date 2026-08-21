@@ -138,41 +138,37 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(playTemplate).not.toContain('Combo');
   });
 
-  it('shows the total leaderboard first and switches scopes in place', () => {
+  it('shows the professional leaderboard first and switches tracks in place', () => {
     const indexScript = readMiniappFile('pages/battle/index.ts');
     const indexTemplate = readMiniappFile('pages/battle/index.wxml');
 
-    expect(indexScript).toContain("leaderboardScope: 'TOTAL'");
-    expect(indexScript).toContain("this.data.leaderboardScope === 'PYTHON'");
+    expect(indexScript).toContain("leaderboardScope: ''");
+    expect(indexScript).toContain('professionalTrackKey: selectedTrackKey');
     expect(indexScript).toContain('handleLeaderboardScopeChange');
-    expect(indexScript).toContain('profile.availableSkills.find');
-    expect(indexTemplate).toContain('总榜');
-    expect(indexTemplate).toContain('Python 榜');
+    expect(indexScript).toContain('capabilities.tracks');
+    expect(indexTemplate).toContain('leaderboard-track-selector');
+    expect(indexTemplate).toContain('data-scope="{{item.trackKey}}"');
     expect(indexTemplate).toContain('bindtap="handleLeaderboardScopeChange"');
-    expect(indexTemplate).toContain(
-      "leaderboardScope === 'PYTHON' ? '随机匹配胜率' : '总榜胜率'",
-    );
+    expect(indexTemplate).not.toContain('总榜');
+    expect(indexTemplate).not.toContain('Python 榜');
     expect(indexTemplate).not.toContain('{{item.winRateText}} 胜率');
     expect(indexTemplate).not.toContain('全部榜单');
   });
 
-  it('offers both the legacy total leaderboard and Python leaderboard', () => {
+  it('offers a dynamic professional leaderboard selector', () => {
     const leaderboardScript = readMiniappFile('pages/battle/leaderboard.ts');
     const leaderboardTemplate = readMiniappFile(
       'pages/battle/leaderboard.wxml',
     );
 
+    expect(leaderboardScript).toContain('type LeaderboardScope = string');
     expect(leaderboardScript).toContain(
-      "type LeaderboardScope = 'TOTAL' | 'PYTHON'",
+      'professionalTrackKey: this.data.scope',
     );
-    expect(leaderboardScript).toContain(
-      "this.data.scope === 'PYTHON' ? { skill: 'PYTHON' } : {}",
-    );
-    expect(leaderboardTemplate).toContain('data-scope="TOTAL"');
-    expect(leaderboardTemplate).toContain('data-scope="PYTHON"');
-    expect(leaderboardTemplate).toContain('>总榜</view>');
-    expect(leaderboardTemplate).toContain('>Python 榜</view>');
-    expect(leaderboardTemplate).toContain('随机匹配胜率');
+    expect(leaderboardScript).toContain('response.tracks');
+    expect(leaderboardTemplate).toContain('data-scope="{{item.trackKey}}"');
+    expect(leaderboardTemplate).not.toContain('data-scope="TOTAL"');
+    expect(leaderboardTemplate).not.toContain('data-scope="PYTHON"');
     expect(leaderboardScript).toContain('item.rankedBattles');
     expect(leaderboardScript).toContain('item.star');
     expect(leaderboardScript).toContain('formatBattleStarDisplay(item.star)');
@@ -300,9 +296,9 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     const resultTemplate = readMiniappFile('pages/battle/result.wxml');
     const battleUtility = readMiniappFile('utils/battle.ts');
 
-    expect(matchmakingTemplate).toContain("item.status === 'UNRANKED'");
-    expect(matchmakingTemplate).toContain('item.starSlots');
-    expect(matchmakingTemplate).not.toContain('item.title');
+    expect(matchmakingTemplate).toContain('当前题库');
+    expect(matchmakingTemplate).toContain('selectedTrackName');
+    expect(matchmakingTemplate).not.toContain('对战语言');
     expect(indexScript).toContain('item.star');
     expect(indexScript).not.toContain('item.title');
     expect(resultTemplate).toContain('当前星级');

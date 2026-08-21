@@ -248,7 +248,11 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
           descriptionText: this.getPendingDescription(response.status),
           errorMessage: '',
           modeText: this.getModeText(response.mode),
-          skillText: formatBattleSkill(response.skill),
+          skillText: response.professionalTrack?.shortName
+            ? `${response.professionalTrack.shortName}专业对战`
+            : response.professionalTrackKey
+              ? '专业对战'
+              : formatBattleSkill(response.skill),
           statusText: this.getStatusText(response.status, false),
           resultText: '等待结算',
           resultHintText: '结果准备完成后会自动刷新展示。',
@@ -282,7 +286,11 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
               : '本场好友对战已完成，不计积分。',
         errorMessage: '',
         modeText: this.getModeText(response.mode),
-        skillText: formatBattleSkill(response.skill),
+        skillText: response.professionalTrack?.shortName
+          ? `${response.professionalTrack.shortName}专业对战`
+          : response.professionalTrackKey
+            ? '专业对战'
+            : formatBattleSkill(response.skill),
         statusText: this.getStatusText(response.status, true),
         resultText: resultMeta.resultText,
         resultHintText: resultMeta.resultHintText,

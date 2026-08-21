@@ -8,6 +8,8 @@ export type FormalCoursePlan = {
   order: number;
   slug: string;
   title: string;
+  implementationLanguage: string | null;
+  subjectCategory: string;
   professionalDirections: readonly string[];
   interests: readonly string[];
   prerequisites: readonly string[];
@@ -36,7 +38,9 @@ export const FORMAL_COURSE_PLAN = [
     order: 1,
     slug: 'python-basic',
     title: 'Python 程序设计基础',
-    professionalDirections: ['computer', 'software-engineering', 'big-data'],
+    implementationLanguage: 'Python',
+    subjectCategory: '程序设计',
+    professionalDirections: ['computer-science', 'software-engineering', 'big-data'],
     interests: ['python', 'software-development', 'data-processing'],
     prerequisites: [],
     nextCourses: ['data-structures-algorithms', 'linux-fundamentals'],
@@ -66,7 +70,9 @@ export const FORMAL_COURSE_PLAN = [
     order: 2,
     slug: 'data-structures-algorithms',
     title: '数据结构与算法基础',
-    professionalDirections: ['computer', 'software-engineering', 'big-data'],
+    implementationLanguage: 'Python',
+    subjectCategory: '算法',
+    professionalDirections: ['computer-science', 'software-engineering', 'big-data'],
     interests: [
       'algorithm',
       'computer-foundations',
@@ -103,7 +109,9 @@ export const FORMAL_COURSE_PLAN = [
     order: 3,
     slug: 'linux-fundamentals',
     title: 'Linux 基础与常用命令',
-    professionalDirections: ['computer', 'big-data', 'software-engineering'],
+    implementationLanguage: null,
+    subjectCategory: '系统',
+    professionalDirections: ['computer-science', 'big-data', 'software-engineering'],
     interests: ['linux', 'system', 'operations', 'backend', 'big-data'],
     prerequisites: ['python-basic'],
     nextCourses: [
@@ -129,7 +137,9 @@ export const FORMAL_COURSE_PLAN = [
     order: 4,
     slug: 'database-sql-fundamentals',
     title: '数据库与 SQL 基础',
-    professionalDirections: ['computer', 'software-engineering', 'big-data'],
+    implementationLanguage: 'SQL',
+    subjectCategory: '数据库',
+    professionalDirections: ['computer-science', 'software-engineering', 'big-data'],
     interests: [
       'database',
       'backend',
@@ -162,7 +172,9 @@ export const FORMAL_COURSE_PLAN = [
     order: 5,
     slug: 'java-object-oriented-programming',
     title: 'Java 面向对象程序设计',
-    professionalDirections: ['software-engineering', 'computer'],
+    implementationLanguage: 'Java',
+    subjectCategory: '程序设计',
+    professionalDirections: ['software-engineering', 'computer-science'],
     interests: ['java', 'backend', 'software-development'],
     prerequisites: ['data-structures-algorithms'],
     nextCourses: [
@@ -189,7 +201,9 @@ export const FORMAL_COURSE_PLAN = [
     order: 6,
     slug: 'computer-networks-fundamentals',
     title: '计算机网络基础',
-    professionalDirections: ['computer', 'software-engineering'],
+    implementationLanguage: null,
+    subjectCategory: '网络',
+    professionalDirections: ['computer-science', 'software-engineering'],
     interests: ['network', 'system', 'backend', 'network-security'],
     prerequisites: ['linux-fundamentals'],
     nextCourses: [],
@@ -211,7 +225,9 @@ export const FORMAL_COURSE_PLAN = [
     order: 7,
     slug: 'computer-architecture-operating-systems',
     title: '计算机组成原理与操作系统基础',
-    professionalDirections: ['computer'],
+    implementationLanguage: null,
+    subjectCategory: '系统',
+    professionalDirections: ['computer-science'],
     interests: ['operating-system', 'system', 'computer-foundations'],
     prerequisites: ['data-structures-algorithms'],
     nextCourses: ['computer-networks-fundamentals'],
@@ -235,6 +251,8 @@ export const FORMAL_COURSE_PLAN = [
     order: 8,
     slug: 'software-engineering-project-development',
     title: '软件工程与项目开发',
+    implementationLanguage: null,
+    subjectCategory: '软件工程',
     professionalDirections: ['software-engineering'],
     interests: [
       'software-development',
@@ -262,6 +280,8 @@ export const FORMAL_COURSE_PLAN = [
     order: 9,
     slug: 'big-data-fundamentals',
     title: '大数据技术基础',
+    implementationLanguage: null,
+    subjectCategory: '大数据',
     professionalDirections: ['big-data'],
     interests: ['data-processing', 'distributed-computing', 'data-analysis'],
     prerequisites: [
@@ -288,6 +308,8 @@ export const FORMAL_COURSE_PLAN = [
     order: 10,
     slug: 'spark-data-processing',
     title: 'Spark 数据处理',
+    implementationLanguage: 'Scala',
+    subjectCategory: '大数据',
     professionalDirections: ['big-data'],
     interests: [
       'spark',

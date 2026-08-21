@@ -13,6 +13,7 @@ import { BattleDomainService } from './battle-domain.service';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { BattleSettlementService } from './battle-settlement.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { getProfessionalTrackIdentity } from '../course/course-catalog';
 import {
   parseBattleAiAnswerPlan,
   projectBattleAiProgress,
@@ -30,6 +31,7 @@ type RoomRecord = {
   id: string;
   mode: string;
   skillCode: string | null;
+  professionalTrackKey: string | null;
   status: BattleRoomStatus;
   questionCount: number;
   durationSeconds: number;
@@ -243,6 +245,8 @@ export class BattleRoomService {
       battleId: room.id,
       mode: room.mode,
       skill: room.skillCode,
+      professionalTrackKey: room.professionalTrackKey,
+      professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
       status: room.status,
       questionCount: room.questionCount,
       durationSeconds: room.durationSeconds,
@@ -305,6 +309,7 @@ export class BattleRoomService {
     id: true,
     mode: true,
     skillCode: true,
+    professionalTrackKey: true,
     status: true,
     questionCount: true,
     durationSeconds: true,

@@ -62,7 +62,7 @@
         <text class="meta-value">{{roomStatusText}}</text>
       </view>
       <view class="meta-item">
-        <text class="meta-label">对战语言</text>
+        <text class="meta-label">对战方向</text>
         <text class="meta-value">{{skillText}}</text>
       </view>
       <view class="meta-item">

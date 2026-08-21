@@ -7,6 +7,7 @@ import {
 } from '../../utils/battle-matchmaking-state';
 import { formatBattleDuration, formatBattleStarDisplay } from '../../utils/battle';
 import { request } from '../../utils/request';
+import type { CourseCapabilityResponse, ProfessionalTrack } from '../../types/course-capability';
 
 type BattleSkillOption = BattleSkillProfile & ReturnType<typeof formatBattleStarDisplay>;
 
@@ -25,15 +26,21 @@ type MatchmakingPageData = {
   computerAvailable: boolean;
   isStartingComputer: boolean;
   isCancelling: boolean;
+  tracks: (ProfessionalTrack & { courseCountText: string; questionCountText: string; courseNames: string })[];
+  selectedTrackKey: string;
+  selectedTrackName: string;
+  profileDefaultTrackKey: string;
 };
 
 type MatchmakingPageMethods = {
   ensureAuthenticated(): boolean;
   loadProfile(): Promise<void>;
+  loadTracks(): Promise<void>;
   applyManagerSnapshot(snapshot: BattleMatchmakingSnapshot): void;
   updateProfileCard(profile: BattleProfileResponse): void;
   handleStartMatchmaking(): void;
   handleSelectSkill(event: WechatMiniprogram.CustomEvent<{ skill?: string }>): void;
+  handleSelectTrack(event: WechatMiniprogram.CustomEvent<{ track?: string }>): void;
   handleCancelMatchmaking(): void;
   handleContinueWaiting(): void;
   handleStartComputer(): void;
@@ -63,7 +70,7 @@ function getStateCopy(snapshot: BattleMatchmakingSnapshot) {
   if (snapshot.status === 'ERROR') {
     return { title: '正在重新连接', description: '匹配状态会继续保留，请重新同步最新状态。' };
   }
-  return { title: '准备开始随机匹配', description: '选择对战语言后开始匹配。' };
+  return { title: '准备开始随机匹配', description: '选择对战方向后开始匹配。' };
 }
 
 function formatWaitingCount(waitingCount: number) {
@@ -81,13 +88,17 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
     waitedText: '00:00',
     remainingText: '00:00',
     stateTitle: '准备开始随机匹配',
-    stateDescription: '选择对战语言后开始匹配。',
+    stateDescription: '选择对战方向后开始匹配。',
     availableSkills: [],
     selectedSkillCode: 'PYTHON',
     selectedSkillName: 'Python',
     computerAvailable: false,
     isStartingComputer: false,
     isCancelling: false,
+    tracks: [],
+    selectedTrackKey: 'big-data',
+    selectedTrackName: '大数据',
+    profileDefaultTrackKey: '',
   },
 
   onLoad() {
@@ -96,11 +107,15 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
     manager.setCollapsed(true);
     unsubscribeMatchmaking?.();
     unsubscribeMatchmaking = manager.subscribe((snapshot: BattleMatchmakingSnapshot) => this.applyManagerSnapshot(snapshot));
-    void Promise.allSettled([this.loadProfile(), manager.sync({ force: true })]);
+    void (async () => {
+      await this.loadProfile();
+      await this.loadTracks();
+      await manager.sync({ force: true, professionalTrackKey: this.data.selectedTrackKey });
+    })();
   },
 
   onShow() {
-    if (getAuthStateSummary().isAuthenticated) void getBattleMatchmakingManager().sync({ force: true });
+    if (getAuthStateSummary().isAuthenticated) void getBattleMatchmakingManager().sync({ force: true, professionalTrackKey: this.data.selectedTrackKey });
   },
 
   onUnload() {
@@ -128,6 +143,21 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
     }
   },
 
+  async loadTracks() {
+    try {
+      const response = await request<CourseCapabilityResponse>({ url: '/course-capabilities', method: 'GET', authMode: 'auto' });
+      const tracks = response.tracks.map((track) => {
+        const courses = response.items.filter((course) => course.professionalTracks.includes(track.trackKey) && course.supportsBattle);
+        return { ...track, courseCountText: `${courses.length} 门可用课程`, questionCountText: `${courses.reduce((sum, course) => sum + course.battleQuestionCount, 0)} 道可用对战题`, courseNames: courses.map((course) => course.title).join('、') || '暂无已发布对战题' };
+      });
+      const preferredTrackKey = this.data.profileDefaultTrackKey || this.data.selectedTrackKey;
+      const selected = tracks.find((track) => track.trackKey === preferredTrackKey) ?? tracks[0];
+      this.setData({ tracks, selectedTrackKey: selected?.trackKey ?? 'big-data', selectedTrackName: selected?.shortName ?? '大数据' });
+    } catch {
+      // Track selection remains usable with the server default when catalog decoration is unavailable.
+    }
+  },
+
   applyManagerSnapshot(snapshot: BattleMatchmakingSnapshot) {
     const copy = getStateCopy(snapshot);
     const selectedSkill = this.data.availableSkills.find((skill) => skill.code === snapshot.skillCode);
@@ -142,6 +172,7 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
       stateDescription: copy.description,
       selectedSkillCode: snapshot.skillCode || this.data.selectedSkillCode,
       selectedSkillName: selectedSkill?.name || snapshot.skillName || this.data.selectedSkillName,
+      selectedTrackKey: snapshot.professionalTrackKey || this.data.selectedTrackKey,
       computerAvailable: snapshot.computerAvailable,
       isStartingComputer: snapshot.isStartingComputer,
       isCancelling: snapshot.isCancelling,
@@ -151,15 +182,36 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
   updateProfileCard(profile: BattleProfileResponse) {
     const availableSkills = profile.availableSkills.map((skill: BattleSkillProfile) => ({ ...skill, ...formatBattleStarDisplay(skill.star) }));
     const selectedSkill = availableSkills.find((skill: BattleSkillOption) => skill.code === this.data.selectedSkillCode) ?? availableSkills[0];
-    this.setData({ availableSkills, selectedSkillCode: selectedSkill?.code ?? 'PYTHON', selectedSkillName: selectedSkill?.name ?? 'Python' });
+    const profileTrack = profile.defaultTrackKey;
+    const selectedTrack = profileTrack
+      ? this.data.tracks.find((track) => track.trackKey === profileTrack)
+      : undefined;
+    this.setData({
+      availableSkills,
+      selectedSkillCode: selectedSkill?.code ?? 'PYTHON',
+      selectedSkillName: selectedSkill?.name ?? 'Python',
+      ...(selectedTrack
+        ? { selectedTrackKey: selectedTrack.trackKey, selectedTrackName: selectedTrack.shortName }
+        : {}),
+      profileDefaultTrackKey: profile.defaultTrackKey ?? '',
+    });
   },
 
   handleStartMatchmaking() {
     if (!this.data.selectedSkillCode) {
-      wx.showToast({ title: '请先选择对战语言', icon: 'none' });
+      wx.showToast({ title: '请先选择对战方向', icon: 'none' });
       return;
     }
-    void getBattleMatchmakingManager().join(this.data.selectedSkillCode);
+    void getBattleMatchmakingManager().join(this.data.selectedSkillCode, this.data.selectedTrackKey);
+  },
+
+  handleSelectTrack(event: WechatMiniprogram.CustomEvent<{ track?: string }>) {
+    if (['SEARCHING', 'SEARCHING_COMPUTER_AVAILABLE', 'MATCHED', 'JOINING'].includes(this.data.state)) return;
+    const trackKey = event.currentTarget.dataset.track;
+    const track = this.data.tracks.find((item) => item.trackKey === trackKey);
+    if (!track) return;
+    this.setData({ selectedTrackKey: track.trackKey, selectedTrackName: track.shortName });
+    void getBattleMatchmakingManager().sync({ force: true, professionalTrackKey: track.trackKey });
   },
 
   handleSelectSkill(event: WechatMiniprogram.CustomEvent<{ skill?: string }>) {
@@ -186,7 +238,7 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
 
   handleRetry() {
     if (this.data.state === 'CANCELLED' || this.data.state === 'EXPIRED') {
-      void getBattleMatchmakingManager().join(this.data.selectedSkillCode);
+      void getBattleMatchmakingManager().join(this.data.selectedSkillCode, this.data.selectedTrackKey);
       return;
     }
     void getBattleMatchmakingManager().sync({ force: true });

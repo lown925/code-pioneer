@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { LearningStatus } from '../../generated/prisma/enums';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { getCourseCatalogEntry } from './course-catalog';
 
 export const COURSE_DIFFICULTIES = [
   'BEGINNER',
@@ -201,6 +202,7 @@ export class CourseService {
           estimatedMinutes: course.estimatedMinutes,
           chapterCount: course.chapters.length,
           learnerCount: course.learnerCount,
+          ...(() => { const metadata = getCourseCatalogEntry(course.slug); return { order: metadata?.order ?? 0, implementationLanguage: metadata?.implementationLanguage ?? course.language, subjectCategory: metadata?.subjectCategory ?? course.category, professionalTracks: metadata?.professionalTracks ?? [], interests: metadata?.interests ?? [], prerequisites: metadata?.prerequisites ?? [], nextCourses: metadata?.nextCourses ?? [] }; })(),
           progressPercent: progressByCourseId.get(course.id) ?? 0,
           isSelected: selectionByCourseId.get(course.id) ?? false,
         })),
@@ -283,6 +285,7 @@ export class CourseService {
         targetAudience: course.targetAudience,
         learningObjectives: course.learningObjectives,
         learnerCount: course.learnerCount,
+        ...(() => { const metadata = getCourseCatalogEntry(course.slug); return { order: metadata?.order ?? 0, implementationLanguage: metadata?.implementationLanguage ?? course.language, subjectCategory: metadata?.subjectCategory ?? course.category, professionalTracks: metadata?.professionalTracks ?? [], interests: metadata?.interests ?? [], prerequisites: metadata?.prerequisites ?? [], nextCourses: metadata?.nextCourses ?? [] }; })(),
         progressPercent,
         isSelected,
         chapters: course.chapters,

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { randomInt } from 'crypto';
 import { PracticeAttemptStatus, QuestionType } from '../../generated/prisma/enums';
 import type { CurrentUserContext } from '../auth/auth.types';
@@ -10,6 +10,8 @@ import {
 } from '../question/question-answer';
 import type { CreatePracticeAttemptDto } from './dto/create-practice-attempt.dto';
 import type { SubmitPracticeAnswerDto } from './dto/submit-practice-answer.dto';
+import { canonicalizeQuestionBlocks } from '../question/content-blocks';
+import { CourseCapabilityService } from '../course/course-capability.service';
 
 const SUPPORTED_TYPES = [
   QuestionType.SINGLE_CHOICE,
@@ -20,9 +22,30 @@ const SUPPORTED_TYPES = [
 
 @Injectable()
 export class PracticeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly courseCapabilityService?: CourseCapabilityService,
+  ) {}
 
   async getTargets(_currentUser: CurrentUserContext) {
+    if (this.courseCapabilityService) {
+      const capabilities = await this.courseCapabilityService.getPublishedCapabilities();
+      return {
+        success: true as const,
+        data: {
+          items: capabilities
+            .filter((course) => course.supportsPractice)
+            .map((course) => ({
+              courseId: course.courseId,
+              courseTitle: course.title,
+              category: course.subjectCategory,
+              language: course.implementationLanguage,
+              availableQuestionCount: course.practiceQuestionCount,
+            })),
+        },
+      };
+    }
+
     const courses = await this.prisma.course.findMany({
       where: {
         status: 'PUBLISHED',
@@ -141,12 +164,12 @@ export class PracticeService {
           order: index + 1,
           type: question.type,
           content: question.content,
-          stemBlocks: this.resolveBlocks(question.stemBlocks, question.content),
+          stemBlocks: canonicalizeQuestionBlocks(question.stemBlocks, question.content),
           programmingLanguage: question.programmingLanguage,
           options: question.options.map((option) => ({
             optionId: option.id,
             content: option.content,
-            contentBlocks: this.resolveBlocks(option.contentBlocks, option.content),
+            contentBlocks: canonicalizeQuestionBlocks(option.contentBlocks, option.content),
             order: option.sortOrder,
           })),
         })),
@@ -256,7 +279,7 @@ export class PracticeService {
         acceptedAnswers: evaluated.acceptedAnswers,
         isCorrect: evaluated.isCorrect,
         explanation: question.explanation,
-        explanationBlocks: this.resolveBlocks(question.explanationBlocks, question.explanation ?? ''),
+        explanationBlocks: canonicalizeQuestionBlocks(question.explanationBlocks, question.explanation),
         answeredCount,
         totalQuestionCount: attempt.requestedQuestionCount,
         completed,
@@ -290,7 +313,7 @@ export class PracticeService {
         acceptedAnswers: evaluated.acceptedAnswers,
         isCorrect: evaluated.isCorrect,
         explanation: question.explanation,
-        explanationBlocks: this.resolveBlocks(question.explanationBlocks, question.explanation ?? ''),
+        explanationBlocks: canonicalizeQuestionBlocks(question.explanationBlocks, question.explanation),
         answeredCount,
         totalQuestionCount: attempt.requestedQuestionCount,
         completed: answeredCount >= attempt.requestedQuestionCount,
@@ -385,14 +408,6 @@ export class PracticeService {
       acceptedAnswers: null,
       isCorrect: selectedOption.isCorrect,
     };
-  }
-
-  private resolveBlocks(value: unknown, fallback: string) {
-    return Array.isArray(value) && value.length > 0
-      ? value
-      : fallback.trim()
-        ? [{ type: 'TEXT', text: fallback }]
-        : [];
   }
 
   private shuffle<T>(items: T[]) {

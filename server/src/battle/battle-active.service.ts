@@ -8,6 +8,7 @@ import { COMPLETED_BATTLE_RECOVERY_TTL_SECONDS } from './battle.constants';
 import { BattleDomainService } from './battle-domain.service';
 import { BattleRoomService } from './battle-room.service';
 import { BattleSettlementService } from './battle-settlement.service';
+import { getProfessionalTrackIdentity } from '../course/course-catalog';
 import type {
   ActiveBattleRecoveryPayload,
   BattleActiveRoomSummary,
@@ -101,6 +102,8 @@ export class BattleActiveService {
       roomStatus: battle.roomStatus,
       participantStatus: battle.participantStatus,
       skillCode: battle.skillCode,
+      professionalTrackKey: battle.professionalTrackKey,
+      professionalTrack: getProfessionalTrackIdentity(battle.professionalTrackKey),
       skillName: battle.skillName,
       invitationToken: battle.invitationToken,
       inviteCode: battle.inviteCode,

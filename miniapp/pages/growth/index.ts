@@ -1,6 +1,7 @@
 import { registerThemedPage } from "../../utils/theme-page";
 import type {
   GrowthBattleSkillSummary,
+  GrowthBattleTrackSummary,
   GrowthChapterPerformance,
   GrowthCourseRecommendation,
   GrowthLearningGoal,
@@ -119,6 +120,9 @@ type GrowthPageData = {
   selectedSkillCode: string;
   selectedSkill: GrowthBattleSkillSummary | null;
   skillItems: GrowthBattleSkillSummary[];
+  selectedTrackKey: string;
+  selectedTrack: GrowthBattleTrackSummary | null;
+  trackItems: GrowthBattleTrackSummary[];
   ratingChartPoints: RatingChartPoint[];
   currentRatingText: string;
   highestRatingText: string;
@@ -140,6 +144,9 @@ type GrowthPageMethods = {
   applyOverview(overview: GrowthOverviewResponse): void;
   handleSkillChange(
     event: WechatMiniprogram.BaseEvent<{ code?: string }>,
+  ): void;
+  handleTrackChange(
+    event: WechatMiniprogram.BaseEvent<{ trackKey?: string }>,
   ): void;
   handleWrongCourseChange(
     event: WechatMiniprogram.BaseEvent<{ courseId?: string }>,
@@ -255,14 +262,18 @@ function buildWrongAreaViews(areas: GrowthWrongArea[], courseId: string) {
   }));
 }
 
-function buildRatingChartPoints(skill: GrowthBattleSkillSummary | null) {
+function buildRatingChartPoints(
+  skill: Pick<GrowthBattleSkillSummary, "ratingTrend"> | GrowthBattleTrackSummary | null,
+) {
   return (skill?.ratingTrend ?? []).map((item, index) => ({
     label: String(index + 1),
     value: item.ratingAfter,
   }));
 }
 
-function buildRatingNetChange(skill: GrowthBattleSkillSummary | null) {
+function buildRatingNetChange(
+  skill: Pick<GrowthBattleSkillSummary, "ratingTrend"> | GrowthBattleTrackSummary | null,
+) {
   const trend = skill?.ratingTrend ?? [];
   if (trend.length === 0) return null;
   return trend[trend.length - 1].ratingAfter - trend[0].ratingBefore;
@@ -335,6 +346,9 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     selectedSkillCode: "",
     selectedSkill: null,
     skillItems: [],
+    selectedTrackKey: "",
+    selectedTrack: null,
+    trackItems: [],
     ratingChartPoints: [],
     currentRatingText: "未定级",
     highestRatingText: "暂无",
@@ -494,6 +508,37 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     });
   },
 
+  handleTrackChange(
+    event: WechatMiniprogram.BaseEvent<{ trackKey?: string }>,
+  ) {
+    const trackKey = event.currentTarget.dataset.trackKey;
+    const track = this.data.trackItems.find((item) => item.trackKey === trackKey);
+    if (!track) return;
+    const ratingTrend = track.ratingTrend ?? [];
+    const netChange = buildRatingNetChange(track);
+    this.setData({
+      selectedTrackKey: track.trackKey,
+      selectedTrack: track,
+      ratingChartPoints: buildRatingChartPoints(track),
+      hasRatingTrend: ratingTrend.length > 0,
+      currentRatingText:
+        track.rankedBattles > 0 && track.rating !== null
+          ? String(track.rating)
+          : "未定级",
+      highestRatingText:
+        track.highestRating === null ? "暂无" : String(track.highestRating),
+      ratingNetChangeText:
+        netChange === null ? "暂无" : `${netChange > 0 ? "+" : ""}${netChange}`,
+      rankedBattleText: `${track.rankedBattles} 场`,
+      trainingBattleText: `${track.trainingBattles} 场`,
+      friendBattleText: `${track.friendBattles} 场`,
+      ratingEmptyText:
+        track.rankedBattles + track.trainingBattles + track.friendBattles === 0
+          ? "暂无该专业对战数据"
+          : "暂无专业积分趋势",
+    });
+  },
+
   handleWrongCourseChange(
     event: WechatMiniprogram.BaseEvent<{ courseId?: string }>,
   ) {
@@ -632,10 +677,19 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     const wrongQuestions = overview.wrongQuestions;
     const battle = overview.battle;
     const skills = battle.skills ?? [];
+    const tracks = battle.tracks ?? [];
     const selectedSkill =
       skills.find((item) => item.code === this.data.selectedSkillCode) ??
       skills.find((item) => item.code === battle.defaultSkillCode) ??
       skills[0] ??
+      null;
+    const selectedTrack =
+      tracks.find((item) => item.trackKey === this.data.selectedTrackKey) ??
+      tracks.find(
+        (item) => item.trackKey === overview.profile.professionalTrack?.trackKey,
+      ) ??
+      tracks.find((item) => item.trackKey === battle.defaultTrackKey) ??
+      tracks[0] ??
       null;
     const wrongAreas =
       wrongQuestions.areas ?? wrongQuestions.topWeakAreas ?? [];
@@ -686,7 +740,7 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
       hasChapterData: chapterItems.length > 0,
       hasTrendData: validTrendPointCount >= 3,
       hasWrongData: wrongQuestions.totalWrongAttempts > 0,
-      hasBattleData: skills.length > 0,
+      hasBattleData: tracks.length > 0 || skills.length > 0,
       profileMajorText: getGrowthValueLabel(profile.major, MAJOR_OPTIONS),
       profileGradeText: getGrowthValueLabel(profile.grade, GRADE_OPTIONS),
       profileDirectionText: getGrowthValueLabel(
@@ -717,6 +771,7 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
       selectedWrongCourseId,
       wrongAreaItems: buildWrongAreaViews(wrongAreas, selectedWrongCourseId),
       skillItems: skills,
+      trackItems: tracks,
       goalProgressWidth: `${Math.max(0, Math.min(100, overview.goal?.progressPercent ?? 0))}%`,
       goalTargetText: buildGoalDateText(overview.goal ?? null),
       goalStatusText: buildGoalStatusText(overview.goal ?? null),
@@ -727,7 +782,40 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
       goalCadenceText: buildGoalCadenceText(overview.goal ?? null),
     });
 
-    if (selectedSkill) {
+    if (selectedTrack) {
+      const trackTrend = selectedTrack.ratingTrend ?? [];
+      const netChange = buildRatingNetChange(selectedTrack);
+      this.setData({
+        selectedTrackKey: selectedTrack.trackKey,
+        selectedTrack,
+        ratingChartPoints: buildRatingChartPoints(selectedTrack),
+        hasRatingTrend: trackTrend.length > 0,
+        currentRatingText:
+          selectedTrack.rankedBattles > 0 && selectedTrack.rating !== null
+            ? String(selectedTrack.rating)
+            : "未定级",
+        highestRatingText:
+          selectedTrack.highestRating === null
+            ? "暂无"
+            : String(selectedTrack.highestRating),
+        ratingNetChangeText:
+          netChange === null
+            ? "暂无"
+            : `${netChange > 0 ? "+" : ""}${netChange}`,
+        rankedBattleText: `${selectedTrack.rankedBattles} 场`,
+        trainingBattleText: `${selectedTrack.trainingBattles} 场`,
+        friendBattleText: `${selectedTrack.friendBattles} 场`,
+        ratingEmptyText:
+          selectedTrack.rankedBattles +
+            selectedTrack.trainingBattles +
+            selectedTrack.friendBattles ===
+          0
+            ? "暂无该专业对战数据"
+            : "暂无专业积分趋势",
+      });
+    }
+
+    if (selectedSkill && !selectedTrack) {
       const skillTrend = selectedSkill.ratingTrend ?? [];
       const netChange = buildRatingNetChange(selectedSkill);
       this.setData({
@@ -758,7 +846,7 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
             ? "暂无该技能对战数据"
             : "暂无随机匹配积分趋势",
       });
-    } else {
+    } else if (!selectedTrack) {
       this.setData({
         selectedSkill: null,
         ratingChartPoints: [],

@@ -72,6 +72,7 @@ export type WrongQuestionStatisticsResponse = WrongQuestionStatistics;
 export type WrongQuestionOption = {
   optionId: string;
   content: string;
+  contentBlocks?: BattleContentBlock[];
   order: number;
 };
 
@@ -105,6 +106,7 @@ export type WrongQuestionDetail = {
   correctOptionId: string | null;
   correctAnswer: WrongQuestionCorrectAnswer | null;
   explanation: string | BattleContentBlock[] | null;
+  explanationBlocks?: BattleContentBlock[] | null;
   wrongCount: number;
   lastWrongAt: string;
   latestWrongAt: string;

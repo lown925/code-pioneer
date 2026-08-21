@@ -4,6 +4,7 @@ import {
   GoneException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   BattleEndReason,
@@ -27,11 +28,13 @@ import { BattleRoomService } from './battle-room.service';
 import { BattleTokenService } from './battle-token.service';
 import { type CurrentUserContext } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { getProfessionalTrackIdentity } from '../course/course-catalog';
 import { BattleSkillService } from './battle-skill.service';
 import type {
   BattleTransactionClient,
   FriendRoomPreviewPayload,
 } from './battle.types';
+import { BattleTrackService, DEFAULT_PROFESSIONAL_TRACK_KEY } from './battle-track.service';
 
 type InvitationRecord = {
   id: string;
@@ -53,6 +56,7 @@ type InvitationRecord = {
     id: string;
     mode: BattleMode;
     skillCode: string | null;
+    professionalTrackKey: string | null;
     status: BattleRoomStatus;
     startedAt: Date | null;
     expiresAt: Date | null;
@@ -71,14 +75,17 @@ export class BattleFriendRoomService {
     private readonly battleTokenService: BattleTokenService,
     private readonly battleRoomService: BattleRoomService,
     private readonly battleSkillService: BattleSkillService,
+    @Optional() private readonly battleTrackService?: BattleTrackService,
   ) {}
 
   async createFriendRoom(
     currentUser: CurrentUserContext,
     requestedSkill = 'PYTHON',
+    requestedTrack = DEFAULT_PROFESSIONAL_TRACK_KEY,
   ) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      const professionalTrackKey = this.battleTrackService?.normalize(requestedTrack) ?? DEFAULT_PROFESSIONAL_TRACK_KEY;
       await this.battleDomainService.acquireUserBattleLock(currentUser.id, tx);
       await this.battleDomainService.ensureBattleProfile(currentUser.id, tx);
       const skill = await this.battleSkillService.assertAvailableSkill(
@@ -122,7 +129,7 @@ export class BattleFriendRoomService {
           ) {
             const activeRoom = await tx.battleRoom.findUnique({
               where: { id: activeBattle.battleRoomId },
-              select: { skillCode: true },
+              select: { skillCode: true, professionalTrackKey: true },
             });
 
             if (
@@ -132,10 +139,19 @@ export class BattleFriendRoomService {
               throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_SKILL_LOCKED);
             }
 
+            if (
+              activeRoom?.professionalTrackKey &&
+              activeRoom.professionalTrackKey !== professionalTrackKey
+            ) {
+              throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_SKILL_LOCKED);
+            }
+
             return {
               battleId: activeBattle.battleRoomId,
               mode: BattleMode.FRIEND,
               skill: activeRoom?.skillCode ?? null,
+              professionalTrackKey: activeRoom?.professionalTrackKey ?? professionalTrackKey,
+              professionalTrack: getProfessionalTrackIdentity(activeRoom?.professionalTrackKey ?? professionalTrackKey),
               status: activeBattle.roomStatus,
               invitationToken: existingInvitation.token,
               inviteCode: existingInvitation.inviteCode,
@@ -158,6 +174,7 @@ export class BattleFriendRoomService {
         data: {
           mode: BattleMode.FRIEND,
           skillCode: skill.code,
+          professionalTrackKey,
           status: BattleRoomStatus.WAITING,
           questionCount: DEFAULT_BATTLE_QUESTION_COUNT,
           durationSeconds: BATTLE_DURATION_SECONDS,
@@ -172,6 +189,7 @@ export class BattleFriendRoomService {
           mode: true,
           status: true,
           skillCode: true,
+          professionalTrackKey: true,
         },
       });
 
@@ -195,6 +213,8 @@ export class BattleFriendRoomService {
         battleId: room.id,
         mode: room.mode,
         skill: room.skillCode,
+        professionalTrackKey: room.professionalTrackKey,
+        professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
         status: room.status,
         invitationToken: invitation.token,
         inviteCode: invitation.inviteCode,
@@ -793,6 +813,8 @@ export class BattleFriendRoomService {
     }) => ({
       battleId: invitation.battleRoomId,
       skill: invitation.battleRoom.skillCode,
+      professionalTrackKey: invitation.battleRoom.professionalTrackKey,
+      professionalTrack: getProfessionalTrackIdentity(invitation.battleRoom.professionalTrackKey),
       roomStatus: invitation.battleRoom.status,
       invitationStatus: invitation.status,
       inviteCode: invitation.inviteCode,
@@ -846,6 +868,7 @@ export class BattleFriendRoomService {
             id: true,
             mode: true,
             skillCode: true,
+            professionalTrackKey: true,
             status: true,
             startedAt: true,
             expiresAt: true,
@@ -892,6 +915,7 @@ export class BattleFriendRoomService {
             id: true,
             mode: true,
             skillCode: true,
+            professionalTrackKey: true,
             status: true,
             startedAt: true,
             expiresAt: true,

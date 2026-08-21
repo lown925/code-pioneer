@@ -135,11 +135,11 @@
     <view wx:if="{{hasBattleData}}" class="growth-section battle-section">
       <view class="section-heading"><view><text class="section-title">对战</text><text class="section-subtitle">竞技、训练和好友对战分开统计</text></view><text class="section-link" data-path="/pages/battle/index" bindtap="handleRecommendationTap">进入对战 ›</text></view>
       <view class="battle-summary">
-        <scroll-view wx:if="{{skillItems.length}}" scroll-x class="skill-filter"><view wx:for="{{skillItems}}" wx:key="code" class="skill-filter-item {{item.code === selectedSkillCode ? 'is-active' : ''}}" data-code="{{item.code}}" bindtap="handleSkillChange">{{item.name}}</view></scroll-view>
-        <view wx:if="{{selectedSkill}}" class="battle-primary"><view><text class="battle-rating-label">{{selectedSkill.name}} 积分</text><text class="battle-rating-value">{{currentRatingText}}</text></view><text class="battle-rating-high">最高 {{highestRatingText}}</text></view>
+        <scroll-view wx:if="{{trackItems.length}}" scroll-x class="skill-filter"><view wx:for="{{trackItems}}" wx:key="trackKey" class="skill-filter-item {{item.trackKey === selectedTrackKey ? 'is-active' : ''}}" data-track-key="{{item.trackKey}}" bindtap="handleTrackChange">{{item.shortName}}</view></scroll-view>
+        <view wx:if="{{selectedTrack}}" class="battle-primary"><view><text class="battle-rating-label">{{selectedTrack.shortName}}专业积分</text><text class="battle-rating-value">{{currentRatingText}}</text></view><text class="battle-rating-high">最高 {{highestRatingText}}</text></view>
         <view class="battle-mode-list"><view class="battle-mode-row"><text>随机匹配</text><text>{{rankedBattleText}}</text></view><view class="battle-mode-row"><text>训练</text><text>{{trainingBattleText}}</text></view><view class="battle-mode-row"><text>好友对战</text><text>{{friendBattleText}}</text></view></view>
-        <view wx:if="{{selectedSkill && hasRatingTrend}}" class="rating-trend"><view class="rating-trend-heading"><text class="rating-trend-title">积分趋势</text><text class="rating-note">最近 {{ratingChartPoints.length}} 场 · 净变化 {{ratingNetChangeText}}</text></view><growth-line-chart rating-points="{{ratingChartPoints}}" chart-mode="rating" resolved-theme="{{resolvedTheme}}" /></view>
-        <view wx:elif="{{selectedSkill}}" class="inline-empty">{{ratingEmptyText}}</view>
+        <view wx:if="{{selectedTrack && hasRatingTrend}}" class="rating-trend"><view class="rating-trend-heading"><text class="rating-trend-title">专业积分趋势</text><text class="rating-note">最近 {{ratingChartPoints.length}} 场 · 净变化 {{ratingNetChangeText}}</text></view><growth-line-chart rating-points="{{ratingChartPoints}}" chart-mode="rating" resolved-theme="{{resolvedTheme}}" /></view>
+        <view wx:elif="{{selectedTrack}}" class="inline-empty">{{ratingEmptyText}}</view>
       </view>
     </view>
 

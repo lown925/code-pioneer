@@ -247,6 +247,58 @@ describe('BattleQuestionService', () => {
     ).toBe(false);
   });
 
+  it('balances professional-track snapshots across eligible courses', async () => {
+    const { mock, service } = createService();
+    mock.battleRooms.get('room-1')!.professionalTrackKey = 'big-data';
+    mock.battleQuestionSnapshots.clear();
+    for (let index = 1; index <= 3; index += 1) {
+      mock.quizQuestions.set(
+        `python-${index}`,
+        createCandidate(`python-${index}`, 'PYTHON', {
+          courseId: 'course-python',
+        }),
+      );
+    }
+    for (let index = 1; index <= 3; index += 1) {
+      mock.quizQuestions.set(
+        `algorithm-${index}`,
+        createCandidate(`algorithm-${index}`, 'PYTHON', {
+          courseId: 'course-algorithms',
+        }),
+      );
+    }
+
+    await service.createQuestionSnapshotsAndStartCountdown(mock.tx as never, {
+      battleId: 'room-1',
+      questionCount: 6,
+      durationSeconds: 180,
+      now: new Date(),
+      skillCode: 'PYTHON',
+      professionalTrackKey: 'big-data',
+    });
+
+    const courseCounts = [...mock.battleQuestionSnapshots.values()].reduce(
+      (counts, snapshot) =>
+        counts.set(
+          snapshot.courseIdSnapshot,
+          (counts.get(snapshot.courseIdSnapshot) ?? 0) + 1,
+        ),
+      new Map<string, number>(),
+    );
+
+    expect(courseCounts).toEqual(
+      new Map([
+        ['course-python', 3],
+        ['course-algorithms', 3],
+      ]),
+    );
+    expect(
+      [...mock.battleQuestionSnapshots.values()].every(
+        (snapshot) => snapshot.skillCodeSnapshot === 'PYTHON',
+      ),
+    ).toBe(true);
+  });
+
   it('never creates Battle snapshots from EASY questions', async () => {
     const { mock, service } = createService();
     mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';
@@ -309,6 +361,20 @@ describe('BattleQuestionService', () => {
             code: 'text = "Python"\nprint(len(text))',
           },
         ],
+        explanationBlocks: [
+          {
+            type: 'CODE',
+            language: 'python',
+            code: 'print("explanation")',
+          },
+        ],
+        optionContentBlocks: [
+          {
+            type: 'CODE',
+            language: 'python',
+            code: 'print("option")',
+          },
+        ],
       }),
     );
     mock.quizQuestions.set('python-2', createCandidate('python-2', 'PYTHON'));
@@ -331,6 +397,18 @@ describe('BattleQuestionService', () => {
         language: 'python',
         code: 'text = "Python"\nprint(len(text))',
       },
+    ]);
+    expect(snapshot?.explanationSnapshot).toEqual([
+      { type: 'TEXT', text: 'Explanation' },
+      { type: 'CODE', language: 'python', code: 'print("explanation")' },
+    ]);
+    const correctOption = snapshot?.optionsSnapshot?.find((option) =>
+      Array.isArray(option.blocks) &&
+      option.blocks.some((block) => block.type === 'TEXT' && block.text === 'Correct'),
+    );
+    expect(correctOption?.blocks).toEqual([
+      { type: 'TEXT', text: 'Correct' },
+      { type: 'CODE', language: 'python', code: 'print("option")' },
     ]);
   });
 
@@ -360,7 +438,11 @@ function createCandidate(
   overrides: {
     content?: string;
     stemBlocks?: unknown;
+    explanationBlocks?: unknown;
+    optionContentBlocks?: unknown;
     battleDifficulty?: BattleQuestionDifficulty;
+    courseId?: string;
+    chapterId?: string;
   } = {},
 ) {
   return {
@@ -373,7 +455,7 @@ function createCandidate(
       overrides.battleDifficulty ?? BattleQuestionDifficulty.MEDIUM,
     isBattleEnabled: true,
     stemBlocks: overrides.stemBlocks ?? [{ type: 'TEXT', text: id }],
-    explanationBlocks: [{ type: 'TEXT', text: 'Explanation' }],
+    explanationBlocks: overrides.explanationBlocks ?? [{ type: 'TEXT', text: 'Explanation' }],
     acceptedAnswers: null,
     answerNormalization: null,
     caseSensitive: true,
@@ -385,7 +467,7 @@ function createCandidate(
       {
         id: `${id}-correct`,
         content: 'Correct',
-        contentBlocks: null,
+        contentBlocks: overrides.optionContentBlocks ?? null,
         isCorrect: true,
         sortOrder: 1,
       },
@@ -399,10 +481,10 @@ function createCandidate(
     ],
     quiz: {
       status: QuizStatus.PUBLISHED,
-      chapterId: 'chapter-1',
+      chapterId: overrides.chapterId ?? 'chapter-1',
       chapter: {
         status: ChapterStatus.PUBLISHED,
-        courseId: 'course-1',
+        courseId: overrides.courseId ?? 'course-1',
         course: { status: CourseStatus.PUBLISHED },
       },
     },

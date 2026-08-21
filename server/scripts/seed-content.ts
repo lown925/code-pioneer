@@ -16,6 +16,7 @@ import type {
   SeedQuestion,
   SeedSingleChoiceQuestion,
 } from '../prisma/seed-data/types';
+import { assertNoExactDuplicatesInCourse, auditCrossCourseExactDuplicates } from '../prisma/seed-data/content-quality';
 import {
   BattleQuestionDifficulty,
   ChapterStatus,
@@ -361,6 +362,7 @@ function getCaseSensitive(question: SeedQuestion) {
 }
 
 function validateCourseSeed(course: SeedCourse) {
+  assertNoExactDuplicatesInCourse(course);
   if (course.chapters.length === 0) {
     throw new Error(`${course.slug} must contain at least one chapter`);
   }
@@ -799,6 +801,10 @@ async function upsertBattleSkills(prisma: PrismaService) {
 async function main() {
   for (const course of VERSIONED_COURSE_SEEDS) {
     validateCourseSeed(course);
+  }
+  const crossCourseDuplicates = auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS);
+  if (crossCourseDuplicates.length > 0) {
+    console.warn(`Cross-course exact duplicate groups: ${crossCourseDuplicates.length}`);
   }
 
   const prisma = new PrismaService();

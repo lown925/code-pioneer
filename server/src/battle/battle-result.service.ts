@@ -15,6 +15,7 @@ import { BATTLE_ERROR_CODES } from './battle.errors';
 import { BattleRoomService } from './battle-room.service';
 import { BattleSettlementService } from './battle-settlement.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { getProfessionalTrackIdentity } from '../course/course-catalog';
 import type { BattleResultPayload } from './battle.types';
 import {
   calculateBattleCompetitiveTierChange,
@@ -80,6 +81,7 @@ export class BattleResultService {
           id: true,
           mode: true,
           skillCode: true,
+          professionalTrackKey: true,
           questionCount: true,
           durationSeconds: true,
           correctScore: true,
@@ -186,6 +188,8 @@ export class BattleResultService {
           battleId: room.id,
           mode: room.mode,
           skill: room.skillCode,
+          professionalTrackKey: room.professionalTrackKey,
+          professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
           status: room.status,
           completed: false,
           totalQuestions: room.questionCount,
@@ -244,6 +248,8 @@ export class BattleResultService {
           battleId: room.id,
           mode: room.mode,
           skill: room.skillCode,
+          professionalTrackKey: room.professionalTrackKey,
+          professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
           status: BattleRoomStatus.COMPLETED,
           completed: true,
           result: BattleResult.NONE,
@@ -330,6 +336,8 @@ export class BattleResultService {
           battleId: room.id,
           mode: room.mode,
           skill: room.skillCode,
+          professionalTrackKey: room.professionalTrackKey,
+          professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
           status: BattleRoomStatus.COMPLETED,
           completed: true,
           result: currentParticipant.result,
@@ -393,11 +401,14 @@ export class BattleResultService {
       let afterStar: BattleCompetitiveStar | null = null;
       let tierChange: BattleCompetitiveTierChange | null = null;
 
-      if (room.mode === BattleMode.RANKED && room.skillCode) {
+      if (room.mode === BattleMode.RANKED && (room.professionalTrackKey || room.skillCode)) {
+        const usesTrackRating = Boolean(room.professionalTrackKey);
         const ratingLogs = await tx.battleRatingLog.findMany({
           where: {
             userId: currentUserId,
-            skillCode: room.skillCode,
+            ...(usesTrackRating
+              ? { professionalTrackKey: room.professionalTrackKey }
+              : { skillCode: room.skillCode }),
             reason: BattleRatingReason.BATTLE_RESULT,
           },
           select: {
@@ -405,13 +416,17 @@ export class BattleResultService {
             userId: true,
             battleRoomId: true,
             skillCode: true,
+            professionalTrackKey: true,
             createdAt: true,
           },
         });
         const orderedRatingLogs = ratingLogs
           .filter(
             (log) =>
-              log.userId === currentUserId && log.skillCode === room.skillCode,
+              log.userId === currentUserId &&
+              (usesTrackRating
+                ? log.professionalTrackKey === room.professionalTrackKey
+                : log.skillCode === room.skillCode),
           )
           .sort(
             (left, right) =>
@@ -434,7 +449,11 @@ export class BattleResultService {
           currentLogIndex === 0,
         );
         star = competitiveChange.afterStar;
-        title = createBattleCompetitiveTitle(room.skill.name, star);
+        title = createBattleCompetitiveTitle(
+          getProfessionalTrackIdentity(room.professionalTrackKey)?.shortName ??
+            room.skill.name,
+          star,
+        );
         beforeStar = competitiveChange.beforeStar;
         afterStar = competitiveChange.afterStar;
         tierChange = competitiveChange.change;
@@ -444,6 +463,8 @@ export class BattleResultService {
         battleId: room.id,
         mode: room.mode,
         skill: room.skillCode,
+        professionalTrackKey: room.professionalTrackKey,
+        professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
         status: BattleRoomStatus.COMPLETED,
         completed: true,
         result: currentParticipant.result,

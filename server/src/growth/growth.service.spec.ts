@@ -22,6 +22,9 @@ function createMockPrisma() {
       findUnique: jest.fn(),
       findMany: jest.fn(),
     },
+    userBattleTrackRating: {
+      findMany: jest.fn(),
+    },
     battleSkill: { findMany: jest.fn() },
     battleRatingLog: { findMany: jest.fn() },
     userLearningGoal: {
@@ -50,6 +53,7 @@ function seedEmpty(prisma: ReturnType<typeof createMockPrisma>) {
   prisma.battleProfile.findUnique.mockResolvedValue(null);
   prisma.userBattleSkillRating.findUnique.mockResolvedValue(null);
   prisma.userBattleSkillRating.findMany.mockResolvedValue([]);
+  prisma.userBattleTrackRating.findMany.mockResolvedValue([]);
   prisma.battleSkill.findMany.mockResolvedValue([]);
   prisma.battleRatingLog.findMany.mockResolvedValue([]);
   prisma.userLearningGoal.findFirst.mockResolvedValue(null);
@@ -109,6 +113,60 @@ describe('GrowthService', () => {
         (item) => item.type === 'EXPLORE_GROWTH',
       ),
     ).toBe(true);
+  });
+
+  it('exposes profile-driven professional track battle summaries without legacy skill migration', async () => {
+    const prisma = createMockPrisma();
+    const now = new Date('2026-08-18T04:00:00.000Z');
+    seedEmpty(prisma);
+    prisma.user.findFirst.mockResolvedValue({
+      major: 'major.data_science_big_data',
+      grade: 'grade.freshman',
+      learningDirection: 'direction.big_data',
+      technicalInterests: [],
+      careerDirection: null,
+    });
+    prisma.battleParticipant.findMany.mockResolvedValue([
+      {
+        battleRoom: {
+          id: 'track-room',
+          mode: BattleMode.RANKED,
+          skillCode: 'PYTHON',
+          professionalTrackKey: 'big-data',
+          status: BattleRoomStatus.COMPLETED,
+          completedAt: now,
+        },
+        answers: [{
+          isCorrect: true,
+          submittedAt: now,
+          battleQuestionSnapshot: {
+            id: 'track-question',
+            sourceQuizQuestionId: 'question-1',
+            chapterIdSnapshot: null,
+            courseIdSnapshot: null,
+          },
+        }],
+      },
+    ]);
+    prisma.userBattleTrackRating.findMany.mockResolvedValue([
+      { trackKey: 'big-data', rating: 1040, highestRating: 1040, rankedBattles: 1 },
+    ]);
+
+    const result = await new GrowthService(
+      prisma as unknown as PrismaService,
+    ).getOverview('user-1', '7d', now);
+
+    expect(result.data.profile.professionalTrack).toMatchObject({
+      trackKey: 'big-data',
+      shortName: '大数据',
+    });
+    expect(result.data.battle.defaultTrackKey).toBe('big-data');
+    expect(result.data.battle.tracks?.find((track) => track.trackKey === 'big-data')).toMatchObject({
+      rating: 1040,
+      rankedBattles: 1,
+      ranked: { answeredCount: 1 },
+    });
+    expect(result.data.battle.currentPythonRating).toBeNull();
   });
 
   it('combines Quiz and completed Practice by chapter while keeping Battle modes separate', async () => {

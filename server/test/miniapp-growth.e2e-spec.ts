@@ -160,14 +160,24 @@ describe('miniapp Growth product skeleton', () => {
       ],
     );
 
-    expect(recommendations).toEqual([
+    expect(recommendations.map((item) => item.courseId)).toEqual([
+      'course-python',
+      'course-data-structures',
+    ]);
+    expect(recommendations[0]).toEqual(
       expect.objectContaining({
         courseId: 'course-python',
         courseTitle: 'Python 基础入门',
-        reason: expect.stringContaining('Python'),
         targetPath: '/pages/course/detail?courseId=course-python',
       }),
-    ]);
+    );
+    expect(recommendations[1]).toEqual(
+      expect.objectContaining({
+        courseId: 'course-data-structures',
+        courseTitle: '数据结构与算法基础',
+        targetPath: '/pages/course/detail?courseId=course-data-structures',
+      }),
+    );
     expect(
       buildGrowthCourseRecommendations(
         {
@@ -221,6 +231,7 @@ describe('miniapp Growth product skeleton', () => {
       learnerCount: 0,
       progressPercent: 0,
       isSelected: false,
+      prerequisites: ['python-basic'],
     };
 
     const whilePythonIncomplete = buildGrowthCourseRecommendations(profile, [

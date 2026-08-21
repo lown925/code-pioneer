@@ -59,7 +59,17 @@
     <block wx:if="{{!detail.isBattleSource}}">
       <view class="section-card content-card">
         <text class="section-title">题干</text>
-        <view class="question-content">{{detail.contentText}}</view>
+        <view wx:if="{{detail.learningStemBlocks.length > 0}}" class="content-block-list">
+          <block wx:for="{{detail.learningStemBlocks}}" wx:key="blockKey" wx:for-item="stemBlock">
+            <text wx:if="{{stemBlock.type === 'TEXT'}}" class="question-content">{{stemBlock.text}}</text>
+            <text wx:elif="{{stemBlock.type === 'CODE'}}" class="content-code">{{stemBlock.code}}</text>
+            <view wx:elif="{{stemBlock.type === 'IMAGE'}}" class="content-image-box">
+              <image wx:if="{{!stemBlock.imageFailed}}" class="content-image" src="{{stemBlock.url}}" mode="widthFix" data-section="learning-stem" data-block-key="{{stemBlock.blockKey}}" binderror="handleImageError" />
+              <view wx:else class="image-fallback">{{stemBlock.altText}}</view>
+            </view>
+          </block>
+        </view>
+        <view wx:else class="question-content">{{detail.contentText}}</view>
       </view>
 
       <view wx:if="{{!detail.isLearningTextQuestion}}" class="section-card content-card">
@@ -75,7 +85,13 @@
               <text class="option-label">{{option.labelText}}</text>
               <text class="option-tag {{option.statusClassName}}">{{option.statusText}}</text>
             </view>
-            <text class="option-content">{{option.contentText}}</text>
+            <view wx:if="{{option.contentBlocks.length > 0}}" class="content-block-list">
+              <block wx:for="{{option.contentBlocks}}" wx:key="blockKey" wx:for-item="optionBlock">
+                <text wx:if="{{optionBlock.type === 'TEXT'}}" class="option-content">{{optionBlock.text}}</text>
+                <text wx:elif="{{optionBlock.type === 'CODE'}}" class="content-code">{{optionBlock.code}}</text>
+              </block>
+            </view>
+            <text wx:if="{{option.contentBlocks.length === 0}}" class="option-content">{{option.contentText}}</text>
           </view>
         </view>
         <view wx:else class="state-box compact-state">
@@ -90,7 +106,13 @@
 
       <view class="section-card content-card">
         <text class="section-title">解析</text>
-        <text class="answer-text">{{detail.explanationText}}</text>
+        <view wx:if="{{detail.learningExplanationBlocks.length > 0}}" class="content-block-list">
+          <block wx:for="{{detail.learningExplanationBlocks}}" wx:key="blockKey" wx:for-item="explainBlock">
+            <text wx:if="{{explainBlock.type === 'TEXT'}}" class="question-content">{{explainBlock.text}}</text>
+            <text wx:elif="{{explainBlock.type === 'CODE'}}" class="content-code">{{explainBlock.code}}</text>
+          </block>
+        </view>
+        <text wx:if="{{detail.learningExplanationBlocks.length === 0}}" class="answer-text">{{detail.explanationText}}</text>
       </view>
 
       <view class="section-card content-card">

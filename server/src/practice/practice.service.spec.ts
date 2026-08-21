@@ -124,6 +124,51 @@ describe('PracticeService', () => {
     });
   });
 
+  it('discovers practice targets from published course capabilities', async () => {
+    const prisma = createMockPrisma();
+    const capabilityService = {
+      getPublishedCapabilities: jest.fn().mockResolvedValue([
+        {
+          courseId: COURSE_ID,
+          title: 'Python 基础入门',
+          subjectCategory: '程序设计',
+          implementationLanguage: 'Python',
+          practiceQuestionCount: 12,
+          supportsPractice: true,
+        },
+        {
+          courseId: 'offline-course',
+          title: '离线课程',
+          subjectCategory: '系统',
+          implementationLanguage: null,
+          practiceQuestionCount: 20,
+          supportsPractice: false,
+        },
+      ]),
+    };
+    const service = new PracticeService(
+      prisma as never,
+      capabilityService as never,
+    );
+
+    await expect(service.getTargets(CURRENT_USER)).resolves.toEqual({
+      success: true,
+      data: {
+        items: [
+          {
+            courseId: COURSE_ID,
+            courseTitle: 'Python 基础入门',
+            category: '程序设计',
+            language: 'Python',
+            availableQuestionCount: 12,
+          },
+        ],
+      },
+    });
+    expect(capabilityService.getPublishedCapabilities).toHaveBeenCalledTimes(1);
+    expect(prisma.course.findMany).not.toHaveBeenCalled();
+  });
+
   it('rejects an attempt when the selected course has too few questions', async () => {
     const prisma = createMockPrisma();
     prisma.course.findFirst.mockResolvedValueOnce({

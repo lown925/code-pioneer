@@ -1253,11 +1253,13 @@ describe('Wrong question flow (e2e)', () => {
           {
             optionId: optionOneId,
             content: 'print()',
+            contentBlocks: [{ type: 'TEXT', text: 'print()' }],
             order: 1,
           },
           {
             optionId: optionTwoId,
             content: 'echo()',
+            contentBlocks: [{ type: 'TEXT', text: 'echo()' }],
             order: 2,
           },
         ]);

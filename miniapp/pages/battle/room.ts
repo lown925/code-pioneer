@@ -599,7 +599,9 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
           : isFriendMode
             ? '好友对战'
             : '随机匹配',
-      skillText: formatBattleSkill(payload.skill),
+      skillText: payload.professionalTrack?.shortName
+        ? `${payload.professionalTrack.shortName}专业对战`
+        : formatBattleSkill(payload.skill),
       roomStatusText: meta.roomStatusText,
       titleText: meta.titleText,
       descriptionText: meta.descriptionText,

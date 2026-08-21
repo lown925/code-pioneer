@@ -511,6 +511,10 @@ describe('QuizService', () => {
     expect(result.data.questions[0]?.explanationBlocks).toEqual([
       {
         type: 'TEXT',
+        text: 'print() writes text to standard output.',
+      },
+      {
+        type: 'TEXT',
         text: 'print() is the standard output function in Python.',
       },
     ]);
@@ -519,12 +523,20 @@ describe('QuizService', () => {
     );
     expect(result.data.questions[0]?.stemBlocks).toEqual([
       {
+        type: 'TEXT',
+        text: 'Which function prints text in Python?',
+      },
+      {
         type: 'CODE',
         code: "print('Hello')",
         language: 'python',
       },
     ]);
     expect(result.data.questions[0]?.options[0]?.contentBlocks).toEqual([
+      {
+        type: 'TEXT',
+        text: 'print()',
+      },
       {
         type: 'CODE',
         code: 'print()',
@@ -646,6 +658,10 @@ describe('QuizService', () => {
     expect(result.data.results[0]).toHaveProperty('correctOptionId');
     expect(result.data.results[0]).toHaveProperty('explanation');
     expect(result.data.results[0]?.explanationBlocks).toEqual([
+      {
+        type: 'TEXT',
+        text: 'print() writes text to standard output.',
+      },
       {
         type: 'TEXT',
         text: 'print() is the standard output function in Python.',

@@ -16,6 +16,13 @@ export type CourseListItem = {
   estimatedMinutes: number;
   chapterCount: number;
   learnerCount: number;
+  order?: number;
+  implementationLanguage?: string | null;
+  subjectCategory?: string;
+  professionalTracks?: string[];
+  interests?: string[];
+  prerequisites?: string[];
+  nextCourses?: string[];
   progressPercent: number;
   isSelected: boolean;
 };

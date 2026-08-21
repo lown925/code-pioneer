@@ -13,6 +13,7 @@ import {
   parseAcceptedAnswers,
 } from '../question/question-answer';
 import { SubmitChapterQuizDto } from './dto/submit-chapter-quiz.dto';
+import { canonicalizeQuestionBlocks } from '../question/content-blocks';
 
 const PUBLISHED_COURSE_STATUS = 'PUBLISHED';
 const PUBLISHED_CHAPTER_STATUS = 'PUBLISHED';
@@ -103,11 +104,11 @@ export class QuizService {
           type: question.type,
           content: question.content,
           explanation: question.explanation,
-          explanationBlocks: this.resolveContentBlocks(
+          explanationBlocks: canonicalizeQuestionBlocks(
             question.explanationBlocks,
             question.explanation,
           ),
-          stemBlocks: this.resolveContentBlocks(
+          stemBlocks: canonicalizeQuestionBlocks(
             question.stemBlocks,
             question.content,
           ),
@@ -117,7 +118,7 @@ export class QuizService {
           options: question.options.map((option) => ({
             optionId: option.id,
             content: option.content,
-            contentBlocks: this.resolveContentBlocks(
+            contentBlocks: canonicalizeQuestionBlocks(
               option.contentBlocks,
               option.content,
             ),
@@ -242,7 +243,7 @@ export class QuizService {
           scoreAwarded: answer.scoreAwarded,
           scorePossible: answer.scorePossible,
           explanation: answer.explanation,
-          explanationBlocks: this.resolveContentBlocks(
+          explanationBlocks: canonicalizeQuestionBlocks(
             answer.explanationBlocks,
             answer.explanation,
           ),
@@ -394,10 +395,9 @@ export class QuizService {
           scoreAwarded: answer.scoreAwarded,
           scorePossible: answer.question.score,
           explanation: answer.question.explanation,
-          explanationBlocks: this.resolveContentBlocks(
+          explanationBlocks: canonicalizeQuestionBlocks(
             answer.question.explanationBlocks,
             answer.question.explanation,
-            false,
           ),
         };
       });
@@ -727,24 +727,4 @@ export class QuizService {
     return Math.round((score / totalScore) * 100);
   }
 
-  private resolveContentBlocks(
-    rawBlocks: unknown,
-    fallbackText: string | null,
-    includeFallbackText = true,
-  ): ContentBlock[] {
-    if (Array.isArray(rawBlocks) && rawBlocks.length > 0) {
-      return rawBlocks as ContentBlock[];
-    }
-
-    if (!includeFallbackText || !fallbackText) {
-      return [];
-    }
-
-    return [
-      {
-        type: 'TEXT',
-        text: fallbackText,
-      },
-    ];
-  }
 }

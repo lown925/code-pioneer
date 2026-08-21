@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Optional } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import {
   BattleMatchQueueStatus,
@@ -28,6 +28,7 @@ import {
 import { BATTLE_ERROR_CODES } from './battle.errors';
 import { BattleQuestionService } from './battle-question.service';
 import { BattleSkillService } from './battle-skill.service';
+import { BattleTrackService, DEFAULT_PROFESSIONAL_TRACK_KEY } from './battle-track.service';
 import type {
   BattleAiMatchmakingResolutionPayload,
   BattleAiStartPayload,
@@ -41,6 +42,7 @@ export class BattleAiService {
     private readonly battleDomainService: BattleDomainService,
     private readonly battleSkillService: BattleSkillService,
     private readonly battleQuestionService: BattleQuestionService,
+    @Optional() private readonly battleTrackService?: BattleTrackService,
   ) {}
 
   async createAiBattle(
@@ -69,7 +71,7 @@ export class BattleAiService {
         tx,
       );
 
-      return this.createAiBattleWithClient(currentUser.id, skillCode, now, tx);
+      return this.createAiBattleWithClient(currentUser.id, skillCode, DEFAULT_PROFESSIONAL_TRACK_KEY, now, tx);
     });
 
     return {
@@ -116,6 +118,7 @@ export class BattleAiService {
         select: {
           userId: true,
           skillCode: true,
+          professionalTrackKey: true,
           status: true,
           searchStartedAt: true,
           expiresAt: true,
@@ -193,6 +196,7 @@ export class BattleAiService {
       const battle = await this.createAiBattleWithClient(
         currentUser.id,
         skillCode,
+        queue.professionalTrackKey ?? DEFAULT_PROFESSIONAL_TRACK_KEY,
         now,
         tx,
       );
@@ -209,6 +213,7 @@ export class BattleAiService {
   private async createAiBattleWithClient(
     userId: string,
     skillCode: string,
+    professionalTrackKey: string,
     now: Date,
     tx: BattleTransactionClient,
   ): Promise<BattleAiStartPayload> {
@@ -216,6 +221,7 @@ export class BattleAiService {
       data: {
         mode: BattleMode.AI,
         skillCode,
+        professionalTrackKey: this.battleTrackService?.normalize(professionalTrackKey) ?? DEFAULT_PROFESSIONAL_TRACK_KEY,
         status: BattleRoomStatus.WAITING,
         questionCount: DEFAULT_BATTLE_QUESTION_COUNT,
         durationSeconds: BATTLE_DURATION_SECONDS,
@@ -245,6 +251,7 @@ export class BattleAiService {
         durationSeconds: BATTLE_DURATION_SECONDS,
         now,
         skillCode,
+        professionalTrackKey,
       },
     );
     const seed = this.createSeed();

@@ -6,18 +6,16 @@
   </view>
 
   <view class="section-card skill-card">
-    <text class="section-title">对战语言</text>
-    <text class="section-subtitle">匹配开始后语言锁定，本局只使用该语言题目。</text>
+    <text class="section-title">对战方向</text>
+    <text class="section-subtitle">选择专业方向后，将从该方向已发布课程中综合出题。</text>
     <view class="skill-list">
-      <view wx:for="{{availableSkills}}" wx:key="code" class="skill-option {{selectedSkillCode === item.code ? 'skill-option-selected' : ''}} {{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE' || state === 'MATCHED' || state === 'JOINING' ? 'skill-option-locked' : ''}}" data-skill="{{item.code}}" bindtap="handleSelectSkill">
+      <view wx:for="{{tracks}}" wx:key="trackKey" class="skill-option {{selectedTrackKey === item.trackKey ? 'skill-option-selected' : ''}} {{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE' || state === 'MATCHED' || state === 'JOINING' ? 'skill-option-locked' : ''}}" data-track="{{item.trackKey}}" bindtap="handleSelectTrack">
         <view>
-          <text class="skill-name">{{item.name}}</text>
-          <view class="skill-status">
-            <view class="battle-star-rating skill-star-rating" aria-label="{{item.starAriaLabel}}"><text wx:for="{{item.starSlots}}" wx:for-item="star" wx:key="value" class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}">{{star.isFilled ? '★' : '☆'}}</text></view>
-            <text>{{item.status === 'UNRANKED' ? '未定级' : '积分 ' + item.rating}}</text>
-          </view>
+          <text class="skill-name">{{item.shortName}} · {{item.formalName}}</text>
+          <text class="skill-status">{{item.courseCountText}} · {{item.questionCountText}}</text>
+          <text class="skill-status">当前题库：{{item.courseNames}}</text>
         </view>
-        <text class="skill-check">{{selectedSkillCode === item.code ? '已选择' : '选择'}}</text>
+        <text class="skill-check">{{selectedTrackKey === item.trackKey ? '已选择' : '选择'}}</text>
       </view>
     </view>
   </view>
@@ -25,7 +23,7 @@
   <view class="section-card status-card">
     <text class="section-title">{{stateTitle}}</text>
     <text class="section-subtitle">{{stateDescription}}</text>
-    <text wx:if="{{selectedSkillName}}" class="locked-skill">对战语言：{{selectedSkillName}}</text>
+    <text wx:if="{{selectedTrackName}}" class="locked-skill">对战方向：{{selectedTrackName}}</text>
     <text wx:if="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="status-copy">{{waitingCountText}}</text>
 
     <view wx:if="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="timer-grid">

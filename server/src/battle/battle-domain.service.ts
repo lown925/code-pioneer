@@ -268,6 +268,7 @@ export class BattleDomainService {
           select: {
             mode: true,
             skillCode: true,
+            professionalTrackKey: true,
             skill: {
               select: {
                 name: true,
@@ -300,6 +301,7 @@ export class BattleDomainService {
       roomStatus: participant.battleRoom.status,
       mode: participant.battleRoom.mode,
       skillCode: participant.battleRoom.skillCode,
+      professionalTrackKey: participant.battleRoom.professionalTrackKey,
       skillName:
         participant.battleRoom.skill?.name ?? participant.battleRoom.skillCode,
       invitationToken: participant.battleRoom.invitation?.token ?? null,
@@ -334,6 +336,7 @@ export class BattleDomainService {
           select: {
             mode: true,
             skillCode: true,
+            professionalTrackKey: true,
             skill: {
               select: {
                 name: true,
@@ -371,6 +374,7 @@ export class BattleDomainService {
       roomStatus: participant.battleRoom.status,
       mode: participant.battleRoom.mode,
       skillCode: participant.battleRoom.skillCode,
+      professionalTrackKey: participant.battleRoom.professionalTrackKey,
       skillName:
         participant.battleRoom.skill?.name ?? participant.battleRoom.skillCode,
       invitationToken: participant.battleRoom.invitation?.token ?? null,

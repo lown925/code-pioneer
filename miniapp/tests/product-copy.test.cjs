@@ -128,7 +128,6 @@ test('removes legacy English and matchmaking labels from user copy', () => {
     /RANKED MATCHMAKING/i,
     /真人(?:随机)?匹配/,
     /好友房/,
-    /对战方向/,
     /排位(?:匹配|对战|胜负)/,
     /AI 对战/i,
     /AI Battle/i,
@@ -158,7 +157,7 @@ test('uses unified labels on key battle and growth surfaces', () => {
   assert.doesNotMatch(read('pages/battle/index.wxml'), /BATTLE V1|>Rating</);
   assert.match(read('pages/battle/matchmaking.wxml'), /随机匹配/);
   assert.match(read('pages/battle/friend-room.wxml'), /创建好友对战/);
-  assert.match(read('pages/battle/room.wxml'), /对战语言/);
+  assert.match(read('pages/battle/room.wxml'), /对战方向/);
   assert.match(read('pages/growth/index.wxml'), /章节测验/);
   assert.match(read('pages/growth/index.wxml'), /积分趋势/);
   assert.match(read('components/growth-line-chart/index.wxml'), /练习室/);

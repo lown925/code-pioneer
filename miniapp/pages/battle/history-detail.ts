@@ -297,7 +297,11 @@ registerThemedPage<DetailPageData, DetailPageMethods>({
           : '当前页面只展示本人的逐题作答、正确答案和解析，不展示对手逐题答案。',
         errorMessage: '',
         modeText: this.getModeText(response.mode),
-        skillText: formatBattleSkill(response.skill),
+        skillText: response.professionalTrack?.shortName
+          ? `${response.professionalTrack.shortName}专业对战`
+          : response.professionalTrackKey
+            ? '专业对战'
+            : formatBattleSkill(response.skill),
         statusText: this.getStatusText(response.status),
         resultText: resultMeta.text,
         resultBadgeClassName: resultMeta.className,

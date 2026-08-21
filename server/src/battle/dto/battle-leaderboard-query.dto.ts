@@ -3,6 +3,11 @@ import { IsInt, IsOptional, IsString, Length, Matches, Max, Min } from 'class-va
 
 export class BattleLeaderboardQueryDto {
   @IsOptional()
+  @IsString()
+  @Length(3, 64)
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  professionalTrackKey?: string;
+  @IsOptional()
   @Transform(({ value }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )

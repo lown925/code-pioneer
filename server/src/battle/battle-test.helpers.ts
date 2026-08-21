@@ -52,6 +52,20 @@ type UserBattleSkillRatingRecord = {
   bestWinStreak: number;
 };
 
+type UserBattleTrackRatingRecord = {
+  id: string;
+  userId: string;
+  trackKey: string;
+  rating: number;
+  highestRating: number;
+  rankedBattles: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  currentWinStreak: number;
+  bestWinStreak: number;
+};
+
 type BattleSkillRecord = {
   code: string;
   name: string;
@@ -63,6 +77,7 @@ type BattleQueueRecord = {
   id: string;
   userId: string;
   skillCode?: string | null;
+  professionalTrackKey?: string | null;
   status: 'SEARCHING' | 'MATCHED' | 'CANCELLED' | 'EXPIRED';
   ratingSnapshot: number;
   matchedBattleRoomId: string | null;
@@ -77,6 +92,7 @@ type BattleRoomRecord = {
   id: string;
   mode: BattleMode;
   skillCode?: string | null;
+  professionalTrackKey?: string | null;
   status: BattleRoomStatus;
   questionCount: number;
   durationSeconds: number;
@@ -187,6 +203,7 @@ type BattleRatingLogRecord = {
   battleRoomId: string | null;
   participantId: string | null;
   skillCode?: string | null;
+  professionalTrackKey?: string | null;
   reason: BattleRatingReason;
   ratingBefore: number;
   ratingDelta: number;
@@ -372,6 +389,7 @@ export function createBattlePrismaMock() {
     ],
   ]);
   const userBattleSkillRatings = new Map<string, UserBattleSkillRatingRecord>();
+  const userBattleTrackRatings = new Map<string, UserBattleTrackRatingRecord>();
   const battleQueues = new Map<string, BattleQueueRecord>();
   const battleRooms = new Map<string, BattleRoomRecord>();
   const battleAiOpponents = new Map<string, BattleAiOpponentRecord>();
@@ -612,6 +630,82 @@ export function createBattlePrismaMock() {
             })),
       ),
     },
+    userBattleTrackRating: {
+      upsert: jest.fn(
+        async ({
+          where,
+          create,
+        }: {
+          where: { userId_trackKey: { userId: string; trackKey: string } };
+          create: Partial<UserBattleTrackRatingRecord> & {
+            userId: string;
+            trackKey: string;
+          };
+        }) => {
+          const key = `${where.userId_trackKey.userId}:${where.userId_trackKey.trackKey}`;
+          const existing = userBattleTrackRatings.get(key);
+          if (existing) return existing;
+          const record: UserBattleTrackRatingRecord = {
+            id: create.id ?? nextId(),
+            userId: create.userId,
+            trackKey: create.trackKey,
+            rating: create.rating ?? 1000,
+            highestRating: create.highestRating ?? 1000,
+            rankedBattles: create.rankedBattles ?? 0,
+            wins: create.wins ?? 0,
+            losses: create.losses ?? 0,
+            draws: create.draws ?? 0,
+            currentWinStreak: create.currentWinStreak ?? 0,
+            bestWinStreak: create.bestWinStreak ?? 0,
+          };
+          userBattleTrackRatings.set(key, record);
+          return record;
+        },
+      ),
+      update: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { userId_trackKey: { userId: string; trackKey: string } };
+          data: Record<string, unknown>;
+        }) => {
+          const key = `${where.userId_trackKey.userId}:${where.userId_trackKey.trackKey}`;
+          const existing = userBattleTrackRatings.get(key);
+          if (!existing) throw new Error('Battle track rating not found');
+          const updated = applyScalarUpdate(existing, data) as UserBattleTrackRatingRecord;
+          userBattleTrackRatings.set(key, updated);
+          return updated;
+        },
+      ),
+      findUnique: jest.fn(
+        async ({
+          where,
+        }: {
+          where: { userId_trackKey: { userId: string; trackKey: string } };
+        }) =>
+          userBattleTrackRatings.get(
+            `${where.userId_trackKey.userId}:${where.userId_trackKey.trackKey}`,
+          ) ?? null,
+      ),
+      findMany: jest.fn(
+        async ({ where }: { where?: Record<string, unknown> } = {}) =>
+          [...userBattleTrackRatings.values()]
+            .filter((record) => {
+              if (typeof where?.trackKey === 'string' && record.trackKey !== where.trackKey) return false;
+              const rankedBattles = where?.rankedBattles as { gt?: number } | undefined;
+              if (rankedBattles?.gt !== undefined && record.rankedBattles <= rankedBattles.gt) return false;
+              return true;
+            })
+            .map((record) => ({
+              ...record,
+              user: {
+                nickname: users.get(record.userId)?.nickname ?? null,
+                avatarUrl: users.get(record.userId)?.avatarUrl ?? null,
+              },
+            })),
+      ),
+    },
     battleMatchQueue: {
       findUnique: jest.fn(async ({ where }: { where: { userId: string } }) => {
         return battleQueues.get(where.userId) ?? null;
@@ -622,6 +716,7 @@ export function createBattlePrismaMock() {
             id: nextId(),
             userId: data.userId!,
             skillCode: data.skillCode ?? null,
+            professionalTrackKey: data.professionalTrackKey ?? null,
             status: (data.status as BattleQueueRecord['status']) ?? 'CANCELLED',
             ratingSnapshot: data.ratingSnapshot ?? 1000,
             matchedBattleRoomId: data.matchedBattleRoomId ?? null,
@@ -704,6 +799,7 @@ export function createBattlePrismaMock() {
           id: data.id ?? nextId(),
           mode: data.mode ?? BattleMode.RANKED,
           skillCode: data.skillCode ?? null,
+          professionalTrackKey: data.professionalTrackKey ?? null,
           status: data.status ?? BattleRoomStatus.WAITING,
           questionCount: data.questionCount ?? 20,
           durationSeconds: data.durationSeconds ?? 180,
@@ -1214,6 +1310,7 @@ export function createBattlePrismaMock() {
             battleRoomId: data.battleRoomId ?? null,
             participantId: data.participantId ?? null,
             skillCode: data.skillCode ?? null,
+            professionalTrackKey: data.professionalTrackKey ?? null,
             reason: data.reason!,
             ratingBefore: data.ratingBefore ?? 0,
             ratingDelta: data.ratingDelta ?? 0,
@@ -1453,6 +1550,9 @@ export function createBattlePrismaMock() {
         userBattleSkillRatings: structuredClone([
           ...userBattleSkillRatings.entries(),
         ]),
+        userBattleTrackRatings: structuredClone([
+          ...userBattleTrackRatings.entries(),
+        ]),
         battleQueues: structuredClone([...battleQueues.entries()]),
         battleRooms: structuredClone([...battleRooms.entries()]),
         battleAiOpponents: structuredClone([...battleAiOpponents.entries()]),
@@ -1473,6 +1573,7 @@ export function createBattlePrismaMock() {
         restoreMap(battleProfiles, snapshot.battleProfiles);
         restoreMap(battleSkills, snapshot.battleSkills);
         restoreMap(userBattleSkillRatings, snapshot.userBattleSkillRatings);
+        restoreMap(userBattleTrackRatings, snapshot.userBattleTrackRatings);
         restoreMap(battleQueues, snapshot.battleQueues);
         restoreMap(battleRooms, snapshot.battleRooms);
         restoreMap(battleAiOpponents, snapshot.battleAiOpponents);
@@ -1494,6 +1595,7 @@ export function createBattlePrismaMock() {
     battleProfiles,
     battleSkills,
     userBattleSkillRatings,
+    userBattleTrackRatings,
     battleQueues,
     battleRooms,
     battleAiOpponents,
@@ -1545,6 +1647,13 @@ function matchesQueueWhere(
   }
 
   if (where.skillCode !== undefined && record.skillCode !== where.skillCode) {
+    return false;
+  }
+
+  if (
+    where.professionalTrackKey !== undefined &&
+    record.professionalTrackKey !== where.professionalTrackKey
+  ) {
     return false;
   }
 
@@ -1970,6 +2079,13 @@ function matchesRatingLogWhere(
   }
 
   if (where.reason !== undefined && record.reason !== where.reason) {
+    return false;
+  }
+
+  if (
+    where.professionalTrackKey !== undefined &&
+    record.professionalTrackKey !== where.professionalTrackKey
+  ) {
     return false;
   }
 

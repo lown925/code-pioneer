@@ -18,7 +18,7 @@
       <text class="section-subtitle">题目只会来自所选课程的已发布题库</text>
       <view wx:if="{{targets.length > 0}}" class="target-list">
         <view wx:for="{{targets}}" wx:key="courseId" class="target-option {{selectedCourseId === item.courseId ? 'target-option-active' : ''}}" data-course-id="{{item.courseId}}" bindtap="handleCourseSelect">
-          <view><text class="target-title">{{item.language || item.courseTitle}}</text><text class="target-meta">{{item.courseTitle}} · {{item.availableQuestionCount}} 题</text></view>
+          <view><text class="target-title">{{item.courseTitle}}</text><text wx:if="{{item.language}}" class="target-language">{{item.language}}</text><text class="target-meta">{{item.availableQuestionCount}} 题</text></view>
           <text class="target-check">{{selectedCourseId === item.courseId ? '✓' : ''}}</text>
         </view>
       </view>
@@ -39,7 +39,7 @@
     <view class="question-header"><text class="question-course">{{courseTitle}}</text><text class="question-progress">{{progressText}}</text></view>
     <view class="section-card question-card">
       <text class="question-type">{{currentQuestion.type === 'TRUE_FALSE' ? '判断题' : currentQuestion.type === 'FILL_BLANK' ? '填空题' : currentQuestion.type === 'CODE_FILL' ? '代码填空题' : '单选题'}}</text>
-      <text class="question-content">{{currentQuestion.content}}</text>
+      <text wx:if="{{currentStemBlocks.length === 0}}" class="question-content">{{currentQuestion.content}}</text>
       <view wx:if="{{currentStemBlocks.length > 0}}" class="content-block-list">
         <block wx:for="{{currentStemBlocks}}" wx:key="blockKey" wx:for-item="stemBlock">
           <text wx:if="{{stemBlock.type === 'TEXT'}}" class="stem-text">{{stemBlock.text}}</text>
@@ -74,7 +74,14 @@
       </view>
       <view wx:else class="option-list">
         <view wx:for="{{currentOptions}}" wx:key="optionId" class="option-card {{item.statusClassName}} {{selectedOptionId === item.optionId ? 'option-selected' : ''}}" data-option-id="{{item.optionId}}" bindtap="handleOptionTap">
-          <text class="option-label">{{item.label}}</text><text class="option-content">{{item.content}}</text>
+          <text class="option-label">{{item.label}}</text>
+          <text wx:if="{{item.contentBlocks.length === 0}}" class="option-content">{{item.content}}</text>
+          <view wx:if="{{item.contentBlocks.length > 0}}" class="option-content-block-list">
+            <block wx:for="{{item.contentBlocks}}" wx:key="blockKey" wx:for-item="optionBlock">
+              <text wx:if="{{optionBlock.type === 'TEXT'}}" class="option-content">{{optionBlock.text}}</text>
+              <text wx:elif="{{optionBlock.type === 'CODE'}}" class="content-code">{{optionBlock.code}}</text>
+            </block>
+          </view>
         </view>
       </view>
       <text wx:if="{{state === 'SUBMITTING'}}" class="saving-text">正在判断...</text>
@@ -83,7 +90,13 @@
     <view wx:if="{{answerResult}}" class="section-card result-card {{answerResult.isCorrect ? 'result-correct' : 'result-wrong'}}">
       <text class="result-title">{{answerResult.isCorrect ? '回答正确' : '回答错误'}}</text>
       <text class="result-answer">正确答案：{{correctAnswerText}}</text>
-      <text class="result-explanation">{{answerResult.explanation || '暂无解析'}}</text>
+      <view wx:if="{{answerExplanationBlocks.length > 0}}" class="result-explanation content-block-list">
+        <block wx:for="{{answerExplanationBlocks}}" wx:key="blockKey" wx:for-item="explanationBlock">
+          <text wx:if="{{explanationBlock.type === 'TEXT'}}" class="stem-text">{{explanationBlock.text}}</text>
+          <text wx:elif="{{explanationBlock.type === 'CODE'}}" class="content-code">{{explanationBlock.code}}</text>
+        </block>
+      </view>
+      <text wx:if="{{answerExplanationBlocks.length === 0}}" class="result-explanation">{{answerResult.explanation || '暂无解析'}}</text>
       <view class="primary-button next-button" bindtap="handleNext">{{currentIndex + 1 >= questions.length ? '查看练习结果' : '下一题'}}</view>
     </view>
   </view>

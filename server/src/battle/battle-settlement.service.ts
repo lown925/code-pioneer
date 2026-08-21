@@ -32,6 +32,7 @@ type RoomRecord = {
   id: string;
   mode: BattleMode;
   skillCode: string | null;
+  professionalTrackKey: string | null;
   status: BattleRoomStatus;
   questionCount: number;
   durationSeconds: number;
@@ -313,6 +314,8 @@ export class BattleSettlementService {
     const [leftParticipant, rightParticipant] = participants;
 
     const winner = this.resolveWinner(room, leftParticipant, rightParticipant);
+    const usesTrackRating =
+      room.mode === BattleMode.RANKED && Boolean(room.professionalTrackKey);
     const usesSkillRating =
       room.mode === BattleMode.RANKED && Boolean(room.skillCode);
     const profileSnapshots = await Promise.all(
@@ -323,7 +326,7 @@ export class BattleSettlementService {
         ),
       ),
     );
-    const skillRatingSnapshots = usesSkillRating
+    const skillRatingSnapshots = usesSkillRating && !usesTrackRating
       ? await Promise.all(
           participants.map((participant) =>
             prisma.userBattleSkillRating.upsert({
@@ -342,7 +345,26 @@ export class BattleSettlementService {
           ),
         )
       : null;
-    const ratingSnapshots = skillRatingSnapshots ?? profileSnapshots;
+    const trackRatingSnapshots = usesTrackRating
+      ? await Promise.all(
+          participants.map((participant) =>
+            prisma.userBattleTrackRating.upsert({
+              where: {
+                userId_trackKey: {
+                  userId: participant.userId,
+                  trackKey: room.professionalTrackKey!,
+                },
+              },
+              update: {},
+              create: {
+                userId: participant.userId,
+                trackKey: room.professionalTrackKey!,
+              },
+            }),
+          ),
+        )
+      : null;
+    const ratingSnapshots = trackRatingSnapshots ?? skillRatingSnapshots ?? profileSnapshots;
 
     if (!ratingSnapshots) {
       throw new InternalServerErrorException(
@@ -382,7 +404,21 @@ export class BattleSettlementService {
       const ratingResult = ratingResults[index];
       const existingRating = ratingSnapshots[index];
 
-      if (usesSkillRating) {
+      if (usesTrackRating) {
+        await prisma.userBattleTrackRating.update({
+          where: {
+            userId_trackKey: {
+              userId: participant.userId,
+              trackKey: room.professionalTrackKey!,
+            },
+          },
+          data: this.createSkillRatingUpdate(
+            participant,
+            existingRating,
+            ratingResult.ratingAfter,
+          ),
+        });
+      } else if (usesSkillRating) {
         await prisma.userBattleSkillRating.update({
           where: {
             userId_skillCode: {
@@ -402,7 +438,7 @@ export class BattleSettlementService {
         where: {
           userId: participant.userId,
         },
-        data: usesSkillRating
+        data: usesSkillRating || usesTrackRating
           ? this.createBattleProfileAggregateUpdate(
               room,
               participant,
@@ -423,6 +459,7 @@ export class BattleSettlementService {
             battleRoomId: battleId,
             participantId: participant.id,
             skillCode: room.skillCode,
+            professionalTrackKey: room.professionalTrackKey,
             reason: BattleRatingReason.BATTLE_RESULT,
             ratingBefore: ratingResult.ratingBefore,
             ratingDelta: ratingResult.ratingDelta,
@@ -1058,6 +1095,7 @@ export class BattleSettlementService {
         id: true,
         mode: true,
         skillCode: true,
+        professionalTrackKey: true,
         status: true,
         questionCount: true,
         durationSeconds: true,

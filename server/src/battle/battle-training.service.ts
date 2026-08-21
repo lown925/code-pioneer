@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Optional } from '@nestjs/common';
 import {
   BattleMode,
   BattleParticipantStatus,
@@ -21,6 +21,7 @@ import { BATTLE_ERROR_CODES } from './battle.errors';
 import { BattleQuestionService } from './battle-question.service';
 import { BattleSkillService } from './battle-skill.service';
 import type { BattleTrainingStartPayload } from './battle.types';
+import { BattleTrackService, DEFAULT_PROFESSIONAL_TRACK_KEY } from './battle-track.service';
 
 @Injectable()
 export class BattleTrainingService {
@@ -29,11 +30,13 @@ export class BattleTrainingService {
     private readonly battleDomainService: BattleDomainService,
     private readonly battleSkillService: BattleSkillService,
     private readonly battleQuestionService: BattleQuestionService,
+    @Optional() private readonly battleTrackService?: BattleTrackService,
   ) {}
 
-  async startTraining(currentUser: CurrentUserContext) {
+  async startTraining(currentUser: CurrentUserContext, requestedTrack = DEFAULT_PROFESSIONAL_TRACK_KEY) {
     const data = await this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      const professionalTrackKey = this.battleTrackService?.normalize(requestedTrack) ?? DEFAULT_PROFESSIONAL_TRACK_KEY;
       const unlockedAt = new Date(
         now.getTime() - TRAINING_UNLOCK_SECONDS * 1000,
       );
@@ -58,6 +61,7 @@ export class BattleTrainingService {
         select: {
           status: true,
           skillCode: true,
+          professionalTrackKey: true,
           searchStartedAt: true,
           expiresAt: true,
         },
@@ -66,6 +70,7 @@ export class BattleTrainingService {
       if (
         queue?.status !== 'SEARCHING' ||
         queue.skillCode !== TRAINING_SKILL_CODE ||
+        (queue.professionalTrackKey && queue.professionalTrackKey !== professionalTrackKey) ||
         !queue.searchStartedAt ||
         queue.searchStartedAt > unlockedAt ||
         !queue.expiresAt ||
@@ -81,6 +86,7 @@ export class BattleTrainingService {
           userId: currentUser.id,
           status: 'SEARCHING',
           skillCode: TRAINING_SKILL_CODE,
+          professionalTrackKey,
           searchStartedAt: { lte: unlockedAt },
           expiresAt: { gt: now },
         },
@@ -102,6 +108,7 @@ export class BattleTrainingService {
         data: {
           mode: BattleMode.TRAINING,
           skillCode: TRAINING_SKILL_CODE,
+          professionalTrackKey,
           status: BattleRoomStatus.WAITING,
           questionCount: DEFAULT_BATTLE_QUESTION_COUNT,
           durationSeconds: BATTLE_DURATION_SECONDS,
@@ -133,6 +140,7 @@ export class BattleTrainingService {
             durationSeconds: BATTLE_DURATION_SECONDS,
             now,
             skillCode: TRAINING_SKILL_CODE,
+            professionalTrackKey,
           },
         );
 
@@ -140,6 +148,7 @@ export class BattleTrainingService {
         battleId: room.id,
         mode: BattleMode.TRAINING,
         skill: TRAINING_SKILL_CODE,
+        professionalTrackKey,
         status: BattleRoomStatus.COUNTDOWN,
         startedAt: timing.startedAt,
         expiresAt: timing.expiresAt,

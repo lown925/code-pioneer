@@ -32,7 +32,7 @@
         <text class="question-score">{{question.scoreText}}</text>
       </view>
 
-      <text class="question-content">{{question.content}}</text>
+      <text wx:if="{{question.stemBlocks.length === 0}}" class="question-content">{{question.content}}</text>
 
       <view wx:if="{{question.stemBlocks.length > 0}}" class="content-block-list">
         <block wx:for="{{question.stemBlocks}}" wx:key="blockKey" wx:for-item="stemBlock">

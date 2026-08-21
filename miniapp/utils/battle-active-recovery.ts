@@ -88,7 +88,10 @@ export function getActiveBattlePresentation(
   return {
     battle,
     modeText,
-    skillText: battle.skillName?.trim() || formatBattleSkill(battle.skillCode),
+    skillText:
+      battle.professionalTrack?.shortName
+        ? `${battle.professionalTrack.shortName}专业对战`
+        : battle.skillName?.trim() || formatBattleSkill(battle.skillCode),
     statusText,
     actionText,
   };

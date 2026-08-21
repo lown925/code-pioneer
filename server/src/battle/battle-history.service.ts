@@ -13,6 +13,7 @@ import {
 } from '../../generated/prisma/enums';
 import { BATTLE_ERROR_CODES } from './battle.errors';
 import { PrismaService } from '../prisma/prisma.service';
+import { getProfessionalTrackIdentity } from '../course/course-catalog';
 import type {
   BattleHistoryDetailPayload,
   BattleHistoryPayload,
@@ -100,6 +101,7 @@ type BattleHistoryRoomRecord = {
   id: string;
   mode: BattleMode;
   skillCode: string | null;
+  professionalTrackKey: string | null;
   status: BattleRoomStatus;
   startedAt: Date | null;
   expiresAt: Date | null;
@@ -240,6 +242,8 @@ export class BattleHistoryService {
         battleId: room.id,
         mode: room.mode,
         skill: room.skillCode,
+        professionalTrackKey: room.professionalTrackKey,
+        professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
         status: room.status,
         result: currentParticipant.result,
         startedAt: room.startedAt,
@@ -396,6 +400,8 @@ export class BattleHistoryService {
       battleId: room.id,
       mode: room.mode,
       skill: room.skillCode,
+      professionalTrackKey: room.professionalTrackKey,
+      professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
       result: currentParticipant.result,
       opponent:
         aiProjection ??
@@ -648,6 +654,7 @@ export class BattleHistoryService {
     id: true,
     mode: true,
     skillCode: true,
+    professionalTrackKey: true,
     status: true,
     startedAt: true,
     expiresAt: true,

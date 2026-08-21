@@ -367,6 +367,9 @@ describe('WrongQuestionService', () => {
           optionId: 'opt-false',
         },
         explanation: 'A const binding cannot be reassigned.',
+        explanationBlocks: [
+          { type: 'TEXT', text: 'A const binding cannot be reassigned.' },
+        ],
         knowledgeTags: [],
       }),
     );
@@ -504,16 +507,24 @@ describe('WrongQuestionService', () => {
           {
             optionId: 'opt-1',
             content: 'TRUE',
+            contentBlocks: [{ type: 'TEXT', text: 'TRUE' }],
             order: 1,
           },
           {
             optionId: 'opt-2',
             content: 'FALSE',
+            contentBlocks: [{ type: 'TEXT', text: 'FALSE' }],
             order: 2,
           },
         ],
         correctOptionId: 'opt-1',
         explanation: 'Python treats Name and name as different identifiers.',
+        explanationBlocks: [
+          {
+            type: 'TEXT',
+            text: 'Python treats Name and name as different identifiers.',
+          },
+        ],
         wrongCount: 2,
         lastWrongAt,
         latestWrongAt: lastWrongAt,

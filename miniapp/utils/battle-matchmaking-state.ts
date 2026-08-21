@@ -31,6 +31,7 @@ export type BattleMatchmakingSnapshot = {
   status: BattleMatchmakingManagerStatus;
   skillCode: string;
   skillName: string;
+  professionalTrackKey: string;
   battleId: string;
   searchStartedAt: string | null;
   expiresAt: string | null;
@@ -88,6 +89,7 @@ const INITIAL_SNAPSHOT: BattleMatchmakingSnapshot = {
   status: 'IDLE',
   skillCode: 'PYTHON',
   skillName: 'Python',
+  professionalTrackKey: 'big-data',
   battleId: '',
   searchStartedAt: null,
   expiresAt: null,
@@ -184,7 +186,7 @@ export class BattleMatchmakingManager {
     return this.withSmoothTime(this.snapshot);
   }
 
-  async sync(options?: { force?: boolean; skillCode?: string }) {
+  async sync(options?: { force?: boolean; skillCode?: string; professionalTrackKey?: string }) {
     this.initialize();
 
     if (!this.dependencies.getAuthStateSummary().isAuthenticated) {
@@ -201,11 +203,12 @@ export class BattleMatchmakingManager {
     }
 
     const skillCode = options?.skillCode || this.snapshot.skillCode || 'PYTHON';
+    const professionalTrackKey = options?.professionalTrackKey || this.snapshot.professionalTrackKey || 'big-data';
     this.syncPromise = this.dependencies
       .request<MatchmakingStatusResponse>({
         url: '/battles/matchmaking/status',
         method: 'GET',
-        data: { skill: skillCode },
+        data: { skill: skillCode, professionalTrackKey },
         authMode: 'required',
         disableAuthRedirect: true,
       })
@@ -225,7 +228,7 @@ export class BattleMatchmakingManager {
     return this.syncPromise;
   }
 
-  async join(skillCode: string) {
+  async join(skillCode: string, professionalTrackKey = this.snapshot.professionalTrackKey || 'big-data') {
     if (
       this.snapshot.isJoining ||
       this.snapshot.isCancelling ||
@@ -244,6 +247,7 @@ export class BattleMatchmakingManager {
       lastError: '',
       reconnecting: false,
       skillCode,
+      professionalTrackKey,
       skillName: formatBattleSkill(skillCode),
     });
 
@@ -261,7 +265,7 @@ export class BattleMatchmakingManager {
       const payload = await this.dependencies.request<MatchmakingStatusResponse>({
         url: '/battles/matchmaking/join',
         method: 'POST',
-        data: { skill: skillCode },
+        data: { skill: skillCode, professionalTrackKey },
         authMode: 'required',
       });
       this.applyServerStatus(payload);
@@ -426,6 +430,7 @@ export class BattleMatchmakingManager {
       status,
       skillCode,
       skillName: formatBattleSkill(skillCode),
+      professionalTrackKey: payload.professionalTrackKey || this.snapshot.professionalTrackKey || 'big-data',
       battleId: payload.battleId ?? '',
       searchStartedAt: payload.searchStartedAt,
       expiresAt: payload.expiresAt,

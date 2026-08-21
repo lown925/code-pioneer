@@ -17,10 +17,33 @@ import {
   COURSE_DIFFICULTIES,
   CourseService,
 } from './course.service';
+import { CourseCapabilityService } from './course-capability.service';
 
 @Controller()
 export class CourseController {
-  constructor(private readonly courseService: CourseService) {}
+  constructor(
+    private readonly courseService: CourseService,
+    private readonly courseCapabilityService: CourseCapabilityService,
+  ) {}
+
+  @Get('course-capabilities')
+  async getCapabilities() {
+    return {
+      success: true,
+      data: {
+        items: await this.courseCapabilityService.getPublishedCapabilities(),
+        tracks: this.courseCapabilityService.getTrackCatalog(),
+      },
+    };
+  }
+
+  @Get('course-capabilities/:trackKey')
+  async getTrackCapabilities(@Param('trackKey') trackKey: string) {
+    return {
+      success: true,
+      data: await this.courseCapabilityService.getTrackCapabilities(trackKey),
+    };
+  }
 
   @Get('courses')
   @UseGuards(OptionalUserAuthGuard)

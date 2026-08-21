@@ -30,6 +30,8 @@ import type {
   CodeFillAnswerConfig,
   ContentBlock,
 } from './battle.types';
+import { COURSE_CATALOG } from '../course/course-catalog';
+import { canonicalizeQuestionBlocks } from '../question/content-blocks';
 
 type CandidateQuestionRecord = {
   id: string;
@@ -112,6 +114,7 @@ export class BattleQuestionService {
           mode: true,
           status: true,
           skillCode: true,
+          professionalTrackKey: true,
           startedAt: true,
           expiresAt: true,
           participants: {
@@ -144,6 +147,7 @@ export class BattleQuestionService {
           mode: room.mode,
           status: room.status,
           skill: room.skillCode,
+          professionalTrackKey: room.professionalTrackKey,
           startedAt: room.startedAt,
           expiresAt: room.expiresAt,
           serverTime: now,
@@ -224,6 +228,7 @@ export class BattleQuestionService {
         mode: room.mode,
         status: room.status,
         skill: room.skillCode,
+        professionalTrackKey: room.professionalTrackKey,
         startedAt: room.startedAt,
         expiresAt: room.expiresAt,
         serverTime: now,
@@ -245,6 +250,7 @@ export class BattleQuestionService {
       durationSeconds: number;
       now: Date;
       skillCode: string | null;
+      professionalTrackKey?: string | null;
     },
   ) {
     const snapshots = await this.createQuestionSnapshots(tx, input);
@@ -264,11 +270,13 @@ export class BattleQuestionService {
       durationSeconds: number;
       now: Date;
       skillCode: string | null;
+      professionalTrackKey?: string | null;
     },
   ) {
     const candidates = await this.loadBattleQuestionCandidates(
       tx,
       input.skillCode,
+      input.professionalTrackKey,
     );
     const selected = this.selectBattleQuestions(
       candidates,
@@ -309,6 +317,7 @@ export class BattleQuestionService {
       durationSeconds: number;
       now: Date;
       skillCode: string | null;
+      professionalTrackKey?: string | null;
     },
   ) {
     const startedAt = new Date(
@@ -338,11 +347,15 @@ export class BattleQuestionService {
   private async loadBattleQuestionCandidates(
     tx: BattleTransactionClient,
     skillCode: string | null,
+    professionalTrackKey?: string | null,
   ) {
+    const courseSlugs = professionalTrackKey
+      ? COURSE_CATALOG.filter((course) => course.professionalTracks.includes(professionalTrackKey)).map((course) => course.slug)
+      : [];
     const records = (await tx.quizQuestion.findMany({
       where: {
         isBattleEnabled: true,
-        ...(skillCode ? { battleSkillCode: skillCode } : {}),
+        ...(!professionalTrackKey && skillCode ? { battleSkillCode: skillCode } : {}),
         battleDifficulty: {
           in: [
             BattleQuestionDifficulty.MEDIUM,
@@ -359,6 +372,7 @@ export class BattleQuestionService {
             course: {
               status: CourseStatus.PUBLISHED,
               deletedAt: null,
+              ...(professionalTrackKey ? { slug: { in: courseSlugs } } : {}),
             },
           },
         },
@@ -435,6 +449,14 @@ export class BattleQuestionService {
     candidates: CandidateQuestionRecord[],
     questionCount: number,
   ) {
+    const courseBuckets = new Map<string, CandidateQuestionRecord[]>();
+    for (const candidate of candidates) {
+      const courseId = candidate.quiz.chapter.courseId;
+      courseBuckets.set(courseId, [...(courseBuckets.get(courseId) ?? []), candidate]);
+    }
+    if (courseBuckets.size > 1) {
+      return this.selectCourseBalancedQuestions(courseBuckets, questionCount);
+    }
     const selected: CandidateQuestionRecord[] = [];
     const selectedIds = new Set<string>();
     const targets = this.getDifficultyTargets(questionCount);
@@ -492,6 +514,42 @@ export class BattleQuestionService {
       selectedIds.add(candidate.id);
     }
 
+    return selected;
+  }
+
+  private selectCourseBalancedQuestions(
+    courseBuckets: Map<string, CandidateQuestionRecord[]>,
+    questionCount: number,
+  ) {
+    const selected: CandidateQuestionRecord[] = [];
+    const shuffled = [...courseBuckets.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([courseId, items]) => ({ courseId, items: this.shuffle(items) }));
+
+    while (selected.length < questionCount && shuffled.some((bucket) => bucket.items.length > 0)) {
+      for (const bucket of shuffled) {
+        if (selected.length >= questionCount) break;
+        const candidate = bucket.items.shift();
+        if (candidate) selected.push(candidate);
+      }
+    }
+
+    const targets = this.getDifficultyTargets(questionCount);
+    const mediumCount = this.countSelectedByDifficulty(selected, BattleQuestionDifficulty.MEDIUM);
+    if (mediumCount === targets[BattleQuestionDifficulty.MEDIUM]) return selected;
+
+    const unselected = [...courseBuckets.values()].flat().filter((candidate) => !selected.some((item) => item.id === candidate.id));
+    const neededDifficulty = mediumCount < targets[BattleQuestionDifficulty.MEDIUM]
+      ? BattleQuestionDifficulty.MEDIUM
+      : BattleQuestionDifficulty.HARD;
+    const replaceDifficulty = neededDifficulty === BattleQuestionDifficulty.MEDIUM
+      ? BattleQuestionDifficulty.HARD
+      : BattleQuestionDifficulty.MEDIUM;
+    for (const candidate of this.shuffle(unselected.filter((item) => item.battleDifficulty === neededDifficulty))) {
+      const replaceIndex = selected.findIndex((item) => item.battleDifficulty === replaceDifficulty);
+      if (replaceIndex < 0 || this.countSelectedByDifficulty(selected, neededDifficulty) >= targets[neededDifficulty]) break;
+      selected[replaceIndex] = candidate;
+    }
     return selected;
   }
 
@@ -599,29 +657,15 @@ export class BattleQuestionService {
   }
 
   private resolveStemSnapshot(question: CandidateQuestionRecord) {
-    const blocks = this.resolveContentBlocks(
-      question.stemBlocks,
-      question.content,
-    );
-    const hasVisibleText = blocks.some(
-      (block) => block.type === 'TEXT' && block.text.trim().length > 0,
-    );
-
-    return hasVisibleText
-      ? blocks
-      : [...this.createTextBlock(question.content), ...blocks];
+    return canonicalizeQuestionBlocks(question.stemBlocks, question.content);
   }
 
   private resolveExplanationSnapshot(question: CandidateQuestionRecord) {
-    if (question.explanationBlocks) {
-      return this.asContentBlocks(question.explanationBlocks);
-    }
-
-    if (question.explanation) {
-      return this.createTextBlock(question.explanation);
-    }
-
-    return Prisma.JsonNull;
+    const blocks = canonicalizeQuestionBlocks(
+      question.explanationBlocks,
+      question.explanation,
+    );
+    return blocks.length > 0 ? blocks : Prisma.JsonNull;
   }
 
   private resolveKnowledgeTagsSnapshot(question: CandidateQuestionRecord) {
@@ -662,11 +706,7 @@ export class BattleQuestionService {
   }
 
   private resolveOptionBlocks(rawBlocks: unknown, fallbackText: string) {
-    if (Array.isArray(rawBlocks) && rawBlocks.length > 0) {
-      return this.asContentBlocks(rawBlocks);
-    }
-
-    return this.createTextBlock(fallbackText);
+    return canonicalizeQuestionBlocks(rawBlocks, fallbackText);
   }
 
   private createTextBlock(text: string): ContentBlock[] {
@@ -679,19 +719,7 @@ export class BattleQuestionService {
   }
 
   private restoreLegacyStem(snapshot: SnapshotRecord) {
-    const blocks = this.asContentBlocks(snapshot.stemSnapshot);
-    const hasVisibleText = blocks.some(
-      (block) => block.type === 'TEXT' && block.text.trim().length > 0,
-    );
-
-    if (hasVisibleText || !snapshot.sourceQuizQuestion?.content.trim()) {
-      return blocks;
-    }
-
-    return [
-      ...this.createTextBlock(snapshot.sourceQuizQuestion.content),
-      ...blocks,
-    ];
+    return canonicalizeQuestionBlocks(snapshot.stemSnapshot, snapshot.sourceQuizQuestion?.content ?? null);
   }
 
   private asContentBlocks(value: unknown) {
