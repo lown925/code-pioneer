@@ -47,6 +47,7 @@ const PRESENTATION_MAP = {
   代码填空: 'INPUT_CODE_FILL',
   执行流程: 'OUTPUT_PREDICTION',
   输出预测: 'OUTPUT_PREDICTION',
+  场景判断: 'CODE_PURPOSE',
 } as const;
 
 function requiredMatch(
@@ -231,7 +232,7 @@ function parseOptions(segment: string, questionNumber: number) {
 function parseAcceptedAnswers(segment: string, questionNumber: number) {
   const section = requiredMatch(
     segment,
-    /可接受答案：\n([\s\S]*?)(?=\n判题设置：)/,
+    /可接受答案[:：]\n([\s\S]*?)(?=\n判题设置[:：])/,
     `question ${questionNumber} accepted answers`,
   );
   const answers = [
@@ -260,7 +261,7 @@ function parseQuestion(
   const title = requiredMatch(segment, /^题干：(.+)$/m, `question ${questionNumber} title`);
   const explanation = requiredMatch(
     segment,
-    /解析：\n([\s\S]*?)(?=\n标准完整代码：|\n---|$)/,
+    /解析：\n([\s\S]*?)(?=\n标准完整代码[:：]|\n---|$)/,
     `question ${questionNumber} explanation`,
   );
   const difficulty = requiredMatch(
@@ -354,7 +355,7 @@ function parseQuestion(
   const collapseWhitespace = /合并连续空格：是/.test(segment);
   const standardCode = segment.match(
     new RegExp(
-      '标准完整代码：\\n\\s*```' +
+      '标准完整代码[:：]\\n\\s*```' +
         programmingLanguage +
         '\\n([\\s\\S]*?)\\n```',
     ),

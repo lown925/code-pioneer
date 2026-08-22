@@ -13,6 +13,7 @@
     "scripts/cleanup-javascript-starter.ts",
     "scripts/publish-data-structures-algorithms.ts",
     "scripts/publish-linux-fundamentals.ts",
+    "scripts/publish-database-sql-foundations.ts",
     "prisma/seed-data/**/*.ts",
     "generated/prisma/**/*.ts",
     "src/prisma/prisma.service.ts",

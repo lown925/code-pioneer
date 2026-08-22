@@ -1,6 +1,5 @@
 import 'dotenv/config';
 
-import { createHash } from 'crypto';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { LINUX_FUNDAMENTALS_COURSE } from '../prisma/seed-data/v1/linux-fundamentals';
 import type {
@@ -10,20 +9,20 @@ import type {
   SeedLessonBlock,
   SeedQuestion,
 } from '../prisma/seed-data/types';
-import {
-  ChapterStatus,
-  ContentBlockType,
-  CourseStatus,
-  QuestionType,
-  QuizStatus,
-} from '../generated/prisma/enums';
+import { ContentBlockType, QuestionType } from '../generated/prisma/enums';
 import { Prisma } from '../generated/prisma/client';
+import {
+  assertPublishableSeedCourse,
+  parseTargetedPublisherMode,
+  publishTargetedCourseDefinitions,
+  stableTargetedPublisherId,
+  type TargetedPublisherMode,
+} from './targeted-publisher';
 
 export const LINUX_FUNDAMENTALS_SLUG = 'linux-fundamentals';
-const SEED_NAMESPACE = 'code-pioneer.seed-content';
 const TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 120_000 } as const;
 
-type PublisherMode = 'DRY_RUN' | 'APPLY';
+type PublisherMode = TargetedPublisherMode;
 
 type SourceStats = {
   chapters: number;
@@ -166,35 +165,12 @@ export type PublishResult = {
   transactionCommitted: boolean;
 };
 
-function stableUuid(input: string) {
-  const hash = createHash('sha1').update(input).digest();
-  const bytes = Uint8Array.from(hash.subarray(0, 16));
-  bytes[6] = (bytes[6] & 0x0f) | 0x50;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Buffer.from(bytes).toString('hex');
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20, 32),
-  ].join('-');
-}
-
 export function makeLinuxId(kind: string, key: string) {
-  return stableUuid(`${SEED_NAMESPACE}:${kind}:${key}`);
+  return stableTargetedPublisherId(kind, key);
 }
 
 export function parseLinuxPublisherMode(args: string[]): PublisherMode {
-  const known = new Set(['--dry-run', '--apply']);
-  const unknown = args.filter((argument) => !known.has(argument));
-  if (unknown.length > 0) {
-    throw new Error(`Unknown publisher argument: ${unknown.join(', ')}`);
-  }
-  if (args.includes('--dry-run') && args.includes('--apply')) {
-    throw new Error('--dry-run and --apply cannot be used together.');
-  }
-  return args.includes('--apply') ? 'APPLY' : 'DRY_RUN';
+  return parseTargetedPublisherMode(args);
 }
 
 const EXPECTED_CHAPTER_SLUGS = [
@@ -213,6 +189,7 @@ const EXPECTED_CHAPTER_SLUGS = [
 export function validateLinuxSource(
   course: SeedCourse = LINUX_FUNDAMENTALS_COURSE,
 ) {
+  assertPublishableSeedCourse(course);
   if (course.slug !== LINUX_FUNDAMENTALS_SLUG) {
     throw new Error('Linux publisher source slug drifted.');
   }
@@ -498,24 +475,6 @@ export function buildLinuxPublicationPlan() {
   });
 }
 
-function courseCreateData(course: SeedCourse, id: string) {
-  return {
-    id,
-    slug: course.slug,
-    title: course.title,
-    summary: course.summary,
-    description: course.description,
-    category: course.category,
-    language: course.language,
-    difficulty: course.difficulty,
-    estimatedMinutes: course.estimatedMinutes,
-    targetAudience: course.targetAudience,
-    learningObjectives: course.learningObjectives,
-    status: CourseStatus.PUBLISHED,
-    sortOrder: course.sortOrder,
-  };
-}
-
 function findProductionDiff(course: ExistingCourse | null): ProductionStats {
   const source = getLinuxSourceStats();
   if (!course) {
@@ -788,146 +747,12 @@ export async function runLinuxPublisher(
     const currentCourse = await readProduction(tx);
     const course = LINUX_FUNDAMENTALS_COURSE;
     const courseId = currentCourse?.id ?? makeLinuxId('course', course.slug);
-    const courseRecord = await tx.course.upsert({
-      where: { slug: LINUX_FUNDAMENTALS_SLUG },
-      create: courseCreateData(course, courseId),
-      update: {
-        title: course.title,
-        summary: course.summary,
-        description: course.description,
-        category: course.category,
-        language: course.language,
-        difficulty: course.difficulty,
-        estimatedMinutes: course.estimatedMinutes,
-        targetAudience: course.targetAudience,
-        learningObjectives: course.learningObjectives,
-        status: CourseStatus.PUBLISHED,
-        sortOrder: course.sortOrder,
-        deletedAt: null,
-        publishedAt: new Date(),
-      },
-      select: { id: true },
-    });
-
-    for (const record of buildLinuxPublicationPlan()) {
-      await tx.courseChapter.upsert({
-        where: { id: record.chapterId },
-        create: {
-          id: record.chapterId,
-          courseId: courseRecord.id,
-          title: record.chapter.title,
-          summary: record.chapter.summary,
-          estimatedMinutes: record.chapter.estimatedMinutes,
-          sortOrder: record.chapter.sortOrder,
-          status: ChapterStatus.PUBLISHED,
-          publishedAt: new Date(),
-        },
-        update: {
-          courseId: courseRecord.id,
-          title: record.chapter.title,
-          summary: record.chapter.summary,
-          estimatedMinutes: record.chapter.estimatedMinutes,
-          sortOrder: record.chapter.sortOrder,
-          status: ChapterStatus.PUBLISHED,
-          deletedAt: null,
-          publishedAt: new Date(),
-        },
-      });
-      for (const block of record.contentBlocks) {
-        await tx.chapterContentBlock.upsert({
-          where: { id: block.id },
-          create: {
-            id: block.id,
-            chapterId: record.chapterId,
-            type: block.type,
-            sortOrder: block.sortOrder,
-            content: block.content,
-            isVisible: true,
-          },
-          update: {
-            chapterId: record.chapterId,
-            type: block.type,
-            sortOrder: block.sortOrder,
-            content: block.content,
-            isVisible: true,
-            deletedAt: null,
-          },
-        });
-      }
-      await tx.quiz.upsert({
-        where: { chapterId: record.chapterId },
-        create: {
-          id: record.quiz.id,
-          chapterId: record.chapterId,
-          title: record.quiz.title,
-          description: record.quiz.description,
-          passScorePercent: record.quiz.passScorePercent,
-          status: QuizStatus.PUBLISHED,
-        },
-        update: {
-          title: record.quiz.title,
-          description: record.quiz.description,
-          passScorePercent: record.quiz.passScorePercent,
-          status: QuizStatus.PUBLISHED,
-        },
-      });
-      for (const question of record.quiz.questions) {
-        await tx.quizQuestion.upsert({
-          where: { id: question.id },
-          create: {
-            id: question.id,
-            quizId: record.quiz.id,
-            type: question.type,
-            content: question.content,
-            explanation: question.explanation,
-            score: question.score,
-            sortOrder: question.sortOrder,
-            battlePresentation: question.battlePresentation,
-            battleDifficulty: question.battleDifficulty,
-            isBattleEnabled: question.isBattleEnabled,
-            stemBlocks: question.stemBlocks,
-            explanationBlocks: question.explanationBlocks,
-            acceptedAnswers: question.acceptedAnswers,
-            answerNormalization: question.answerNormalization,
-            caseSensitive: question.caseSensitive,
-            knowledgeTags: question.knowledgeTags,
-            programmingLanguage: question.programmingLanguage,
-            battleSkillCode: question.battleSkillCode,
-          },
-          update: {
-            quizId: record.quiz.id,
-            type: question.type,
-            content: question.content,
-            explanation: question.explanation,
-            score: question.score,
-            sortOrder: question.sortOrder,
-            battlePresentation: question.battlePresentation,
-            battleDifficulty: question.battleDifficulty,
-            isBattleEnabled: question.isBattleEnabled,
-            stemBlocks: question.stemBlocks,
-            explanationBlocks: question.explanationBlocks,
-            acceptedAnswers: question.acceptedAnswers,
-            answerNormalization: question.answerNormalization,
-            caseSensitive: question.caseSensitive,
-            knowledgeTags: question.knowledgeTags,
-            programmingLanguage: question.programmingLanguage,
-            battleSkillCode: question.battleSkillCode,
-          },
-        });
-        for (const option of question.options) {
-          await tx.quizOption.upsert({
-            where: { id: option.id },
-            create: option,
-            update: {
-              questionId: option.questionId,
-              content: option.content,
-              isCorrect: option.isCorrect,
-              sortOrder: option.sortOrder,
-            },
-          });
-        }
-      }
-    }
+    const courseRecord = await publishTargetedCourseDefinitions(
+      tx,
+      course,
+      courseId,
+      buildLinuxPublicationPlan(),
+    );
     return { courseId: courseRecord.id };
   }, TRANSACTION_OPTIONS);
 

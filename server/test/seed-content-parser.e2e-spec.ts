@@ -13,6 +13,13 @@ import {
   assertNoExactDuplicatesInCourse,
   auditCrossCourseExactDuplicates,
 } from '../prisma/seed-data/content-quality';
+import { LINUX_FUNDAMENTALS_COURSE } from '../prisma/seed-data/v1/linux-fundamentals';
+import { DATABASE_SQL_FOUNDATIONS_COURSE } from '../prisma/seed-data/v1/database-sql-foundations';
+import type { SeedCourse } from '../prisma/seed-data/types';
+import {
+  assertPublishableSeedCourse,
+  publishTargetedCourseDefinitions,
+} from '../scripts/targeted-publisher';
 
 const PYTHON_CHAPTER_FILES = [
   'python-basic-chapter-01.md',
@@ -178,6 +185,7 @@ describe('seed content parser', () => {
       'python-basic',
       'data-structures-algorithms',
       'linux-fundamentals',
+      'database-sql-foundations',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).not.toContain(
       'javascript-starter',
@@ -435,7 +443,48 @@ describe('seed content parser', () => {
     ).toHaveLength(0);
   });
 
-  it('keeps exactly ten formal plans while publishing only completed sources', () => {
+  it('enforces the SQL source, stable identity, content, and duplicate gates', () => {
+    const { course, questions, battleQuestions } = countQuestions(
+      'database-sql-foundations',
+    );
+    expect(course).toBe(DATABASE_SQL_FOUNDATIONS_COURSE);
+    expect(course.chapters).toHaveLength(10);
+    expect(course.chapters.map((chapter) => chapter.key)).toEqual([
+      'database-sql-introduction',
+      'data-types-null-expressions',
+      'filters-functions',
+      'aggregation-grouping',
+      'joins-relations',
+      'subqueries-sets-cte',
+      'data-modification-transactions',
+      'schema-constraints-indexes',
+      'views-window-functions',
+      'sql-practice-optimization',
+    ]);
+    expect(course.chapters.flatMap((chapter) => chapter.lessons)).toHaveLength(60);
+    expect(new Set(course.chapters.flatMap((chapter) => chapter.lessons).map((lesson) => lesson.key)).size).toBe(60);
+    expect(questions).toHaveLength(180);
+    expect(new Set(questions.map((question) => question.key)).size).toBe(180);
+    expect(battleQuestions).toHaveLength(120);
+    expect(battleQuestions.filter((question) => question.difficulty === 'MEDIUM')).toHaveLength(60);
+    expect(battleQuestions.filter((question) => question.difficulty === 'HARD')).toHaveLength(60);
+    expect(questions.filter((question) => question.type === 'CODE_FILL')).toHaveLength(30);
+    course.chapters.forEach((chapter) => {
+      const chapterQuestions = chapter.lessons.flatMap((lesson) => lesson.questions);
+      expect(chapter.lessons).toHaveLength(6);
+      expect(chapterQuestions).toHaveLength(18);
+      expect(chapterQuestions.filter((question) => question.isBattleEnabled)).toHaveLength(12);
+      expect(chapterQuestions.filter((question) => question.isBattleEnabled && question.difficulty === 'MEDIUM')).toHaveLength(6);
+      expect(chapterQuestions.filter((question) => question.isBattleEnabled && question.difficulty === 'HARD')).toHaveLength(6);
+      expect(chapterQuestions.filter((question) => question.type === 'CODE_FILL')).toHaveLength(3);
+      expect(chapterQuestions.every((question) => question.explanation.trim().length > 0)).toBe(true);
+      expect(chapterQuestions.filter((question) => question.type === 'CODE_FILL').every((question) => question.acceptedAnswers.length > 0 && question.stemBlocks?.some((block) => block.type === 'CODE' && block.language === 'sql' && block.code.includes('____')) && question.explanationBlocks?.some((block) => block.type === 'CODE' && block.language === 'sql' && block.code.trim().length > 0))).toBe(true);
+    });
+    expect(() => assertNoExactDuplicatesInCourse(course)).not.toThrow();
+    expect(auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS).filter((group) => group.questions.some((question) => question.courseSlug === 'database-sql-foundations'))).toHaveLength(0);
+  });
+
+  it('keeps ten formal plans while publishing only completed sources', () => {
     expect(FORMAL_COURSE_PLAN).toHaveLength(10);
     expect(FORMAL_COURSE_PLAN.map((course) => course.order)).toEqual(
       Array.from({ length: 10 }, (_, index) => index + 1),
@@ -447,10 +496,195 @@ describe('seed content parser', () => {
       'python-basic',
       'data-structures-algorithms',
       'linux-fundamentals',
+      'database-sql-foundations',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).toEqual(
       PUBLISHED_FORMAL_COURSE_SLUGS,
     );
+    expect(
+      FORMAL_COURSE_PLAN.map((course) => ({
+        order: course.order,
+        slug: course.slug,
+        title: course.title,
+        subjectCategory: course.subjectCategory,
+        implementationLanguage: course.implementationLanguage,
+        professionalDirections: course.professionalDirections,
+        prerequisites: course.prerequisites,
+        nextCourses: course.nextCourses,
+        coreRouteOrder: course.coreRouteOrder,
+      })),
+    ).toEqual([
+      {
+        order: 1,
+        slug: 'python-basic',
+        title: 'Python 基础入门',
+        subjectCategory: '程序设计',
+        implementationLanguage: 'Python',
+        professionalDirections: [
+          'computer-science',
+          'software-engineering',
+          'big-data',
+        ],
+        prerequisites: [],
+        nextCourses: ['data-structures-algorithms', 'linux-fundamentals'],
+        coreRouteOrder: {
+          'big-data': 1,
+          'computer-science': 1,
+          'software-engineering': 1,
+        },
+      },
+      {
+        order: 2,
+        slug: 'data-structures-algorithms',
+        title: '数据结构与算法基础',
+        subjectCategory: '算法',
+        implementationLanguage: 'Python',
+        professionalDirections: [
+          'computer-science',
+          'software-engineering',
+          'big-data',
+        ],
+        prerequisites: ['python-basic'],
+        nextCourses: [
+          'database-sql-foundations',
+          'java-object-oriented-programming',
+          'linux-fundamentals',
+        ],
+        coreRouteOrder: {
+          'big-data': 2,
+          'computer-science': 2,
+          'software-engineering': 2,
+        },
+      },
+      {
+        order: 3,
+        slug: 'linux-fundamentals',
+        title: 'Linux 基础与常用命令',
+        subjectCategory: '系统',
+        implementationLanguage: null,
+        professionalDirections: [
+          'computer-science',
+          'big-data',
+          'software-engineering',
+        ],
+        prerequisites: ['python-basic'],
+        nextCourses: [
+          'database-sql-foundations',
+          'big-data-fundamentals',
+          'computer-networks-fundamentals',
+        ],
+        coreRouteOrder: { 'big-data': 3, 'computer-science': 3 },
+      },
+      {
+        order: 4,
+        slug: 'database-sql-foundations',
+        title: '数据库与 SQL 基础',
+        subjectCategory: '数据库',
+        implementationLanguage: 'SQL',
+        professionalDirections: [
+          'computer-science',
+          'software-engineering',
+          'big-data',
+        ],
+        prerequisites: ['python-basic'],
+        nextCourses: [
+          'software-engineering-project-development',
+          'big-data-fundamentals',
+        ],
+        coreRouteOrder: {
+          'big-data': 4,
+          'computer-science': 4,
+          'software-engineering': 4,
+        },
+      },
+      {
+        order: 5,
+        slug: 'computer-architecture-operating-systems',
+        title: '计算机组成原理与操作系统基础',
+        subjectCategory: '系统',
+        implementationLanguage: null,
+        professionalDirections: ['computer-science'],
+        prerequisites: ['data-structures-algorithms'],
+        nextCourses: ['computer-networks-fundamentals'],
+        coreRouteOrder: { 'computer-science': 5 },
+      },
+      {
+        order: 6,
+        slug: 'computer-networks-fundamentals',
+        title: '计算机网络基础',
+        subjectCategory: '网络',
+        implementationLanguage: null,
+        professionalDirections: ['computer-science', 'software-engineering'],
+        prerequisites: ['linux-fundamentals'],
+        nextCourses: [],
+        coreRouteOrder: { 'computer-science': 6, 'software-engineering': 6 },
+      },
+      {
+        order: 7,
+        slug: 'java-object-oriented-programming',
+        title: 'Java 面向对象程序设计',
+        subjectCategory: '程序设计',
+        implementationLanguage: 'Java',
+        professionalDirections: ['software-engineering', 'computer-science'],
+        prerequisites: ['data-structures-algorithms'],
+        nextCourses: [
+          'database-sql-foundations',
+          'software-engineering-project-development',
+        ],
+        coreRouteOrder: { 'software-engineering': 3 },
+      },
+      {
+        order: 8,
+        slug: 'software-engineering-project-development',
+        title: '软件工程与项目开发',
+        subjectCategory: '软件工程',
+        implementationLanguage: null,
+        professionalDirections: ['software-engineering'],
+        prerequisites: [
+          'data-structures-algorithms',
+          'database-sql-foundations',
+        ],
+        nextCourses: ['computer-networks-fundamentals'],
+        coreRouteOrder: { 'software-engineering': 5 },
+      },
+      {
+        order: 9,
+        slug: 'big-data-fundamentals',
+        title: '大数据技术基础',
+        subjectCategory: '大数据',
+        implementationLanguage: null,
+        professionalDirections: ['big-data'],
+        prerequisites: [
+          'python-basic',
+          'linux-fundamentals',
+          'database-sql-foundations',
+        ],
+        nextCourses: ['spark-data-processing'],
+        coreRouteOrder: { 'big-data': 5 },
+      },
+      {
+        order: 10,
+        slug: 'spark-data-processing',
+        title: 'Spark 数据处理',
+        subjectCategory: '大数据',
+        implementationLanguage: 'Scala',
+        professionalDirections: ['big-data'],
+        prerequisites: ['python-basic', 'big-data-fundamentals'],
+        nextCourses: [],
+        coreRouteOrder: { 'big-data': 6 },
+      },
+    ]);
+
+    const formalSlugs = new Set(
+      FORMAL_COURSE_PLAN.map((course) => course.slug),
+    );
+    for (const course of FORMAL_COURSE_PLAN) {
+      expect(
+        [...course.prerequisites, ...course.nextCourses].every((slug) =>
+          formalSlugs.has(slug),
+        ),
+      ).toBe(true);
+    }
 
     for (const course of FORMAL_COURSE_PLAN) {
       expect(course.chapters.length).toBeGreaterThan(0);
@@ -476,5 +710,61 @@ describe('seed content parser', () => {
         );
       }
     }
+  });
+
+  it('keeps the SQL content manifest aligned with its registered skeleton', () => {
+    const course = FORMAL_COURSE_PLAN.find(
+      (candidate) => candidate.slug === 'database-sql-foundations',
+    );
+    const manifest = readFileSync(
+      resolve(
+        __dirname,
+        '../../docs/开发文档/database-sql-foundations-complete-10-chapters/database-sql-foundations-course-manifest.txt',
+      ),
+      'utf8',
+    );
+    const manifestChapterSlugs = [
+      ...manifest.matchAll(/^\d+\.\s+(\S+)\s+\|/gm),
+    ].map((match) => match[1]);
+
+    expect(manifest).toContain(`slug：${course?.slug}`);
+    expect(manifestChapterSlugs).toEqual(
+      course?.chapters.map((chapter) => chapter.slug),
+    );
+  });
+
+  it('rejects empty targeted publisher sources before any production write', async () => {
+    const emptyCourse = structuredClone(
+      LINUX_FUNDAMENTALS_COURSE,
+    ) as SeedCourse;
+    emptyCourse.chapters = [];
+    expect(() => assertPublishableSeedCourse(emptyCourse)).toThrow(
+      'cannot publish an empty course',
+    );
+
+    const emptyChapter = structuredClone(
+      LINUX_FUNDAMENTALS_COURSE,
+    ) as SeedCourse;
+    emptyChapter.chapters[0]!.lessons = [];
+    const courseUpsert = jest.fn();
+    await expect(
+      publishTargetedCourseDefinitions(
+        { course: { upsert: courseUpsert } } as never,
+        emptyChapter,
+        'course-id',
+        [],
+      ),
+    ).rejects.toThrow('cannot publish an empty chapter');
+    expect(courseUpsert).not.toHaveBeenCalled();
+
+    await expect(
+      publishTargetedCourseDefinitions(
+        { course: { upsert: courseUpsert } } as never,
+        LINUX_FUNDAMENTALS_COURSE,
+        'course-id',
+        [],
+      ),
+    ).rejects.toThrow('plan does not match source chapters');
+    expect(courseUpsert).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 import { PrismaService } from '../src/prisma/prisma.service';
-import { DATA_STRUCTURES_ALGORITHMS_COURSE } from '../prisma/seed-data/v1/data-structures-algorithms';
+import { DATABASE_SQL_FOUNDATIONS_COURSE } from '../prisma/seed-data/v1/database-sql-foundations';
 import type {
   SeedChapter,
   SeedCourse,
@@ -9,7 +9,7 @@ import type {
   SeedLessonBlock,
   SeedQuestion,
 } from '../prisma/seed-data/types';
-import { ContentBlockType, QuestionType } from '../generated/prisma/enums';
+import { ContentBlockType } from '../generated/prisma/enums';
 import { Prisma } from '../generated/prisma/client';
 import {
   assertPublishableSeedCourse,
@@ -19,7 +19,7 @@ import {
   type TargetedPublisherMode,
 } from './targeted-publisher';
 
-export const DATA_STRUCTURES_ALGORITHMS_SLUG = 'data-structures-algorithms';
+export const DATABASE_SQL_FOUNDATIONS_SLUG = 'database-sql-foundations';
 const TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 120_000 } as const;
 
 type PublisherMode = TargetedPublisherMode;
@@ -150,7 +150,7 @@ type PublisherTransaction = PublisherReader & {
   };
 };
 
-export type DataStructuresPublisherDatabase = PublisherReader & {
+export type DatabaseSqlPublisherDatabase = PublisherReader & {
   $transaction<T>(
     callback: (tx: PublisherTransaction) => Promise<T>,
     options?: typeof TRANSACTION_OPTIONS,
@@ -165,40 +165,38 @@ export type PublishResult = {
   transactionCommitted: boolean;
 };
 
-export function makeDataStructuresId(kind: string, key: string) {
+export function makeDatabaseSqlFoundationsId(kind: string, key: string) {
   return stableTargetedPublisherId(kind, key);
 }
 
-export function parseDataStructuresPublisherMode(
+export function parseDatabaseSqlFoundationsPublisherMode(
   args: string[],
 ): PublisherMode {
   return parseTargetedPublisherMode(args);
 }
 
 const EXPECTED_CHAPTER_SLUGS = [
-  'data-structures-algorithms-introduction',
-  'data-structures-algorithms-arrays',
-  'data-structures-algorithms-linked-list',
-  'data-structures-algorithms-stack',
-  'data-structures-algorithms-queue',
-  'data-structures-algorithms-string-algorithms',
-  'data-structures-algorithms-binary-tree',
-  'data-structures-algorithms-tree-traversal-bst',
-  'data-structures-algorithms-heap-priority-queue',
-  'data-structures-algorithms-hash-table',
-  'data-structures-algorithms-graph-traversal',
-  'data-structures-algorithms-search-sort',
+  'database-sql-introduction',
+  'data-types-null-expressions',
+  'filters-functions',
+  'aggregation-grouping',
+  'joins-relations',
+  'subqueries-sets-cte',
+  'data-modification-transactions',
+  'schema-constraints-indexes',
+  'views-window-functions',
+  'sql-practice-optimization',
 ] as const;
 
-export function validateDataStructuresSource(
-  course: SeedCourse = DATA_STRUCTURES_ALGORITHMS_COURSE,
+export function validateDatabaseSqlFoundationsSource(
+  course: SeedCourse = DATABASE_SQL_FOUNDATIONS_COURSE,
 ) {
   assertPublishableSeedCourse(course);
-  if (course.slug !== DATA_STRUCTURES_ALGORITHMS_SLUG) {
-    throw new Error('Data structures publisher source slug drifted.');
+  if (course.slug !== DATABASE_SQL_FOUNDATIONS_SLUG) {
+    throw new Error('Database SQL publisher source slug drifted.');
   }
-  if (course.chapters.length !== 12) {
-    throw new Error('Data structures publisher requires exactly 12 chapters.');
+  if (course.chapters.length !== 10) {
+    throw new Error('Database SQL publisher requires exactly 10 chapters.');
   }
   if (
     !equalJson(
@@ -206,36 +204,36 @@ export function validateDataStructuresSource(
       EXPECTED_CHAPTER_SLUGS,
     )
   ) {
-    throw new Error('Data structures publisher chapter identity drifted.');
+    throw new Error('Database SQL publisher chapter identity drifted.');
   }
   const lessons = course.chapters.flatMap((chapter) => chapter.lessons);
   const questions = lessons.flatMap((lesson) => lesson.questions);
-  if (new Set(lessons.map((lesson) => lesson.key)).size !== 72) {
-    throw new Error('Data structures publisher lesson identity drifted.');
+  if (new Set(lessons.map((lesson) => lesson.key)).size !== 60) {
+    throw new Error('Database SQL publisher lesson identity drifted.');
   }
-  if (new Set(questions.map((question) => question.key)).size !== 216) {
-    throw new Error('Data structures publisher question identity drifted.');
+  if (new Set(questions.map((question) => question.key)).size !== 180) {
+    throw new Error('Database SQL publisher question identity drifted.');
   }
   if (
-    lessons.length !== 72 ||
-    questions.length !== 216 ||
-    questions.filter((question) => question.isBattleEnabled).length !== 144 ||
+    lessons.length !== 60 ||
+    questions.length !== 180 ||
+    questions.filter((question) => question.isBattleEnabled).length !== 120 ||
     questions.filter(
       (question) =>
         question.isBattleEnabled && question.difficulty === 'MEDIUM',
-    ).length !== 72 ||
+    ).length !== 60 ||
     questions.filter(
       (question) => question.isBattleEnabled && question.difficulty === 'HARD',
-    ).length !== 72 ||
-    questions.filter((question) => question.type === 'CODE_FILL').length !== 36
+    ).length !== 60 ||
+    questions.filter((question) => question.type === 'CODE_FILL').length !== 30
   ) {
-    throw new Error('Data structures publisher source statistics drifted.');
+    throw new Error('Database SQL publisher source statistics drifted.');
   }
 }
 
-export function getDataStructuresSourceStats(): SourceStats {
-  validateDataStructuresSource();
-  const lessons = DATA_STRUCTURES_ALGORITHMS_COURSE.chapters.flatMap(
+export function getDatabaseSqlFoundationsSourceStats(): SourceStats {
+  validateDatabaseSqlFoundationsSource();
+  const lessons = DATABASE_SQL_FOUNDATIONS_COURSE.chapters.flatMap(
     (chapter) => chapter.lessons,
   );
   const questions = lessons.flatMap((lesson) => lesson.questions);
@@ -243,7 +241,7 @@ export function getDataStructuresSourceStats(): SourceStats {
     (question) => question.isBattleEnabled,
   );
   return {
-    chapters: DATA_STRUCTURES_ALGORITHMS_COURSE.chapters.length,
+    chapters: DATABASE_SQL_FOUNDATIONS_COURSE.chapters.length,
     lessons: lessons.length,
     questions: questions.length,
     battleQuestions: battleQuestions.length,
@@ -377,7 +375,7 @@ function questionExpected(
   question: SeedQuestion,
   sortOrder: number,
 ) {
-  const questionId = makeDataStructuresId(
+  const questionId = makeDatabaseSqlFoundationsId(
     'question',
     `${course.slug}:${chapter.key}:${lesson.key}:${question.key}`,
   );
@@ -387,7 +385,7 @@ function questionExpected(
   const options =
     'options' in question
       ? question.options.map((option, index) => ({
-          id: makeDataStructuresId(
+          id: makeDatabaseSqlFoundationsId(
             'option',
             `${course.slug}:${chapter.key}:${lesson.key}:${question.key}:${option.key}`,
           ),
@@ -399,7 +397,7 @@ function questionExpected(
       : [];
   return {
     id: questionId,
-    quizId: makeDataStructuresId('quiz', `${course.slug}:${chapter.key}`),
+    quizId: makeDatabaseSqlFoundationsId('quiz', `${course.slug}:${chapter.key}`),
     type: question.type,
     content: question.title,
     explanation: question.explanation,
@@ -438,8 +436,8 @@ function questionExpected(
   };
 }
 
-export function buildDataStructuresPublicationPlan() {
-  const course = DATA_STRUCTURES_ALGORITHMS_COURSE;
+export function buildDatabaseSqlFoundationsPublicationPlan() {
+  const course = DATABASE_SQL_FOUNDATIONS_COURSE;
   return course.chapters.map((chapter) => {
     let questionSortOrder = 1;
     const questions = chapter.lessons.flatMap((lesson) =>
@@ -457,25 +455,25 @@ export function buildDataStructuresPublicationPlan() {
     );
     return {
       chapter,
-      chapterId: makeDataStructuresId(
+      chapterId: makeDatabaseSqlFoundationsId(
         'chapter',
         `${course.slug}:${chapter.key}`,
       ),
       contentBlocks: blocksForChapter(chapter).map((block, index) => ({
         ...block,
-        id: makeDataStructuresId(
+        id: makeDatabaseSqlFoundationsId(
           'content-block',
           `${course.slug}:${chapter.key}:${block.key}`,
         ),
-        chapterId: makeDataStructuresId(
+        chapterId: makeDatabaseSqlFoundationsId(
           'chapter',
           `${course.slug}:${chapter.key}`,
         ),
         sortOrder: index + 1,
       })),
       quiz: {
-        id: makeDataStructuresId('quiz', `${course.slug}:${chapter.key}`),
-        chapterId: makeDataStructuresId(
+        id: makeDatabaseSqlFoundationsId('quiz', `${course.slug}:${chapter.key}`),
+        chapterId: makeDatabaseSqlFoundationsId(
           'chapter',
           `${course.slug}:${chapter.key}`,
         ),
@@ -489,7 +487,7 @@ export function buildDataStructuresPublicationPlan() {
 }
 
 function findProductionDiff(course: ExistingCourse | null): ProductionStats {
-  const source = getDataStructuresSourceStats();
+  const source = getDatabaseSqlFoundationsSourceStats();
   if (!course) {
     return {
       chapters: 0,
@@ -524,7 +522,7 @@ function findProductionDiff(course: ExistingCourse | null): ProductionStats {
     }),
   );
   let unchanged = 0;
-  const records = buildDataStructuresPublicationPlan();
+  const records = buildDatabaseSqlFoundationsPublicationPlan();
 
   for (const sourceChapter of records) {
     const productionChapter = course.chapters.find(
@@ -670,15 +668,15 @@ const COURSE_SELECT = {
 
 async function readProduction(database: PublisherReader) {
   return database.course.findUnique({
-    where: { slug: DATA_STRUCTURES_ALGORITHMS_SLUG },
+    where: { slug: DATABASE_SQL_FOUNDATIONS_SLUG },
     select: COURSE_SELECT,
   });
 }
 
 const AUDITED_COURSE_SLUGS = [
   'python-basic',
-  'javascript-starter',
-  DATA_STRUCTURES_ALGORITHMS_SLUG,
+  'linux-fundamentals',
+  DATABASE_SQL_FOUNDATIONS_SLUG,
 ] as const;
 
 async function readCourseBaseline(
@@ -737,12 +735,12 @@ async function readCourseBaseline(
   });
 }
 
-export async function runDataStructuresPublisher(
-  database: DataStructuresPublisherDatabase,
+export async function runDatabaseSqlFoundationsPublisher(
+  database: DatabaseSqlPublisherDatabase,
   mode: PublisherMode,
 ): Promise<PublishResult> {
-  validateDataStructuresSource();
-  const source = getDataStructuresSourceStats();
+  validateDatabaseSqlFoundationsSource();
+  const source = getDatabaseSqlFoundationsSourceStats();
   const courseBaseline = await readCourseBaseline(database);
   const current = await readProduction(database);
   const production = findProductionDiff(current);
@@ -758,14 +756,14 @@ export async function runDataStructuresPublisher(
 
   const committed = await database.$transaction(async (tx) => {
     const currentCourse = await readProduction(tx);
-    const course = DATA_STRUCTURES_ALGORITHMS_COURSE;
+    const course = DATABASE_SQL_FOUNDATIONS_COURSE;
     const courseId =
-      currentCourse?.id ?? makeDataStructuresId('course', course.slug);
+      currentCourse?.id ?? makeDatabaseSqlFoundationsId('course', course.slug);
     const courseRecord = await publishTargetedCourseDefinitions(
       tx,
       course,
       courseId,
-      buildDataStructuresPublicationPlan(),
+      buildDatabaseSqlFoundationsPublicationPlan(),
     );
     return { courseId: courseRecord.id };
   }, TRANSACTION_OPTIONS);
@@ -779,14 +777,14 @@ export async function runDataStructuresPublisher(
   };
 }
 
-export function formatDataStructuresPublisherResult(result: PublishResult) {
+export function formatDatabaseSqlFoundationsPublisherResult(result: PublishResult) {
   const baseline = result.courseBaseline.map(
     (course) =>
       `Baseline ${course.slug}: ${course.courseId ?? 'NOT_FOUND'} / ${course.title ?? 'NOT_FOUND'} / ${course.status ?? 'NOT_FOUND'} / ${course.chapters} chapters (${course.publishedChapters} published) / ${course.lessons} lessons / ${course.questions} questions / ${course.battleQuestions} Battle`,
   );
   return [
     `Mode: ${result.mode}`,
-    `Course slug: ${DATA_STRUCTURES_ALGORITHMS_SLUG}`,
+    `Course slug: ${DATABASE_SQL_FOUNDATIONS_SLUG}`,
     `Source: ${result.source.chapters} chapters / ${result.source.lessons} lessons / ${result.source.questions} questions`,
     `Source Battle: ${result.source.battleQuestions} (${result.source.mediumBattleQuestions} MEDIUM / ${result.source.hardBattleQuestions} HARD)`,
     `Source CODE_FILL: ${result.source.codeFillQuestions}`,
@@ -806,15 +804,15 @@ export function formatDataStructuresPublisherResult(result: PublishResult) {
 }
 
 async function main() {
-  const mode = parseDataStructuresPublisherMode(process.argv.slice(2));
+  const mode = parseDatabaseSqlFoundationsPublisherMode(process.argv.slice(2));
   const prisma = new PrismaService();
   try {
     await prisma.$connect();
-    const result = await runDataStructuresPublisher(
-      prisma as unknown as DataStructuresPublisherDatabase,
+    const result = await runDatabaseSqlFoundationsPublisher(
+      prisma as unknown as DatabaseSqlPublisherDatabase,
       mode,
     );
-    console.log(formatDataStructuresPublisherResult(result));
+    console.log(formatDatabaseSqlFoundationsPublisherResult(result));
   } finally {
     await prisma.$disconnect();
   }

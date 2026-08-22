@@ -221,7 +221,7 @@ describe('GrowthService', () => {
       ['python-basic', 'LEARNING'],
       ['data-structures-algorithms', 'AVAILABLE'],
       ['linux-fundamentals', 'UPCOMING'],
-      ['database-sql-fundamentals', 'UPCOMING'],
+      ['database-sql-foundations', 'UPCOMING'],
       ['computer-architecture-operating-systems', 'UPCOMING'],
       ['computer-networks-fundamentals', 'UPCOMING'],
     ]);
