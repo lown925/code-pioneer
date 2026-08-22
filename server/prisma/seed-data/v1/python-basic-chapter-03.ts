@@ -50,11 +50,7 @@ const PRESENTATION_MAP = {
   场景判断: 'CODE_PURPOSE',
 } as const;
 
-function requiredMatch(
-  input: string,
-  pattern: RegExp,
-  label: string,
-): string {
+function requiredMatch(input: string, pattern: RegExp, label: string): string {
   const value = input.match(pattern)?.[1]?.trim();
   if (!value) {
     throw new Error(`Python chapter source is missing ${label}`);
@@ -127,7 +123,10 @@ function parseLessonBlocks(markdown: string, lessonKey: string) {
         key: keyFor('code'),
         type: 'CODE',
         language: codeMatch[1]!.trim(),
-        code: lines.slice(index + 1, endIndex).join('\n').trim(),
+        code: lines
+          .slice(index + 1, endIndex)
+          .join('\n')
+          .trim(),
       });
       index = endIndex + 1;
       continue;
@@ -139,9 +138,20 @@ function parseLessonBlocks(markdown: string, lessonKey: string) {
       if (endIndex < 0) {
         throw new Error(`Unclosed example block in ${lessonKey}`);
       }
-      const content = lines.slice(index + 1, endIndex).join('\n').trim();
-      const description = requiredMatch(content, /^说明：(.+)$/m, 'example description');
-      const language = requiredMatch(content, /^语言：(.+)$/m, 'example language');
+      const content = lines
+        .slice(index + 1, endIndex)
+        .join('\n')
+        .trim();
+      const description = requiredMatch(
+        content,
+        /^说明：(.+)$/m,
+        'example description',
+      );
+      const language = requiredMatch(
+        content,
+        /^语言：(.+)$/m,
+        'example language',
+      );
       const code = content
         .replace(/^说明：.+$/m, '')
         .replace(/^语言：.+$/m, '')
@@ -202,12 +212,16 @@ function parseOptions(segment: string, questionNumber: number) {
   const uniqueExplicitCorrectKeys = [...new Set(explicitCorrectKeys)];
 
   if (uniqueExplicitCorrectKeys.length > 1) {
-    throw new Error(`Question ${questionNumber} has conflicting explicit correct answers`);
+    throw new Error(
+      `Question ${questionNumber} has conflicting explicit correct answers`,
+    );
   }
 
   const explicitCorrectKey = uniqueExplicitCorrectKeys[0];
   if (explicitCorrectKey && !optionKeys.has(explicitCorrectKey)) {
-    throw new Error(`Question ${questionNumber} correct answer does not reference an option`);
+    throw new Error(
+      `Question ${questionNumber} correct answer does not reference an option`,
+    );
   }
   if (
     explicitCorrectKey &&
@@ -215,7 +229,9 @@ function parseOptions(segment: string, questionNumber: number) {
       (inlineCorrectOptions.length === 1 &&
         inlineCorrectOptions[0]!.key !== explicitCorrectKey))
   ) {
-    throw new Error(`Question ${questionNumber} has conflicting correct answer markers`);
+    throw new Error(
+      `Question ${questionNumber} has conflicting correct answer markers`,
+    );
   }
   if (explicitCorrectKey) {
     for (const option of options) {
@@ -224,7 +240,9 @@ function parseOptions(segment: string, questionNumber: number) {
   }
 
   if (options.filter((option) => option.isCorrect).length !== 1) {
-    throw new Error(`Question ${questionNumber} must have exactly one correct option`);
+    throw new Error(
+      `Question ${questionNumber} must have exactly one correct option`,
+    );
   }
   return options;
 }
@@ -257,8 +275,16 @@ function parseQuestion(
   questionKeys: readonly string[],
   programmingLanguage = 'python',
 ): SeedQuestion {
-  const type = requiredMatch(segment, /^题型：(.+)$/m, `question ${questionNumber} type`);
-  const title = requiredMatch(segment, /^题干：(.+)$/m, `question ${questionNumber} title`);
+  const type = requiredMatch(
+    segment,
+    /^题型：(.+)$/m,
+    `question ${questionNumber} type`,
+  );
+  const title = requiredMatch(
+    segment,
+    /^题干：(.+)$/m,
+    `question ${questionNumber} title`,
+  );
   const explanation = requiredMatch(
     segment,
     /解析：\n([\s\S]*?)(?=\n标准完整代码[:：]|\n---|$)/,
@@ -269,7 +295,13 @@ function parseQuestion(
     /^难度：(EASY|MEDIUM|HARD)$/m,
     `question ${questionNumber} difficulty`,
   ) as 'EASY' | 'MEDIUM' | 'HARD';
-  const score = Number(requiredMatch(segment, /^分值：(\d+)$/m, `question ${questionNumber} score`));
+  const score = Number(
+    requiredMatch(
+      segment,
+      /^分值：(\d+)$/m,
+      `question ${questionNumber} score`,
+    ),
+  );
   const tags = requiredMatch(
     segment,
     /^知识点：(.+)$/m,
@@ -277,11 +309,12 @@ function parseQuestion(
   )
     .split('、')
     .map((tag) => `topic:${tag.trim()}`);
-  const isBattleEnabled = requiredMatch(
-    segment,
-    /^是否用于 Battle：(是|否)$/m,
-    `question ${questionNumber} Battle flag`,
-  ) === '是';
+  const isBattleEnabled =
+    requiredMatch(
+      segment,
+      /^是否用于 Battle：(是|否)$/m,
+      `question ${questionNumber} Battle flag`,
+    ) === '是';
   const codeFencePattern = new RegExp(
     '```' + programmingLanguage + '\\r?\\n([\\s\\S]*?)\\r?\\n```',
   );
@@ -297,12 +330,18 @@ function parseQuestion(
       )?.[1]
       ?.trim();
   if (type === 'CODE_FILL' && !stemCode) {
-    throw new Error(`CODE_FILL question ${questionNumber} must include a code context`);
+    throw new Error(
+      `CODE_FILL question ${questionNumber} must include a code context`,
+    );
   }
   const stemBlocks = stemCode
     ? [
         { type: 'TEXT' as const, text: title },
-        { type: 'CODE' as const, language: programmingLanguage, code: stemCode },
+        {
+          type: 'CODE' as const,
+          language: programmingLanguage,
+          code: stemCode,
+        },
       ]
     : undefined;
 
@@ -353,17 +392,21 @@ function parseQuestion(
     ? true
     : !/忽略大小写：是/.test(segment);
   const collapseWhitespace = /合并连续空格：是/.test(segment);
-  const standardCode = segment.match(
-    new RegExp(
-      '标准完整代码[:：]\\n\\s*```' +
-        programmingLanguage +
-        '\\n([\\s\\S]*?)\\n```',
-    ),
-  )?.[1]?.trim();
+  const standardCode = segment
+    .match(
+      new RegExp(
+        '标准完整代码[:：]\\n\\s*```' +
+          programmingLanguage +
+          '\\n([\\s\\S]*?)\\n```',
+      ),
+    )?.[1]
+    ?.trim();
 
   if (type === 'FILL_BLANK') {
     if (isBattleEnabled) {
-      throw new Error(`FILL_BLANK question ${questionNumber} cannot be Battle enabled`);
+      throw new Error(
+        `FILL_BLANK question ${questionNumber} cannot be Battle enabled`,
+      );
     }
     return {
       key: questionKeys[questionNumber - 1]!,
@@ -395,7 +438,9 @@ function parseQuestion(
       ? 'INPUT_CODE_FILL'
       : PRESENTATION_MAP[presentationLabel as keyof typeof PRESENTATION_MAP];
   if (!battlePresentation) {
-    throw new Error(`Question ${questionNumber} has unsupported Battle presentation ${presentationLabel}`);
+    throw new Error(
+      `Question ${questionNumber} has unsupported Battle presentation ${presentationLabel}`,
+    );
   }
   return {
     key: questionKeys[questionNumber - 1]!,
@@ -429,6 +474,7 @@ function parseQuestions(
   markdown: string,
   questionKeys: readonly string[],
   programmingLanguage = 'python',
+  questionKeyOffset = 0,
 ) {
   const matches = [...markdown.matchAll(/^#### 题目 (\d+)$/gm)];
   return matches.map((match, index) => {
@@ -437,7 +483,7 @@ function parseQuestions(
     const end = matches[index + 1]?.index ?? markdown.length;
     return parseQuestion(
       markdown.slice(start, end).trim(),
-      questionNumber,
+      questionNumber - questionKeyOffset,
       questionKeys,
       programmingLanguage,
     );
@@ -454,6 +500,8 @@ export type PythonChapterSourceConfig = {
   quizDescription: string;
   passScorePercent: number;
   programmingLanguage?: string;
+  keyPrefix?: string;
+  questionKeyOffset?: number;
 };
 
 export function parsePythonChapterSource(
@@ -475,7 +523,10 @@ export function parsePythonChapterSource(
 
   const lessons: SeedLesson[] = lessonMatches.map((match, index) => {
     const lessonNumber = Number(match[1]);
-    const lessonKey = config.lessonKeys[lessonNumber - 1]!;
+    const rawLessonKey = config.lessonKeys[lessonNumber - 1]!;
+    const lessonKey = config.keyPrefix
+      ? `${config.keyPrefix}-${rawLessonKey}`
+      : rawLessonKey;
     const start = match.index! + match[0].length;
     const end = lessonMatches[index + 1]?.index ?? normalized.length;
     const lessonSource = normalized.slice(start, end);
@@ -491,8 +542,11 @@ export function parsePythonChapterSource(
       supplementalStart >= 0
         ? questionSection.slice(0, supplementalStart)
         : questionSection,
-      config.questionKeys,
+      config.keyPrefix
+        ? config.questionKeys.map((key) => `${config.keyPrefix}-${key}`)
+        : config.questionKeys,
       config.programmingLanguage ?? 'python',
+      config.questionKeyOffset ?? 0,
     );
     const blocks = parseLessonBlocks(
       `${lessonSource.slice(0, questionMarker)}\n${

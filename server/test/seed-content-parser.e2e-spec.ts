@@ -15,6 +15,11 @@ import {
 } from '../prisma/seed-data/content-quality';
 import { LINUX_FUNDAMENTALS_COURSE } from '../prisma/seed-data/v1/linux-fundamentals';
 import { DATABASE_SQL_FOUNDATIONS_COURSE } from '../prisma/seed-data/v1/database-sql-foundations';
+import { COMPUTER_ARCHITECTURE_OPERATING_SYSTEMS_COURSE } from '../prisma/seed-data/v1/computer-architecture-operating-systems';
+import {
+  getComputerArchitectureOperatingSystemsSourceStats,
+  validateComputerArchitectureOperatingSystemsSource,
+} from '../scripts/publish-computer-architecture-operating-systems';
 import type { SeedCourse } from '../prisma/seed-data/types';
 import {
   assertPublishableSeedCourse,
@@ -186,6 +191,7 @@ describe('seed content parser', () => {
       'data-structures-algorithms',
       'linux-fundamentals',
       'database-sql-foundations',
+      'computer-architecture-operating-systems',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).not.toContain(
       'javascript-starter',
@@ -461,27 +467,178 @@ describe('seed content parser', () => {
       'views-window-functions',
       'sql-practice-optimization',
     ]);
-    expect(course.chapters.flatMap((chapter) => chapter.lessons)).toHaveLength(60);
-    expect(new Set(course.chapters.flatMap((chapter) => chapter.lessons).map((lesson) => lesson.key)).size).toBe(60);
+    expect(course.chapters.flatMap((chapter) => chapter.lessons)).toHaveLength(
+      60,
+    );
+    expect(
+      new Set(
+        course.chapters
+          .flatMap((chapter) => chapter.lessons)
+          .map((lesson) => lesson.key),
+      ).size,
+    ).toBe(60);
     expect(questions).toHaveLength(180);
     expect(new Set(questions.map((question) => question.key)).size).toBe(180);
     expect(battleQuestions).toHaveLength(120);
-    expect(battleQuestions.filter((question) => question.difficulty === 'MEDIUM')).toHaveLength(60);
-    expect(battleQuestions.filter((question) => question.difficulty === 'HARD')).toHaveLength(60);
-    expect(questions.filter((question) => question.type === 'CODE_FILL')).toHaveLength(30);
+    expect(
+      battleQuestions.filter((question) => question.difficulty === 'MEDIUM'),
+    ).toHaveLength(60);
+    expect(
+      battleQuestions.filter((question) => question.difficulty === 'HARD'),
+    ).toHaveLength(60);
+    expect(
+      questions.filter((question) => question.type === 'CODE_FILL'),
+    ).toHaveLength(30);
     course.chapters.forEach((chapter) => {
-      const chapterQuestions = chapter.lessons.flatMap((lesson) => lesson.questions);
+      const chapterQuestions = chapter.lessons.flatMap(
+        (lesson) => lesson.questions,
+      );
       expect(chapter.lessons).toHaveLength(6);
       expect(chapterQuestions).toHaveLength(18);
-      expect(chapterQuestions.filter((question) => question.isBattleEnabled)).toHaveLength(12);
-      expect(chapterQuestions.filter((question) => question.isBattleEnabled && question.difficulty === 'MEDIUM')).toHaveLength(6);
-      expect(chapterQuestions.filter((question) => question.isBattleEnabled && question.difficulty === 'HARD')).toHaveLength(6);
-      expect(chapterQuestions.filter((question) => question.type === 'CODE_FILL')).toHaveLength(3);
-      expect(chapterQuestions.every((question) => question.explanation.trim().length > 0)).toBe(true);
-      expect(chapterQuestions.filter((question) => question.type === 'CODE_FILL').every((question) => question.acceptedAnswers.length > 0 && question.stemBlocks?.some((block) => block.type === 'CODE' && block.language === 'sql' && block.code.includes('____')) && question.explanationBlocks?.some((block) => block.type === 'CODE' && block.language === 'sql' && block.code.trim().length > 0))).toBe(true);
+      expect(
+        chapterQuestions.filter((question) => question.isBattleEnabled),
+      ).toHaveLength(12);
+      expect(
+        chapterQuestions.filter(
+          (question) =>
+            question.isBattleEnabled && question.difficulty === 'MEDIUM',
+        ),
+      ).toHaveLength(6);
+      expect(
+        chapterQuestions.filter(
+          (question) =>
+            question.isBattleEnabled && question.difficulty === 'HARD',
+        ),
+      ).toHaveLength(6);
+      expect(
+        chapterQuestions.filter((question) => question.type === 'CODE_FILL'),
+      ).toHaveLength(3);
+      expect(
+        chapterQuestions.every(
+          (question) => question.explanation.trim().length > 0,
+        ),
+      ).toBe(true);
+      expect(
+        chapterQuestions
+          .filter((question) => question.type === 'CODE_FILL')
+          .every(
+            (question) =>
+              question.acceptedAnswers.length > 0 &&
+              question.stemBlocks?.some(
+                (block) =>
+                  block.type === 'CODE' &&
+                  block.language === 'sql' &&
+                  block.code.includes('____'),
+              ) &&
+              question.explanationBlocks?.some(
+                (block) =>
+                  block.type === 'CODE' &&
+                  block.language === 'sql' &&
+                  block.code.trim().length > 0,
+              ),
+          ),
+      ).toBe(true);
     });
     expect(() => assertNoExactDuplicatesInCourse(course)).not.toThrow();
-    expect(auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS).filter((group) => group.questions.some((question) => question.courseSlug === 'database-sql-foundations'))).toHaveLength(0);
+    expect(
+      auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS).filter((group) =>
+        group.questions.some(
+          (question) => question.courseSlug === 'database-sql-foundations',
+        ),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('enforces the computer architecture and operating systems source gates', () => {
+    const { course, questions, battleQuestions } = countQuestions(
+      'computer-architecture-operating-systems',
+    );
+    expect(course).toBe(COMPUTER_ARCHITECTURE_OPERATING_SYSTEMS_COURSE);
+    expect(getComputerArchitectureOperatingSystemsSourceStats()).toEqual({
+      chapters: 10,
+      lessons: 60,
+      questions: 180,
+      battleQuestions: 120,
+      mediumBattleQuestions: 60,
+      hardBattleQuestions: 60,
+      codeFillQuestions: 30,
+    });
+    expect(course.chapters.map((chapter) => chapter.key)).toEqual(
+      Array.from(
+        { length: 10 },
+        (_, index) =>
+          `computer-architecture-operating-systems-chapter-${String(index + 1).padStart(2, '0')}`,
+      ),
+    );
+    expect(
+      new Set(
+        course.chapters
+          .flatMap((chapter) => chapter.lessons)
+          .map((lesson) => lesson.key),
+      ).size,
+    ).toBe(60);
+    expect(new Set(questions.map((question) => question.key)).size).toBe(180);
+    expect(battleQuestions).toHaveLength(120);
+    expect(
+      questions.filter((question) => question.type === 'CODE_FILL'),
+    ).toHaveLength(30);
+    for (const chapter of course.chapters) {
+      const chapterQuestions = chapter.lessons.flatMap(
+        (lesson) => lesson.questions,
+      );
+      expect(chapter.lessons).toHaveLength(6);
+      expect(chapterQuestions).toHaveLength(18);
+      expect(
+        chapterQuestions.filter((question) => question.isBattleEnabled),
+      ).toHaveLength(12);
+      expect(
+        chapterQuestions.filter(
+          (question) =>
+            question.isBattleEnabled && question.difficulty === 'MEDIUM',
+        ),
+      ).toHaveLength(6);
+      expect(
+        chapterQuestions.filter(
+          (question) =>
+            question.isBattleEnabled && question.difficulty === 'HARD',
+        ),
+      ).toHaveLength(6);
+      expect(
+        chapterQuestions.filter((question) => question.type === 'CODE_FILL'),
+      ).toHaveLength(3);
+      expect(
+        chapterQuestions.every(
+          (question) => question.explanation.trim().length > 0,
+        ),
+      ).toBe(true);
+      expect(
+        chapterQuestions
+          .filter((question) => question.type === 'CODE_FILL')
+          .every(
+            (question) =>
+              question.acceptedAnswers.length > 0 &&
+              question.stemBlocks?.some(
+                (block) => block.type === 'CODE' && block.code.includes('____'),
+              ) &&
+              question.explanationBlocks?.some(
+                (block) =>
+                  block.type === 'CODE' && block.code.trim().length > 0,
+              ),
+          ),
+      ).toBe(true);
+    }
+    expect(() =>
+      validateComputerArchitectureOperatingSystemsSource(),
+    ).not.toThrow();
+    expect(() => assertNoExactDuplicatesInCourse(course)).not.toThrow();
+    expect(
+      auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS).filter((group) =>
+        group.questions.some(
+          (question) =>
+            question.courseSlug === 'computer-architecture-operating-systems',
+        ),
+      ),
+    ).toHaveLength(0);
   });
 
   it('keeps ten formal plans while publishing only completed sources', () => {
@@ -497,6 +654,7 @@ describe('seed content parser', () => {
       'data-structures-algorithms',
       'linux-fundamentals',
       'database-sql-foundations',
+      'computer-architecture-operating-systems',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).toEqual(
       PUBLISHED_FORMAL_COURSE_SLUGS,

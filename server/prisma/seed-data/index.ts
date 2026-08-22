@@ -3,6 +3,7 @@ import { DATA_STRUCTURES_ALGORITHMS_COURSE } from './v1/data-structures-algorith
 import { LINUX_FUNDAMENTALS_COURSE } from './v1/linux-fundamentals';
 import { PYTHON_BASIC_COURSE } from './v1/python-basic';
 import { DATABASE_SQL_FOUNDATIONS_COURSE } from './v1/database-sql-foundations';
+import { COMPUTER_ARCHITECTURE_OPERATING_SYSTEMS_COURSE } from './v1/computer-architecture-operating-systems';
 import type { SeedBattleSkill } from './types';
 
 export const BATTLE_SKILL_SEEDS: SeedBattleSkill[] = [
@@ -25,4 +26,5 @@ export const VERSIONED_COURSE_SEEDS: SeedCourse[] = [
   DATA_STRUCTURES_ALGORITHMS_COURSE,
   LINUX_FUNDAMENTALS_COURSE,
   DATABASE_SQL_FOUNDATIONS_COURSE,
+  COMPUTER_ARCHITECTURE_OPERATING_SYSTEMS_COURSE,
 ];
