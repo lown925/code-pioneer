@@ -211,6 +211,7 @@ describe('seed content parser', () => {
       'computer-networks-fundamentals',
       'java-object-oriented-programming',
       'software-engineering-project-development',
+      'big-data-fundamentals',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).not.toContain(
       'javascript-starter',
@@ -741,6 +742,7 @@ describe('seed content parser', () => {
       'computer-networks-fundamentals',
       'java-object-oriented-programming',
       'software-engineering-project-development',
+      'big-data-fundamentals',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).toEqual(
       PUBLISHED_FORMAL_COURSE_SLUGS,

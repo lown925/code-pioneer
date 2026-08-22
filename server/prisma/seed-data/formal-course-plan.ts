@@ -364,7 +364,7 @@ export const FORMAL_COURSE_PLAN = [
       'ETL 与数据仓库基础',
       '大数据处理综合案例',
     ]),
-    publishedSeed: false,
+    publishedSeed: true,
   },
   {
     order: 10,
