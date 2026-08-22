@@ -4,6 +4,7 @@ import { LINUX_FUNDAMENTALS_COURSE } from './v1/linux-fundamentals';
 import { PYTHON_BASIC_COURSE } from './v1/python-basic';
 import { DATABASE_SQL_FOUNDATIONS_COURSE } from './v1/database-sql-foundations';
 import { COMPUTER_ARCHITECTURE_OPERATING_SYSTEMS_COURSE } from './v1/computer-architecture-operating-systems';
+import { COMPUTER_NETWORKS_FUNDAMENTALS_COURSE } from './v1/computer-networks-fundamentals';
 import type { SeedBattleSkill } from './types';
 
 export const BATTLE_SKILL_SEEDS: SeedBattleSkill[] = [
@@ -27,4 +28,5 @@ export const VERSIONED_COURSE_SEEDS: SeedCourse[] = [
   LINUX_FUNDAMENTALS_COURSE,
   DATABASE_SQL_FOUNDATIONS_COURSE,
   COMPUTER_ARCHITECTURE_OPERATING_SYSTEMS_COURSE,
+  COMPUTER_NETWORKS_FUNDAMENTALS_COURSE,
 ];

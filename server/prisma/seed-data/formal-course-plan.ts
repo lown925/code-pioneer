@@ -277,7 +277,7 @@ export const FORMAL_COURSE_PLAN = [
       'HTTP 与 HTTPS',
       '网络通信与故障排查',
     ]),
-    publishedSeed: false,
+    publishedSeed: true,
   },
   {
     order: 7,

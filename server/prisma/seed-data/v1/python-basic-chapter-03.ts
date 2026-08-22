@@ -48,6 +48,7 @@ const PRESENTATION_MAP = {
   执行流程: 'OUTPUT_PREDICTION',
   输出预测: 'OUTPUT_PREDICTION',
   场景判断: 'CODE_PURPOSE',
+  综合判断: 'CODE_READING',
 } as const;
 
 function requiredMatch(input: string, pattern: RegExp, label: string): string {
@@ -142,11 +143,7 @@ function parseLessonBlocks(markdown: string, lessonKey: string) {
         .slice(index + 1, endIndex)
         .join('\n')
         .trim();
-      const description = requiredMatch(
-        content,
-        /^说明：(.+)$/m,
-        'example description',
-      );
+      const description = content.match(/^说明：(.+)$/m)?.[1]?.trim();
       const language = requiredMatch(
         content,
         /^语言：(.+)$/m,
@@ -160,7 +157,7 @@ function parseLessonBlocks(markdown: string, lessonKey: string) {
         key: keyFor('example'),
         type: 'EXAMPLE',
         title: exampleMatch[1]!.trim(),
-        description,
+        ...(description ? { description } : {}),
         language,
         code,
       });
