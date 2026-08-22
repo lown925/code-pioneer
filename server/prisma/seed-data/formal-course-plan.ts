@@ -335,7 +335,7 @@ export const FORMAL_COURSE_PLAN = [
       '调试、日志、安全与质量',
       '从需求到发布的完整项目实践',
     ]),
-    publishedSeed: false,
+    publishedSeed: true,
   },
   {
     order: 9,

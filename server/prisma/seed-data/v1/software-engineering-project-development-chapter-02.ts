@@ -1,0 +1,5 @@
+import { readSeedDocument } from '../content-source';
+import { parsePythonChapterSource } from './python-basic-chapter-03';
+const LESSON_KEYS = ['requirements-stakeholders','functional-nonfunctional-requirements','user-stories','acceptance-criteria','requirement-prioritization','change-and-scope-control'] as const;
+const QUESTION_KEYS = LESSON_KEYS.flatMap((key) => [`${key}-concept`, `${key}-battle-medium`, `${key}-battle-hard`]) as readonly string[];
+export const SOFTWARE_ENGINEERING_PROJECT_DEVELOPMENT_CHAPTER_02 = parsePythonChapterSource(readSeedDocument('software-engineering-project-development-chapter-02.md', ['docs','开发文档','software-engineering-project-development']), { chapterNumber: 2, chapterOrdinal: '二', chapterKey: 'software-engineering-project-development-chapter-02', lessonKeys: LESSON_KEYS, questionKeys: QUESTION_KEYS, quizTitle: '软件工程与项目开发第2章章节测验', quizDescription: '检验本章软件工程与项目开发知识。提交后可查看每题答案与解析。', passScorePercent: 70, programmingLanguage: 'python', keyPrefix: 'software-engineering-project-development-chapter-02', questionKeyOffset: 18 });

@@ -1,0 +1,5 @@
+import { readSeedDocument } from '../content-source';
+import { parsePythonChapterSource } from './python-basic-chapter-03';
+const LESSON_KEYS = ['modules-responsibilities','high-cohesion-low-coupling','interfaces-contracts','layered-architecture','dependency-direction','design-tradeoffs'] as const;
+const QUESTION_KEYS = LESSON_KEYS.flatMap((key) => [`${key}-concept`, `${key}-battle-medium`, `${key}-battle-hard`]) as readonly string[];
+export const SOFTWARE_ENGINEERING_PROJECT_DEVELOPMENT_CHAPTER_03 = parsePythonChapterSource(readSeedDocument('software-engineering-project-development-chapter-03.md', ['docs','开发文档','software-engineering-project-development']), { chapterNumber: 3, chapterOrdinal: '三', chapterKey: 'software-engineering-project-development-chapter-03', lessonKeys: LESSON_KEYS, questionKeys: QUESTION_KEYS, quizTitle: '软件工程与项目开发第3章章节测验', quizDescription: '检验本章软件工程与项目开发知识。提交后可查看每题答案与解析。', passScorePercent: 70, programmingLanguage: 'python', keyPrefix: 'software-engineering-project-development-chapter-03', questionKeyOffset: 36 });
