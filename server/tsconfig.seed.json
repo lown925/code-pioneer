@@ -16,6 +16,7 @@
     "scripts/publish-database-sql-foundations.ts",
     "scripts/publish-computer-architecture-operating-systems.ts",
     "scripts/publish-computer-networks-fundamentals.ts",
+    "scripts/publish-java-object-oriented-programming.ts",
     "prisma/seed-data/**/*.ts",
     "generated/prisma/**/*.ts",
     "src/prisma/prisma.service.ts",

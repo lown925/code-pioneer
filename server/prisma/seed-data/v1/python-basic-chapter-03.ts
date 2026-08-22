@@ -49,6 +49,7 @@ const PRESENTATION_MAP = {
   输出预测: 'OUTPUT_PREDICTION',
   场景判断: 'CODE_PURPOSE',
   综合判断: 'CODE_READING',
+  工程判断: 'CODE_PURPOSE',
 } as const;
 
 function requiredMatch(input: string, pattern: RegExp, label: string): string {

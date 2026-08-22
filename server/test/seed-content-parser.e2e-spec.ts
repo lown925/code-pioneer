@@ -17,6 +17,7 @@ import { LINUX_FUNDAMENTALS_COURSE } from '../prisma/seed-data/v1/linux-fundamen
 import { DATABASE_SQL_FOUNDATIONS_COURSE } from '../prisma/seed-data/v1/database-sql-foundations';
 import { COMPUTER_ARCHITECTURE_OPERATING_SYSTEMS_COURSE } from '../prisma/seed-data/v1/computer-architecture-operating-systems';
 import { COMPUTER_NETWORKS_FUNDAMENTALS_COURSE } from '../prisma/seed-data/v1/computer-networks-fundamentals';
+import { JAVA_OBJECT_ORIENTED_PROGRAMMING_COURSE } from '../prisma/seed-data/v1/java-object-oriented-programming';
 import {
   getComputerArchitectureOperatingSystemsSourceStats,
   validateComputerArchitectureOperatingSystemsSource,
@@ -173,6 +174,13 @@ describe('seed content parser', () => {
     expect(hardBattle?.battlePresentation).toBe('CODE_READING');
   });
 
+  it('maps the Java course engineering judgment presentation', () => {
+    const hardBattle =
+      JAVA_OBJECT_ORIENTED_PROGRAMMING_COURSE.chapters[0]?.lessons[0]
+        ?.questions[2];
+    expect(hardBattle?.battlePresentation).toBe('CODE_PURPOSE');
+  });
+
   it('requires every CODE_FILL question to expose a visible blank and code context', () => {
     const { questions } = countQuestions('python-basic');
     const codeFillQuestions = questions.filter(
@@ -201,6 +209,7 @@ describe('seed content parser', () => {
       'database-sql-foundations',
       'computer-architecture-operating-systems',
       'computer-networks-fundamentals',
+      'java-object-oriented-programming',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).not.toContain(
       'javascript-starter',
@@ -682,6 +691,38 @@ describe('seed content parser', () => {
     expect(auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS).filter((group) => group.questions.some((question) => question.courseSlug === 'computer-networks-fundamentals'))).toHaveLength(0);
   });
 
+  it('enforces the Java source gates and professional identity', () => {
+    const { course, questions, battleQuestions } = countQuestions(
+      'java-object-oriented-programming',
+    );
+    expect(course).toBe(JAVA_OBJECT_ORIENTED_PROGRAMMING_COURSE);
+    expect(course.chapters.map((chapter) => chapter.key)).toEqual(
+      Array.from(
+        { length: 10 },
+        (_, index) =>
+          `java-object-oriented-programming-chapter-${String(index + 1).padStart(2, '0')}`,
+      ),
+    );
+    expect(new Set(course.chapters.flatMap((chapter) => chapter.lessons).map((lesson) => lesson.key)).size).toBe(60);
+    expect(new Set(questions.map((question) => question.key)).size).toBe(180);
+    expect(battleQuestions).toHaveLength(120);
+    expect(battleQuestions.filter((question) => question.difficulty === 'MEDIUM')).toHaveLength(60);
+    expect(battleQuestions.filter((question) => question.difficulty === 'HARD')).toHaveLength(60);
+    expect(questions.filter((question) => question.type === 'CODE_FILL')).toHaveLength(30);
+    for (const chapter of course.chapters) {
+      const chapterQuestions = chapter.lessons.flatMap((lesson) => lesson.questions);
+      expect(chapter.lessons).toHaveLength(6);
+      expect(chapterQuestions).toHaveLength(18);
+      expect(chapterQuestions.filter((question) => question.isBattleEnabled)).toHaveLength(12);
+      expect(chapterQuestions.filter((question) => question.isBattleEnabled && question.difficulty === 'MEDIUM')).toHaveLength(6);
+      expect(chapterQuestions.filter((question) => question.isBattleEnabled && question.difficulty === 'HARD')).toHaveLength(6);
+      expect(chapterQuestions.filter((question) => question.type === 'CODE_FILL')).toHaveLength(3);
+      expect(chapterQuestions.filter((question) => question.type === 'CODE_FILL').every((question) => question.acceptedAnswers.length > 0 && question.stemBlocks?.some((block) => block.type === 'CODE' && block.code.includes('____')) && question.explanationBlocks?.some((block) => block.type === 'CODE' && block.code.trim().length > 0))).toBe(true);
+    }
+    expect(() => assertNoExactDuplicatesInCourse(course)).not.toThrow();
+    expect(auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS).filter((group) => group.questions.some((question) => question.courseSlug === 'java-object-oriented-programming'))).toHaveLength(0);
+  });
+
   it('keeps ten formal plans while publishing only completed sources', () => {
     expect(FORMAL_COURSE_PLAN).toHaveLength(10);
     expect(FORMAL_COURSE_PLAN.map((course) => course.order)).toEqual(
@@ -697,6 +738,7 @@ describe('seed content parser', () => {
       'database-sql-foundations',
       'computer-architecture-operating-systems',
       'computer-networks-fundamentals',
+      'java-object-oriented-programming',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).toEqual(
       PUBLISHED_FORMAL_COURSE_SLUGS,
