@@ -394,7 +394,7 @@ export const FORMAL_COURSE_PLAN = [
       '分区、缓存与性能基础',
       'Spark 数据分析综合项目',
     ]),
-    publishedSeed: false,
+    publishedSeed: true,
   },
 ] as const satisfies readonly FormalCoursePlan[];
 

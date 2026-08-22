@@ -18,6 +18,7 @@ import { DATABASE_SQL_FOUNDATIONS_COURSE } from '../prisma/seed-data/v1/database
 import { COMPUTER_ARCHITECTURE_OPERATING_SYSTEMS_COURSE } from '../prisma/seed-data/v1/computer-architecture-operating-systems';
 import { COMPUTER_NETWORKS_FUNDAMENTALS_COURSE } from '../prisma/seed-data/v1/computer-networks-fundamentals';
 import { JAVA_OBJECT_ORIENTED_PROGRAMMING_COURSE } from '../prisma/seed-data/v1/java-object-oriented-programming';
+import { SPARK_DATA_PROCESSING_COURSE } from '../prisma/seed-data/v1/spark-data-processing';
 import {
   getComputerArchitectureOperatingSystemsSourceStats,
   validateComputerArchitectureOperatingSystemsSource,
@@ -212,6 +213,7 @@ describe('seed content parser', () => {
       'java-object-oriented-programming',
       'software-engineering-project-development',
       'big-data-fundamentals',
+      'spark-data-processing',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).not.toContain(
       'javascript-starter',
@@ -725,7 +727,88 @@ describe('seed content parser', () => {
     expect(auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS).filter((group) => group.questions.some((question) => question.courseSlug === 'java-object-oriented-programming'))).toHaveLength(0);
   });
 
-  it('keeps ten formal plans while publishing only completed sources', () => {
+  it('enforces the Spark source gates and big-data-only identity', () => {
+    const { course, questions, battleQuestions } = countQuestions(
+      'spark-data-processing',
+    );
+    expect(course).toBe(SPARK_DATA_PROCESSING_COURSE);
+    expect(course.chapters.map((chapter) => chapter.key)).toEqual(
+      Array.from(
+        { length: 10 },
+        (_, index) =>
+          `spark-data-processing-chapter-${String(index + 1).padStart(2, '0')}`,
+      ),
+    );
+    const lessons = course.chapters.flatMap((chapter) => chapter.lessons);
+    expect(lessons).toHaveLength(60);
+    expect(new Set(lessons.map((lesson) => lesson.key)).size).toBe(60);
+    expect(questions).toHaveLength(180);
+    expect(new Set(questions.map((question) => question.key)).size).toBe(180);
+    expect(battleQuestions).toHaveLength(120);
+    expect(
+      battleQuestions.filter((question) => question.difficulty === 'MEDIUM'),
+    ).toHaveLength(60);
+    expect(
+      battleQuestions.filter((question) => question.difficulty === 'HARD'),
+    ).toHaveLength(60);
+    expect(
+      questions.filter((question) => question.type === 'CODE_FILL'),
+    ).toHaveLength(30);
+    for (const chapter of course.chapters) {
+      const chapterQuestions = chapter.lessons.flatMap(
+        (lesson) => lesson.questions,
+      );
+      const chapterBattleQuestions = chapterQuestions.filter(
+        (question) => question.isBattleEnabled,
+      );
+      expect(chapter.lessons).toHaveLength(6);
+      expect(chapterQuestions).toHaveLength(18);
+      expect(chapterBattleQuestions).toHaveLength(12);
+      expect(
+        chapterBattleQuestions.filter(
+          (question) => question.difficulty === 'MEDIUM',
+        ),
+      ).toHaveLength(6);
+      expect(
+        chapterBattleQuestions.filter(
+          (question) => question.difficulty === 'HARD',
+        ),
+      ).toHaveLength(6);
+      expect(
+        chapterQuestions.filter((question) => question.type === 'CODE_FILL'),
+      ).toHaveLength(3);
+      expect(
+        chapterQuestions
+          .filter((question) => question.type === 'CODE_FILL')
+          .every(
+            (question) =>
+              question.acceptedAnswers.length > 0 &&
+              question.stemBlocks?.some(
+                (block) =>
+                  block.type === 'CODE' &&
+                  block.language === 'python' &&
+                  block.code.includes('____'),
+              ) &&
+              question.explanationBlocks?.some(
+                (block) =>
+                  block.type === 'CODE' &&
+                  block.language === 'python' &&
+                  block.code.trim().length > 0,
+              ),
+          ),
+      ).toBe(true);
+    }
+    expect(() => assertNoExactDuplicatesInCourse(course)).not.toThrow();
+    expect(
+      auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS).filter((group) =>
+        group.questions.some(
+          (question) => question.courseSlug === 'spark-data-processing',
+        ),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('keeps ten formal plans and completed sources aligned', () => {
     expect(FORMAL_COURSE_PLAN).toHaveLength(10);
     expect(FORMAL_COURSE_PLAN.map((course) => course.order)).toEqual(
       Array.from({ length: 10 }, (_, index) => index + 1),
@@ -743,6 +826,7 @@ describe('seed content parser', () => {
       'java-object-oriented-programming',
       'software-engineering-project-development',
       'big-data-fundamentals',
+      'spark-data-processing',
     ]);
     expect(VERSIONED_COURSE_SEEDS.map((course) => course.slug)).toEqual(
       PUBLISHED_FORMAL_COURSE_SLUGS,

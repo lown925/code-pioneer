@@ -8,6 +8,7 @@ import { COMPUTER_NETWORKS_FUNDAMENTALS_COURSE } from './v1/computer-networks-fu
 import { JAVA_OBJECT_ORIENTED_PROGRAMMING_COURSE } from './v1/java-object-oriented-programming';
 import { SOFTWARE_ENGINEERING_PROJECT_DEVELOPMENT_COURSE } from './v1/software-engineering-project-development';
 import { BIG_DATA_FUNDAMENTALS_COURSE } from './v1/big-data-fundamentals';
+import { SPARK_DATA_PROCESSING_COURSE } from './v1/spark-data-processing';
 import type { SeedBattleSkill } from './types';
 
 export const BATTLE_SKILL_SEEDS: SeedBattleSkill[] = [
@@ -35,4 +36,5 @@ export const VERSIONED_COURSE_SEEDS: SeedCourse[] = [
   JAVA_OBJECT_ORIENTED_PROGRAMMING_COURSE,
   SOFTWARE_ENGINEERING_PROJECT_DEVELOPMENT_COURSE,
   BIG_DATA_FUNDAMENTALS_COURSE,
+  SPARK_DATA_PROCESSING_COURSE,
 ];
