@@ -74,6 +74,7 @@ describe('Computer architecture targeted publisher', () => {
         status: 'PUBLISHED',
         contentBlocks: record.contentBlocks.map((block) => ({
           ...block,
+          isVisible: true,
           deletedAt: null,
         })),
         quiz: {
@@ -117,6 +118,96 @@ describe('Computer architecture targeted publisher', () => {
       production: {
         found: true,
         questions: 180,
+        unchanged: 180,
+        needsUpdate: 0,
+      },
+      transactionCommitted: false,
+    });
+  });
+
+  it('ignores historical and otherwise inactive content blocks in comparisons', async () => {
+    const plan = buildComputerArchitectureOperatingSystemsPublicationPlan();
+    const courseId = makeComputerArchitectureOperatingSystemsId(
+      'course',
+      'computer-architecture-operating-systems',
+    );
+    const production = {
+      id: courseId,
+      slug: 'computer-architecture-operating-systems',
+      title: '计算机组成原理与操作系统基础',
+      status: 'PUBLISHED',
+      chapters: plan.map((record) => ({
+        id: record.chapterId,
+        courseId,
+        title: record.chapter.title,
+        summary: record.chapter.summary,
+        estimatedMinutes: record.chapter.estimatedMinutes,
+        sortOrder: record.chapter.sortOrder,
+        status: 'PUBLISHED',
+        contentBlocks: [
+          ...record.contentBlocks.map((block) => ({
+            ...block,
+            isVisible: true,
+            deletedAt: null,
+          })),
+          {
+            ...record.contentBlocks[0],
+            id: `${record.contentBlocks[0].id}-deleted`,
+            isVisible: false,
+            deletedAt: new Date(),
+          },
+          {
+            ...record.contentBlocks[0],
+            id: `${record.contentBlocks[0].id}-hidden`,
+            isVisible: false,
+            deletedAt: null,
+          },
+          {
+            ...record.contentBlocks[0],
+            id: `${record.contentBlocks[0].id}-deleted-visible`,
+            isVisible: true,
+            deletedAt: new Date(),
+          },
+        ],
+        quiz: {
+          id: record.quiz.id,
+          chapterId: record.quiz.chapterId,
+          title: record.quiz.title,
+          description: record.quiz.description,
+          passScorePercent: record.quiz.passScorePercent,
+          status: 'PUBLISHED',
+          questions: record.quiz.questions.map((question) => ({
+            ...question,
+            stemBlocks:
+              question.stemBlocks === null ? null : question.stemBlocks,
+            explanationBlocks:
+              question.explanationBlocks === null
+                ? null
+                : question.explanationBlocks,
+            acceptedAnswers:
+              question.acceptedAnswers === null
+                ? null
+                : question.acceptedAnswers,
+            answerNormalization:
+              question.answerNormalization === null
+                ? null
+                : question.answerNormalization,
+          })),
+        },
+      })),
+    };
+    const result = await runComputerArchitectureOperatingSystemsPublisher(
+      {
+        course: {
+          findUnique: jest.fn().mockResolvedValue(production),
+          findMany: jest.fn(),
+        },
+        $transaction: jest.fn(),
+      },
+      'DRY_RUN',
+    );
+    expect(result).toMatchObject({
+      production: {
         unchanged: 180,
         needsUpdate: 0,
       },

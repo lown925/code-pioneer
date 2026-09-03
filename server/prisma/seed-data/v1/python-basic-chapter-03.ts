@@ -40,17 +40,51 @@ const QUESTION_KEYS = [
 const PRESENTATION_MAP = {
   代码用途: 'CODE_PURPOSE',
   代码阅读: 'CODE_READING',
+  代码选择: 'CODE_READING',
   代码分析: 'CODE_READING',
   异常识别: 'CODE_READING',
   代码纠错: 'BUG_FIX',
   'Bug 定位': 'BUG_FIX',
   代码填空: 'INPUT_CODE_FILL',
+  数据理解: 'CODE_READING',
+  概念理解: 'CODE_READING',
+  概念辨析: 'CODE_READING',
+  概念迁移: 'CODE_PURPOSE',
+  术语理解: 'CODE_READING',
+  表示理解: 'CODE_READING',
   执行流程: 'OUTPUT_PREDICTION',
   输出预测: 'OUTPUT_PREDICTION',
+  结果预测: 'OUTPUT_PREDICTION',
+  过程判断: 'OUTPUT_PREDICTION',
+  过程预测: 'OUTPUT_PREDICTION',
+  过程追踪: 'OUTPUT_PREDICTION',
+  路径判断: 'OUTPUT_PREDICTION',
+  地址判断: 'OUTPUT_PREDICTION',
+  数值判断: 'OUTPUT_PREDICTION',
+  数值计算: 'OUTPUT_PREDICTION',
   场景判断: 'CODE_PURPOSE',
+  安全判断: 'CODE_PURPOSE',
+  故障定位: 'BUG_FIX',
+  故障分析: 'BUG_FIX',
+  诊断: 'BUG_FIX',
   综合判断: 'CODE_READING',
   工程判断: 'CODE_PURPOSE',
 } as const;
+
+function parseEstimatedMinutes(input: string, label: string): number {
+  const match = input.match(/^预计学习时间：(\d+)(?:-(\d+))? 分钟$/m);
+  if (!match) {
+    throw new Error(`Python chapter source is missing ${label}`);
+  }
+
+  const lower = Number(match[1]);
+  const upper = match[2] ? Number(match[2]) : lower;
+  if (!Number.isInteger(lower) || !Number.isInteger(upper) || upper < lower) {
+    throw new Error(`Python chapter source has invalid ${label}`);
+  }
+
+  return Math.round((lower + upper) / 2);
+}
 
 function requiredMatch(input: string, pattern: RegExp, label: string): string {
   const value = input.match(pattern)?.[1]?.trim();
@@ -326,6 +360,9 @@ function parseQuestion(
             '\\]\\r?\\n([\\s\\S]*?)\\r?\\n\\[/代码\\]',
         ),
       )?.[1]
+      ?.trim() ??
+    segment
+      .match(/题目代码：\r?\n```[a-zA-Z0-9_-]*\r?\n([\s\S]*?)\r?\n```/)?.[1]
       ?.trim();
   if (type === 'CODE_FILL' && !stemCode) {
     throw new Error(
@@ -390,15 +427,21 @@ function parseQuestion(
     ? true
     : !/忽略大小写：是/.test(segment);
   const collapseWhitespace = /合并连续空格：是/.test(segment);
-  const standardCode = segment
-    .match(
-      new RegExp(
-        '标准完整代码[:：]\\n\\s*```' +
-          programmingLanguage +
-          '\\n([\\s\\S]*?)\\n```',
-      ),
-    )?.[1]
-    ?.trim();
+  const standardCode =
+    segment
+      .match(
+        new RegExp(
+          '标准完整代码[:：]\\n\\s*```' +
+            programmingLanguage +
+            '\\n([\\s\\S]*?)\\n```',
+        ),
+      )?.[1]
+      ?.trim() ??
+    segment
+      .match(
+        /标准完整代码[:：]\r?\n\s*```[a-zA-Z0-9_-]*\r?\n([\s\S]*?)\r?\n```/,
+      )?.[1]
+      ?.trim();
 
   if (type === 'FILL_BLANK') {
     if (isBattleEnabled) {
@@ -477,11 +520,18 @@ function parseQuestions(
   const matches = [...markdown.matchAll(/^#### 题目 (\d+)$/gm)];
   return matches.map((match, index) => {
     const questionNumber = Number(match[1]);
+    // V2 files restart numbering at 1 per chapter, while older files used a
+    // global offset. Prefer the local number whenever the configured key list
+    // is chapter-scoped; retain offset support for legacy global numbering.
+    const keyQuestionNumber =
+      questionNumber >= 1 && questionNumber <= questionKeys.length
+        ? questionNumber
+        : questionNumber - questionKeyOffset;
     const start = match.index! + match[0].length;
     const end = matches[index + 1]?.index ?? markdown.length;
     return parseQuestion(
       markdown.slice(start, end).trim(),
-      questionNumber - questionKeyOffset,
+      keyQuestionNumber,
       questionKeys,
       programmingLanguage,
     );
@@ -519,6 +569,7 @@ export function parsePythonChapterSource(
     );
   }
 
+  let chapterBlocks: SeedLessonBlock[] | undefined;
   const lessons: SeedLesson[] = lessonMatches.map((match, index) => {
     const lessonNumber = Number(match[1]);
     const rawLessonKey = config.lessonKeys[lessonNumber - 1]!;
@@ -534,7 +585,9 @@ export function parsePythonChapterSource(
     }
     const questionSection = lessonSource.slice(questionMarker);
     const supplementalStart = questionSection.search(
-      new RegExp(`\\n---\\n\\n## 第${config.chapterOrdinal}章总结`),
+      new RegExp(
+        `\\n---\\n\\n## 第(?:${config.chapterOrdinal}|${config.chapterNumber})章总结`,
+      ),
     );
     const questions = parseQuestions(
       supplementalStart >= 0
@@ -547,11 +600,15 @@ export function parsePythonChapterSource(
       config.questionKeyOffset ?? 0,
     );
     const blocks = parseLessonBlocks(
-      `${lessonSource.slice(0, questionMarker)}\n${
-        supplementalStart >= 0 ? questionSection.slice(supplementalStart) : ''
-      }`,
+      lessonSource.slice(0, questionMarker),
       lessonKey,
     );
+    if (supplementalStart >= 0) {
+      chapterBlocks = parseLessonBlocks(
+        questionSection.slice(supplementalStart),
+        `${config.chapterKey}-chapter`,
+      );
+    }
     if (lessonNumber === 1) {
       blocks.unshift(
         {
@@ -575,12 +632,9 @@ export function parsePythonChapterSource(
         /^课时简介：(.+)$/m,
         `lesson ${lessonNumber} summary`,
       ),
-      estimatedMinutes: Number(
-        requiredMatch(
-          lessonSource,
-          /^预计学习时间：(\d+) 分钟$/m,
-          `lesson ${lessonNumber} estimated minutes`,
-        ),
+      estimatedMinutes: parseEstimatedMinutes(
+        lessonSource,
+        `lesson ${lessonNumber} estimated minutes`,
       ),
       blocks,
       questions,
@@ -598,7 +652,10 @@ export function parsePythonChapterSource(
     key: config.chapterKey,
     title: requiredMatch(
       normalized,
-      new RegExp(`^# (第${config.chapterOrdinal}章：.+)$`, 'm'),
+      new RegExp(
+        `^# (第(?:${config.chapterOrdinal}|${config.chapterNumber})章：.+)$`,
+        'm',
+      ),
       `chapter ${config.chapterNumber} title`,
     ),
     summary: requiredMatch(
@@ -606,21 +663,21 @@ export function parsePythonChapterSource(
       /^章节简介：(.+)$/m,
       `chapter ${config.chapterNumber} summary`,
     ),
-    estimatedMinutes: Number(
-      requiredMatch(
-        normalized,
+    estimatedMinutes: parseEstimatedMinutes(
+      normalized.match(
         new RegExp(
-          `^# 第${config.chapterOrdinal}章：.+\\n\\n章节简介：.+\\n\\n?预计学习时间：(\\d+) 分钟$`,
+          `^# 第(?:${config.chapterOrdinal}|${config.chapterNumber})章：.+\\n\\n章节简介：.+\\n\\n?预计学习时间：.+$`,
           'm',
         ),
-        `chapter ${config.chapterNumber} estimated minutes`,
-      ),
+      )?.[0] ?? '',
+      `chapter ${config.chapterNumber} estimated minutes`,
     ),
     sortOrder: config.chapterNumber,
     quizTitle: config.quizTitle,
     quizDescription: config.quizDescription,
     passScorePercent: config.passScorePercent,
     lessons,
+    ...(chapterBlocks ? { chapterBlocks } : {}),
   };
 }
 

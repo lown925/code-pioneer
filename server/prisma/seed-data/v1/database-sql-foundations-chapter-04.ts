@@ -35,7 +35,7 @@ export const DATABASE_SQL_FOUNDATIONS_CHAPTER_04 = parsePythonChapterSource(
   readSeedDocument('database-sql-foundations-chapter-04.md', [
     'docs',
     '开发文档',
-    'database-sql-foundations-complete-10-chapters',
+    'database-sql-foundations',
   ]),
   {
     chapterNumber: 4,
@@ -49,4 +49,3 @@ export const DATABASE_SQL_FOUNDATIONS_CHAPTER_04 = parsePythonChapterSource(
     programmingLanguage: 'sql',
   },
 );
-

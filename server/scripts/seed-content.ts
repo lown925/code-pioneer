@@ -16,7 +16,10 @@ import type {
   SeedQuestion,
   SeedSingleChoiceQuestion,
 } from '../prisma/seed-data/types';
-import { assertNoExactDuplicatesInCourse, auditCrossCourseExactDuplicates } from '../prisma/seed-data/content-quality';
+import {
+  assertNoExactDuplicatesInCourse,
+  auditCrossCourseExactDuplicates,
+} from '../prisma/seed-data/content-quality';
 import {
   BattleQuestionDifficulty,
   ChapterStatus,
@@ -502,11 +505,17 @@ async function upsertCourseSeed(prisma: PrismaService, course: SeedCourse) {
         },
       });
 
-      const normalizedBlocks = chapter.lessons.flatMap((lesson) => [
-        lessonHeadingBlock(lesson),
-        lessonSummaryBlock(lesson),
-        ...lesson.blocks.map((block) => normalizeLessonBlock(block)),
-      ]);
+      const normalizedBlocks = chapter.lessons
+        .flatMap((lesson) => [
+          lessonHeadingBlock(lesson),
+          lessonSummaryBlock(lesson),
+          ...lesson.blocks.map((block) => normalizeLessonBlock(block)),
+        ])
+        .concat(
+          (chapter.chapterBlocks ?? []).map((block) =>
+            normalizeLessonBlock(block),
+          ),
+        );
 
       for (
         let blockIndex = 0;
@@ -802,9 +811,13 @@ async function main() {
   for (const course of VERSIONED_COURSE_SEEDS) {
     validateCourseSeed(course);
   }
-  const crossCourseDuplicates = auditCrossCourseExactDuplicates(VERSIONED_COURSE_SEEDS);
+  const crossCourseDuplicates = auditCrossCourseExactDuplicates(
+    VERSIONED_COURSE_SEEDS,
+  );
   if (crossCourseDuplicates.length > 0) {
-    console.warn(`Cross-course exact duplicate groups: ${crossCourseDuplicates.length}`);
+    console.warn(
+      `Cross-course exact duplicate groups: ${crossCourseDuplicates.length}`,
+    );
   }
 
   const prisma = new PrismaService();

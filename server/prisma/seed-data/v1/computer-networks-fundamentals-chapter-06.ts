@@ -15,6 +15,6 @@ export const COMPUTER_NETWORKS_FUNDAMENTALS_CHAPTER_06 = parsePythonChapterSourc
     chapterNumber: 6, chapterOrdinal: '六', chapterKey: 'computer-networks-fundamentals-chapter-06',
     lessonKeys: LESSON_KEYS, questionKeys: QUESTION_KEYS,
     quizTitle: '计算机网络基础第6章章节测验', quizDescription: '检验本章计算机网络基础知识。提交后可查看每题答案与解析。',
-    passScorePercent: 70, programmingLanguage: 'python', keyPrefix: 'computer-networks-fundamentals-chapter-06', questionKeyOffset: 90,
+    passScorePercent: 70, programmingLanguage: 'text', keyPrefix: 'computer-networks-fundamentals-chapter-06', questionKeyOffset: 90,
   },
 );

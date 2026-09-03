@@ -4,10 +4,18 @@ import type { SeedCourse } from '../prisma/seed-data/types';
 type TargetedPublisherTransaction = {
   course: { upsert(args: unknown): Promise<{ id: string }> };
   courseChapter: { upsert(args: unknown): Promise<unknown> };
-  chapterContentBlock: { upsert(args: unknown): Promise<unknown> };
+  chapterContentBlock: {
+    upsert(args: unknown): Promise<unknown>;
+    findMany?(args: unknown): Promise<Array<{ id: string }>>;
+    updateMany?(args: unknown): Promise<unknown>;
+  };
   quiz: { upsert(args: unknown): Promise<unknown> };
   quizQuestion: { upsert(args: unknown): Promise<unknown> };
-  quizOption: { upsert(args: unknown): Promise<unknown> };
+  quizOption: {
+    upsert(args: unknown): Promise<unknown>;
+    findMany?(args: unknown): Promise<Array<{ id: string }>>;
+    deleteMany?(args: unknown): Promise<{ count: number }>;
+  };
 };
 
 type TargetedPublicationPlan = ReadonlyArray<{
@@ -64,6 +72,16 @@ type TargetedPublicationPlan = ReadonlyArray<{
 export type TargetedPublisherMode = 'DRY_RUN' | 'APPLY';
 
 const SEED_NAMESPACE = 'code-pioneer.seed-content';
+
+export function findStaleTargetedPublisherOptionIds(
+  sourceOptions: ReadonlyArray<{ id: string }>,
+  productionOptions: ReadonlyArray<{ id: string }>,
+) {
+  const sourceOptionIds = new Set(sourceOptions.map((option) => option.id));
+  return productionOptions
+    .map((option) => option.id)
+    .filter((optionId) => !sourceOptionIds.has(optionId));
+}
 
 export function stableTargetedPublisherId(
   kind: string,
@@ -224,6 +242,30 @@ export async function publishTargetedCourseDefinitions(
       });
     }
 
+    // Retire blocks that were removed from the source while preserving their IDs.
+    if (tx.chapterContentBlock.findMany && tx.chapterContentBlock.updateMany) {
+      const sourceBlockIds = new Set(
+        record.contentBlocks.map((block) => block.id),
+      );
+      const existingBlocks = await tx.chapterContentBlock.findMany({
+        where: {
+          chapterId: record.chapterId,
+          isVisible: true,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      const staleBlockIds = existingBlocks
+        .map((block) => block.id)
+        .filter((id) => !sourceBlockIds.has(id));
+      if (staleBlockIds.length > 0) {
+        await tx.chapterContentBlock.updateMany({
+          where: { chapterId: record.chapterId, id: { in: staleBlockIds } },
+          data: { isVisible: false, deletedAt: new Date() },
+        });
+      }
+    }
+
     await tx.quiz.upsert({
       where: { chapterId: record.chapterId },
       create: {
@@ -278,6 +320,26 @@ export async function publishTargetedCourseDefinitions(
             sortOrder: option.sortOrder,
           },
         });
+      }
+      if (tx.quizOption.findMany && tx.quizOption.deleteMany) {
+        const existingOptions = await tx.quizOption.findMany({
+          where: { questionId: question.id },
+          select: { id: true },
+        });
+        const staleOptionIds = findStaleTargetedPublisherOptionIds(
+          question.options,
+          existingOptions,
+        );
+        if (staleOptionIds.length > 0) {
+          await tx.quizOption.deleteMany({
+            where: {
+              questionId: question.id,
+              id: { in: staleOptionIds },
+              selectedInAnswers: { none: {} },
+              selectedInPracticeAnswers: { none: {} },
+            },
+          });
+        }
       }
     }
   }

@@ -62,6 +62,7 @@ type ProductionCourse = {
       type: string;
       sortOrder: number;
       content: unknown;
+      isVisible: boolean;
       deletedAt: Date | null;
     }>;
     quiz: {
@@ -260,11 +261,14 @@ function normalizeLessonBlock(block: SeedLessonBlock): NormalizedBlock {
 }
 
 function blocksForChapter(chapter: SeedChapter) {
-  return chapter.lessons.flatMap((lesson: SeedLesson) => [
+  return [
+    ...chapter.lessons.flatMap((lesson: SeedLesson) => [
     { key: `${lesson.key}:heading`, type: ContentBlockType.HEADING, content: { text: lesson.title, level: 2 } },
     { key: `${lesson.key}:summary`, type: ContentBlockType.TEXT, content: { text: lesson.summary } },
-    ...lesson.blocks.map(normalizeLessonBlock),
-  ]);
+      ...lesson.blocks.map(normalizeLessonBlock),
+    ]),
+    ...(chapter.chapterBlocks ?? []).map(normalizeLessonBlock),
+  ];
 }
 
 function questionExpected(course: SeedCourse, chapter: SeedChapter, lesson: SeedLesson, question: SeedQuestion, sortOrder: number) {
@@ -310,7 +314,7 @@ const COURSE_SELECT = {
   id: true, slug: true, title: true, status: true,
   chapters: { orderBy: { sortOrder: 'asc' }, select: {
     id: true, courseId: true, title: true, summary: true, estimatedMinutes: true, sortOrder: true, status: true,
-    contentBlocks: { orderBy: { sortOrder: 'asc' }, select: { id: true, chapterId: true, type: true, sortOrder: true, content: true, deletedAt: true } },
+    contentBlocks: { where: { isVisible: true, deletedAt: null }, orderBy: { sortOrder: 'asc' }, select: { id: true, chapterId: true, type: true, sortOrder: true, content: true, isVisible: true, deletedAt: true } },
     quiz: { select: { id: true, chapterId: true, title: true, description: true, passScorePercent: true, status: true,
       questions: { orderBy: { sortOrder: 'asc' }, select: { id: true, quizId: true, type: true, content: true, explanation: true, score: true, sortOrder: true, battlePresentation: true, isBattleEnabled: true, battleDifficulty: true, stemBlocks: true, explanationBlocks: true, acceptedAnswers: true, answerNormalization: true, caseSensitive: true, knowledgeTags: true, programmingLanguage: true, battleSkillCode: true,
         options: { orderBy: { sortOrder: 'asc' }, select: { id: true, questionId: true, content: true, isCorrect: true, sortOrder: true } },
@@ -332,7 +336,8 @@ function findProductionDiff(course: ProductionCourse | null, source: ComputerNet
   for (const sourceChapter of records) {
     const productionChapter = course.chapters.find((candidate) => candidate.id === sourceChapter.chapterId);
     if (!productionChapter) continue;
-    const chapterMatches = productionChapter.courseId === course.id && productionChapter.title === sourceChapter.chapter.title && productionChapter.summary === sourceChapter.chapter.summary && productionChapter.estimatedMinutes === sourceChapter.chapter.estimatedMinutes && productionChapter.sortOrder === sourceChapter.chapter.sortOrder && productionChapter.status === 'PUBLISHED' && productionChapter.contentBlocks.length === sourceChapter.contentBlocks.length && productionChapter.contentBlocks.every((block, index) => { const sourceBlock = sourceChapter.contentBlocks[index]; return sourceBlock && block.id === sourceBlock.id && block.chapterId === sourceBlock.chapterId && block.type === sourceBlock.type && block.sortOrder === sourceBlock.sortOrder && block.deletedAt === null && equalJson(block.content, sourceBlock.content); });
+    const activeProductionBlocks = productionChapter.contentBlocks.filter((block) => block.isVisible === true && block.deletedAt === null);
+    const chapterMatches = productionChapter.courseId === course.id && productionChapter.title === sourceChapter.chapter.title && productionChapter.summary === sourceChapter.chapter.summary && productionChapter.estimatedMinutes === sourceChapter.chapter.estimatedMinutes && productionChapter.sortOrder === sourceChapter.chapter.sortOrder && productionChapter.status === 'PUBLISHED' && activeProductionBlocks.length === sourceChapter.contentBlocks.length && activeProductionBlocks.every((block, index) => { const sourceBlock = sourceChapter.contentBlocks[index]; return sourceBlock && block.id === sourceBlock.id && block.chapterId === sourceBlock.chapterId && block.type === sourceBlock.type && block.sortOrder === sourceBlock.sortOrder && equalJson(block.content, sourceBlock.content); });
     const productionQuiz = productionChapter.quiz;
     const quizMatches = productionQuiz !== null && productionQuiz.id === sourceChapter.quiz.id && productionQuiz.chapterId === sourceChapter.quiz.chapterId && productionQuiz.title === sourceChapter.quiz.title && productionQuiz.description === sourceChapter.quiz.description && productionQuiz.passScorePercent === sourceChapter.quiz.passScorePercent && productionQuiz.status === 'PUBLISHED';
     if (!chapterMatches || !quizMatches) continue;

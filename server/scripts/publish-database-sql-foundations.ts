@@ -41,6 +41,10 @@ type ProductionStats = SourceStats & {
   courseTitle: string | null;
   unchanged: number;
   needsUpdate: number;
+  chaptersNeedsUpdate: number;
+  contentBlocks: number;
+  unchangedContentBlocks: number;
+  contentBlocksNeedsUpdate: number;
 };
 
 export type CourseBaseline = {
@@ -82,6 +86,7 @@ type ExistingCourse = {
       type: string;
       sortOrder: number;
       content: unknown;
+      isVisible: boolean;
       deletedAt: Date | null;
     }>;
     quiz: {
@@ -344,11 +349,14 @@ function normalizeLessonBlock(block: SeedLessonBlock): NormalizedBlock {
 }
 
 function blocksForChapter(chapter: SeedChapter) {
-  return chapter.lessons.flatMap((lesson) => [
-    lessonHeadingBlock(lesson),
-    lessonSummaryBlock(lesson),
-    ...lesson.blocks.map(normalizeLessonBlock),
-  ]);
+  return [
+    ...chapter.lessons.flatMap((lesson) => [
+      lessonHeadingBlock(lesson),
+      lessonSummaryBlock(lesson),
+      ...lesson.blocks.map(normalizeLessonBlock),
+    ]),
+    ...(chapter.chapterBlocks ?? []).map(normalizeLessonBlock),
+  ];
 }
 
 function questionAnswerNormalization(question: SeedQuestion) {
@@ -397,7 +405,10 @@ function questionExpected(
       : [];
   return {
     id: questionId,
-    quizId: makeDatabaseSqlFoundationsId('quiz', `${course.slug}:${chapter.key}`),
+    quizId: makeDatabaseSqlFoundationsId(
+      'quiz',
+      `${course.slug}:${chapter.key}`,
+    ),
     type: question.type,
     content: question.title,
     explanation: question.explanation,
@@ -472,7 +483,10 @@ export function buildDatabaseSqlFoundationsPublicationPlan() {
         sortOrder: index + 1,
       })),
       quiz: {
-        id: makeDatabaseSqlFoundationsId('quiz', `${course.slug}:${chapter.key}`),
+        id: makeDatabaseSqlFoundationsId(
+          'quiz',
+          `${course.slug}:${chapter.key}`,
+        ),
         chapterId: makeDatabaseSqlFoundationsId(
           'chapter',
           `${course.slug}:${chapter.key}`,
@@ -489,6 +503,11 @@ export function buildDatabaseSqlFoundationsPublicationPlan() {
 function findProductionDiff(course: ExistingCourse | null): ProductionStats {
   const source = getDatabaseSqlFoundationsSourceStats();
   if (!course) {
+    const sourceRecords = buildDatabaseSqlFoundationsPublicationPlan();
+    const sourceContentBlocks = sourceRecords.reduce(
+      (total, record) => total + record.contentBlocks.length,
+      0,
+    );
     return {
       chapters: 0,
       lessons: 0,
@@ -503,6 +522,10 @@ function findProductionDiff(course: ExistingCourse | null): ProductionStats {
       courseTitle: null,
       unchanged: 0,
       needsUpdate: source.questions,
+      chaptersNeedsUpdate: sourceRecords.length,
+      contentBlocks: 0,
+      unchangedContentBlocks: 0,
+      contentBlocksNeedsUpdate: sourceContentBlocks,
     };
   }
 
@@ -522,13 +545,56 @@ function findProductionDiff(course: ExistingCourse | null): ProductionStats {
     }),
   );
   let unchanged = 0;
+  let chaptersNeedsUpdate = 0;
+  let unchangedContentBlocks = 0;
+  let contentBlocksNeedsUpdate = 0;
   const records = buildDatabaseSqlFoundationsPublicationPlan();
 
   for (const sourceChapter of records) {
     const productionChapter = course.chapters.find(
       (candidate) => candidate.id === sourceChapter.chapterId,
     );
-    if (!productionChapter) continue;
+    if (!productionChapter) {
+      chaptersNeedsUpdate += 1;
+      contentBlocksNeedsUpdate += sourceChapter.contentBlocks.length;
+      continue;
+    }
+    const chapterUnchanged =
+      productionChapter.courseId === course.id &&
+      productionChapter.title === sourceChapter.chapter.title &&
+      productionChapter.summary === sourceChapter.chapter.summary &&
+      productionChapter.estimatedMinutes ===
+        sourceChapter.chapter.estimatedMinutes &&
+      productionChapter.sortOrder === sourceChapter.chapter.sortOrder &&
+      productionChapter.status === 'PUBLISHED';
+    if (!chapterUnchanged) chaptersNeedsUpdate += 1;
+
+    const activeProductionBlocks = productionChapter.contentBlocks.filter(
+      (block) => block.isVisible === true && block.deletedAt === null,
+    );
+    const productionBlocksById = new Map(
+      activeProductionBlocks.map((block) => [block.id, block]),
+    );
+    for (const sourceBlock of sourceChapter.contentBlocks) {
+      const productionBlock = productionBlocksById.get(sourceBlock.id);
+      if (
+        productionBlock &&
+        productionBlock.chapterId === sourceBlock.chapterId &&
+        productionBlock.type === sourceBlock.type &&
+        productionBlock.sortOrder === sourceBlock.sortOrder &&
+        equalJson(productionBlock.content, sourceBlock.content)
+      ) {
+        unchangedContentBlocks += 1;
+      } else {
+        contentBlocksNeedsUpdate += 1;
+      }
+    }
+    const sourceBlockIds = new Set(
+      sourceChapter.contentBlocks.map((block) => block.id),
+    );
+    contentBlocksNeedsUpdate += activeProductionBlocks.filter(
+      (block) => !sourceBlockIds.has(block.id),
+    ).length;
     const productionQuestionsById = new Map(
       productionChapter.quiz?.questions.map((question) => [
         question.id,
@@ -560,7 +626,17 @@ function findProductionDiff(course: ExistingCourse | null): ProductionStats {
           productionQuestion.knowledgeTags,
           sourceQuestion.knowledgeTags,
         ) &&
-        productionQuestion.options.length === sourceQuestion.options.length
+        equalJson(
+          productionQuestion.answerNormalization,
+          sourceQuestion.answerNormalization,
+        ) &&
+        productionQuestion.caseSensitive === sourceQuestion.caseSensitive &&
+        productionQuestion.programmingLanguage ===
+          sourceQuestion.programmingLanguage &&
+        productionQuestion.battlePresentation ===
+          sourceQuestion.battlePresentation &&
+        productionQuestion.battleSkillCode === sourceQuestion.battleSkillCode &&
+        equalJson(productionQuestion.options, sourceQuestion.options)
       ) {
         unchanged += 1;
       }
@@ -591,6 +667,17 @@ function findProductionDiff(course: ExistingCourse | null): ProductionStats {
     courseTitle: course.title,
     unchanged,
     needsUpdate: source.questions - unchanged,
+    chaptersNeedsUpdate,
+    contentBlocks: course.chapters.reduce(
+      (total, chapter) =>
+        total +
+        chapter.contentBlocks.filter(
+          (block) => block.isVisible === true && block.deletedAt === null,
+        ).length,
+      0,
+    ),
+    unchangedContentBlocks,
+    contentBlocksNeedsUpdate,
   };
 }
 
@@ -610,12 +697,14 @@ const COURSE_SELECT = {
       sortOrder: true,
       status: true,
       contentBlocks: {
+        where: { isVisible: true, deletedAt: null },
         select: {
           id: true,
           chapterId: true,
           type: true,
           sortOrder: true,
           content: true,
+          isVisible: true,
           deletedAt: true,
         },
       },
@@ -777,7 +866,9 @@ export async function runDatabaseSqlFoundationsPublisher(
   };
 }
 
-export function formatDatabaseSqlFoundationsPublisherResult(result: PublishResult) {
+export function formatDatabaseSqlFoundationsPublisherResult(
+  result: PublishResult,
+) {
   const baseline = result.courseBaseline.map(
     (course) =>
       `Baseline ${course.slug}: ${course.courseId ?? 'NOT_FOUND'} / ${course.title ?? 'NOT_FOUND'} / ${course.status ?? 'NOT_FOUND'} / ${course.chapters} chapters (${course.publishedChapters} published) / ${course.lessons} lessons / ${course.questions} questions / ${course.battleQuestions} Battle`,
@@ -795,6 +886,10 @@ export function formatDatabaseSqlFoundationsPublisherResult(result: PublishResul
     `Production CODE_FILL: ${result.production.codeFillQuestions}`,
     `Unchanged: ${result.production.unchanged}`,
     `Needs update: ${result.production.needsUpdate}`,
+    `Chapter metadata needs update: ${result.production.chaptersNeedsUpdate}`,
+    `Production contentBlocks: ${result.production.contentBlocks}`,
+    `ContentBlocks unchanged: ${result.production.unchangedContentBlocks}`,
+    `ContentBlocks needs update: ${result.production.contentBlocksNeedsUpdate}`,
     `Transaction committed: ${result.transactionCommitted}`,
     ...baseline,
     result.mode === 'DRY_RUN'

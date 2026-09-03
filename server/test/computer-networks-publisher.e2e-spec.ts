@@ -64,7 +64,7 @@ describe('Computer networks targeted publisher', () => {
         estimatedMinutes: record.chapter.estimatedMinutes,
         sortOrder: record.chapter.sortOrder,
         status: 'PUBLISHED',
-        contentBlocks: record.contentBlocks.map((block) => ({ ...block, deletedAt: null })),
+        contentBlocks: record.contentBlocks.map((block) => ({ ...block, isVisible: true, deletedAt: null })),
         quiz: {
           id: record.quiz.id,
           chapterId: record.quiz.chapterId,

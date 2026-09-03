@@ -32,7 +32,7 @@ export const COMPUTER_NETWORKS_FUNDAMENTALS_CHAPTER_01 =
       quizTitle: '计算机网络基础第1章章节测验',
       quizDescription: '检验本章计算机网络基础知识。提交后可查看每题答案与解析。',
       passScorePercent: 70,
-      programmingLanguage: 'python',
+      programmingLanguage: 'text',
       keyPrefix: 'computer-networks-fundamentals-chapter-01',
       questionKeyOffset: 0,
     },

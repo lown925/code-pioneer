@@ -21,6 +21,6 @@ export const COMPUTER_NETWORKS_FUNDAMENTALS_CHAPTER_02 =
       chapterNumber: 2, chapterOrdinal: '二', chapterKey: 'computer-networks-fundamentals-chapter-02',
       lessonKeys: LESSON_KEYS, questionKeys: QUESTION_KEYS,
       quizTitle: '计算机网络基础第2章章节测验', quizDescription: '检验本章计算机网络基础知识。提交后可查看每题答案与解析。',
-      passScorePercent: 70, programmingLanguage: 'python', keyPrefix: 'computer-networks-fundamentals-chapter-02', questionKeyOffset: 18,
+      passScorePercent: 70, programmingLanguage: 'text', keyPrefix: 'computer-networks-fundamentals-chapter-02', questionKeyOffset: 18,
     },
   );

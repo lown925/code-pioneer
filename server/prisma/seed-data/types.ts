@@ -201,6 +201,8 @@ export type SeedChapter = {
   quizDescription: string;
   passScorePercent: number;
   lessons: SeedLesson[];
+  /** Content after the lesson sections, such as the chapter recap/challenge. */
+  chapterBlocks?: SeedLessonBlock[];
 };
 
 export type SeedCourse = {

@@ -33,7 +33,7 @@ export const COMPUTER_ARCHITECTURE_OPERATING_SYSTEMS_CHAPTER_06 =
       quizDescription:
         '检验本章计算机组成原理与操作系统基础知识。提交后可查看每题答案与解析。',
       passScorePercent: 70,
-      programmingLanguage: 'python',
+      programmingLanguage: 'text',
       keyPrefix: 'computer-architecture-operating-systems-chapter-06',
       questionKeyOffset: 90,
     },

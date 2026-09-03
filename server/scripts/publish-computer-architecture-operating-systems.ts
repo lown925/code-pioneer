@@ -62,6 +62,7 @@ type ProductionCourse = {
       type: string;
       sortOrder: number;
       content: unknown;
+      isVisible: boolean;
       deletedAt: Date | null;
     }>;
     quiz: {
@@ -361,7 +362,8 @@ function normalizeLessonBlock(block: SeedLessonBlock): NormalizedBlock {
 }
 
 function blocksForChapter(chapter: SeedChapter) {
-  return chapter.lessons.flatMap((lesson: SeedLesson) => [
+  return [
+    ...chapter.lessons.flatMap((lesson: SeedLesson) => [
     {
       key: `${lesson.key}:heading`,
       type: ContentBlockType.HEADING,
@@ -372,8 +374,10 @@ function blocksForChapter(chapter: SeedChapter) {
       type: ContentBlockType.TEXT,
       content: { text: lesson.summary },
     },
-    ...lesson.blocks.map(normalizeLessonBlock),
-  ]);
+      ...lesson.blocks.map(normalizeLessonBlock),
+    ]),
+    ...(chapter.chapterBlocks ?? []).map(normalizeLessonBlock),
+  ];
 }
 
 function questionExpected(
@@ -515,6 +519,7 @@ const COURSE_SELECT = {
       sortOrder: true,
       status: true,
       contentBlocks: {
+        where: { isVisible: true, deletedAt: null },
         orderBy: { sortOrder: 'asc' },
         select: {
           id: true,
@@ -522,6 +527,7 @@ const COURSE_SELECT = {
           type: true,
           sortOrder: true,
           content: true,
+          isVisible: true,
           deletedAt: true,
         },
       },
@@ -622,6 +628,9 @@ function findProductionDiff(
       (candidate) => candidate.id === sourceChapter.chapterId,
     );
     if (!productionChapter) continue;
+    const activeProductionBlocks = productionChapter.contentBlocks.filter(
+      (block) => block.isVisible === true && block.deletedAt === null,
+    );
     const chapterDefinitionMatches =
       productionChapter.courseId === course.id &&
       productionChapter.title === sourceChapter.chapter.title &&
@@ -630,9 +639,9 @@ function findProductionDiff(
         sourceChapter.chapter.estimatedMinutes &&
       productionChapter.sortOrder === sourceChapter.chapter.sortOrder &&
       productionChapter.status === 'PUBLISHED' &&
-      productionChapter.contentBlocks.length ===
+      activeProductionBlocks.length ===
         sourceChapter.contentBlocks.length &&
-      productionChapter.contentBlocks.every((block, index) => {
+      activeProductionBlocks.every((block, index) => {
         const sourceBlock = sourceChapter.contentBlocks[index];
         return (
           sourceBlock &&
@@ -640,7 +649,6 @@ function findProductionDiff(
           block.chapterId === sourceBlock.chapterId &&
           block.type === sourceBlock.type &&
           block.sortOrder === sourceBlock.sortOrder &&
-          block.deletedAt === null &&
           equalJson(block.content, sourceBlock.content)
         );
       });

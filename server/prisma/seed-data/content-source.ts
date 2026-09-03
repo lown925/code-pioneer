@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { dirname, parse, resolve } from 'path';
 
-const DEFAULT_CONTENT_DIRECTORY = ['docs', 'python-chapter'] as const;
+const DEFAULT_CONTENT_DIRECTORY = ['docs', '开发文档', 'python-chapter'] as const;
 
 export function resolveSeedDocumentPath(
   fileName: string,
