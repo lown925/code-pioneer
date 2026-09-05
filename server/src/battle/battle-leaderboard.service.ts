@@ -10,7 +10,11 @@ import {
 import type { BattleLeaderboardPayload } from './battle.types';
 import { BattleSkillService } from './battle-skill.service';
 import { BattleTrackService } from './battle-track.service';
-import { PROFESSIONAL_TRACK_CATALOG } from '../course/course-catalog';
+import {
+  getTrackForMajor,
+  PROFESSIONAL_TRACK_CATALOG,
+  type ProfessionalTrackIdentity,
+} from '../course/course-catalog';
 import {
   calculateBattleCompetitiveTier,
   createBattleCompetitiveTitle,
@@ -44,6 +48,21 @@ type BattleSkillLeaderboardRecord = {
   };
 };
 
+type BattleGlobalLeaderboardRecord = {
+  userId: string;
+  rating: number;
+  highestRating: number;
+  rankedBattles: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  professionalTrack: ProfessionalTrackIdentity;
+  user: {
+    nickname: string | null;
+    avatarUrl: string | null;
+  };
+};
+
 @Injectable()
 export class BattleLeaderboardService {
   constructor(
@@ -66,35 +85,123 @@ export class BattleLeaderboardService {
       );
     }
 
-    if (requestedSkill) {
-      const skill =
-        await this.battleSkillService.assertAvailableSkill(requestedSkill);
-      return this.getSkillLeaderboard(
-        currentUserId,
-        skill.code,
-        skill.name,
-        page,
-        pageSize,
-      );
-    }
+    void requestedSkill;
+    void requestedTrack;
+    return this.getGlobalLeaderboard(currentUserId, page, pageSize);
+  }
 
-    if (requestedTrack) {
-      if (!this.battleTrackService) return this.getSkillLeaderboard(currentUserId, requestedSkill ?? 'PYTHON', requestedSkill ?? 'Python', page, pageSize);
-      return this.getTrackLeaderboard(
-        currentUserId,
-        this.battleTrackService.normalize(requestedTrack),
-        page,
-        pageSize,
-      );
-    }
-    if (!this.battleTrackService) return this.getLegacyTotalLeaderboard(currentUserId, page, pageSize);
-    return this.getTrackLeaderboard(
-      currentUserId,
-      this.battleTrackService.normalize(undefined),
-      page,
-      pageSize,
+  private async getGlobalLeaderboard(
+    currentUserId: string,
+    page: number,
+    pageSize: number,
+  ) {
+    const [currentUser, ratings] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: currentUserId },
+        select: { major: true },
+      }),
+      this.prisma.userBattleTrackRating.findMany({
+        where: {
+          trackKey: { in: PROFESSIONAL_TRACK_CATALOG.map((track) => track.trackKey) },
+          rankedBattles: { gt: 0 },
+        },
+        select: {
+          userId: true,
+          trackKey: true,
+          rating: true,
+          highestRating: true,
+          rankedBattles: true,
+          wins: true,
+          losses: true,
+          draws: true,
+          user: { select: { nickname: true, avatarUrl: true, major: true } },
+        },
+      }),
+    ]);
+
+    const profiles = (ratings as Array<{
+      userId: string;
+      trackKey: string;
+      rating: number;
+      highestRating: number;
+      rankedBattles: number;
+      wins: number;
+      losses: number;
+      draws: number;
+      user: { nickname: string | null; avatarUrl: string | null; major: string | null };
+    }>).reduce<BattleGlobalLeaderboardRecord[]>((result, rating) => {
+      const professionalTrack = getTrackForMajor(rating.user.major);
+      if (!professionalTrack || professionalTrack.trackKey !== rating.trackKey) {
+        return result;
+      }
+
+      result.push({
+        userId: rating.userId,
+        rating: rating.rating,
+        highestRating: rating.highestRating,
+        rankedBattles: rating.rankedBattles,
+        wins: rating.wins,
+        losses: rating.losses,
+        draws: rating.draws,
+        professionalTrack,
+        user: {
+          nickname: rating.user.nickname,
+          avatarUrl: rating.user.avatarUrl,
+        },
+      });
+      return result;
+    }, []).sort((left, right) =>
+      right.rating - left.rating ||
+      right.rankedBattles - left.rankedBattles ||
+      left.userId.localeCompare(right.userId),
     );
 
+    const skip = (page - 1) * pageSize;
+    const pageItems = profiles.slice(skip, skip + pageSize);
+    const currentTrack = getTrackForMajor(currentUser?.major);
+    const currentProfile = currentTrack
+      ? profiles.find((profile) => profile.userId === currentUserId && profile.professionalTrack.trackKey === currentTrack.trackKey)
+      : undefined;
+    const currentIndex = currentProfile
+      ? profiles.findIndex((profile) => profile.userId === currentUserId)
+      : -1;
+
+    return {
+      success: true as const,
+      data: {
+        items: pageItems.map((profile, index) => {
+          const tier = calculateBattleCompetitiveTier(profile.rating, profile.rankedBattles);
+          const decisions = profile.wins + profile.losses + profile.draws;
+          return {
+            rank: skip + index + 1,
+            userId: profile.userId,
+            nickname: profile.user.nickname,
+            avatarUrl: profile.user.avatarUrl,
+            rating: profile.rating,
+            highestRating: profile.highestRating,
+            rankedBattles: profile.rankedBattles,
+            wins: profile.wins,
+            losses: profile.losses,
+            draws: profile.draws,
+            winRate: calculateBattleWinRate(decisions, profile.wins),
+            star: tier.star ?? undefined,
+            title: createBattleCompetitiveTitle(profile.professionalTrack.shortName, tier.star),
+            professionalTrack: profile.professionalTrack,
+          };
+        }),
+        page,
+        pageSize,
+        total: profiles.length,
+        totalPages: profiles.length ? Math.ceil(profiles.length / pageSize) : 0,
+        myRank: currentIndex >= 0 ? currentIndex + 1 : null,
+        myRating: currentProfile?.rating ?? null,
+        serverTime: new Date(),
+        skill: null,
+        professionalTrackKey: null,
+        professionalTrack: null,
+        myProfessionalTrack: currentTrack,
+      } satisfies BattleLeaderboardPayload,
+    };
   }
 
   private async getLegacyTotalLeaderboard(currentUserId: string, page: number, pageSize: number) {
@@ -106,7 +213,7 @@ export class BattleLeaderboardService {
     const skip = (page - 1) * pageSize;
     const pageItems = profiles.slice(skip, skip + pageSize);
     return { success: true as const, data: {
-      items: pageItems.map((profile, index) => ({ rank: skip + index + 1, userId: profile.userId, nickname: profile.user.nickname, avatarUrl: profile.user.avatarUrl, rating: profile.rating, highestRating: profile.highestRating, rankedBattles: profile.totalBattles, wins: profile.wins, losses: profile.losses, draws: profile.draws, winRate: calculateBattleWinRate(profile.totalBattles, profile.wins) })),
+      items: pageItems.map((profile, index) => ({ rank: skip + index + 1, userId: profile.userId, nickname: profile.user.nickname, avatarUrl: profile.user.avatarUrl, rating: profile.rating, highestRating: profile.highestRating, rankedBattles: profile.totalBattles, wins: profile.wins, losses: profile.losses, draws: profile.draws, winRate: calculateBattleWinRate(profile.totalBattles, profile.wins), professionalTrack: null })),
       page, pageSize, total: profiles.length, totalPages: profiles.length ? Math.ceil(profiles.length / pageSize) : 0,
       myRank: calculateBattleRank(profiles, currentUserId), myRating: profiles.find((item) => item.userId === currentUserId)?.rating ?? null, serverTime: new Date(), skill: null,
     } satisfies BattleLeaderboardPayload };
@@ -147,6 +254,9 @@ export class BattleLeaderboardService {
             winRate: calculateBattleWinRate(decisions, rating.wins),
             star: tier.star!,
             title: createBattleCompetitiveTitle(track?.shortName ?? trackKey, tier.star),
+            professionalTrack: track
+              ? { trackKey: track.trackKey, formalName: track.formalName, shortName: track.shortName }
+              : null,
           };
         }),
         page, pageSize, total,
@@ -256,6 +366,7 @@ export class BattleLeaderboardService {
             winRate: calculateBattleWinRate(rankedDecisions, rating.wins),
             star: tier.star!,
             title: createBattleCompetitiveTitle(skillName, tier.star),
+            professionalTrack: null,
           };
         }),
         page,

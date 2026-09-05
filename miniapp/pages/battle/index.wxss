@@ -175,6 +175,18 @@
   color: var(--color-text-secondary);
 }
 
+.leaderboard-professional-track,
+.my-rank-professional-track {
+  display: inline-block;
+  margin-top: 5rpx;
+  padding: 2rpx 9rpx;
+  border-radius: 999rpx;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
+  font-size: 18rpx;
+  font-weight: 600;
+}
+
 .leaderboard-title {
   color: var(--color-text-primary);
   font-size: 30rpx;
@@ -197,31 +209,6 @@
   color: #25805a;
   font-size: 18rpx;
   font-weight: 600;
-}
-
-.leaderboard-scope {
-  display: flex;
-  gap: 6rpx;
-  margin: 0 24rpx 14rpx;
-  padding: 5rpx;
-  border-radius: 14rpx;
-  background: var(--color-bg-secondary);
-}
-
-.scope-option {
-  flex: 1;
-  padding: 9rpx 12rpx;
-  border-radius: 10rpx;
-  color: var(--color-text-secondary);
-  font-size: 20rpx;
-  font-weight: 600;
-  text-align: center;
-}
-
-.scope-option-active {
-  background: var(--color-card);
-  color: var(--color-primary);
-  box-shadow: 0 3rpx 10rpx rgba(38, 77, 139, 0.12);
 }
 
 .live-dot {

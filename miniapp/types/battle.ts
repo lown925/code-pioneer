@@ -130,6 +130,7 @@ export type BattleLeaderboardItem = {
   winRate: number;
   star?: number;
   title?: string;
+  professionalTrack: ProfessionalTrackIdentity | null;
 };
 
 export type BattleLeaderboardResponse = {
@@ -144,6 +145,7 @@ export type BattleLeaderboardResponse = {
   skill: string | null;
   professionalTrackKey?: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrack?: ProfessionalTrackIdentity | null;
 };
 
 export type BattleLeaderboardQuery = {

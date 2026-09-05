@@ -2,7 +2,6 @@ import { registerThemedPage } from '../../utils/theme-page';
 import type {
   BattleLeaderboardItem,
   BattleLeaderboardResponse,
-  BattleProfileResponse,
 } from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
@@ -14,7 +13,6 @@ import {
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request } from '../../utils/request';
-import type { CourseCapabilityResponse, ProfessionalTrack } from '../../types/course-capability';
 import {
   fetchActiveBattle,
   getActiveBattlePresentation,
@@ -24,8 +22,6 @@ import {
 } from '../../utils/battle-active-recovery';
 
 type PageState = 'guest' | 'loading' | 'success' | 'empty' | 'error';
-type LeaderboardScope = string;
-type TrackOption = ProfessionalTrack & { description: string };
 
 type LeaderboardRow = {
   rank: number;
@@ -39,6 +35,7 @@ type LeaderboardRow = {
   starSlots: ReturnType<typeof formatBattleStarDisplay>['starSlots'];
   starAriaLabel: string;
   winRateText: string;
+  professionalTrackText: string;
   rankClassName: string;
   isCurrentUser: boolean;
 };
@@ -52,6 +49,7 @@ type MyRankCard = {
   totalBattlesText: string;
   starSlots: ReturnType<typeof formatBattleStarDisplay>['starSlots'];
   starAriaLabel: string;
+  professionalTrackText: string;
 };
 
 type BattlePageData = {
@@ -60,15 +58,12 @@ type BattlePageData = {
   errorMessage: string;
   rankings: LeaderboardRow[];
   myRank: MyRankCard | null;
-  leaderboardScope: LeaderboardScope;
   leaderboardTitle: string;
   leaderboardSubtitle: string;
   leaderboardRatingLabel: string;
   leaderboardBattlesLabel: string;
   activeBattle: ActiveBattlePresentation | null;
   isCheckingBattleEntry: boolean;
-  tracks: TrackOption[];
-  selectedTrackKey: string;
 };
 
 type BattlePageMethods = {
@@ -80,12 +75,9 @@ type BattlePageMethods = {
   handleFriendBattle(): void;
   handleHistory(): void;
   handleRecoverBattle(): void;
-  handleLeaderboardScopeChange(
-    event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>,
-  ): void;
   openBattlePage(path: string, guardActiveBattle?: boolean): Promise<void>;
   mapLeaderboardItem(item: BattleLeaderboardItem): LeaderboardRow;
-  mapMyRank(profile: BattleProfileResponse, leaderboard: BattleLeaderboardResponse): MyRankCard;
+  mapMyRank(leaderboard: BattleLeaderboardResponse): MyRankCard;
   getReadableErrorMessage(error: unknown): string;
 };
 
@@ -102,15 +94,12 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
     errorMessage: '',
     rankings: [],
     myRank: null,
-    leaderboardScope: '',
-    leaderboardTitle: '大数据专业榜',
-    leaderboardSubtitle: '按大数据专业对战积分排名',
-    leaderboardRatingLabel: '大数据积分',
-    leaderboardBattlesLabel: '大数据场次',
+    leaderboardTitle: 'Battle全球排行榜',
+    leaderboardSubtitle: '所有专业统一排名，展示用户画像专业',
+    leaderboardRatingLabel: 'Battle积分',
+    leaderboardBattlesLabel: '随机匹配场次',
     activeBattle: null,
     isCheckingBattleEntry: false,
-    tracks: [],
-    selectedTrackKey: '',
   },
 
   onLoad() {
@@ -185,36 +174,10 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
           : null,
       });
 
-      const [profile, capabilities] = await Promise.all([
-        request<BattleProfileResponse>({
-          url: '/battles/profile',
-          method: 'GET',
-          authMode: 'required',
-        }),
-        request<CourseCapabilityResponse>({ url: '/course-capabilities', method: 'GET', authMode: 'auto' }),
-      ]);
-
-      const trackOptions = capabilities.tracks.map((track) => {
-        const descriptionByTrack: Record<string, string> = {
-          'big-data': '综合考察编程、数据处理与大数据相关专业知识',
-          'computer-science': '综合考察程序设计、算法、系统与网络相关专业知识',
-          'software-engineering': '综合考察程序设计、数据库与软件开发相关专业知识',
-        };
-        return {
-          ...track,
-          description: descriptionByTrack[track.trackKey] ?? '综合考察该专业相关课程知识',
-        };
-      });
-      const selectedTrackKey = trackOptions.some((track) => track.trackKey === this.data.selectedTrackKey)
-        ? this.data.selectedTrackKey
-        : profile.defaultTrackKey && trackOptions.some((track) => track.trackKey === profile.defaultTrackKey)
-          ? profile.defaultTrackKey
-          : trackOptions[0]?.trackKey ?? 'big-data';
-      const selectedTrack = trackOptions.find((track) => track.trackKey === selectedTrackKey);
       const leaderboard = await request<BattleLeaderboardResponse>({
         url: '/battles/leaderboard',
         method: 'GET',
-        data: { page: 1, pageSize: LEADERBOARD_LIMIT, professionalTrackKey: selectedTrackKey },
+        data: { page: 1, pageSize: LEADERBOARD_LIMIT },
         authMode: 'required',
       });
 
@@ -230,14 +193,7 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
         state: rankings.length > 0 ? 'success' : 'empty',
         errorMessage: '',
         rankings,
-        myRank: this.mapMyRank(profile, leaderboard),
-        tracks: trackOptions,
-        selectedTrackKey,
-        leaderboardScope: selectedTrackKey,
-        leaderboardTitle: `${selectedTrack?.shortName ?? '专业'}专业榜`,
-        leaderboardSubtitle: `按${selectedTrack?.shortName ?? '所选专业方向'}对战积分排名`,
-        leaderboardRatingLabel: `${selectedTrack?.shortName ?? '专业'}积分`,
-        leaderboardBattlesLabel: `${selectedTrack?.shortName ?? '专业'}场次`,
+        myRank: this.mapMyRank(leaderboard),
         activeBattle: activeBattle
           ? getActiveBattlePresentation(activeBattle)
           : null,
@@ -284,25 +240,6 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
     }
   },
 
-  handleLeaderboardScopeChange(event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>) {
-    const scope = event.currentTarget.dataset.scope;
-
-    if (!scope || scope === this.data.leaderboardScope || isRequesting) {
-      return;
-    }
-
-    this.setData({
-      leaderboardScope: scope,
-      selectedTrackKey: scope,
-      leaderboardTitle: '专业榜',
-      leaderboardSubtitle: '按所选专业方向对战积分排名',
-      leaderboardRatingLabel: '专业积分',
-      leaderboardBattlesLabel: '专业场次',
-      myRank: null,
-    });
-    void this.loadBattleHome();
-  },
-
   async openBattlePage(path: string, guardActiveBattle = false) {
     if (!this.data.isAuthenticated) {
       redirectToLogin('/pages/battle/index');
@@ -340,6 +277,7 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
       rankText: formatBattleRank(item.rank),
       ratingText: formatBattleRating(item.rating),
       totalBattlesText: String(Math.max(0, item.rankedBattles)),
+      professionalTrackText: item.professionalTrack?.shortName ?? '',
       ...formatBattleStarDisplay(item.star),
       winRateText: `${item.winRate.toFixed(1)}%`,
       rankClassName: item.rank <= 3 ? `rank-${item.rank}` : 'rank-default',
@@ -347,7 +285,7 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
     };
   },
 
-  mapMyRank(profile: BattleProfileResponse, leaderboard: BattleLeaderboardResponse) {
+  mapMyRank(leaderboard: BattleLeaderboardResponse) {
     const user = getAuthStateSummary().user;
     const currentItem = leaderboard.items.find((item) => item.userId === user?.id);
     const rating = leaderboard.myRating;
@@ -366,6 +304,7 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
       rankText: formatBattleRank(leaderboard.myRank),
       ratingText: rating === null ? '未定级' : formatBattleRating(rating),
       totalBattlesText: String(totalBattles),
+      professionalTrackText: leaderboard.myProfessionalTrack?.shortName ?? '',
       ...formatBattleStarDisplay(star),
     };
   },

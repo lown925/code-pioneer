@@ -637,14 +637,15 @@ V1 推荐使用简化 Elo：
 
 ### 13.4 排行榜排序
 
-V1 排行榜建议按以下顺序排序：
+Battle 全局排行榜按以下顺序排序：
 
 1. `rating DESC`
-2. `highestRating DESC`
-3. `wins DESC`
-4. `userId ASC`
+2. `rankedBattles DESC`
+3. `userId ASC`
 
-当前阶段不预计算全局固定名次表，优先采用查询时计算或缓存查询结果。
+排行榜先按用户画像专业（`User.major` 经 `getTrackForMajor()` 映射）投影为一条记录，再排序、计算名次和分页。分数使用该画像专业对应的 `UserBattleTrackRating.rating`；不使用其他专业、最高值、平均值或 `BattleProfile.rating`。专业名称仅作为画像信息展示，不作为排行榜筛选条件。
+
+匹配使用全局池，题目与 Rating 结算仍按每位玩家自己的专业方向执行。
 
 ## 14. 战绩与历史复盘
 
@@ -798,8 +799,9 @@ Battle V1 至少满足以下安全要求：
 实现说明：
 
 1. `CP-011B` 已实际落地 `BattleProfile`。
-2. `BattleProfile.rating` 作为后续 Battle 排位权威来源。
-3. `User.battleRating` 在 `CP-011B` 暂时保留，仅作为兼容初始化字段。
+2. `BattleProfile.rating` 保留为历史兼容统计，不作为全局排行榜权威来源。
+3. 排行榜使用 `UserBattleTrackRating` 中与用户画像专业匹配的 track 记录。
+4. `User.battleRating` 在 `CP-011B` 暂时保留，仅作为兼容初始化字段。
 
 是否建议在 CP-011B 创建：已在 CP-011B 创建
 
@@ -1025,7 +1027,8 @@ GET /api/v1/battles/leaderboard
 说明：
 
 1. `GET /api/v1/battles/profile` 与 `GET /api/v1/battles/leaderboard` 已在 `CP-011F` 实现。
-2. 排位权威来源是 `BattleProfile.rating`，`winRate` 与 `rank/currentRank` 按查询时动态计算。
+2. `/leaderboard` 是单一全局榜；`professionalTrackKey` 仅为旧客户端兼容参数，不参与筛选。
+3. 全局榜分数来自用户画像专业对应的 `UserBattleTrackRating`，专业标签来自 `User.major` 映射；`winRate` 与 `rank/currentRank` 按查询时动态计算。
 
 ### 19.2 随机匹配
 

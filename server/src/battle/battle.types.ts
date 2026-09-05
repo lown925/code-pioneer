@@ -468,6 +468,7 @@ export type BattleLeaderboardItemPayload = {
   winRate: number;
   star?: BattleCompetitiveStar;
   title?: string;
+  professionalTrack: ProfessionalTrackIdentity | null;
 };
 
 export type BattleLeaderboardPayload = {
@@ -482,6 +483,7 @@ export type BattleLeaderboardPayload = {
   skill: string | null;
   professionalTrackKey?: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrack?: ProfessionalTrackIdentity | null;
 };
 
 export type BattleHistoryMyAnswerPayload = {

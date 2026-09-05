@@ -138,37 +138,35 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(playTemplate).not.toContain('Combo');
   });
 
-  it('shows the professional leaderboard first and switches tracks in place', () => {
+  it('shows one global leaderboard with profile-track labels', () => {
     const indexScript = readMiniappFile('pages/battle/index.ts');
     const indexTemplate = readMiniappFile('pages/battle/index.wxml');
 
-    expect(indexScript).toContain("leaderboardScope: ''");
-    expect(indexScript).toContain('professionalTrackKey: selectedTrackKey');
-    expect(indexScript).toContain('handleLeaderboardScopeChange');
-    expect(indexScript).toContain('capabilities.tracks');
-    expect(indexTemplate).toContain('leaderboard-track-selector');
-    expect(indexTemplate).toContain('data-scope="{{item.trackKey}}"');
-    expect(indexTemplate).toContain('bindtap="handleLeaderboardScopeChange"');
-    expect(indexTemplate).not.toContain('总榜');
-    expect(indexTemplate).not.toContain('Python 榜');
+    expect(indexScript).toContain("leaderboardSubtitle: '所有专业统一排名，展示用户画像专业'");
+    expect(indexScript).toContain('data: { page: 1, pageSize: LEADERBOARD_LIMIT }');
+    expect(indexScript).toContain('item.professionalTrack?.shortName');
+    expect(indexTemplate).not.toContain('leaderboard-track-selector');
+    expect(indexTemplate).not.toContain('handleLeaderboardScopeChange');
+    expect(indexTemplate).toContain('leaderboard-professional-track');
+    expect(indexTemplate).toContain('my-rank-professional-track');
     expect(indexTemplate).not.toContain('{{item.winRateText}} 胜率');
-    expect(indexTemplate).not.toContain('全部榜单');
   });
 
-  it('offers a dynamic professional leaderboard selector', () => {
+  it('renders the independent leaderboard as a global list', () => {
     const leaderboardScript = readMiniappFile('pages/battle/leaderboard.ts');
     const leaderboardTemplate = readMiniappFile(
       'pages/battle/leaderboard.wxml',
     );
 
-    expect(leaderboardScript).toContain('type LeaderboardScope = string');
-    expect(leaderboardScript).toContain(
-      'professionalTrackKey: this.data.scope',
-    );
-    expect(leaderboardScript).toContain('response.tracks');
-    expect(leaderboardTemplate).toContain('data-scope="{{item.trackKey}}"');
-    expect(leaderboardTemplate).not.toContain('data-scope="TOTAL"');
-    expect(leaderboardTemplate).not.toContain('data-scope="PYTHON"');
+    expect(leaderboardScript).toContain("titleText: 'Battle全球排行榜'");
+    expect(leaderboardScript).toContain('pageSize: PAGE_SIZE');
+    expect(leaderboardScript).not.toContain('professionalTrackKey: this.data.scope');
+    expect(leaderboardScript).not.toContain('loadTracks');
+    expect(leaderboardScript).not.toContain('handleScopeChange');
+    expect(leaderboardTemplate).not.toContain('leaderboard-scope');
+    expect(leaderboardTemplate).not.toContain('data-scope=');
+    expect(leaderboardTemplate).toContain('leaderboard-professional-track');
+    expect(leaderboardTemplate).toContain('summary-track');
     expect(leaderboardScript).toContain('item.rankedBattles');
     expect(leaderboardScript).toContain('item.star');
     expect(leaderboardScript).toContain('formatBattleStarDisplay(item.star)');
@@ -296,9 +294,9 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     const resultTemplate = readMiniappFile('pages/battle/result.wxml');
     const battleUtility = readMiniappFile('utils/battle.ts');
 
-    expect(matchmakingTemplate).toContain('综合考察');
+    expect(matchmakingTemplate).toContain('对战方向');
     expect(matchmakingTemplate).not.toMatch(/当前题库|可用课程|可用对战题/);
-    expect(matchmakingTemplate).toContain('selectedTrackName');
+    expect(matchmakingTemplate).toContain('selectedProfessionalTrackName');
     expect(matchmakingTemplate).not.toContain('对战语言');
     expect(indexScript).toContain('item.star');
     expect(indexScript).not.toContain('item.title');

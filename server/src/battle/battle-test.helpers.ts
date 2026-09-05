@@ -20,6 +20,7 @@ type UserRecord = {
   battleRating: number;
   nickname?: string | null;
   avatarUrl?: string | null;
+  major?: string | null;
 };
 
 type BattleProfileRecord = {
@@ -417,6 +418,7 @@ export function createBattlePrismaMock() {
           ? {
               id: user.id,
               battleRating: user.battleRating,
+              major: user.major ?? null,
               nickname: user.nickname ?? null,
               avatarUrl: user.avatarUrl ?? null,
             }
@@ -631,6 +633,7 @@ export function createBattlePrismaMock() {
               user: {
                 nickname: users.get(record.userId)?.nickname ?? null,
                 avatarUrl: users.get(record.userId)?.avatarUrl ?? null,
+                major: users.get(record.userId)?.major ?? null,
               },
             })),
       ),
@@ -707,6 +710,7 @@ export function createBattlePrismaMock() {
               user: {
                 nickname: users.get(record.userId)?.nickname ?? null,
                 avatarUrl: users.get(record.userId)?.avatarUrl ?? null,
+                major: users.get(record.userId)?.major ?? null,
               },
             })),
       ),

@@ -45,32 +45,6 @@
   color: rgba(255, 255, 255, 0.84);
 }
 
-.leaderboard-scope {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 6rpx;
-  border: 1rpx solid var(--color-border);
-  border-radius: 14rpx;
-  background: var(--color-card-subtle);
-}
-
-.scope-option {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 70rpx;
-  border-radius: 10rpx;
-  color: var(--color-text-secondary);
-  font-size: 24rpx;
-  font-weight: 600;
-}
-
-.scope-option-active {
-  background: var(--color-card);
-  color: var(--color-text-primary);
-  box-shadow: 0 6rpx 16rpx rgba(23, 50, 77, 0.1);
-}
-
 .summary-card {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -104,6 +78,23 @@
   font-size: 24rpx;
   line-height: 1.7;
   color: var(--color-text-secondary);
+}
+
+.summary-track,
+.leaderboard-professional-track {
+  display: inline-block;
+  margin-top: 8rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.summary-track {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 .leaderboard-list {

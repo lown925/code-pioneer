@@ -3,7 +3,6 @@ import type {
   BattleLeaderboardItem,
   BattleLeaderboardQuery,
   BattleLeaderboardResponse,
-  BattleProfileResponse,
 } from '../../types/battle';
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
@@ -17,11 +16,8 @@ import {
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
-import type { CourseCapabilityResponse, ProfessionalTrack } from '../../types/course-capability';
 
 type PageState = 'loading' | 'success' | 'empty' | 'error' | 'unauthorized';
-type LeaderboardScope = string;
-
 type LeaderboardCard = BattleLeaderboardItem & {
   nicknameText: string;
   ratingText: string;
@@ -34,12 +30,14 @@ type LeaderboardCard = BattleLeaderboardItem & {
   rankedBattlesText: string;
   starSlots: ReturnType<typeof formatBattleStarDisplay>['starSlots'];
   starAriaLabel: string;
+  professionalTrackText: string;
   isCurrentUser: boolean;
 };
 
 type MyRankSummary = {
   rankText: string;
   ratingText: string;
+  professionalTrackText: string;
   hintText: string;
 };
 
@@ -55,10 +53,8 @@ type BattleLeaderboardPageData = {
   hasMore: boolean;
   isLoadingMore: boolean;
   mySummary: MyRankSummary | null;
-  scope: LeaderboardScope;
   titleText: string;
   descriptionText: string;
-  tracks: ProfessionalTrack[];
 };
 
 type BattleLeaderboardPageMethods = {
@@ -66,12 +62,10 @@ type BattleLeaderboardPageMethods = {
   loadFirstPage(): Promise<void>;
   loadMore(): Promise<void>;
   refreshPage(): Promise<void>;
-  loadTracks(): Promise<void>;
   fetchLeaderboard(options: { page: number; replace: boolean }): Promise<void>;
   buildQuery(page: number): BattleLeaderboardQuery;
   handleRetry(): void;
   handleLoadMoreRetry(): void;
-  handleScopeChange(event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>): void;
   mapLeaderboardItem(item: BattleLeaderboardItem): LeaderboardCard;
   mapMySummary(response: BattleLeaderboardResponse, pageItems: LeaderboardCard[]): MyRankSummary;
   getReadableError(error: unknown): {
@@ -99,15 +93,13 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     hasMore: false,
     isLoadingMore: false,
     mySummary: null,
-    scope: 'big-data',
-    titleText: '大数据专业榜',
-    descriptionText: '按大数据专业对战积分排名。',
-    tracks: [],
+    titleText: 'Battle全球排行榜',
+    descriptionText: '所有专业统一排名，展示用户画像专业。',
   },
 
   onLoad() {
     isPageActive = true;
-    void this.loadTracks();
+    void this.loadFirstPage();
   },
 
   onUnload() {
@@ -273,39 +265,7 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     return {
       page,
       pageSize: PAGE_SIZE,
-      professionalTrackKey: this.data.scope,
     };
-  },
-
-  async loadTracks() {
-    try {
-      const [response, profile] = await Promise.all([
-        request<CourseCapabilityResponse>({ url: '/course-capabilities', method: 'GET', authMode: 'auto' }),
-        request<BattleProfileResponse>({ url: '/battles/profile', method: 'GET', authMode: 'required' }),
-      ]);
-      const preferredTrackKey = profile.defaultTrackKey ?? this.data.scope;
-      const selected = response.tracks.find((track) => track.trackKey === preferredTrackKey) ?? response.tracks[0];
-      this.setData({ tracks: response.tracks, scope: selected?.trackKey ?? this.data.scope, titleText: selected ? `${selected.shortName}专业榜` : this.data.titleText, descriptionText: selected ? `按${selected.shortName}专业对战积分排名。` : this.data.descriptionText });
-      void this.loadFirstPage();
-    } catch {
-      void this.loadFirstPage();
-    }
-  },
-
-  handleScopeChange(event: WechatMiniprogram.BaseEvent<{ scope?: LeaderboardScope }>) {
-    const scope = event.currentTarget.dataset.scope;
-
-    if (!scope || scope === this.data.scope || isRequesting) {
-      return;
-    }
-
-    this.setData({
-      scope,
-      titleText: this.data.tracks.find((track) => track.trackKey === scope)?.shortName ? `${this.data.tracks.find((track) => track.trackKey === scope)!.shortName}专业榜` : '专业榜',
-      descriptionText: '按所选专业方向对战积分排名。',
-      mySummary: null,
-    });
-    void this.loadFirstPage();
   },
 
   handleRetry() {
@@ -326,6 +286,7 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
       highestRatingText: formatBattleRating(item.highestRating),
       rankedBattlesText: String(Math.max(0, item.rankedBattles)),
       ...formatBattleStarDisplay(item.star),
+      professionalTrackText: item.professionalTrack?.shortName ?? '',
       winRateText: formatBattleWinRate(item.winRate),
       recordText: formatBattleRecord(item.wins, item.losses, item.draws),
       rankText: formatBattleRank(item.rank),
@@ -338,7 +299,7 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
   mapMySummary(response: BattleLeaderboardResponse, pageItems: LeaderboardCard[]) {
     const currentItem = pageItems.find((item) => item.isCurrentUser);
     const rankText = formatBattleRank(response.myRank);
-    const ratingText = formatBattleRating(response.myRating);
+    const ratingText = response.myRating === null ? '未定级' : formatBattleRating(response.myRating);
     const hintText = currentItem
       ? '你当前的排行条目已在列表中高亮显示。'
       : '当前页未展示你的条目，可继续翻页查看或以该摘要为准。';
@@ -346,6 +307,7 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     return {
       rankText,
       ratingText,
+      professionalTrackText: response.myProfessionalTrack?.shortName ?? '',
       hintText,
     };
   },
