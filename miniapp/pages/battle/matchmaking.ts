@@ -27,8 +27,10 @@ type MatchmakingPageData = {
   isStartingComputer: boolean;
   isCancelling: boolean;
   tracks: (ProfessionalTrack & { description: string })[];
-  selectedTrackKey: string;
-  selectedTrackName: string;
+  selectedProfessionalTrackKey: string;
+  selectedProfessionalTrackName: string;
+  hasManuallySelectedTrack: boolean;
+  hasInitializedProfessionalTrack: boolean;
   profileDefaultTrackKey: string;
 };
 
@@ -79,6 +81,10 @@ function formatWaitingCount(waitingCount: number) {
     : '正在寻找合适的对手';
 }
 
+function isQueueState(status: string) {
+  return ['SEARCHING', 'SEARCHING_COMPUTER_AVAILABLE', 'MATCHED', 'JOINING'].includes(status);
+}
+
 registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
   data: {
     state: 'IDLE',
@@ -96,8 +102,10 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
     isStartingComputer: false,
     isCancelling: false,
     tracks: [],
-    selectedTrackKey: 'big-data',
-    selectedTrackName: '大数据',
+    selectedProfessionalTrackKey: 'big-data',
+    selectedProfessionalTrackName: '大数据',
+    hasManuallySelectedTrack: false,
+    hasInitializedProfessionalTrack: false,
     profileDefaultTrackKey: '',
   },
 
@@ -110,12 +118,12 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
     void (async () => {
       await this.loadProfile();
       await this.loadTracks();
-      await manager.sync({ force: true, professionalTrackKey: this.data.selectedTrackKey });
+      await manager.sync({ force: true, professionalTrackKey: this.data.selectedProfessionalTrackKey });
     })();
   },
 
   onShow() {
-    if (getAuthStateSummary().isAuthenticated) void getBattleMatchmakingManager().sync({ force: true, professionalTrackKey: this.data.selectedTrackKey });
+    if (getAuthStateSummary().isAuthenticated) void getBattleMatchmakingManager().sync({ force: true, professionalTrackKey: this.data.selectedProfessionalTrackKey });
   },
 
   onUnload() {
@@ -154,9 +162,21 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
         };
         return { ...track, description: descriptionByTrack[track.trackKey] ?? '综合考察该专业相关课程知识' };
       });
-      const preferredTrackKey = this.data.profileDefaultTrackKey || this.data.selectedTrackKey;
-      const selected = tracks.find((track) => track.trackKey === preferredTrackKey) ?? tracks[0];
-      this.setData({ tracks, selectedTrackKey: selected?.trackKey ?? 'big-data', selectedTrackName: selected?.shortName ?? '大数据' });
+      const selectedTrack = tracks.find((track) => track.trackKey === this.data.selectedProfessionalTrackKey);
+      const queueState = isQueueState(this.data.state);
+      const selected = this.data.hasManuallySelectedTrack || queueState
+        ? selectedTrack
+        : tracks.find((track) => track.trackKey === this.data.profileDefaultTrackKey) ?? selectedTrack ?? tracks[0];
+      this.setData({
+        tracks,
+        ...(selected
+          ? {
+              selectedProfessionalTrackKey: selected.trackKey,
+              selectedProfessionalTrackName: selected.shortName,
+              hasInitializedProfessionalTrack: true,
+            }
+          : {}),
+      });
     } catch {
       // Track selection remains usable with the server default when catalog decoration is unavailable.
     }
@@ -165,6 +185,10 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
   applyManagerSnapshot(snapshot: BattleMatchmakingSnapshot) {
     const copy = getStateCopy(snapshot);
     const selectedSkill = this.data.availableSkills.find((skill) => skill.code === snapshot.skillCode);
+    const queueState = snapshot.isJoining || isQueueState(snapshot.status);
+    const queueTrack = queueState
+      ? this.data.tracks.find((track) => track.trackKey === snapshot.professionalTrackKey)
+      : undefined;
     this.setData({
       state: snapshot.isJoining ? 'JOINING' : snapshot.status,
       waitingCountText: formatWaitingCount(snapshot.waitingCount),
@@ -176,7 +200,13 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
       stateDescription: copy.description,
       selectedSkillCode: snapshot.skillCode || this.data.selectedSkillCode,
       selectedSkillName: selectedSkill?.name || snapshot.skillName || this.data.selectedSkillName,
-      selectedTrackKey: snapshot.professionalTrackKey || this.data.selectedTrackKey,
+      ...(queueState && snapshot.professionalTrackKey
+        ? {
+            selectedProfessionalTrackKey: snapshot.professionalTrackKey,
+            hasInitializedProfessionalTrack: true,
+            ...(queueTrack ? { selectedProfessionalTrackName: queueTrack.shortName } : {}),
+          }
+        : {}),
       computerAvailable: snapshot.computerAvailable,
       isStartingComputer: snapshot.isStartingComputer,
       isCancelling: snapshot.isCancelling,
@@ -190,12 +220,13 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
     const selectedTrack = profileTrack
       ? this.data.tracks.find((track) => track.trackKey === profileTrack)
       : undefined;
+    const shouldInitializeTrack = !this.data.hasInitializedProfessionalTrack && !this.data.hasManuallySelectedTrack && !isQueueState(this.data.state);
     this.setData({
       availableSkills,
       selectedSkillCode: selectedSkill?.code ?? 'PYTHON',
       selectedSkillName: selectedSkill?.name ?? 'Python',
-      ...(selectedTrack
-        ? { selectedTrackKey: selectedTrack.trackKey, selectedTrackName: selectedTrack.shortName }
+      ...(shouldInitializeTrack && selectedTrack
+        ? { selectedProfessionalTrackKey: selectedTrack.trackKey, selectedProfessionalTrackName: selectedTrack.shortName }
         : {}),
       profileDefaultTrackKey: profile.defaultTrackKey ?? '',
     });
@@ -206,20 +237,25 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
       wx.showToast({ title: '请先选择对战方向', icon: 'none' });
       return;
     }
-    void getBattleMatchmakingManager().join(this.data.selectedSkillCode, this.data.selectedTrackKey);
+    void getBattleMatchmakingManager().join(this.data.selectedSkillCode, this.data.selectedProfessionalTrackKey);
   },
 
   handleSelectTrack(event: WechatMiniprogram.CustomEvent<{ track?: string }>) {
-    if (['SEARCHING', 'SEARCHING_COMPUTER_AVAILABLE', 'MATCHED', 'JOINING'].includes(this.data.state)) return;
+    if (isQueueState(this.data.state)) return;
     const trackKey = event.currentTarget.dataset.track;
     const track = this.data.tracks.find((item) => item.trackKey === trackKey);
     if (!track) return;
-    this.setData({ selectedTrackKey: track.trackKey, selectedTrackName: track.shortName });
+    this.setData({
+      selectedProfessionalTrackKey: track.trackKey,
+      selectedProfessionalTrackName: track.shortName,
+      hasManuallySelectedTrack: true,
+      hasInitializedProfessionalTrack: true,
+    });
     void getBattleMatchmakingManager().sync({ force: true, professionalTrackKey: track.trackKey });
   },
 
   handleSelectSkill(event: WechatMiniprogram.CustomEvent<{ skill?: string }>) {
-    if (['SEARCHING', 'SEARCHING_COMPUTER_AVAILABLE', 'MATCHED', 'JOINING'].includes(this.data.state)) return;
+    if (isQueueState(this.data.state)) return;
     const skillCode = event.currentTarget.dataset.skill;
     const skill = this.data.availableSkills.find((item) => item.code === skillCode);
     if (!skill) return;
@@ -242,7 +278,7 @@ registerThemedPage<MatchmakingPageData, MatchmakingPageMethods>({
 
   handleRetry() {
     if (this.data.state === 'CANCELLED' || this.data.state === 'EXPIRED') {
-      void getBattleMatchmakingManager().join(this.data.selectedSkillCode, this.data.selectedTrackKey);
+      void getBattleMatchmakingManager().join(this.data.selectedSkillCode, this.data.selectedProfessionalTrackKey);
       return;
     }
     void getBattleMatchmakingManager().sync({ force: true });

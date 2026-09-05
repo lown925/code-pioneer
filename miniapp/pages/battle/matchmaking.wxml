@@ -9,12 +9,12 @@
     <text class="section-title">对战方向</text>
     <text class="section-subtitle">选择你的出题方向，系统会为你匹配对手并按各自方向出题。</text>
     <view class="skill-list">
-      <view wx:for="{{tracks}}" wx:key="trackKey" class="skill-option {{selectedTrackKey === item.trackKey ? 'skill-option-selected' : ''}} {{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE' || state === 'MATCHED' || state === 'JOINING' ? 'skill-option-locked' : ''}}" data-track="{{item.trackKey}}" bindtap="handleSelectTrack">
+      <view wx:for="{{tracks}}" wx:key="trackKey" class="skill-option {{selectedProfessionalTrackKey === item.trackKey ? 'skill-option-selected' : ''}} {{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE' || state === 'MATCHED' || state === 'JOINING' ? 'skill-option-locked' : ''}}" data-track="{{item.trackKey}}" bindtap="handleSelectTrack">
         <view>
           <text class="skill-name">{{item.shortName}} · {{item.formalName}}</text>
           <text class="skill-status">{{item.description}}</text>
         </view>
-        <text class="skill-check">{{selectedTrackKey === item.trackKey ? '已选择' : '选择'}}</text>
+        <text class="skill-check">{{selectedProfessionalTrackKey === item.trackKey ? '已选择' : '选择'}}</text>
       </view>
     </view>
   </view>
@@ -22,7 +22,7 @@
   <view class="section-card status-card">
     <text class="section-title">{{stateTitle}}</text>
     <text class="section-subtitle">{{stateDescription}}</text>
-    <text wx:if="{{selectedTrackName}}" class="locked-skill">对战方向：{{selectedTrackName}}</text>
+    <text wx:if="{{selectedProfessionalTrackName}}" class="locked-skill">对战方向：{{selectedProfessionalTrackName}}</text>
     <text wx:if="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="section-subtitle">对手可能来自不同专业，双方分别作答各自方向题目。</text>
     <text wx:if="{{state === 'SEARCHING' || state === 'SEARCHING_COMPUTER_AVAILABLE'}}" class="status-copy">{{waitingCountText}}</text>
 
