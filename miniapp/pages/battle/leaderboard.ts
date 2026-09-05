@@ -7,6 +7,7 @@ import type {
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatBattleInitial,
+  mapBattleLeaderboardStar,
   formatBattleNickname,
   formatBattleRank,
   formatBattleRating,
@@ -287,7 +288,7 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
       ratingText: formatBattleRating(item.rating),
       highestRatingText: formatBattleRating(item.highestRating),
       rankedBattlesText: String(Math.max(0, item.rankedBattles)),
-      ...formatBattleStarDisplay(item.star),
+      ...mapBattleLeaderboardStar(item.star),
       professionalTrackText: item.professionalTrack?.shortName ?? '',
       winRateText: formatBattleWinRate(item.winRate),
       recordText: formatBattleRecord(item.wins, item.losses, item.draws),

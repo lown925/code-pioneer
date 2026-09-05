@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { mapBattleLeaderboardStar } from '../../miniapp/utils/battle';
 
 const miniappRoot = resolve(__dirname, '../../miniapp');
 
@@ -8,6 +9,21 @@ function readMiniappFile(relativePath: string) {
 }
 
 describe('miniapp Battle live state and skill leaderboard', () => {
+  it('maps real leaderboard star payloads into non-empty display data', () => {
+    const responseItems = [
+      { rating: 984, rankedBattles: 1, star: 3, professionalTrack: { shortName: '大数据' } },
+      { rating: 968, rankedBattles: 4, star: 3, professionalTrack: { shortName: '大数据' } },
+    ];
+
+    for (const item of responseItems) {
+      const mapped = mapBattleLeaderboardStar(item.star);
+      const stars = mapped.starSlots.map((slot) => (slot.isFilled ? '★' : '☆')).join('');
+      expect(mapped.star).toBe(3);
+      expect(stars).toBe('★★★☆☆☆');
+      expect(`${stars} · ${item.professionalTrack.shortName}`).toBe('★★★☆☆☆ · 大数据');
+    }
+  });
+
   it('polls results while playing and converges when the opponent forfeits', () => {
     const playScript = readMiniappFile('pages/battle/play.ts');
 
@@ -145,6 +161,7 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(indexScript).toContain("leaderboardTitle: '排行榜'");
     expect(indexScript).toContain("leaderboardSubtitle: '所有专业统一排名'");
     expect(indexScript).toContain('data: { page: 1, pageSize: LEADERBOARD_LIMIT }');
+    expect(indexScript).toContain('mapBattleLeaderboardStar(item.star)');
     expect(indexScript).toContain('item.professionalTrack?.shortName');
     expect(indexTemplate).not.toContain('leaderboard-track-selector');
     expect(indexTemplate).not.toContain('handleLeaderboardScopeChange');
@@ -169,6 +186,7 @@ describe('miniapp Battle live state and skill leaderboard', () => {
 
     expect(leaderboardScript).toContain("titleText: '排行榜'");
     expect(leaderboardScript).toContain('pageSize: PAGE_SIZE');
+    expect(leaderboardScript).toContain('mapBattleLeaderboardStar(item.star)');
     expect(leaderboardScript).not.toContain('professionalTrackKey: this.data.scope');
     expect(leaderboardScript).not.toContain('loadTracks');
     expect(leaderboardScript).not.toContain('handleScopeChange');
@@ -183,7 +201,7 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(leaderboardTemplate).toContain('wx:if="{{item.professionalTrackText}}"');
     expect(leaderboardScript).toContain('item.rankedBattles');
     expect(leaderboardScript).toContain('item.star');
-    expect(leaderboardScript).toContain('formatBattleStarDisplay(item.star)');
+    expect(leaderboardScript).toContain('mapBattleLeaderboardStar(item.star)');
     expect(leaderboardTemplate).toContain('item.starSlots');
     expect(leaderboardTemplate).not.toContain('item.titleText');
   });

@@ -109,6 +109,35 @@ describe('BattleLeaderboardService global leaderboard', () => {
     expect(result.data.myRating).toBe(1100);
   });
 
+  it('returns competitive stars for ranked ratings in the API item shape', async () => {
+    const mock = createBattlePrismaMock();
+    const user984 = '66666666-6666-4666-8666-666666666666';
+    const user968 = '77777777-7777-4777-8777-777777777777';
+    addUser(mock, user984, 'major.data_science_big_data', '洛文');
+    addUser(mock, user968, 'major.data_science_big_data', '匿名用户');
+    addTrackRating(mock, user984, 'big-data', 984, 1);
+    addTrackRating(mock, user968, 'big-data', 968, 4);
+
+    const result = await createService(mock).getLeaderboard(user984);
+
+    expect(result.data.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        userId: user984,
+        rating: 984,
+        rankedBattles: 1,
+        star: 3,
+        professionalTrack: expect.objectContaining({ shortName: '大数据' }),
+      }),
+      expect.objectContaining({
+        userId: user968,
+        rating: 968,
+        rankedBattles: 4,
+        star: 3,
+        professionalTrack: expect.objectContaining({ shortName: '大数据' }),
+      }),
+    ]));
+  });
+
   it('applies rating, ranked battles, and user id tie-breaking before pagination', async () => {
     const mock = createBattlePrismaMock();
     const userA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';

@@ -34,6 +34,13 @@ export function formatBattleStarDisplay(
   };
 }
 
+export function mapBattleLeaderboardStar(star: number | null | undefined) {
+  return {
+    star: star ?? undefined,
+    ...formatBattleStarDisplay(star),
+  };
+}
+
 export function formatBattleNickname(nickname: string | null | undefined) {
   const trimmed = nickname?.trim();
 

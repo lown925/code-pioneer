@@ -6,6 +6,7 @@ import type {
 import { getAuthStateSummary, redirectToLogin } from '../../utils/auth';
 import {
   formatBattleInitial,
+  mapBattleLeaderboardStar,
   formatBattleNickname,
   formatBattleRank,
   formatBattleRating,
@@ -32,6 +33,7 @@ type LeaderboardRow = {
   rankText: string;
   ratingText: string;
   totalBattlesText: string;
+  star?: number;
   starSlots: ReturnType<typeof formatBattleStarDisplay>['starSlots'];
   starAriaLabel: string;
   winRateText: string;
@@ -277,6 +279,7 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
       rankText: formatBattleRank(item.rank),
       ratingText: formatBattleRating(item.rating),
       totalBattlesText: String(Math.max(0, item.rankedBattles)),
+      ...mapBattleLeaderboardStar(item.star),
       professionalTrackText: item.professionalTrack?.shortName ?? '',
       ...formatBattleStarDisplay(item.star),
       winRateText: `${item.winRate.toFixed(1)}%`,
@@ -305,7 +308,7 @@ registerThemedPage<BattlePageData, BattlePageMethods>({
       ratingText: rating === null ? '未定级' : formatBattleRating(rating),
       totalBattlesText: String(totalBattles),
       professionalTrackText: leaderboard.myProfessionalTrack?.shortName ?? '',
-      ...formatBattleStarDisplay(star),
+      ...mapBattleLeaderboardStar(star),
     };
   },
 
