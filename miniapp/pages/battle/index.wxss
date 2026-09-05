@@ -168,6 +168,20 @@
   font-size: 21rpx;
 }
 
+.leaderboard-rating-track,
+.my-rank-rating-track {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6rpx;
+}
+
+.leaderboard-track-separator,
+.my-rank-track-separator {
+  color: var(--color-text-tertiary);
+  font-size: 20rpx;
+}
+
 .leaderboard-win-rate-line {
   display: block;
   margin-top: 6rpx;
@@ -420,7 +434,6 @@
 }
 
 .my-rank-stars {
-  margin-top: 7rpx;
   font-size: 18rpx;
 }
 

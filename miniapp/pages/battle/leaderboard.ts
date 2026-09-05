@@ -37,6 +37,8 @@ type LeaderboardCard = BattleLeaderboardItem & {
 type MyRankSummary = {
   rankText: string;
   ratingText: string;
+  starSlots: ReturnType<typeof formatBattleStarDisplay>['starSlots'];
+  starAriaLabel: string;
   professionalTrackText: string;
   hintText: string;
 };
@@ -93,8 +95,8 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     hasMore: false,
     isLoadingMore: false,
     mySummary: null,
-    titleText: 'Battle全球排行榜',
-    descriptionText: '所有专业统一排名，展示用户画像专业。',
+    titleText: '排行榜',
+    descriptionText: '所有专业统一排名。',
   },
 
   onLoad() {
@@ -300,6 +302,9 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     const currentItem = pageItems.find((item) => item.isCurrentUser);
     const rankText = formatBattleRank(response.myRank);
     const ratingText = response.myRating === null ? '未定级' : formatBattleRating(response.myRating);
+    const starDisplay = currentItem?.star !== undefined
+      ? formatBattleStarDisplay(currentItem.star)
+      : { starSlots: [], starAriaLabel: '' };
     const hintText = currentItem
       ? '你当前的排行条目已在列表中高亮显示。'
       : '当前页未展示你的条目，可继续翻页查看或以该摘要为准。';
@@ -307,6 +312,7 @@ registerThemedPage<BattleLeaderboardPageData, BattleLeaderboardPageMethods>({
     return {
       rankText,
       ratingText,
+      ...starDisplay,
       professionalTrackText: response.myProfessionalTrack?.shortName ?? '',
       hintText,
     };

@@ -95,19 +95,22 @@
                   <text class="nickname">{{item.nicknameText}}</text>
                   <text wx:if="{{item.isCurrentUser}}" class="me-badge">我</text>
                 </view>
-                <view
-                  wx:if="{{item.star !== undefined}}"
-                  class="battle-star-rating leaderboard-star-rating"
-                  aria-label="{{item.starAriaLabel}}"
-                >
-                  <text
-                    wx:for="{{item.starSlots}}"
-                    wx:for-item="star"
-                    wx:key="value"
-                    class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
-                  >{{star.isFilled ? '★' : '☆'}}</text>
+                <view class="leaderboard-rating-track">
+                  <view
+                    wx:if="{{item.star !== undefined}}"
+                    class="battle-star-rating leaderboard-star-rating"
+                    aria-label="{{item.starAriaLabel}}"
+                  >
+                    <text
+                      wx:for="{{item.starSlots}}"
+                      wx:for-item="star"
+                      wx:key="value"
+                      class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
+                    >{{star.isFilled ? '★' : '☆'}}</text>
+                  </view>
+                  <text wx:if="{{item.professionalTrackText}}" class="leaderboard-track-separator">·</text>
+                  <text wx:if="{{item.professionalTrackText}}" class="leaderboard-professional-track">{{item.professionalTrackText}}</text>
                 </view>
-                <text wx:if="{{item.professionalTrackText}}" class="leaderboard-professional-track">{{item.professionalTrackText}}</text>
                 <text class="leaderboard-win-rate-line">{{item.winRateText}} 对战胜率</text>
                 <text class="mobile-player-meta">{{item.rankText}} · {{item.totalBattlesText}} 场 · {{item.winRateText}} 对战胜率</text>
               </view>
@@ -131,18 +134,21 @@
         <view class="my-rank-copy">
           <text class="my-rank-name">{{myRank.nicknameText}}</text>
           <text class="my-rank-position">{{myRank.rankText}}</text>
-          <text wx:if="{{myRank.professionalTrackText}}" class="my-rank-professional-track">{{myRank.professionalTrackText}}</text>
-          <view
-            wx:if="{{myRank.starAriaLabel}}"
-            class="battle-star-rating my-rank-stars"
-            aria-label="{{myRank.starAriaLabel}}"
-          >
-            <text
-              wx:for="{{myRank.starSlots}}"
-              wx:for-item="star"
-              wx:key="value"
-              class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
-            >{{star.isFilled ? '★' : '☆'}}</text>
+          <view class="my-rank-rating-track">
+            <view
+              wx:if="{{myRank.starAriaLabel}}"
+              class="battle-star-rating my-rank-stars"
+              aria-label="{{myRank.starAriaLabel}}"
+            >
+              <text
+                wx:for="{{myRank.starSlots}}"
+                wx:for-item="star"
+                wx:key="value"
+                class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
+              >{{star.isFilled ? '★' : '☆'}}</text>
+            </view>
+            <text wx:if="{{myRank.professionalTrackText}}" class="my-rank-track-separator">·</text>
+            <text wx:if="{{myRank.professionalTrackText}}" class="my-rank-professional-track">{{myRank.professionalTrackText}}</text>
           </view>
         </view>
         <view class="my-rank-stat">

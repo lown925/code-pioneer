@@ -80,6 +80,13 @@
   color: var(--color-text-secondary);
 }
 
+.summary-rating-track {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  grid-column: 1 / -1;
+}
+
 .summary-track,
 .leaderboard-professional-track {
   display: inline-block;
@@ -93,8 +100,12 @@
 }
 
 .summary-track {
-  grid-column: 1 / -1;
   justify-self: start;
+}
+
+.summary-track-separator {
+  color: var(--color-text-tertiary);
+  font-size: 22rpx;
 }
 
 .leaderboard-list {
@@ -209,8 +220,20 @@
 }
 
 .leaderboard-card-stars {
-  margin-top: 8rpx;
   font-size: 25rpx;
+}
+
+.leaderboard-rating-track {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6rpx;
+  margin-top: 8rpx;
+}
+
+.leaderboard-track-separator {
+  color: var(--color-text-tertiary);
+  font-size: 22rpx;
 }
 
 .winrate-box {

@@ -14,7 +14,22 @@
       <text class="summary-label">我的积分</text>
       <text class="summary-value">{{mySummary.ratingText}}</text>
     </view>
-    <text wx:if="{{mySummary.professionalTrackText}}" class="summary-track">{{mySummary.professionalTrackText}}</text>
+    <view class="summary-rating-track">
+      <view
+        wx:if="{{mySummary.starAriaLabel}}"
+        class="battle-star-rating summary-stars"
+        aria-label="{{mySummary.starAriaLabel}}"
+      >
+        <text
+          wx:for="{{mySummary.starSlots}}"
+          wx:for-item="star"
+          wx:key="value"
+          class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
+        >{{star.isFilled ? '★' : '☆'}}</text>
+      </view>
+      <text wx:if="{{mySummary.professionalTrackText}}" class="summary-track-separator">·</text>
+      <text wx:if="{{mySummary.professionalTrackText}}" class="summary-track">{{mySummary.professionalTrackText}}</text>
+    </view>
     <text class="summary-copy">{{mySummary.hintText}}</text>
   </view>
 
@@ -67,18 +82,21 @@
           <view class="player-info">
             <text class="nickname">{{item.nicknameText}}</text>
             <text class="player-meta">积分 {{item.ratingText}} · 最高 {{item.highestRatingText}}</text>
-            <text wx:if="{{item.professionalTrackText}}" class="leaderboard-professional-track">{{item.professionalTrackText}}</text>
-            <view
-              wx:if="{{item.star !== undefined}}"
-              class="battle-star-rating leaderboard-card-stars"
-              aria-label="{{item.starAriaLabel}}"
-            >
-              <text
-                wx:for="{{item.starSlots}}"
-                wx:for-item="star"
-                wx:key="value"
-                class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
-              >{{star.isFilled ? '★' : '☆'}}</text>
+            <view class="leaderboard-rating-track">
+              <view
+                wx:if="{{item.star !== undefined}}"
+                class="battle-star-rating leaderboard-card-stars"
+                aria-label="{{item.starAriaLabel}}"
+              >
+                <text
+                  wx:for="{{item.starSlots}}"
+                  wx:for-item="star"
+                  wx:key="value"
+                  class="battle-star {{star.isFilled ? 'battle-star-filled' : 'battle-star-empty'}}"
+                >{{star.isFilled ? '★' : '☆'}}</text>
+              </view>
+              <text wx:if="{{item.professionalTrackText}}" class="leaderboard-track-separator">·</text>
+              <text wx:if="{{item.professionalTrackText}}" class="leaderboard-professional-track">{{item.professionalTrackText}}</text>
             </view>
             <text class="player-meta">{{item.rankedBattlesText}} 场随机匹配</text>
             <text class="player-meta">{{item.recordText}}</text>

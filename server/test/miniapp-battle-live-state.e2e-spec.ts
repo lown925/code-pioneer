@@ -142,13 +142,22 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     const indexScript = readMiniappFile('pages/battle/index.ts');
     const indexTemplate = readMiniappFile('pages/battle/index.wxml');
 
-    expect(indexScript).toContain("leaderboardSubtitle: '所有专业统一排名，展示用户画像专业'");
+    expect(indexScript).toContain("leaderboardTitle: '排行榜'");
+    expect(indexScript).toContain("leaderboardSubtitle: '所有专业统一排名'");
     expect(indexScript).toContain('data: { page: 1, pageSize: LEADERBOARD_LIMIT }');
     expect(indexScript).toContain('item.professionalTrack?.shortName');
     expect(indexTemplate).not.toContain('leaderboard-track-selector');
     expect(indexTemplate).not.toContain('handleLeaderboardScopeChange');
     expect(indexTemplate).toContain('leaderboard-professional-track');
     expect(indexTemplate).toContain('my-rank-professional-track');
+    expect(indexTemplate).not.toContain('Battle全球排行榜');
+    expect(indexTemplate.indexOf('leaderboard-star-rating')).toBeLessThan(
+      indexTemplate.indexOf('leaderboard-professional-track'),
+    );
+    expect(indexTemplate.indexOf('my-rank-stars')).toBeLessThan(
+      indexTemplate.indexOf('my-rank-professional-track'),
+    );
+    expect(indexTemplate).toContain('wx:if="{{item.professionalTrackText}}"');
     expect(indexTemplate).not.toContain('{{item.winRateText}} 胜率');
   });
 
@@ -158,7 +167,7 @@ describe('miniapp Battle live state and skill leaderboard', () => {
       'pages/battle/leaderboard.wxml',
     );
 
-    expect(leaderboardScript).toContain("titleText: 'Battle全球排行榜'");
+    expect(leaderboardScript).toContain("titleText: '排行榜'");
     expect(leaderboardScript).toContain('pageSize: PAGE_SIZE');
     expect(leaderboardScript).not.toContain('professionalTrackKey: this.data.scope');
     expect(leaderboardScript).not.toContain('loadTracks');
@@ -167,6 +176,11 @@ describe('miniapp Battle live state and skill leaderboard', () => {
     expect(leaderboardTemplate).not.toContain('data-scope=');
     expect(leaderboardTemplate).toContain('leaderboard-professional-track');
     expect(leaderboardTemplate).toContain('summary-track');
+    expect(leaderboardTemplate).not.toContain('Battle全球排行榜');
+    expect(leaderboardTemplate.indexOf('leaderboard-card-stars')).toBeLessThan(
+      leaderboardTemplate.indexOf('leaderboard-professional-track'),
+    );
+    expect(leaderboardTemplate).toContain('wx:if="{{item.professionalTrackText}}"');
     expect(leaderboardScript).toContain('item.rankedBattles');
     expect(leaderboardScript).toContain('item.star');
     expect(leaderboardScript).toContain('formatBattleStarDisplay(item.star)');
