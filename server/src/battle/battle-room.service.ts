@@ -24,6 +24,7 @@ import type {
   BattleRoomSummaryPayload,
   BattleTransactionClient,
 } from './battle.types';
+import { resolveParticipantTrack } from './battle-compatibility';
 
 type BattleClient = PrismaService | BattleTransactionClient;
 
@@ -41,6 +42,7 @@ type RoomRecord = {
   participants: Array<{
     id: string;
     userId: string;
+    professionalTrackKey: string | null;
     seat: number;
     status: BattleParticipantStatus;
     user: {
@@ -219,12 +221,29 @@ export class BattleRoomService {
         })
       : 0;
 
-    return this.toBattleRoomDetail(
+    const detail = this.toBattleRoomDetail(
       room,
       currentParticipant?.status ?? null,
       answeredCount,
       serverTime,
     );
+    if (currentParticipant) {
+      const track = resolveParticipantTrack(currentParticipant, room);
+      const opponentParticipant = room.participants.find(
+        (participant) => participant.user.id !== userId,
+      );
+      const opponentTrack = opponentParticipant
+        ? resolveParticipantTrack(opponentParticipant, room)
+        : null;
+      return {
+        ...detail,
+        professionalTrackKey: track,
+        professionalTrack: getProfessionalTrackIdentity(track),
+        myProfessionalTrackKey: track,
+        opponentProfessionalTrackKey: opponentTrack,
+      };
+    }
+    return detail;
   }
 
   private toBattleRoomSummary(
@@ -320,6 +339,7 @@ export class BattleRoomService {
       select: {
         id: true,
         userId: true,
+        professionalTrackKey: true,
         seat: true,
         status: true,
         user: {

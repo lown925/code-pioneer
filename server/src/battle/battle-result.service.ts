@@ -37,6 +37,10 @@ import {
   resolveBattleAiOutcome,
 } from './battle-ai-plan';
 import { calculateBattleScore } from './battle-score.service';
+import {
+  resolveParticipantTrack,
+  selectParticipantQuestionSnapshots,
+} from './battle-compatibility';
 
 function isParticipantSubmitted(participant: {
   status: string;
@@ -101,6 +105,7 @@ export class BattleResultService {
             select: {
               id: true,
               userId: true,
+              professionalTrackKey: true,
               status: true,
               submittedAt: true,
               forfeitedAt: true,
@@ -124,7 +129,10 @@ export class BattleResultService {
           questionSnapshots: {
             select: {
               id: true,
+              battleRoomId: true,
+              ownerParticipantId: true,
               orderIndex: true,
+              participantOrderIndex: true,
             },
           },
           aiOpponent: {
@@ -168,18 +176,54 @@ export class BattleResultService {
           BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
         );
       }
+      const currentTrack = resolveParticipantTrack(currentParticipant, room);
+      const opponentTrack = opponentParticipant
+        ? resolveParticipantTrack(opponentParticipant, room)
+        : null;
 
       if (
         room.status === BattleRoomStatus.COUNTDOWN ||
         room.status === BattleRoomStatus.IN_PROGRESS ||
         room.status === BattleRoomStatus.SETTLING
       ) {
+        let effectiveSnapshotIds: Set<string> | null = null;
+        let opponentSnapshotIds: Set<string> | null = null;
+        if (room.questionSnapshots.length > 0) {
+          try {
+            effectiveSnapshotIds = new Set(
+              selectParticipantQuestionSnapshots(
+                room.questionSnapshots,
+                currentParticipant.id,
+                room.questionCount,
+              ).map((snapshot) => snapshot.id),
+            );
+            if (opponentParticipant) {
+              opponentSnapshotIds = new Set(
+                selectParticipantQuestionSnapshots(
+                  room.questionSnapshots,
+                  opponentParticipant.id,
+                  room.questionCount,
+                ).map((snapshot) => snapshot.id),
+              );
+            }
+          } catch {
+            throw new ConflictException(
+              BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+            );
+          }
+        }
         const myAnsweredCount = room.answers.filter(
-          (answer) => answer.participantId === currentParticipant.id,
+          (answer) =>
+            answer.participantId === currentParticipant.id &&
+            (!effectiveSnapshotIds ||
+              effectiveSnapshotIds.has(answer.battleQuestionSnapshotId)),
         ).length;
         const opponentAnsweredCount = opponentParticipant
           ? room.answers.filter(
-              (answer) => answer.participantId === opponentParticipant.id,
+              (answer) =>
+                answer.participantId === opponentParticipant.id &&
+                (!opponentSnapshotIds ||
+                  opponentSnapshotIds.has(answer.battleQuestionSnapshotId)),
             ).length
           : null;
         const aiOpponent = this.toPendingAiOpponent(room, now);
@@ -188,8 +232,10 @@ export class BattleResultService {
           battleId: room.id,
           mode: room.mode,
           skill: room.skillCode,
-          professionalTrackKey: room.professionalTrackKey,
-          professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
+          professionalTrackKey: currentTrack,
+          professionalTrack: getProfessionalTrackIdentity(currentTrack),
+          myProfessionalTrackKey: currentTrack,
+          opponentProfessionalTrackKey: opponentTrack,
           status: room.status,
           completed: false,
           totalQuestions: room.questionCount,
@@ -229,10 +275,27 @@ export class BattleResultService {
       const currentAnswers = room.answers.filter(
         (answer) => answer.participantId === currentParticipant.id,
       );
+      let effectiveSnapshots;
+      try {
+        effectiveSnapshots = selectParticipantQuestionSnapshots(
+          room.questionSnapshots,
+          currentParticipant.id,
+          room.questionCount,
+        );
+      } catch {
+        throw new ConflictException(
+          BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+        );
+      }
       const bestCombo = calculateBestCombo(
-        room.questionSnapshots,
+        effectiveSnapshots.map((snapshot) => ({
+          ...snapshot,
+          orderIndex: snapshot.participantOrderIndex ?? snapshot.orderIndex,
+        })),
         currentAnswers,
       );
+      const myProfessionalTrackKey = currentTrack;
+      const opponentProfessionalTrackKey = opponentTrack;
 
       if (room.mode === BattleMode.TRAINING) {
         if (
@@ -248,8 +311,10 @@ export class BattleResultService {
           battleId: room.id,
           mode: room.mode,
           skill: room.skillCode,
-          professionalTrackKey: room.professionalTrackKey,
-          professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
+          professionalTrackKey: currentTrack,
+          professionalTrack: getProfessionalTrackIdentity(currentTrack),
+          myProfessionalTrackKey: currentTrack,
+          opponentProfessionalTrackKey: opponentTrack,
           status: BattleRoomStatus.COMPLETED,
           completed: true,
           result: BattleResult.NONE,
@@ -336,8 +401,10 @@ export class BattleResultService {
           battleId: room.id,
           mode: room.mode,
           skill: room.skillCode,
-          professionalTrackKey: room.professionalTrackKey,
-          professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
+          professionalTrackKey: currentTrack,
+          professionalTrack: getProfessionalTrackIdentity(currentTrack),
+          myProfessionalTrackKey: currentTrack,
+          opponentProfessionalTrackKey: opponentTrack,
           status: BattleRoomStatus.COMPLETED,
           completed: true,
           result: currentParticipant.result,
@@ -401,13 +468,13 @@ export class BattleResultService {
       let afterStar: BattleCompetitiveStar | null = null;
       let tierChange: BattleCompetitiveTierChange | null = null;
 
-      if (room.mode === BattleMode.RANKED && (room.professionalTrackKey || room.skillCode)) {
-        const usesTrackRating = Boolean(room.professionalTrackKey);
+      if (room.mode === BattleMode.RANKED && (myProfessionalTrackKey || room.skillCode)) {
+        const usesTrackRating = Boolean(myProfessionalTrackKey);
         const ratingLogs = await tx.battleRatingLog.findMany({
           where: {
             userId: currentUserId,
             ...(usesTrackRating
-              ? { professionalTrackKey: room.professionalTrackKey }
+              ? { professionalTrackKey: myProfessionalTrackKey }
               : { skillCode: room.skillCode }),
             reason: BattleRatingReason.BATTLE_RESULT,
           },
@@ -425,7 +492,7 @@ export class BattleResultService {
             (log) =>
               log.userId === currentUserId &&
               (usesTrackRating
-                ? log.professionalTrackKey === room.professionalTrackKey
+                ? log.professionalTrackKey === myProfessionalTrackKey
                 : log.skillCode === room.skillCode),
           )
           .sort(
@@ -450,7 +517,7 @@ export class BattleResultService {
         );
         star = competitiveChange.afterStar;
         title = createBattleCompetitiveTitle(
-          getProfessionalTrackIdentity(room.professionalTrackKey)?.shortName ??
+          getProfessionalTrackIdentity(myProfessionalTrackKey)?.shortName ??
             room.skill.name,
           star,
         );
@@ -463,8 +530,10 @@ export class BattleResultService {
         battleId: room.id,
         mode: room.mode,
         skill: room.skillCode,
-        professionalTrackKey: room.professionalTrackKey,
-        professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
+        professionalTrackKey: myProfessionalTrackKey,
+        professionalTrack: getProfessionalTrackIdentity(myProfessionalTrackKey),
+        myProfessionalTrackKey,
+        opponentProfessionalTrackKey,
         status: BattleRoomStatus.COMPLETED,
         completed: true,
         result: currentParticipant.result,
@@ -568,7 +637,12 @@ export class BattleResultService {
   private getAiFinalStats(room: {
     durationSeconds: number;
     questionCount: number;
-    questionSnapshots: Array<{ id: string; orderIndex: number }>;
+  questionSnapshots: Array<{
+    id: string;
+    orderIndex: number;
+    ownerParticipantId: string | null;
+    participantOrderIndex: number | null;
+  }>;
     aiOpponent: {
       strategyVersion: string;
       answerPlan: unknown;

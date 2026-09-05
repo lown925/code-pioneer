@@ -35,6 +35,8 @@ export type ActiveBattleResponse = {
   skillName: string | null;
   professionalTrackKey?: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrackKey?: string | null;
+  opponentProfessionalTrackKey?: string | null;
   invitationToken: string | null;
   inviteCode: string | null;
   recoveryTarget: ActiveBattleRecoveryTarget;
@@ -216,6 +218,8 @@ export type BattleRoomSummaryResponse = {
   skill: string | null;
   professionalTrackKey?: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrackKey?: string | null;
+  opponentProfessionalTrackKey?: string | null;
   status: BattleRoomStatus;
   questionCount: number;
   durationSeconds: number;
@@ -366,6 +370,8 @@ export type PendingBattleResultResponse = {
   skill: string | null;
   professionalTrackKey?: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrackKey?: string | null;
+  opponentProfessionalTrackKey?: string | null;
   status: 'COUNTDOWN' | 'IN_PROGRESS' | 'SETTLING';
   completed: false;
   totalQuestions: number;
@@ -383,6 +389,8 @@ export type CompletedBattleResultResponse = {
   skill: string | null;
   professionalTrackKey?: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrackKey?: string | null;
+  opponentProfessionalTrackKey?: string | null;
   status: 'COMPLETED';
   completed: true;
   result: BattleResult;
@@ -433,6 +441,8 @@ export type BattleHistoryListItemResponse = {
   skill: string | null;
   professionalTrackKey: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrackKey?: string | null;
+  opponentProfessionalTrackKey?: string | null;
   result: BattleResult;
   opponent: BattleCompletedOpponentResponse | null;
   myScore: number;
@@ -512,6 +522,8 @@ export type BattleHistoryDetailResponse = {
   skill: string | null;
   professionalTrackKey: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrackKey?: string | null;
+  opponentProfessionalTrackKey?: string | null;
   status: 'COMPLETED';
   result: BattleResult;
   startedAt: string | null;

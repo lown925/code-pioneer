@@ -29,16 +29,28 @@ const USER_B = {
 };
 
 describe('BattleReadyService', () => {
-  function createService() {
+  function createService(withParticipantTracks = false) {
     const mock = createBattlePrismaMock();
     const domainService = new BattleDomainService(mock.prisma as never);
     const roomService = new BattleRoomService(
       mock.prisma as never,
       domainService,
     );
+    const trackService = withParticipantTracks
+      ? {
+          normalize: jest.fn((trackKey?: string) => trackKey ?? 'big-data'),
+          getPublishedCourseSlugs: jest.fn(async (trackKey: string) =>
+            trackKey === 'software-engineering'
+              ? ['course-2', 'course-3']
+              : ['course-1', 'course-2'],
+          ),
+        }
+      : undefined;
     const questionService = new BattleQuestionService(
       mock.prisma as never,
       roomService,
+      undefined,
+      trackService as never,
     );
     jest
       .spyOn(
@@ -88,6 +100,7 @@ describe('BattleReadyService', () => {
       seat: 1,
       status: BattleParticipantStatus.JOINED,
       result: 'NONE',
+      professionalTrackKey: withParticipantTracks ? 'big-data' : null,
       joinedAt: new Date('2026-07-25T10:00:00.000Z'),
     });
     mock.battleParticipants.set('participant-b', {
@@ -97,12 +110,13 @@ describe('BattleReadyService', () => {
       seat: 2,
       status: BattleParticipantStatus.JOINED,
       result: 'NONE',
+      professionalTrackKey: withParticipantTracks ? 'software-engineering' : null,
       joinedAt: new Date('2026-07-25T10:00:01.000Z'),
     });
 
     seedBattleQuestions(mock, 3);
 
-    return { mock, service };
+    return { mock, service, trackService };
   }
 
   it('marks the first participant READY and keeps the room in READY state', async () => {
@@ -128,6 +142,57 @@ describe('BattleReadyService', () => {
     expect(mock.battleQuestionSnapshots.size).toBe(3);
     expect(mock.battleRooms.get('room-1')?.startedAt).toBeInstanceOf(Date);
     expect(mock.battleRooms.get('room-1')?.expiresAt).toBeInstanceOf(Date);
+  });
+
+  it('creates two owned ranked question sets with local and global ordering', async () => {
+    const { mock, service, trackService } = createService(true);
+    const room = mock.battleRooms.get('room-1')!;
+    room.questionCount = 2;
+    mock.battleRooms.set(room.id, room);
+    seedBattleQuestions(mock, 3);
+    for (const question of mock.quizQuestions.values()) {
+      question.battleDifficulty = BattleQuestionDifficulty.MEDIUM;
+    }
+
+    await service.readyBattle(USER_A, room.id);
+    await service.readyBattle(USER_B, room.id);
+
+    const snapshots = [...mock.battleQuestionSnapshots.values()].sort(
+      (left, right) => left.orderIndex - right.orderIndex,
+    );
+    expect(snapshots).toHaveLength(4);
+    expect(snapshots.filter((item) => item.ownerParticipantId === 'participant-a')).toHaveLength(2);
+    expect(snapshots.filter((item) => item.ownerParticipantId === 'participant-b')).toHaveLength(2);
+    expect(snapshots.map((item) => item.participantOrderIndex)).toEqual([0, 1, 0, 1]);
+    expect(snapshots.map((item) => item.orderIndex)).toEqual([0, 1, 2, 3]);
+    expect(trackService?.getPublishedCourseSlugs).toHaveBeenCalledWith(
+      'big-data',
+      expect.anything(),
+    );
+    expect(trackService?.getPublishedCourseSlugs).toHaveBeenCalledWith(
+      'software-engineering',
+      expect.anything(),
+    );
+  });
+
+  it('rolls back both owned sets when the second track pool is insufficient', async () => {
+    const { mock, service } = createService(true);
+    const room = mock.battleRooms.get('room-1')!;
+    room.questionCount = 2;
+    mock.battleRooms.set(room.id, room);
+    seedBattleQuestions(mock, 2);
+    mock.quizQuestions.delete('question-2');
+    mock.quizQuestions.delete('question-3');
+    for (const question of mock.quizQuestions.values()) {
+      question.battleDifficulty = BattleQuestionDifficulty.MEDIUM;
+    }
+
+    await service.readyBattle(USER_A, room.id);
+    await expect(service.readyBattle(USER_B, room.id)).rejects.toBeInstanceOf(ConflictException);
+
+    expect(mock.battleQuestionSnapshots.size).toBe(0);
+    expect(mock.battleRooms.get(room.id)?.status).toBe(BattleRoomStatus.READY);
+    expect(mock.battleRooms.get(room.id)?.startedAt).toBeNull();
   });
 
   it('treats repeated ready as idempotent before the battle starts', async () => {

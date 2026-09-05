@@ -11,6 +11,7 @@ import {
   formatBattleRating,
   formatBattleSkill,
   formatBattleStarDisplay,
+  formatBattleTrack,
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
@@ -28,6 +29,8 @@ type ResultPageData = {
   errorMessage: string;
   modeText: string;
   skillText: string;
+  myTrackText: string;
+  opponentTrackText: string;
   statusText: string;
   resultText: string;
   resultHintText: string;
@@ -115,6 +118,8 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
     errorMessage: '',
     modeText: '',
     skillText: '',
+    myTrackText: '',
+    opponentTrackText: '',
     statusText: '',
     resultText: '',
     resultHintText: '',
@@ -253,6 +258,13 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
             : response.professionalTrackKey
               ? '专业对战'
               : formatBattleSkill(response.skill),
+          myTrackText: formatBattleTrack(
+            response.myProfessionalTrackKey ?? response.professionalTrackKey,
+            response.professionalTrack,
+          ),
+          opponentTrackText: response.opponentProfessionalTrackKey
+            ? formatBattleTrack(response.opponentProfessionalTrackKey)
+            : '',
           statusText: this.getStatusText(response.status, false),
           resultText: '等待结算',
           resultHintText: '结果准备完成后会自动刷新展示。',
@@ -291,6 +303,13 @@ registerThemedPage<ResultPageData, ResultPageMethods>({
           : response.professionalTrackKey
             ? '专业对战'
             : formatBattleSkill(response.skill),
+        myTrackText: formatBattleTrack(
+          response.myProfessionalTrackKey ?? response.professionalTrackKey,
+          response.professionalTrack,
+        ),
+        opponentTrackText: response.opponentProfessionalTrackKey
+          ? formatBattleTrack(response.opponentProfessionalTrackKey)
+          : '',
         statusText: this.getStatusText(response.status, true),
         resultText: resultMeta.resultText,
         resultHintText: resultMeta.resultHintText,

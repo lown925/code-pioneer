@@ -21,6 +21,7 @@ import {
 import { BATTLE_ERROR_CODES } from './battle.errors';
 import { PrismaService } from '../prisma/prisma.service';
 import type { BattleTransactionClient } from './battle.types';
+import { resolveParticipantTrack } from './battle-compatibility';
 
 type BattleClient = PrismaService | BattleTransactionClient;
 
@@ -262,6 +263,7 @@ export class BattleDomainService {
       },
       select: {
         battleRoomId: true,
+        professionalTrackKey: true,
         status: true,
         seat: true,
         battleRoom: {
@@ -296,12 +298,12 @@ export class BattleDomainService {
     }
 
     return {
-      battleRoomId: participant.battleRoomId,
+        battleRoomId: participant.battleRoomId,
       participantStatus: participant.status,
       roomStatus: participant.battleRoom.status,
       mode: participant.battleRoom.mode,
       skillCode: participant.battleRoom.skillCode,
-      professionalTrackKey: participant.battleRoom.professionalTrackKey,
+      professionalTrackKey: resolveParticipantTrack(participant, participant.battleRoom),
       skillName:
         participant.battleRoom.skill?.name ?? participant.battleRoom.skillCode,
       invitationToken: participant.battleRoom.invitation?.token ?? null,
@@ -330,6 +332,7 @@ export class BattleDomainService {
       },
       select: {
         battleRoomId: true,
+        professionalTrackKey: true,
         status: true,
         seat: true,
         battleRoom: {
@@ -374,7 +377,7 @@ export class BattleDomainService {
       roomStatus: participant.battleRoom.status,
       mode: participant.battleRoom.mode,
       skillCode: participant.battleRoom.skillCode,
-      professionalTrackKey: participant.battleRoom.professionalTrackKey,
+      professionalTrackKey: resolveParticipantTrack(participant, participant.battleRoom),
       skillName:
         participant.battleRoom.skill?.name ?? participant.battleRoom.skillCode,
       invitationToken: participant.battleRoom.invitation?.token ?? null,

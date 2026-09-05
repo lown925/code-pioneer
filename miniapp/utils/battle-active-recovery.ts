@@ -1,6 +1,7 @@
 import type { ActiveBattleResponse } from '../types/battle';
 import {
   formatBattleSkill,
+  formatBattleTrack,
   showBattleConfirmModal,
 } from './battle';
 import { request, RequestError } from './request';
@@ -89,8 +90,8 @@ export function getActiveBattlePresentation(
     battle,
     modeText,
     skillText:
-      battle.professionalTrack?.shortName
-        ? `${battle.professionalTrack.shortName}专业对战`
+      battle.myProfessionalTrackKey || battle.professionalTrackKey || battle.professionalTrack
+        ? `${formatBattleTrack(battle.myProfessionalTrackKey ?? battle.professionalTrackKey, battle.professionalTrack)}专业对战`
         : battle.skillName?.trim() || formatBattleSkill(battle.skillCode),
     statusText,
     actionText,

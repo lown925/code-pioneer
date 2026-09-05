@@ -704,6 +704,7 @@ model BattleParticipant {
   id              String                  @id @default(uuid()) @db.Uuid
   battleRoomId    String                  @map("battle_room_id") @db.Uuid
   userId          String                  @map("user_id") @db.Uuid
+  professionalTrackKey String?            @map("professional_track_key")
   status          BattleParticipantStatus @default(JOINED)
   result          BattleResult            @default(NONE)
   seat            Int
@@ -725,20 +726,24 @@ model BattleParticipant {
   user            User                    @relation(fields: [userId], references: [id])
   answers         BattleAnswer[]
   ratingLogs      BattleRatingLog[]
+  questionSnapshots BattleQuestionSnapshot[] @relation("BattleQuestionSnapshotOwner")
 
   @@unique([battleRoomId, userId])
   @@unique([battleRoomId, seat])
   @@index([userId])
   @@index([battleRoomId])
   @@index([status])
+  @@index([professionalTrackKey])
   @@map("battle_participants")
 }
 
 model BattleQuestionSnapshot {
   id                          String                     @id @default(uuid()) @db.Uuid
   battleRoomId                String                     @map("battle_room_id") @db.Uuid
+  ownerParticipantId          String?                    @map("owner_participant_id") @db.Uuid
   sourceQuizQuestionId        String?                    @map("source_quiz_question_id") @db.Uuid
   orderIndex                  Int                        @map("order_index")
+  participantOrderIndex       Int?                       @map("participant_order_index")
   questionType                BattleQuestionType         @map("question_type")
   presentation                BattleQuestionPresentation
   difficulty                  BattleQuestionDifficulty?
@@ -755,6 +760,7 @@ model BattleQuestionSnapshot {
   chapterIdSnapshot           String?                    @map("chapter_id_snapshot") @db.Uuid
   createdAt                   DateTime                   @default(now()) @map("created_at")
   battleRoom                  BattleRoom                 @relation(fields: [battleRoomId], references: [id])
+  ownerParticipant            BattleParticipant?         @relation("BattleQuestionSnapshotOwner", fields: [ownerParticipantId], references: [id], onDelete: SetNull)
   sourceQuizQuestion          QuizQuestion?              @relation("BattleQuestionSnapshotSource", fields: [sourceQuizQuestionId], references: [id], onDelete: SetNull)
   skill                       BattleSkill?                @relation(fields: [skillCodeSnapshot], references: [code], onDelete: Restrict)
   answers                     BattleAnswer[]
@@ -763,6 +769,7 @@ model BattleQuestionSnapshot {
   @@index([battleRoomId])
   @@index([sourceQuizQuestionId])
   @@index([skillCodeSnapshot])
+  @@index([ownerParticipantId, participantOrderIndex])
   @@map("battle_question_snapshots")
 }
 

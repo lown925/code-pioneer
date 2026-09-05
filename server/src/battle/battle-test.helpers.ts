@@ -115,6 +115,7 @@ type BattleParticipantRecord = {
   id: string;
   battleRoomId: string;
   userId: string;
+  professionalTrackKey?: string | null;
   seat: number;
   status: BattleParticipantStatus;
   result: BattleResult;
@@ -161,8 +162,10 @@ type BattleInvitationRecord = {
 type BattleQuestionSnapshotRecord = {
   id: string;
   battleRoomId: string;
+  ownerParticipantId?: string | null;
   sourceQuizQuestionId: string | null;
   orderIndex: number;
+  participantOrderIndex?: number | null;
   questionType: BattleQuestionType;
   presentation: BattleQuestionPresentation;
   difficulty: BattleQuestionDifficulty | null;
@@ -262,6 +265,7 @@ function normalizeParticipant(record: Partial<BattleParticipantRecord>) {
     id: record.id ?? nextId(),
     battleRoomId: record.battleRoomId!,
     userId: record.userId!,
+    professionalTrackKey: record.professionalTrackKey ?? null,
     seat: record.seat!,
     status: record.status ?? BattleParticipantStatus.JOINED,
     result: record.result ?? BattleResult.NONE,
@@ -302,6 +306,7 @@ function toRoomView(
     .map((participant) => ({
       id: participant.id,
       userId: participant.userId,
+      professionalTrackKey: participant.professionalTrackKey ?? null,
       seat: participant.seat,
       status: participant.status,
       result: participant.result,
@@ -1366,8 +1371,10 @@ export function createBattlePrismaMock() {
             const record: BattleQuestionSnapshotRecord = {
               id: item.id ?? nextId(),
               battleRoomId: item.battleRoomId!,
+              ownerParticipantId: item.ownerParticipantId ?? null,
               sourceQuizQuestionId: item.sourceQuizQuestionId ?? null,
               orderIndex: item.orderIndex ?? 0,
+              participantOrderIndex: item.participantOrderIndex ?? null,
               questionType:
                 item.questionType ?? BattleQuestionType.SINGLE_CHOICE,
               presentation:
@@ -1650,11 +1657,19 @@ function matchesQueueWhere(
     return false;
   }
 
-  if (
-    where.professionalTrackKey !== undefined &&
-    record.professionalTrackKey !== where.professionalTrackKey
-  ) {
-    return false;
+  if (where.professionalTrackKey !== undefined) {
+    if (
+      typeof where.professionalTrackKey === 'object' &&
+      where.professionalTrackKey !== null &&
+      'not' in where.professionalTrackKey
+    ) {
+      const value = (where.professionalTrackKey as { not?: string | null }).not;
+      if (value === null && record.professionalTrackKey === null) {
+        return false;
+      }
+    } else if (record.professionalTrackKey !== where.professionalTrackKey) {
+      return false;
+    }
   }
 
   if (where.expiresAt !== undefined && where.expiresAt !== null) {
@@ -1984,6 +1999,31 @@ function matchesQuestionSnapshotWhere(
     }
   }
 
+  if (where.ownerParticipantId !== undefined) {
+    if (
+      typeof where.ownerParticipantId === 'object' &&
+      where.ownerParticipantId !== null &&
+      'not' in where.ownerParticipantId
+    ) {
+      const value = (where.ownerParticipantId as { not?: string | null }).not;
+      if (value === null && (record.ownerParticipantId === null || record.ownerParticipantId === undefined)) {
+        return false;
+      }
+    }
+    if (
+      where.ownerParticipantId === null &&
+      record.ownerParticipantId !== null
+    ) {
+      return false;
+    }
+    if (
+      typeof where.ownerParticipantId === 'string' &&
+      record.ownerParticipantId !== where.ownerParticipantId
+    ) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -2169,6 +2209,7 @@ function matchesQuizQuestionWhere(
     ) {
       return false;
     }
+
   }
 
   return true;

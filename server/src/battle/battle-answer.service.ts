@@ -37,6 +37,7 @@ type ExistingAnswerRecord = {
 
 type SnapshotRecord = {
   id: string;
+  ownerParticipantId: string | null;
   questionType: BattleQuestionType;
   optionsSnapshot: unknown;
   correctAnswerSnapshot: unknown;
@@ -102,6 +103,7 @@ export class BattleAnswerService {
         },
         select: {
           id: true,
+          ownerParticipantId: true,
           questionType: true,
           optionsSnapshot: true,
           correctAnswerSnapshot: true,
@@ -111,6 +113,23 @@ export class BattleAnswerService {
       })) as SnapshotRecord | null;
 
       if (!snapshot) {
+        throw new NotFoundException(
+          BATTLE_ERROR_CODES.BATTLE_QUESTION_NOT_FOUND,
+        );
+      }
+
+      const ownedSnapshotExists = await tx.battleQuestionSnapshot.findFirst({
+        where: {
+          battleRoomId: battleId,
+          ownerParticipantId: { not: null },
+        },
+        select: { id: true },
+      });
+      const snapshotBelongsToParticipant = ownedSnapshotExists
+        ? snapshot.ownerParticipantId === participant.id
+        : snapshot.ownerParticipantId === null ||
+          snapshot.ownerParticipantId === undefined;
+      if (!snapshotBelongsToParticipant) {
         throw new NotFoundException(
           BATTLE_ERROR_CODES.BATTLE_QUESTION_NOT_FOUND,
         );

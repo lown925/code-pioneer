@@ -101,6 +101,7 @@
               <text class="me-badge">我</text>
             </view>
             <text class="participant-seat">{{myParticipant.seatText}}</text>
+            <text wx:if="{{isRankedMode && myTrackText}}" class="participant-track">专业：{{myTrackText}}</text>
             <text class="participant-status {{myParticipant.statusClassName}}">
               {{myParticipant.statusText}}
             </text>
@@ -124,6 +125,7 @@
               <text class="participant-name">{{opponentParticipant.nicknameText}}</text>
             </view>
             <text class="participant-seat">{{opponentParticipant.seatText}}</text>
+            <text wx:if="{{isRankedMode && opponentTrackText}}" class="participant-track">专业：{{opponentTrackText}}</text>
             <text class="participant-status {{opponentParticipant.statusClassName}}">
               {{opponentParticipant.statusText}}
             </text>

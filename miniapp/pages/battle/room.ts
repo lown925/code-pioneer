@@ -9,6 +9,7 @@ import {
   formatBattleDuration,
   formatBattleInitial,
   formatBattleNickname,
+  formatBattleTrack,
   formatBattleSkill,
   getBattleErrorMessage,
   showBattleConfirmModal,
@@ -50,6 +51,8 @@ type RoomPageData = {
   state: RoomPageState;
   roomModeText: string;
   skillText: string;
+  myTrackText: string;
+  opponentTrackText: string;
   roomStatusText: string;
   titleText: string;
   descriptionText: string;
@@ -61,6 +64,7 @@ type RoomPageData = {
   primaryActionEnabled: boolean;
   canOpenPlay: boolean;
   isFriendMode: boolean;
+  isRankedMode: boolean;
   isFriendRoomCreator: boolean;
   canShareInvitation: boolean;
   showInviteTools: boolean;
@@ -205,6 +209,8 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
     state: 'LOADING',
     roomModeText: '',
     skillText: '',
+    myTrackText: '',
+    opponentTrackText: '',
     roomStatusText: '',
     titleText: '正在加载房间',
     descriptionText: '系统正在同步房间状态，请稍候。',
@@ -216,6 +222,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
     primaryActionEnabled: false,
     canOpenPlay: false,
     isFriendMode: false,
+    isRankedMode: false,
     isFriendRoomCreator: false,
     canShareInvitation: false,
     showInviteTools: false,
@@ -601,7 +608,16 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
             : '随机匹配',
       skillText: payload.professionalTrack?.shortName
         ? `${payload.professionalTrack.shortName}专业对战`
-        : formatBattleSkill(payload.skill),
+        : payload.professionalTrackKey
+          ? `${formatBattleTrack(payload.myProfessionalTrackKey ?? payload.professionalTrackKey, payload.professionalTrack)}专业对战`
+          : formatBattleSkill(payload.skill),
+      myTrackText: formatBattleTrack(
+        payload.myProfessionalTrackKey ?? payload.professionalTrackKey,
+        payload.professionalTrack,
+      ),
+      opponentTrackText: payload.opponentProfessionalTrackKey
+        ? formatBattleTrack(payload.opponentProfessionalTrackKey)
+        : '',
       roomStatusText: meta.roomStatusText,
       titleText: meta.titleText,
       descriptionText: meta.descriptionText,
@@ -613,6 +629,7 @@ registerThemedPage<RoomPageData, RoomPageMethods>({
       primaryActionEnabled: meta.primaryActionEnabled,
       canOpenPlay: meta.canOpenPlay,
       isFriendMode,
+      isRankedMode: payload.mode === 'RANKED',
       isFriendRoomCreator,
       canShareInvitation: showInviteTools,
       showInviteTools,

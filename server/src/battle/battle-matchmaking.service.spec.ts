@@ -95,7 +95,7 @@ describe('BattleMatchmakingService', () => {
     expect(skillService.ensureUserSkillRating).toHaveBeenCalledTimes(1);
   });
 
-  it('matches users only within the selected professional track', async () => {
+  it('matches users across professional tracks and persists each queue track', async () => {
     const mock = createBattlePrismaMock();
     const domainService = new BattleDomainService(mock.prisma as never);
     const trackService = {
@@ -124,8 +124,8 @@ describe('BattleMatchmakingService', () => {
     );
 
     expect(first.data.status).toBe('SEARCHING');
-    expect(isolated.data.status).toBe('SEARCHING');
-    expect(mock.battleRooms.size).toBe(0);
+    expect(isolated.data.status).toBe('MATCHED');
+    expect(mock.battleRooms.size).toBe(1);
     expect(mock.battleQueues.get(USER_A.id)?.professionalTrackKey).toBe(
       'big-data',
     );
@@ -138,29 +138,124 @@ describe('BattleMatchmakingService', () => {
     expect(mock.battleQueues.get(USER_B.id)?.professionalTrackKey).toBe(
       'computer-science',
     );
-    expect(isolated.data.waitingCount).toBe(1);
+    expect(
+      [...mock.battleParticipants.values()].find((participant) => participant.userId === USER_A.id)
+        ?.professionalTrackKey,
+    ).toBe('big-data');
+    expect(
+      [...mock.battleParticipants.values()].find((participant) => participant.userId === USER_B.id)
+        ?.professionalTrackKey,
+    ).toBe('computer-science');
+    expect([...mock.battleRooms.values()][0]?.professionalTrackKey).toBe('computer-science');
+  });
 
-    const sameTrackUser = {
-      ...USER_B,
-      id: '33333333-3333-4333-8333-333333333333',
+  it.each([
+    ['big-data', 'software-engineering'],
+    ['computer-science', 'big-data'],
+  ])('matches cross-track pair %s + %s', async (firstTrack, secondTrack) => {
+    const mock = createBattlePrismaMock();
+    const domainService = new BattleDomainService(mock.prisma as never);
+    const trackService = {
+      normalize: jest.fn((trackKey?: string) => trackKey ?? 'big-data'),
+      getRating: jest.fn(async () => null),
+      ensureRating: jest.fn(),
     };
-    mock.users.set(sameTrackUser.id, {
-      id: sameTrackUser.id,
-      battleRating: 1000,
-      nickname: 'Same Track User',
-    });
-    const matched = await service.joinMatchmaking(
-      sameTrackUser,
-      'PYTHON',
-      'big-data',
+    const skillService = {
+      assertAvailableSkill: jest.fn(async () => ({ code: 'PYTHON', name: 'Python' })),
+    };
+    const service = new BattleMatchmakingService(
+      mock.prisma as never,
+      domainService,
+      skillService as never,
+      trackService as never,
     );
 
-    expect(matched.data.status).toBe('MATCHED');
-    expect(matched.data.professionalTrackKey).toBe('big-data');
+    await service.joinMatchmaking(USER_A, 'PYTHON', firstTrack);
+    const result = await service.joinMatchmaking(USER_B, 'PYTHON', secondTrack);
+
+    expect(result.data.status).toBe('MATCHED');
     expect(mock.battleRooms.size).toBe(1);
-    expect(
-      [...mock.battleRooms.values()][0]?.professionalTrackKey,
-    ).toBe('big-data');
+  });
+
+  it('does not create a room when a legacy searching queue has no track', async () => {
+    const mock = createBattlePrismaMock();
+    const domainService = new BattleDomainService(mock.prisma as never);
+    const trackService = {
+      normalize: jest.fn((trackKey?: string) => trackKey ?? 'big-data'),
+      getRating: jest.fn(async () => null),
+      ensureRating: jest.fn(),
+    };
+    const skillService = {
+      assertAvailableSkill: jest.fn(async () => ({ code: 'PYTHON', name: 'Python' })),
+    };
+    const service = new BattleMatchmakingService(
+      mock.prisma as never,
+      domainService,
+      skillService as never,
+      trackService as never,
+    );
+
+    mock.battleQueues.set(USER_A.id, {
+      id: 'queue-a',
+      userId: USER_A.id,
+      skillCode: 'PYTHON',
+      professionalTrackKey: null,
+      status: 'SEARCHING',
+      ratingSnapshot: 1000,
+      matchedBattleRoomId: null,
+      searchStartedAt: new Date(),
+      matchedAt: null,
+      cancelledAt: null,
+      expiresAt: new Date(Date.now() + 120000),
+    });
+
+    const result = await service.joinMatchmaking(USER_A, 'PYTHON', 'big-data');
+
+    expect(result.data.status).toBe('SEARCHING');
+    expect(mock.battleRooms.size).toBe(0);
+  });
+
+  it('counts unexpired queues from every valid track in the unified pool', async () => {
+    const mock = createBattlePrismaMock();
+    const domainService = new BattleDomainService(mock.prisma as never);
+    const trackService = {
+      normalize: jest.fn((trackKey?: string) => trackKey ?? 'big-data'),
+      getRating: jest.fn(async () => null),
+      ensureRating: jest.fn(),
+    };
+    const skillService = {
+      assertAvailableSkill: jest.fn(async () => ({ code: 'PYTHON', name: 'Python' })),
+    };
+    const service = new BattleMatchmakingService(
+      mock.prisma as never,
+      domainService,
+      skillService as never,
+      trackService as never,
+    );
+
+    const now = Date.now();
+    for (const [userId, professionalTrackKey] of [
+      [USER_B.id, 'software-engineering'],
+      ['33333333-3333-4333-8333-333333333333', 'computer-science'],
+    ] as const) {
+      mock.battleQueues.set(userId, {
+        id: `queue-${userId}`,
+        userId,
+        skillCode: 'PYTHON',
+        professionalTrackKey,
+        status: 'SEARCHING',
+        ratingSnapshot: 1000,
+        matchedBattleRoomId: null,
+        searchStartedAt: new Date(now - 5000),
+        matchedAt: null,
+        cancelledAt: null,
+        expiresAt: new Date(now + 120000),
+      });
+    }
+
+    const result = await service.getMatchmakingStatus(USER_A, 'PYTHON', 'big-data');
+
+    expect(result.data.waitingCount).toBe(2);
   });
 
   it('unlocks AI from server time after two minutes without expiring the queue', async () => {

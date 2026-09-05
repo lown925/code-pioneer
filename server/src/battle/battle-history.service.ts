@@ -36,10 +36,15 @@ import {
   resolveBattleAiOutcome,
 } from './battle-ai-plan';
 import { calculateBattleScore } from './battle-score.service';
+import {
+  resolveParticipantTrack,
+  selectParticipantQuestionSnapshots,
+} from './battle-compatibility';
 
 type BattleHistoryParticipantRecord = {
   id: string;
   userId: string;
+  professionalTrackKey: string | null;
   seat: number;
   status: BattleParticipantStatus;
   result: BattleResult;
@@ -62,8 +67,10 @@ type BattleHistoryParticipantRecord = {
 type BattleHistorySnapshotRecord = {
   id: string;
   battleRoomId: string;
+  ownerParticipantId: string | null;
   sourceQuizQuestionId: string | null;
   orderIndex: number;
+  participantOrderIndex: number | null;
   questionType: string;
   presentation: string;
   difficulty: string | null;
@@ -223,8 +230,17 @@ export class BattleHistoryService {
         .map((answer) => [answer.battleQuestionSnapshotId, answer] as const),
     );
 
-    const questions = [...room.questionSnapshots]
-      .sort((left, right) => left.orderIndex - right.orderIndex)
+    let effectiveSnapshots;
+    try {
+      effectiveSnapshots = selectParticipantQuestionSnapshots(
+        room.questionSnapshots,
+        currentParticipant.id,
+        room.questionCount,
+      );
+    } catch {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_HISTORY_NOT_COMPLETED);
+    }
+    const questions = effectiveSnapshots
       .map((snapshot) =>
         this.toHistoryQuestion(room, snapshot, answersBySnapshotId),
       );
@@ -242,8 +258,10 @@ export class BattleHistoryService {
         battleId: room.id,
         mode: room.mode,
         skill: room.skillCode,
-        professionalTrackKey: room.professionalTrackKey,
-        professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
+        professionalTrackKey: resolveParticipantTrack(currentParticipant, room),
+        professionalTrack: getProfessionalTrackIdentity(
+          resolveParticipantTrack(currentParticipant, room),
+        ),
         status: room.status,
         result: currentParticipant.result,
         startedAt: room.startedAt,
@@ -400,8 +418,10 @@ export class BattleHistoryService {
       battleId: room.id,
       mode: room.mode,
       skill: room.skillCode,
-      professionalTrackKey: room.professionalTrackKey,
-      professionalTrack: getProfessionalTrackIdentity(room.professionalTrackKey),
+      professionalTrackKey: resolveParticipantTrack(currentParticipant, room),
+      professionalTrack: getProfessionalTrackIdentity(
+        resolveParticipantTrack(currentParticipant, room),
+      ),
       result: currentParticipant.result,
       opponent:
         aiProjection ??
@@ -477,7 +497,7 @@ export class BattleHistoryService {
       courseTitle: snapshot.sourceQuizQuestion?.quiz.chapter.course.title ?? null,
       chapterId: snapshot.chapterIdSnapshot,
       chapterTitle: snapshot.sourceQuizQuestion?.quiz.chapter.title ?? null,
-      orderIndex: snapshot.orderIndex,
+      orderIndex: snapshot.participantOrderIndex ?? snapshot.orderIndex,
     };
   }
 
@@ -669,6 +689,7 @@ export class BattleHistoryService {
       select: {
         id: true,
         userId: true,
+        professionalTrackKey: true,
         seat: true,
         status: true,
         result: true,
@@ -695,7 +716,9 @@ export class BattleHistoryService {
         id: true,
         battleRoomId: true,
         sourceQuizQuestionId: true,
+        ownerParticipantId: true,
         orderIndex: true,
+        participantOrderIndex: true,
         questionType: true,
         presentation: true,
         difficulty: true,

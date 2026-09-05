@@ -61,13 +61,17 @@ export class BattleReadyService {
             select: {
               id: true,
               userId: true,
+              seat: true,
               status: true,
+              professionalTrackKey: true,
             },
           },
           questionSnapshots: {
             select: {
               id: true,
+              ownerParticipantId: true,
               orderIndex: true,
+              participantOrderIndex: true,
             },
           },
         },
@@ -240,12 +244,6 @@ export class BattleReadyService {
         });
 
         if (claimed.count === 1) {
-          if (!isAiBattle && room.questionSnapshots.length > 0) {
-            throw new ConflictException(
-              BATTLE_ERROR_CODES.BATTLE_ALREADY_STARTED,
-            );
-          }
-
           if (isAiBattle) {
             await this.battleQuestionService.startCountdown(tx, {
               battleId,
@@ -256,17 +254,68 @@ export class BattleReadyService {
               now,
             });
           } else {
-            await this.battleQuestionService.createQuestionSnapshotsAndStartCountdown(
-              tx,
-              {
+            const hasLegacySnapshots = room.questionSnapshots.some(
+              (snapshot) =>
+                snapshot.ownerParticipantId === null ||
+                snapshot.ownerParticipantId === undefined,
+            );
+            const hasOwnedSnapshots = room.questionSnapshots.some(
+              (snapshot) =>
+                snapshot.ownerParticipantId !== null &&
+                snapshot.ownerParticipantId !== undefined,
+            );
+            const canCreatePerParticipantSets =
+              room.mode === BattleMode.RANKED &&
+              room.participants.length === 2 &&
+              room.participants.every(
+                (item) => Boolean(item.professionalTrackKey),
+              );
+
+            if (hasLegacySnapshots && hasOwnedSnapshots) {
+              throw new ConflictException(
+                BATTLE_ERROR_CODES.BATTLE_ALREADY_STARTED,
+              );
+            }
+            if (hasLegacySnapshots) {
+              if (room.questionSnapshots.length !== room.questionCount) {
+                throw new ConflictException(
+                  BATTLE_ERROR_CODES.BATTLE_ALREADY_STARTED,
+                );
+              }
+              await this.battleQuestionService.startCountdown(tx, {
                 battleId,
                 skillCode: room.skillCode,
                 professionalTrackKey: room.professionalTrackKey,
                 questionCount: room.questionCount,
                 durationSeconds: room.durationSeconds,
                 now,
-              },
-            );
+              });
+            } else if (canCreatePerParticipantSets) {
+              await this.battleQuestionService.createRankedParticipantQuestionSnapshotsAndStartCountdown(
+                tx,
+                {
+                  battleId,
+                  skillCode: room.skillCode,
+                  roomProfessionalTrackKey: room.professionalTrackKey,
+                  questionCount: room.questionCount,
+                  durationSeconds: room.durationSeconds,
+                  now,
+                  participants: room.participants,
+                },
+              );
+            } else {
+              await this.battleQuestionService.createQuestionSnapshotsAndStartCountdown(
+                tx,
+                {
+                  battleId,
+                  skillCode: room.skillCode,
+                  professionalTrackKey: room.professionalTrackKey,
+                  questionCount: room.questionCount,
+                  durationSeconds: room.durationSeconds,
+                  now,
+                },
+              );
+            }
           }
         }
       }

@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Prisma } from '../../generated/prisma/client';
@@ -32,6 +33,11 @@ import type {
 } from './battle.types';
 import { COURSE_CATALOG } from '../course/course-catalog';
 import { canonicalizeQuestionBlocks } from '../question/content-blocks';
+import { BattleTrackService } from './battle-track.service';
+import {
+  resolveParticipantTrack,
+  selectParticipantQuestionSnapshots,
+} from './battle-compatibility';
 
 type CandidateQuestionRecord = {
   id: string;
@@ -66,6 +72,8 @@ type CandidateQuestionRecord = {
 type SnapshotRecord = {
   id: string;
   battleRoomId: string;
+  ownerParticipantId: string | null;
+  participantOrderIndex: number | null;
   orderIndex: number;
   questionType: string;
   presentation: string;
@@ -92,6 +100,7 @@ export class BattleQuestionService {
     private readonly prisma: PrismaService,
     private readonly battleRoomService: BattleRoomService,
     private readonly battleSettlementService?: BattleSettlementService,
+    @Optional() private readonly battleTrackService?: BattleTrackService,
   ) {}
 
   async getBattleQuestions(currentUserId: string, battleId: string) {
@@ -115,6 +124,7 @@ export class BattleQuestionService {
           status: true,
           skillCode: true,
           professionalTrackKey: true,
+          questionCount: true,
           startedAt: true,
           expiresAt: true,
           participants: {
@@ -123,6 +133,7 @@ export class BattleQuestionService {
             },
             select: {
               id: true,
+              professionalTrackKey: true,
             },
           },
         },
@@ -141,13 +152,18 @@ export class BattleQuestionService {
         throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_ROOM_NOT_READY);
       }
 
+      const participantTrack = resolveParticipantTrack(
+        { professionalTrackKey: room.participants[0]?.professionalTrackKey ?? null },
+        room,
+      );
+
       if (room.status === BattleRoomStatus.COUNTDOWN && room.startedAt) {
         return {
           battleId: room.id,
           mode: room.mode,
           status: room.status,
           skill: room.skillCode,
-          professionalTrackKey: room.professionalTrackKey,
+          professionalTrackKey: participantTrack,
           startedAt: room.startedAt,
           expiresAt: room.expiresAt,
           serverTime: now,
@@ -186,6 +202,8 @@ export class BattleQuestionService {
         select: {
           id: true,
           battleRoomId: true,
+          ownerParticipantId: true,
+          participantOrderIndex: true,
           orderIndex: true,
           questionType: true,
           presentation: true,
@@ -202,12 +220,27 @@ export class BattleQuestionService {
         },
       })) as SnapshotRecord[];
 
-      const questions = snapshots.map((snapshot) => {
+      let effectiveSnapshots: SnapshotRecord[];
+      try {
+        effectiveSnapshots = participantId
+          ? selectParticipantQuestionSnapshots(
+              snapshots,
+              participantId,
+              room.questionCount,
+            )
+          : [];
+      } catch {
+        throw new ConflictException(
+          BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+        );
+      }
+
+      const questions = effectiveSnapshots.map((snapshot) => {
         const answer = answersByQuestionId.get(snapshot.id);
 
         return {
           battleQuestionId: snapshot.id,
-          orderIndex: snapshot.orderIndex,
+          orderIndex: snapshot.participantOrderIndex ?? snapshot.orderIndex,
           questionType: snapshot.questionType,
           presentation: snapshot.presentation,
           difficulty: snapshot.difficulty,
@@ -228,7 +261,7 @@ export class BattleQuestionService {
         mode: room.mode,
         status: room.status,
         skill: room.skillCode,
-        professionalTrackKey: room.professionalTrackKey,
+        professionalTrackKey: participantTrack,
         startedAt: room.startedAt,
         expiresAt: room.expiresAt,
         serverTime: now,
@@ -309,6 +342,156 @@ export class BattleQuestionService {
     }));
   }
 
+  async createRankedParticipantQuestionSnapshotsAndStartCountdown(
+    tx: BattleTransactionClient,
+    input: {
+      battleId: string;
+      questionCount: number;
+      durationSeconds: number;
+      now: Date;
+      skillCode: string | null;
+      roomProfessionalTrackKey: string | null;
+      participants: Array<{
+        id: string;
+        seat: number;
+        professionalTrackKey: string | null;
+      }>;
+    },
+  ) {
+    const participants = [...input.participants].sort(
+      (left, right) => left.seat - right.seat,
+    );
+    if (
+      participants.length !== 2 ||
+      participants[0]?.seat !== 1 ||
+      participants[1]?.seat !== 2 ||
+      participants.some(
+        (participant) =>
+          !participant.professionalTrackKey ||
+          !this.battleTrackService,
+      )
+    ) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_QUESTION_POOL_INSUFFICIENT);
+    }
+
+    const existing = await tx.battleQuestionSnapshot.findMany({
+      where: { battleRoomId: input.battleId },
+      select: { id: true, ownerParticipantId: true, participantOrderIndex: true, orderIndex: true },
+    });
+    if (
+      existing.some(
+        (snapshot) =>
+          snapshot.ownerParticipantId === null ||
+          snapshot.ownerParticipantId === undefined,
+      )
+    ) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_ALREADY_STARTED);
+    }
+
+    const ownedCounts = participants.map(
+      (participant) =>
+        existing.filter(
+          (snapshot) => snapshot.ownerParticipantId === participant.id,
+        ).length,
+    );
+    const participantIds = new Set(participants.map((participant) => participant.id));
+    if (
+      existing.some(
+        (snapshot) =>
+          snapshot.ownerParticipantId !== null &&
+          snapshot.ownerParticipantId !== undefined &&
+          !participantIds.has(snapshot.ownerParticipantId),
+      )
+    ) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_ALREADY_STARTED);
+    }
+    if (ownedCounts.every((count) => count === input.questionCount)) {
+      const globalOrderIndexes = new Set(
+        existing.map((snapshot) => snapshot.orderIndex),
+      );
+      if (globalOrderIndexes.size !== existing.length) {
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_ALREADY_STARTED);
+      }
+      for (const participant of participants) {
+        const localIndexes = existing
+          .filter((snapshot) => snapshot.ownerParticipantId === participant.id)
+          .map((snapshot) => snapshot.participantOrderIndex)
+          .sort((left, right) => (left ?? -1) - (right ?? -1));
+        if (
+          localIndexes.some((value, index) => value !== index)
+        ) {
+          throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_ALREADY_STARTED);
+        }
+      }
+      return this.startCountdown(tx, {
+        battleId: input.battleId,
+        questionCount: input.questionCount,
+        durationSeconds: input.durationSeconds,
+        now: input.now,
+        skillCode: input.skillCode,
+        professionalTrackKey: input.roomProfessionalTrackKey,
+      });
+    }
+    if (ownedCounts.some((count) => count !== 0)) {
+      throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_ALREADY_STARTED);
+    }
+
+    const selectedSets = [] as Array<{
+      participant: (typeof participants)[number];
+      questions: CandidateQuestionRecord[];
+    }>;
+    for (const participant of participants) {
+      const track = resolveParticipantTrack(participant, {
+        professionalTrackKey: input.roomProfessionalTrackKey,
+      });
+      if (!track || !this.battleTrackService) {
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_QUESTION_POOL_INSUFFICIENT);
+      }
+      const questions = await this.loadBattleQuestionCandidates(
+        tx,
+        input.skillCode,
+        this.battleTrackService.normalize(track),
+      );
+      const selected = this.selectBattleQuestions(questions, input.questionCount);
+      const targets = this.getDifficultyTargets(input.questionCount);
+      if (
+        selected.length !== input.questionCount ||
+        this.countSelectedByDifficulty(selected, BattleQuestionDifficulty.MEDIUM) !==
+          targets[BattleQuestionDifficulty.MEDIUM] ||
+        this.countSelectedByDifficulty(selected, BattleQuestionDifficulty.HARD) !==
+          targets[BattleQuestionDifficulty.HARD]
+      ) {
+        throw new ConflictException(BATTLE_ERROR_CODES.BATTLE_QUESTION_POOL_INSUFFICIENT);
+      }
+      selectedSets.push({ participant, questions: selected });
+    }
+
+    const snapshots = selectedSets.flatMap(({ participant, questions }) =>
+      questions.map((question, participantOrderIndex) =>
+        this.createSnapshotRecord(
+          input.battleId,
+          input.skillCode,
+          question,
+          participant.seat === 1
+            ? participantOrderIndex
+            : input.questionCount + participantOrderIndex,
+          participant.id,
+          participantOrderIndex,
+        ),
+      ),
+    );
+    await tx.battleQuestionSnapshot.createMany({ data: snapshots });
+    const timing = await this.startCountdown(tx, {
+      battleId: input.battleId,
+      questionCount: input.questionCount,
+      durationSeconds: input.durationSeconds,
+      now: input.now,
+      skillCode: input.skillCode,
+      professionalTrackKey: input.roomProfessionalTrackKey,
+    });
+    return { ...timing, snapshots };
+  }
+
   async startCountdown(
     tx: BattleTransactionClient,
     input: {
@@ -350,7 +533,9 @@ export class BattleQuestionService {
     professionalTrackKey?: string | null,
   ) {
     const courseSlugs = professionalTrackKey
-      ? COURSE_CATALOG.filter((course) => course.professionalTracks.includes(professionalTrackKey)).map((course) => course.slug)
+      ? this.battleTrackService
+        ? await this.battleTrackService.getPublishedCourseSlugs(professionalTrackKey, tx)
+        : COURSE_CATALOG.filter((course) => course.professionalTracks.includes(professionalTrackKey)).map((course) => course.slug)
       : [];
     const records = (await tx.quizQuestion.findMany({
       where: {
@@ -369,6 +554,7 @@ export class BattleQuestionService {
           status: QuizStatus.PUBLISHED,
           chapter: {
             status: ChapterStatus.PUBLISHED,
+            deletedAt: null,
             course: {
               status: CourseStatus.PUBLISHED,
               deletedAt: null,
@@ -594,12 +780,16 @@ export class BattleQuestionService {
     skillCode: string | null,
     question: CandidateQuestionRecord,
     orderIndex: number,
+    ownerParticipantId: string | null = null,
+    participantOrderIndex: number | null = null,
   ) {
     const base = {
       id: randomUUID(),
       battleRoomId: battleId,
+      ownerParticipantId,
       sourceQuizQuestionId: question.id,
       orderIndex,
+      participantOrderIndex,
       questionType:
         question.type === QuestionType.SINGLE_CHOICE
           ? BattleQuestionType.SINGLE_CHOICE

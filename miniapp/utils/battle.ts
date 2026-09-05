@@ -105,6 +105,24 @@ export function formatBattleSkill(skill: string | null | undefined) {
   return skill;
 }
 
+export function formatBattleTrack(
+  trackKey: string | null | undefined,
+  identity?: { shortName?: string | null } | null,
+) {
+  const shortName = identity?.shortName?.trim();
+  if (shortName) {
+    return shortName;
+  }
+
+  const labels: Record<string, string> = {
+    'big-data': '大数据',
+    'computer-science': '计算机',
+    'software-engineering': '软件工程',
+  };
+
+  return labels[trackKey ?? ''] ?? (trackKey?.trim() || '历史对战');
+}
+
 export function formatBattleRank(rank: number | null | undefined) {
   if (!Number.isFinite(rank) || !rank || rank <= 0) {
     return '未上榜';

@@ -9,6 +9,7 @@ import {
   formatBattleOpponentIdentity,
   formatBattleSkill,
   formatBattleRating,
+  formatBattleTrack,
   getBattleErrorMessage,
 } from '../../utils/battle';
 import { request, RequestError } from '../../utils/request';
@@ -374,11 +375,9 @@ registerThemedPage<HistoryPageData, HistoryPageMethods>({
       opponentAvatarFallbackText: opponent.avatarFallbackText,
       opponentAvatarUrl: opponent.avatarUrl,
       modeText: this.getModeText(item.mode),
-      skillText: item.professionalTrack?.shortName
-        ? `${item.professionalTrack.shortName}专业对战`
-        : item.professionalTrackKey
-          ? '专业对战'
-          : formatBattleSkill(item.skill),
+      skillText: item.professionalTrackKey || item.professionalTrack
+        ? `${formatBattleTrack(item.myProfessionalTrackKey ?? item.professionalTrackKey, item.professionalTrack)}专业对战`
+        : formatBattleSkill(item.skill),
       resultText: resultMeta.resultText,
       resultClassName: resultMeta.resultClassName,
       scoreText:

@@ -175,6 +175,8 @@ export type BattleRoomSummaryPayload = {
   skill: string | null;
   professionalTrackKey?: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrackKey?: string | null;
+  opponentProfessionalTrackKey?: string | null;
   status: string;
   questionCount: number;
   durationSeconds: number;
@@ -329,6 +331,8 @@ export type PendingBattleResultPayload = {
   skill: string | null;
   professionalTrackKey?: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrackKey?: string | null;
+  opponentProfessionalTrackKey?: string | null;
   status: string;
   completed: false;
   totalQuestions: number;
@@ -346,6 +350,8 @@ export type CompletedBattleResultPayload = {
   skill: string | null;
   professionalTrackKey?: string | null;
   professionalTrack?: ProfessionalTrackIdentity | null;
+  myProfessionalTrackKey?: string | null;
+  opponentProfessionalTrackKey?: string | null;
   status: 'COMPLETED';
   completed: true;
   result: BattleResult;

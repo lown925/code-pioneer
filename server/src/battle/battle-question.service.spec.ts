@@ -346,6 +346,34 @@ describe('BattleQuestionService', () => {
     ).toBe(false);
   });
 
+  it('excludes soft-deleted chapters from the Battle question pool', async () => {
+    const { mock, service } = createService();
+    mock.battleQuestionSnapshots.clear();
+    mock.quizQuestions.set('python-1', createCandidate('python-1', 'PYTHON'));
+    mock.quizQuestions.set('python-2', createCandidate('python-2', 'PYTHON'));
+
+    await service.createQuestionSnapshotsAndStartCountdown(mock.tx as never, {
+      battleId: 'room-1',
+      questionCount: 2,
+      durationSeconds: 180,
+      now: new Date(),
+      skillCode: 'PYTHON',
+    });
+
+    expect(mock.tx.quizQuestion.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          quiz: expect.objectContaining({
+            chapter: expect.objectContaining({
+              status: ChapterStatus.PUBLISHED,
+              deletedAt: null,
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
   it('restores the prompt when legacy question blocks contain code only', async () => {
     const { mock, service } = createService();
     mock.battleRooms.get('room-1')!.skillCode = 'PYTHON';

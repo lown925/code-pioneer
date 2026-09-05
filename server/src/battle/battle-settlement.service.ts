@@ -25,6 +25,7 @@ import { BattleRatingService } from './battle-rating.service';
 import { BattleScoreService } from './battle-score.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { BattleTransactionClient } from './battle.types';
+import { resolveParticipantTrack, selectParticipantQuestionSnapshots } from './battle-compatibility';
 
 type BattleClient = PrismaService | BattleTransactionClient;
 
@@ -47,7 +48,13 @@ type RoomRecord = {
   updatedAt: Date;
   winnerUserId: string | null;
   participants: ParticipantRecord[];
-  questionSnapshots: Array<{ id: string; orderIndex: number }>;
+  questionSnapshots: Array<{
+    id: string;
+    battleRoomId: string;
+    orderIndex: number;
+    ownerParticipantId: string | null;
+    participantOrderIndex: number | null;
+  }>;
   aiOpponent: {
     displayName: string;
     strategyVersion: string;
@@ -59,6 +66,7 @@ type RoomRecord = {
 type ParticipantRecord = {
   id: string;
   userId: string;
+  professionalTrackKey: string | null;
   status: BattleParticipantStatus;
   result: BattleResult;
   score: number;
@@ -75,12 +83,14 @@ type ParticipantRecord = {
 
 type AnswerAggregateRecord = {
   participantId: string;
+  battleQuestionSnapshotId: string;
   isCorrect: boolean;
 };
 
 type SettledParticipant = {
   id: string;
   userId: string;
+  professionalTrackKey: string | null;
   status: BattleParticipantStatus;
   result: BattleResult;
   score: number;
@@ -296,6 +306,7 @@ export class BattleSettlementService {
       },
       select: {
         participantId: true,
+        battleQuestionSnapshotId: true,
         isCorrect: true,
       },
     })) as AnswerAggregateRecord[];
@@ -314,8 +325,11 @@ export class BattleSettlementService {
     const [leftParticipant, rightParticipant] = participants;
 
     const winner = this.resolveWinner(room, leftParticipant, rightParticipant);
+    const participantTracks = participants.map((participant) =>
+      resolveParticipantTrack(participant, room),
+    );
     const usesTrackRating =
-      room.mode === BattleMode.RANKED && Boolean(room.professionalTrackKey);
+      room.mode === BattleMode.RANKED && participantTracks.every(Boolean);
     const usesSkillRating =
       room.mode === BattleMode.RANKED && Boolean(room.skillCode);
     const profileSnapshots = await Promise.all(
@@ -347,18 +361,18 @@ export class BattleSettlementService {
       : null;
     const trackRatingSnapshots = usesTrackRating
       ? await Promise.all(
-          participants.map((participant) =>
+          participants.map((participant, index) =>
             prisma.userBattleTrackRating.upsert({
               where: {
                 userId_trackKey: {
                   userId: participant.userId,
-                  trackKey: room.professionalTrackKey!,
+                  trackKey: participantTracks[index]!,
                 },
               },
               update: {},
               create: {
                 userId: participant.userId,
-                trackKey: room.professionalTrackKey!,
+                trackKey: participantTracks[index]!,
               },
             }),
           ),
@@ -409,7 +423,7 @@ export class BattleSettlementService {
           where: {
             userId_trackKey: {
               userId: participant.userId,
-              trackKey: room.professionalTrackKey!,
+              trackKey: participantTracks[index]!,
             },
           },
           data: this.createSkillRatingUpdate(
@@ -459,7 +473,7 @@ export class BattleSettlementService {
             battleRoomId: battleId,
             participantId: participant.id,
             skillCode: room.skillCode,
-            professionalTrackKey: room.professionalTrackKey,
+            professionalTrackKey: participantTracks[index],
             reason: BattleRatingReason.BATTLE_RESULT,
             ratingBefore: ratingResult.ratingBefore,
             ratingDelta: ratingResult.ratingDelta,
@@ -631,8 +645,25 @@ export class BattleSettlementService {
     room: RoomRecord,
     answers: AnswerAggregateRecord[],
   ): SettledParticipant {
+    let effectiveSnapshots;
+    try {
+      effectiveSnapshots = selectParticipantQuestionSnapshots(
+        room.questionSnapshots,
+        participant.id,
+        room.questionCount,
+      );
+    } catch {
+      throw new InternalServerErrorException(
+        BATTLE_ERROR_CODES.BATTLE_SETTLEMENT_DATA_INVALID,
+      );
+    }
+    const effectiveSnapshotIds = new Set(
+      effectiveSnapshots.map((snapshot) => snapshot.id),
+    );
     const myAnswers = answers.filter(
-      (answer) => answer.participantId === participant.id,
+      (answer) =>
+        answer.participantId === participant.id &&
+        effectiveSnapshotIds.has(answer.battleQuestionSnapshotId),
     );
     const correctCount = myAnswers.filter((answer) => answer.isCorrect).length;
     const wrongCount = myAnswers.filter((answer) => !answer.isCorrect).length;
@@ -658,6 +689,7 @@ export class BattleSettlementService {
     return {
       id: participant.id,
       userId: participant.userId,
+      professionalTrackKey: participant.professionalTrackKey,
       status: participant.status,
       result: participant.result,
       score: scoreSummary.score,
@@ -1113,6 +1145,7 @@ export class BattleSettlementService {
           select: {
             id: true,
             userId: true,
+            professionalTrackKey: true,
             status: true,
             result: true,
             score: true,
@@ -1130,7 +1163,10 @@ export class BattleSettlementService {
         questionSnapshots: {
           select: {
             id: true,
+            battleRoomId: true,
+            ownerParticipantId: true,
             orderIndex: true,
+            participantOrderIndex: true,
           },
         },
         aiOpponent: {
