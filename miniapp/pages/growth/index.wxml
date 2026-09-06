@@ -48,6 +48,18 @@
       </block>
     </view>
 
+    <view class="growth-section ai-prompt-section">
+      <view class="section-heading"><view><text class="section-title">AI 成长顾问</text><text class="section-subtitle">根据你的专业、学习进度和职业目标，生成专属 AI 咨询提示词。</text></view></view>
+      <text class="ai-prompt-hint">可复制到 ChatGPT、DeepSeek、豆包、Kimi 等 AI 工具使用</text>
+      <view wx:if="{{aiPromptError}}" class="ai-prompt-error">{{aiPromptError}}</view>
+      <scroll-view wx:if="{{aiPrompt}}" scroll-y class="ai-prompt-content"><text class="ai-prompt-text" selectable="true">{{aiPrompt}}</text></scroll-view>
+      <text class="ai-prompt-privacy">提示词仅包含学习画像与学习记录，不包含账号身份信息。</text>
+      <view class="ai-prompt-actions">
+        <view wx:if="{{aiPrompt}}" class="ghost-button ai-prompt-action {{aiPromptLoading ? 'button-disabled' : ''}}" bindtap="handleCopyAiPrompt">复制提示词</view>
+        <view class="{{aiPrompt ? 'ghost-button' : 'primary-button'}} ai-prompt-action {{aiPromptLoading ? 'button-disabled' : ''}}" bindtap="handleGenerateAiPrompt">{{aiPromptLoading ? '生成中...' : aiPrompt ? '重新生成' : aiPromptError ? '重试' : '生成提示词'}}</view>
+      </view>
+    </view>
+
     <view wx:if="{{continueLearning}}" class="growth-section course-recommendation-section">
       <view class="section-heading"><view><text class="section-title">继续学习</text><text class="section-subtitle">从你正在学习的课程继续</text></view></view>
       <view class="course-recommendation-row" data-path="/pages/learning/course-progress?courseId={{continueLearning.courseId}}" bindtap="handleRecommendationTap">

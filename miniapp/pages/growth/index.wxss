@@ -118,3 +118,11 @@
 .rating-trend-title { color: var(--color-text-primary); font-size: 23rpx; font-weight: 700; }
 .learning-trend { margin-top: 26rpx; padding-top: 22rpx; border-top: 1rpx solid var(--color-border); }
 .learning-trend-title { display: block; margin-bottom: 8rpx; color: var(--color-text-primary); font-size: 23rpx; font-weight: 700; }
+.ai-prompt-section { border-color: var(--color-primary); }
+.ai-prompt-hint, .ai-prompt-privacy { display: block; margin-top: 18rpx; color: var(--color-text-tertiary); font-size: 21rpx; line-height: 1.55; }
+.ai-prompt-error { margin-top: 18rpx; color: var(--color-danger); font-size: 23rpx; line-height: 1.5; }
+.ai-prompt-content { box-sizing: border-box; max-height: 600rpx; padding: 20rpx; margin-top: 20rpx; border-radius: 18rpx; background: var(--color-card-subtle); }
+.ai-prompt-text { display: block; color: var(--color-text-primary); font-size: 24rpx; line-height: 1.7; white-space: pre-wrap; }
+.ai-prompt-actions { display: flex; flex-wrap: wrap; gap: 14rpx; margin-top: 22rpx; }
+.ai-prompt-action { min-width: 180rpx; min-height: 68rpx; padding: 0 24rpx; font-size: 23rpx; text-align: center; }
+.ai-prompt-action.button-disabled { opacity: .48; }

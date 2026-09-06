@@ -1,5 +1,10 @@
 export type GrowthRange = "7d" | "30d";
 
+export type GrowthAiPromptData = {
+  prompt: string;
+  mode: "GENERAL";
+};
+
 export type GrowthDataState = "NO_DATA" | "PARTIAL" | "READY";
 
 export type GrowthDimensionStatus =

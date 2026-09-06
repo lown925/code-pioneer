@@ -1,6 +1,7 @@
 import type { CourseListData, CourseListItem } from "../types/course";
 import type {
   GrowthCourseRecommendation,
+  GrowthAiPromptData,
   GrowthLearningGoal,
   GrowthOverviewResponse,
   GrowthProfileSummary,
@@ -13,6 +14,14 @@ import {
   TECHNICAL_INTEREST_OPTIONS,
   getGrowthValueLabel,
 } from "./growth-profile";
+
+export function fetchGrowthAiPrompt() {
+  return request<GrowthAiPromptData>({
+    url: "/growth/ai-prompt",
+    method: "GET",
+    authMode: "required",
+  });
+}
 
 export function fetchGrowthOverview(range: GrowthRange = "7d") {
   return request<GrowthOverviewResponse>({

@@ -2,6 +2,7 @@ import { registerThemedPage } from "../../utils/theme-page";
 import type {
   GrowthBattleSkillSummary,
   GrowthBattleTrackSummary,
+  GrowthAiPromptData,
   GrowthChapterPerformance,
   GrowthNextCourseRecommendation,
   GrowthProfessionalRouteNode,
@@ -24,6 +25,7 @@ import {
 } from "../../utils/growth-profile";
 import {
   fetchGrowthOverview,
+  fetchGrowthAiPrompt,
   cancelGrowthGoal,
   createGrowthGoal,
   fetchGrowthCourses,
@@ -126,6 +128,9 @@ type GrowthPageData = {
   highestRatingText: string;
   ratingNetChangeText: string;
   ratingEmptyText: string;
+  aiPromptLoading: boolean;
+  aiPrompt: string;
+  aiPromptError: string;
 };
 
 type GrowthPageMethods = {
@@ -161,10 +166,13 @@ type GrowthPageMethods = {
   handleCancelGoal(): void;
   handleContinueGoal(): void;
   stopGoalModalTap(event: WechatMiniprogram.CustomEvent): void;
+  handleGenerateAiPrompt(): Promise<void>;
+  handleCopyAiPrompt(): void;
 };
 
 let isPageActive = false;
 let requestSerial = 0;
+let aiPromptRequestSerial = 0;
 
 const RANGE_LABELS: Record<GrowthRange, string> = {
   "7d": "最近 7 天",
@@ -349,6 +357,9 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
     highestRatingText: "暂无",
     ratingNetChangeText: "暂无",
     ratingEmptyText: "暂无该技能对战数据",
+    aiPromptLoading: false,
+    aiPrompt: "",
+    aiPromptError: "",
   },
 
   onShow() {
@@ -359,6 +370,7 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
   onUnload() {
     isPageActive = false;
     requestSerial += 1;
+    aiPromptRequestSerial += 1;
   },
 
   onPullDownRefresh() {
@@ -373,6 +385,9 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
         overview: null,
         profile: null,
         goal: null,
+        aiPromptLoading: false,
+        aiPrompt: "",
+        aiPromptError: "",
       });
       return;
     }
@@ -418,6 +433,50 @@ registerThemedPage<GrowthPageData, GrowthPageMethods>({
 
   handleEditProfile() {
     wx.navigateTo({ url: "/pages/growth/profile" });
+  },
+
+  async handleGenerateAiPrompt() {
+    if (this.data.aiPromptLoading) return;
+
+    const currentSerial = ++aiPromptRequestSerial;
+    this.setData({ aiPromptLoading: true, aiPromptError: "" });
+
+    try {
+      const result: GrowthAiPromptData = await fetchGrowthAiPrompt();
+      if (!isPageActive || currentSerial !== aiPromptRequestSerial) {
+        return;
+      }
+
+      if (typeof result.prompt !== "string" || result.prompt.trim() === "") {
+        throw new Error("EMPTY_AI_PROMPT");
+      }
+
+      this.setData({ aiPrompt: result.prompt, aiPromptError: "" });
+    } catch {
+      if (!isPageActive || currentSerial !== aiPromptRequestSerial) {
+        return;
+      }
+
+      this.setData({ aiPromptError: "生成失败，请稍后重试" });
+    } finally {
+      if (isPageActive && currentSerial === aiPromptRequestSerial) {
+        this.setData({ aiPromptLoading: false });
+      }
+    }
+  },
+
+  handleCopyAiPrompt() {
+    if (!this.data.aiPrompt || this.data.aiPromptLoading) return;
+
+    wx.setClipboardData({
+      data: this.data.aiPrompt,
+      success: () => {
+        wx.showToast({ title: "提示词已复制", icon: "success" });
+      },
+      fail: () => {
+        wx.showToast({ title: "复制失败，请重试", icon: "none" });
+      },
+    });
   },
 
   handleRangeChange(
