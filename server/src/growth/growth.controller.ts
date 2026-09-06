@@ -14,12 +14,28 @@ import { JwtUserAuthGuard } from '../auth/jwt-user-auth.guard';
 import { GrowthOverviewQueryDto } from './dto/growth-overview-query.dto';
 import { CreateGrowthGoalDto } from './dto/create-growth-goal.dto';
 import { UpdateGrowthGoalDto } from './dto/update-growth-goal.dto';
+import { GrowthAiPromptService } from './ai-prompt.service';
 import { GrowthService } from './growth.service';
+import type { GrowthAiPromptResponse } from './ai-prompt.types';
 
 @UseGuards(JwtUserAuthGuard)
 @Controller('growth')
 export class GrowthController {
-  constructor(private readonly growthService: GrowthService) {}
+  constructor(
+    private readonly growthService: GrowthService,
+    private readonly growthAiPromptService: GrowthAiPromptService,
+  ) {}
+
+  @Get('ai-prompt')
+  async getAiPrompt(
+    @CurrentUser() currentUser: CurrentUserContext,
+  ): Promise<{ success: true; data: GrowthAiPromptResponse }> {
+    const prompt = await this.growthAiPromptService.buildPrompt(currentUser.id);
+    return {
+      success: true,
+      data: { prompt, mode: 'GENERAL' },
+    };
+  }
 
   @Get('overview')
   getOverview(
