@@ -459,18 +459,6 @@ registerThemedPage<CourseProgressPageData, CourseProgressPageMethods>({
   },
 
   selectPrimaryChapterId(progress: CourseProgressResponse) {
-    if (progress.lastLearnedChapter?.chapterId) {
-      return progress.lastLearnedChapter.chapterId;
-    }
-
-    const firstIncompleteChapter = progress.chapters.find(
-      (chapter) => chapter.status !== 'COMPLETED' && isNonEmptyString(chapter.chapterId),
-    );
-
-    if (firstIncompleteChapter) {
-      return firstIncompleteChapter.chapterId;
-    }
-
     const sortedChapters = [...progress.chapters]
       .filter((chapter) => isNonEmptyString(chapter.chapterId))
       .sort((left, right) => {
@@ -486,7 +474,38 @@ registerThemedPage<CourseProgressPageData, CourseProgressPageMethods>({
         }
 
         return left.chapterId.localeCompare(right.chapterId);
-      })
+      });
+
+    const firstIncompleteChapter = sortedChapters.find(
+      (chapter) => chapter.status !== 'COMPLETED',
+    );
+
+    const lastLearnedChapterIndex = progress.lastLearnedChapter?.chapterId
+      ? sortedChapters.findIndex(
+          (chapter) =>
+            chapter.chapterId === progress.lastLearnedChapter?.chapterId,
+        )
+      : -1;
+
+    if (lastLearnedChapterIndex >= 0) {
+      const lastLearnedChapter = sortedChapters[lastLearnedChapterIndex];
+      if (lastLearnedChapter.status !== 'COMPLETED') {
+        return lastLearnedChapter.chapterId;
+      }
+
+      const nextIncompleteChapter = sortedChapters
+        .slice(lastLearnedChapterIndex + 1)
+        .find((chapter) => chapter.status !== 'COMPLETED');
+
+      if (nextIncompleteChapter) {
+        return nextIncompleteChapter.chapterId;
+      }
+    }
+
+    if (firstIncompleteChapter) {
+      return firstIncompleteChapter.chapterId;
+    }
+
     const lastChapter =
       sortedChapters.length > 0
         ? sortedChapters[sortedChapters.length - 1]

@@ -403,6 +403,7 @@ export class GrowthService {
         select: {
           id: true,
           title: true,
+          sortOrder: true,
           courseId: true,
           course: { select: { id: true, title: true } },
         },
@@ -422,6 +423,8 @@ export class GrowthService {
           status: true,
           progressPercent: true,
           lastLearnedAt: true,
+          selectedAt: true,
+          updatedAt: true,
           course: { select: { id: true, title: true } },
           lastChapter: { select: { id: true, title: true } },
         },
@@ -982,7 +985,11 @@ export class GrowthService {
       wrongQuestions,
       weakAreas,
     );
-    const continueLearning = this.findContinueLearning(courseLearningRecords);
+    const continueLearning = this.findContinueLearning(
+      courseLearningRecords,
+      publishedChapters,
+      chapterLearningRecords,
+    );
     const professionalRoute = this.buildProfessionalRoute(
       profile.professionalTrack?.trackKey ?? null,
       publishedCourses,
@@ -1478,30 +1485,141 @@ export class GrowthService {
       status: string;
       progressPercent: unknown;
       lastLearnedAt: Date | null;
+      selectedAt?: Date | null;
+      updatedAt?: Date | null;
       course: { id: string; title: string };
       lastChapter: { id: string; title: string } | null;
     }>,
+    publishedChapters: Array<{
+      id: string;
+      title: string;
+      sortOrder: number;
+      courseId: string;
+      course: { id: string; title: string };
+    }>,
+    chapterLearningRecords: Array<{
+      chapterId: string;
+      status: string;
+    }>,
   ): GrowthContinueLearning {
-    const record = [...records]
-      .filter((item) => item.isSelected && item.status === 'LEARNING')
-      .sort(
-        (left, right) =>
-          (right.lastLearnedAt?.getTime?.() ?? 0) -
-            (left.lastLearnedAt?.getTime?.() ?? 0) ||
-          Number(right.progressPercent) - Number(left.progressPercent),
-      )[0];
+    const chapterStatusById = new Map(
+      chapterLearningRecords.map((record) => [record.chapterId, record.status]),
+    );
+    const chaptersByCourse = new Map<string, typeof publishedChapters>();
 
-    if (!record) {
-      return null;
+    for (const chapter of publishedChapters) {
+      const chapters = chaptersByCourse.get(chapter.courseId) ?? [];
+      chapters.push(chapter);
+      chaptersByCourse.set(chapter.courseId, chapters);
     }
 
-    return {
-      courseId: record.course.id || record.courseId,
-      courseTitle: record.course.title,
-      chapterId: record.lastChapter?.id ?? null,
-      chapterTitle: record.lastChapter?.title ?? null,
-      progressPercent: Number(record.progressPercent),
-    };
+    for (const chapters of chaptersByCourse.values()) {
+      chapters.sort((left, right) => {
+        const leftOrder = Number.isFinite(left.sortOrder)
+          ? left.sortOrder
+          : Number.MAX_SAFE_INTEGER;
+        const rightOrder = Number.isFinite(right.sortOrder)
+          ? right.sortOrder
+          : Number.MAX_SAFE_INTEGER;
+
+        return leftOrder - rightOrder || left.id.localeCompare(right.id);
+      });
+    }
+
+    const sortedRecords = [...records]
+      .filter((item) => item.isSelected && item.status === 'LEARNING')
+      .sort((left, right) => {
+        const lastLearnedDifference =
+          (right.lastLearnedAt?.getTime?.() ?? 0) -
+          (left.lastLearnedAt?.getTime?.() ?? 0);
+        if (lastLearnedDifference !== 0) {
+          return lastLearnedDifference;
+        }
+
+        const progressDifference =
+          this.toSafeProgressPercent(right.progressPercent) -
+          this.toSafeProgressPercent(left.progressPercent);
+        if (progressDifference !== 0) {
+          return progressDifference;
+        }
+
+        const selectedDifference =
+          (right.selectedAt?.getTime?.() ?? 0) -
+          (left.selectedAt?.getTime?.() ?? 0);
+        if (selectedDifference !== 0) {
+          return selectedDifference;
+        }
+
+        const updatedDifference =
+          (right.updatedAt?.getTime?.() ?? 0) -
+          (left.updatedAt?.getTime?.() ?? 0);
+        if (updatedDifference !== 0) {
+          return updatedDifference;
+        }
+
+        return (left.course.id || left.courseId).localeCompare(
+          right.course.id || right.courseId,
+        );
+      });
+
+    for (const record of sortedRecords) {
+      const chapters = chaptersByCourse.get(record.courseId) ?? [];
+      if (chapters.length === 0) {
+        continue;
+      }
+
+      const isCompleted = (chapter: (typeof chapters)[number]) =>
+        chapterStatusById.get(chapter.id) === 'COMPLETED';
+      const incompleteChapters = chapters.filter(
+        (chapter) => !isCompleted(chapter),
+      );
+      if (incompleteChapters.length === 0) {
+        continue;
+      }
+
+      const lastChapterIndex = record.lastChapter
+        ? chapters.findIndex(
+            (chapter) =>
+              chapter.id === record.lastChapter?.id &&
+              chapter.courseId === record.courseId,
+          )
+        : -1;
+      const lastChapter =
+        lastChapterIndex >= 0 ? chapters[lastChapterIndex] : undefined;
+
+      const targetChapter =
+        lastChapter && !isCompleted(lastChapter)
+          ? lastChapter
+          : lastChapterIndex >= 0
+            ? (chapters
+                .slice(lastChapterIndex + 1)
+                .find((chapter) => !isCompleted(chapter)) ??
+              incompleteChapters[0])
+            : incompleteChapters[0];
+
+      if (!targetChapter) {
+        continue;
+      }
+
+      return {
+        courseId: record.course.id || record.courseId,
+        courseTitle: record.course.title,
+        chapterId: targetChapter.id,
+        chapterTitle: targetChapter.title,
+        progressPercent: this.toSafeProgressPercent(record.progressPercent),
+      };
+    }
+
+    return null;
+  }
+
+  private toSafeProgressPercent(value: unknown) {
+    const progress = Number(value);
+    if (!Number.isFinite(progress)) {
+      return 0;
+    }
+
+    return Math.min(100, Math.max(0, progress));
   }
 
   private buildProfessionalRoute(

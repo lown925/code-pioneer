@@ -136,20 +136,27 @@ describe('GrowthService', () => {
           status: BattleRoomStatus.COMPLETED,
           completedAt: now,
         },
-        answers: [{
-          isCorrect: true,
-          submittedAt: now,
-          battleQuestionSnapshot: {
-            id: 'track-question',
-            sourceQuizQuestionId: 'question-1',
-            chapterIdSnapshot: null,
-            courseIdSnapshot: null,
+        answers: [
+          {
+            isCorrect: true,
+            submittedAt: now,
+            battleQuestionSnapshot: {
+              id: 'track-question',
+              sourceQuizQuestionId: 'question-1',
+              chapterIdSnapshot: null,
+              courseIdSnapshot: null,
+            },
           },
-        }],
+        ],
       },
     ]);
     prisma.userBattleTrackRating.findMany.mockResolvedValue([
-      { trackKey: 'big-data', rating: 1040, highestRating: 1040, rankedBattles: 1 },
+      {
+        trackKey: 'big-data',
+        rating: 1040,
+        highestRating: 1040,
+        rankedBattles: 1,
+      },
     ]);
 
     const result = await new GrowthService(
@@ -161,7 +168,9 @@ describe('GrowthService', () => {
       shortName: '大数据',
     });
     expect(result.data.battle.defaultTrackKey).toBe('big-data');
-    expect(result.data.battle.tracks?.find((track) => track.trackKey === 'big-data')).toMatchObject({
+    expect(
+      result.data.battle.tracks?.find((track) => track.trackKey === 'big-data'),
+    ).toMatchObject({
       rating: 1040,
       rankedBattles: 1,
       ranked: { answeredCount: 1 },
@@ -182,7 +191,20 @@ describe('GrowthService', () => {
     });
     prisma.course.findMany = jest.fn().mockResolvedValue([
       { id: 'course-python', slug: 'python-basic', title: 'Python 基础入门' },
-      { id: 'course-data', slug: 'data-structures-algorithms', title: '数据结构与算法基础' },
+      {
+        id: 'course-data',
+        slug: 'data-structures-algorithms',
+        title: '数据结构与算法基础',
+      },
+    ]);
+    prisma.courseChapter.findMany.mockResolvedValue([
+      {
+        id: 'chapter-python',
+        title: 'Python 基础',
+        sortOrder: 1,
+        courseId: 'course-python',
+        course: { id: 'course-python', title: 'Python 基础入门' },
+      },
     ]);
     prisma.courseLearningRecord.findMany.mockResolvedValue([
       {
@@ -217,7 +239,12 @@ describe('GrowthService', () => {
       courseId: 'course-data',
       courseTitle: '数据结构与算法基础',
     });
-    expect(result.data.learning.professionalRoute.map((item) => [item.slug, item.status])).toEqual([
+    expect(
+      result.data.learning.professionalRoute.map((item) => [
+        item.slug,
+        item.status,
+      ]),
+    ).toEqual([
       ['python-basic', 'LEARNING'],
       ['data-structures-algorithms', 'AVAILABLE'],
       ['linux-fundamentals', 'UPCOMING'],
@@ -225,7 +252,11 @@ describe('GrowthService', () => {
       ['computer-architecture-operating-systems', 'UPCOMING'],
       ['computer-networks-fundamentals', 'UPCOMING'],
     ]);
-    expect(result.data.learning.professionalRoute.filter((item) => item.status === 'UPCOMING').every((item) => item.courseId === null && item.targetPath === null)).toBe(true);
+    expect(
+      result.data.learning.professionalRoute
+        .filter((item) => item.status === 'UPCOMING')
+        .every((item) => item.courseId === null && item.targetPath === null),
+    ).toBe(true);
   });
 
   it('turns Linux from upcoming into available when it becomes published', async () => {
@@ -239,14 +270,22 @@ describe('GrowthService', () => {
       careerDirection: null,
     });
     prisma.course.findMany = jest.fn().mockResolvedValue([
-      { id: 'course-linux', slug: 'linux-fundamentals', title: 'Linux 基础与常用命令' },
+      {
+        id: 'course-linux',
+        slug: 'linux-fundamentals',
+        title: 'Linux 基础与常用命令',
+      },
     ]);
 
     const result = await new GrowthService(
       prisma as unknown as PrismaService,
     ).getOverview('user-1', '7d', new Date('2026-08-18T04:00:00.000Z'));
 
-    expect(result.data.learning.professionalRoute.find((item) => item.slug === 'linux-fundamentals')).toMatchObject({
+    expect(
+      result.data.learning.professionalRoute.find(
+        (item) => item.slug === 'linux-fundamentals',
+      ),
+    ).toMatchObject({
       status: 'AVAILABLE',
       courseId: 'course-linux',
       targetPath: '/pages/course/detail?courseId=course-linux',
@@ -901,5 +940,178 @@ describe('GrowthService', () => {
     expect(areas.some((area) => area.courseId === 'course-javascript')).toBe(
       true,
     );
+  });
+
+  describe('continue learning selection', () => {
+    const createService = () =>
+      new GrowthService(createMockPrisma() as unknown as PrismaService);
+
+    const createChapter = (
+      id: string,
+      courseId = 'course-1',
+      sortOrder = 1,
+    ) => ({
+      id,
+      title: `Chapter ${id}`,
+      sortOrder,
+      courseId,
+      course: { id: courseId, title: `Course ${courseId}` },
+    });
+
+    const createRecord = (
+      overrides: Partial<{
+        courseId: string;
+        isSelected: boolean;
+        status: string;
+        progressPercent: number;
+        lastLearnedAt: Date | null;
+        selectedAt: Date | null;
+        updatedAt: Date | null;
+        lastChapter: { id: string; title: string } | null;
+      }> = {},
+    ) => ({
+      courseId: 'course-1',
+      isSelected: true,
+      status: 'LEARNING',
+      progressPercent: 20,
+      lastLearnedAt: new Date('2026-08-18T04:00:00.000Z'),
+      selectedAt: null,
+      updatedAt: null,
+      course: { id: 'course-1', title: 'Course course-1' },
+      lastChapter: { id: 'chapter-1', title: 'Chapter chapter-1' },
+      ...overrides,
+    });
+
+    const select = (
+      records: ReturnType<typeof createRecord>[],
+      chapters: ReturnType<typeof createChapter>[],
+      chapterRecords: Array<{ chapterId: string; status: string }> = [],
+    ) =>
+      (createService() as any).findContinueLearning(
+        records,
+        chapters,
+        chapterRecords,
+      );
+
+    it('continues an active recent chapter', () => {
+      const result = select(
+        [createRecord()],
+        [createChapter('chapter-1')],
+        [{ chapterId: 'chapter-1', status: 'LEARNING' }],
+      );
+
+      expect(result).toMatchObject({
+        courseId: 'course-1',
+        chapterId: 'chapter-1',
+      });
+    });
+
+    it('moves to the next incomplete chapter after a completed recent chapter', () => {
+      const result = select(
+        [createRecord()],
+        [
+          createChapter('chapter-1', 'course-1', 1),
+          createChapter('chapter-2', 'course-1', 2),
+        ],
+        [{ chapterId: 'chapter-1', status: 'COMPLETED' }],
+      );
+
+      expect(result.chapterId).toBe('chapter-2');
+    });
+
+    it('falls back to the first incomplete chapter when later chapters are complete', () => {
+      const result = select(
+        [
+          createRecord({
+            lastChapter: { id: 'chapter-3', title: 'Chapter chapter-3' },
+          }),
+        ],
+        [
+          createChapter('chapter-1', 'course-1', 1),
+          createChapter('chapter-2', 'course-1', 2),
+          createChapter('chapter-3', 'course-1', 3),
+        ],
+        [
+          { chapterId: 'chapter-2', status: 'COMPLETED' },
+          { chapterId: 'chapter-3', status: 'COMPLETED' },
+        ],
+      );
+
+      expect(result.chapterId).toBe('chapter-1');
+    });
+
+    it('ignores invalid recent chapters and treats missing records as incomplete', () => {
+      const result = select(
+        [createRecord({ lastChapter: { id: 'deleted', title: 'Deleted' } })],
+        [createChapter('chapter-1')],
+      );
+
+      expect(result.chapterId).toBe('chapter-1');
+    });
+
+    it('skips completed courses and courses whose effective chapters are all complete', () => {
+      const result = select(
+        [
+          createRecord({ status: 'COMPLETED' }),
+          createRecord({
+            courseId: 'course-2',
+            course: { id: 'course-2', title: 'Course course-2' },
+            lastChapter: { id: 'chapter-2', title: 'Chapter chapter-2' },
+          }),
+        ],
+        [createChapter('chapter-1'), createChapter('chapter-2', 'course-2')],
+        [{ chapterId: 'chapter-2', status: 'COMPLETED' }],
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('keeps a dirty LEARNING record usable when an incomplete chapter remains', () => {
+      const result = select(
+        [createRecord({ progressPercent: 100 })],
+        [createChapter('chapter-1')],
+      );
+
+      expect(result).toMatchObject({
+        chapterId: 'chapter-1',
+        progressPercent: 100,
+      });
+    });
+
+    it('uses deterministic course tie-breaks after activity and progress', () => {
+      const timestamp = new Date('2026-08-18T04:00:00.000Z');
+      const result = select(
+        [
+          createRecord({
+            courseId: 'course-b',
+            course: { id: 'course-b', title: 'Course course-b' },
+            lastChapter: { id: 'chapter-b', title: 'Chapter chapter-b' },
+            lastLearnedAt: timestamp,
+          }),
+          createRecord({
+            courseId: 'course-a',
+            course: { id: 'course-a', title: 'Course course-a' },
+            lastChapter: { id: 'chapter-a', title: 'Chapter chapter-a' },
+            lastLearnedAt: timestamp,
+          }),
+        ],
+        [
+          createChapter('chapter-a', 'course-a'),
+          createChapter('chapter-b', 'course-b'),
+        ],
+      );
+
+      expect(result.courseId).toBe('course-a');
+    });
+
+    it('returns null when there are no records or only not-started records', () => {
+      expect(select([], [createChapter('chapter-1')])).toBeNull();
+      expect(
+        select(
+          [createRecord({ status: 'NOT_STARTED' })],
+          [createChapter('chapter-1')],
+        ),
+      ).toBeNull();
+    });
   });
 });
